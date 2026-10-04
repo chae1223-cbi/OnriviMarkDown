@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { runAIRequest } from './aiRequest';
 import { loadSecureData } from '@/lib/secureStorage';
 
 /**
@@ -13,7 +14,6 @@ import { loadSecureData } from '@/lib/secureStorage';
  * 🚨 @PATCH : **2026-09-12** — [모든 AI 질의 표준 재시도 주기 적용: 1회 실패 시 3초 대기 -> 2회차 시도 -> 실패 시 3초 대기 -> 3회차 시도 최종 실패 시 에러 메시지 표출]:
  *             1) 3초 주기 3회 재시도 규칙 확립: 1차 실패 후 3000ms 대기, 2차 실패 후 3000ms 대기, 3차 최종 실패 시에만 사용자 에러 팝업을 표출하는 표준 루프 전면 적용
  *             2) 500 내부 오류(Internal Error), 503, 429, 네트워크 지연 등 통신 오류 전반을 재시도 대상에 편입하고 비정상 상태 시 즉각 에러 팝업 방어
- *             3) 스트림 단절/파싱 에러(Failed to parse stream) 발생 시 동일 모델 기반 단일 완성형(generateContent) 무결성 대체 자동 호출로 스트림 패킷 누락 시에도 최종 결과 정상 수신 보장
  *             4) 오류 진단 메시지 내 권장 플래그십 안내(Gemini 3.8 Flash, 3.7 Flash) 최신화 및 Gemma 오픈 모델 자원 특성 친절 안내
  * 🚨 @PATCH : **2026-09-12** — [Gemma 공식 식별자(gemma-2) 동기화 및 500 내부 오류 진단 & systemInstruction 호환]
  *             1) Gemma 모델 식별자를 구글 공식 모델(gemma-2-27b-it, gemma-2-9b-it)로 정정
@@ -301,6 +301,14 @@ export function formatUserFriendlyAIError(error: any, modelName: string): Format
   const msg = String(error?.message || error || '').toLowerCase();
   const status = error?.status;
   const isStreamParseError = msg.includes('failed to parse stream') || msg.includes('parse stream');
+  if (/시간 초과|timeout|deadline/.test(msg)) {
+    return {
+      title: 'AI 응답 시간 초과',
+      description: String(error?.message || 'AI가 제한 시간 안에 응답하지 않았습니다.'),
+      solution: '문서 분량을 줄이거나 잠시 후 다시 시도해 주세요.',
+      category: 'network',
+    };
+  }
 
   // 1. Google 서버 일시적 과부하 및 500 내부 오류 (500, 503 / high demand / spikes in demand / stream parse failure)
   if (
@@ -411,7 +419,7 @@ export const generateDraftWithAIStream = async (
   const genAI = getGenAI(cleanKey);
   const targetModelName = normalizeAIModelName(modelName || 'gemini-3.8-flash');
   
-  const tagRule = '\n\n[중요 규칙]\n1. 당신이 작성한 초안의 마크다운 본문은 반드시 첫 시작 부분에 [출력결과] 라는 한글 태그를 달고 시작하십시오. 이 태그 밖(앞부분)에는 당신의 생각 과정이나 개요를 영어로 자유롭게 작성하셔도 좋으나, 태그 이하에는 오직 마크다운 형식의 초안 문서만 출력해야 합니다.\n2. [메타정보 추출 금지] 원본 문서나 참고 자료 상단의 메타데이터(YAML Frontmatter `--- ... ---`, 문서 속성, 작성자/작성일 등)는 절대로 추출하거나 출력물 상단에 복제하지 마십시오. 본문의 실제 제목 헤딩(#)이나 첫 단락부터 곧바로 작성하십시오.';
+  const tagRule = '\n\n[중요 규칙]\n1. 당신이 작성한 초안의 마크다운 본문은 반드시 첫 시작 부분에 [출력결과] 라는 한글 태그를 달고 시작하십시오. 생각 과정이나 개요는 출력하지 말고, 태그 이하에는 오직 마크다운 형식의 초안 문서만 출력해야 합니다.\n2. [메타정보 추출 금지] 원본 문서나 참고 자료 상단의 메타데이터(YAML Frontmatter `--- ... ---`, 문서 속성, 작성자/작성일 등)는 절대로 추출하거나 출력물 상단에 복제하지 마십시오. 본문의 실제 제목 헤딩(#)이나 첫 단락부터 곧바로 작성하십시오.';
   const finalSystemPrompt = systemPrompt + tagRule;
 
   const cleanOuterCodeBlock = (val: string): string => {
@@ -482,69 +490,27 @@ export const generateDraftWithAIStream = async (
 
   const modelInstance = genAI.getGenerativeModel(modelOptions);
 
-  let attempts = 0;
-  const maxAttempts = 3; // 일시적 통신 지연(500/503/429/스트림파싱) 시 최대 2회 자동 재시도 (총 3회 시도, 동일 모델 유지)
-
-  while (attempts < maxAttempts) {
-    try {
-      attempts++;
-      const result = await modelInstance.generateContentStream(effectiveUserPrompt);
-      // 🛡️ [크리티컬 가드] @google/generative-ai 내부의 result.response 프로미스가 스트림 도중 거부될 때
-      // 브라우저에서 'Uncaught (in promise) Failed to parse stream' 에러가 발생하는 현상을 방어하기 위해 catch 핸들러 사전 부착
-      result.response?.catch(() => {});
-
+  try {
+    return await runAIRequest(targetModelName, finalSystemPrompt.length + effectiveUserPrompt.length, async signal => {
+      onChunk('');
+      const result = await modelInstance.generateContentStream(effectiveUserPrompt, { signal });
+      result.response.catch(() => {});
       let fullText = '';
       for await (const chunk of result.stream) {
-        const chunkText = chunk.text();
-        fullText += chunkText;
+        if (signal.aborted) throw new Error('AI 응답 시간 초과');
+        fullText += chunk.text();
         onChunk(cleanOutputText(fullText, false));
       }
+      const response = await result.response;
+      const finishReason = response.candidates?.[0]?.finishReason;
+      if (finishReason && finishReason !== 'STOP') throw new Error(`AI 생성이 완료되지 않았습니다: ${finishReason}`);
       const finalText = cleanOutputText(fullText, true);
+      if (!finalText) throw new Error('AI 응답이 비어있습니다.');
       onChunk(finalText);
       return finalText;
-    } catch (error: any) {
-      const status = error?.status;
-      const msg = String(error?.message || '').toLowerCase();
-      const isAuthError = status === 401 || status === 403 || msg.includes('api_key') || msg.includes('api key') || msg.includes('permission_denied') || msg.includes('unauthorized');
-      const isNotFoundError = status === 404 || msg.includes('404') || msg.includes('not found');
-      const isStreamParseError = msg.includes('failed to parse stream') || msg.includes('parse stream');
-
-      // 인증 오류 및 모델 미지원(404)은 재시도해도 불가능하므로 즉시 에러 표출
-      const canRetry = !isAuthError && !isNotFoundError;
-
-      // 🛡️ 스트림 단절/파싱 에러(isStreamParseError) 또는 2회차 이상 시도 실패 시:
-      // 동일 모델에 대해 단일 완성형(generateContent - non-streaming) 대체 수신 시도
-      if (canRetry && (isStreamParseError || attempts >= 2)) {
-        try {
-          console.warn(`[GeminiStream] '${targetModelName}' 스트림 연결 불안정 감지 (${isStreamParseError ? 'ParseError' : status || '500/503'}). 단일 완성형(generateContent) 대체 수신을 시도합니다...`);
-          const fallbackResult = await modelInstance.generateContent(effectiveUserPrompt);
-          const fallbackText = fallbackResult.response?.text() || '';
-          if (fallbackText) {
-            const finalText = cleanOutputText(fallbackText, true);
-            onChunk(finalText);
-            console.info(`[GeminiStream] '${targetModelName}' 단일 완성형 대체 수신 성공 (${finalText.length}자).`);
-            return finalText;
-          }
-        } catch (fallbackError: any) {
-          console.warn(`[GeminiStream] 단일 완성형 대체 요청도 실패했습니다:`, fallbackError?.message || fallbackError);
-        }
-      }
-
-      // 🔁 [표준 재시도 규칙]: 1회 실패 후 1초 대기 -> 2회 시도 후 1초 대기 -> 3회차 시도에서도 문제 발생 시 최종 에러 메시지 표출
-      if (canRetry && attempts < maxAttempts) {
-        onChunk(''); // 이전 실패 시도의 불완전한 파편 텍스트 UI 초기화
-        console.warn(`[GeminiStream] '${targetModelName}' ${attempts}회차 호출 오류 (${status || '일시 오류'}). 1초 후 ${attempts + 1}회차 재시도합니다...`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        continue;
-      }
-
-      console.error(`[GeminiStream] '${targetModelName}' 총 ${attempts}회 시도 실패. 에러 메시지를 표출합니다:`, error);
-      const diagnosed = formatUserFriendlyAIError(error, targetModelName);
-      const friendlyError = new Error(diagnosed.description);
-      (friendlyError as any).diagnosed = diagnosed;
-      throw friendlyError;
-    }
+    });
+  } catch (error) {
+    onChunk('');
+    throw error;
   }
-
-  throw new Error(`AI 호출 실패: '${targetModelName}' 모델이 응답하지 않았습니다.`);
 };

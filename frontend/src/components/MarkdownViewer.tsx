@@ -1,3 +1,5 @@
+import { exportContentFingerprint } from '@/lib/exportPreparation';
+// 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 전역 미디어 실시간 연동 강화]: 구글 드라이브(OnriviAuthor/참조파일/media) 및 로컬/웹 리소스 폴더 변경 시 AsyncImage 실시간 감지 및 캐싱 Blob URL 렌더링 지원
 // 🚨 @PATCH : **2026-10-01** — [본문 우측/중앙 정렬(align, text-align, table 등) 100% 실시간 렌더링 지원]: [align="right"], [style*="text-align: right"], [align="center"] 등의 CSS 규칙을 탑재하고 div/p 컴포넌트의 align 속성을 inline style로 정밀 바인딩하며, th text-align center 강제를 해제하여 사용자 정렬 완벽 보장
 // 🚨 @PATCH : **2026-10-01** — [공통 리소스 폴더 하위 폴더 이미지 경로 인식 및 브라우저 세션 복원 결함 해결]: 1) getEffectiveResourceFolder 연동으로 localStorage의 리소스 폴더 설정(onrivi_resource_folder_path 등)을 100% 반영하여 '리소스 폴더 미지정' 오탐 방지 2) 사용자 마크다운 내부 이미지 경로(subfolder/img.png 등)에 media/ 강제 주입을 배제하고 지정된 해당 서브폴더 경로를 그대로 유지 탐색하도록 경로 정규화 개선 3) 브라우저 모드에서 resolveFileHandleInDirectory 신설로 서브디렉터리 파일 핸들 재귀 탐색 및 IndexedDB 저장소 핸들 동기 복원 지원
 // 🚨 @PATCH : **2026-09-30** — [작업장 실폴더 외부 링크 연결 차단 가드 및 경고 안내]: 마크다운 미리보기 내 폴더 링크(handleFolderClick) 및 문서/파일 링크(handleClick) 클릭 시 대상 경로가 작업장 실폴더(Workspace Root) 외부인지 판별하는 isPathInsideWorkspace 안전 가드를 신설하여 상위 이탈(../../)이나 다른 드라이브/폴더 절대경로 링크의 연결을 원천 차단하고 '⚠️ 작업장 실폴더 외부에 있는 경로는 연결할 수 없습니다. 작업장 내부의 폴더 및 문서만 연결 가능합니다.' 경고 토스트를 띄우도록 보강
@@ -78,6 +80,7 @@ import { extractFrontmatter } from '@/lib/frontmatter';
 import { loadSecureData } from '@/lib/secureStorage';
 import { getEffectiveResourceFolder } from '@/lib/profileStorage';
 import { idb } from '@/lib/indexedDbHelper';
+import { getSavedDriveToken, getSavedWorkspaceInfo, getDriveMediaImageBlobUrl } from '@/lib/gdrive/googleDriveClient';
 
 /**
  * FileSystemDirectoryHandle 내부에서 슬래시(/, \)가 포함된 상대 경로를 재귀적으로 추적하여 FileHandle을 반환합니다.
@@ -211,7 +214,7 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
           } else {
             setImgSrc(src);
           }
-        } else if ((workspaceType === 'browser' || workspaceType === 'local') && !src.startsWith('http') && !src.startsWith('data:')) {
+        } else if (!src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('blob:')) {
           const pureSrc = src.split('?')[0].split('#')[0];
           
           // 🛡️ [정적 자산 우회 가드 개선]
@@ -229,6 +232,21 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
             
             setImgSrc(queryString ? (webSrc.includes('?') ? webSrc + '&' + queryString.substring(1) : webSrc + queryString) : webSrc);
             return;
+          }
+
+          // ☁️ [Google Drive 미디어 연동]: 구글 드라이브 작업장이거나 OnriviAuthor/참조파일 리소스 폴더인 경우
+          const isDriveEnv = workspaceType === 'cloud' || rootFolder?.type === 'GDRIVE' || (typeof window !== 'undefined' && (localStorage.getItem('workspaceType') === 'cloud' || (localStorage.getItem('onrivi_resource_folder_path') || '').startsWith('OnriviAuthor')));
+          if (isDriveEnv) {
+            const token = getSavedDriveToken();
+            const wsInfo = getSavedWorkspaceInfo();
+            const targetMediaFolderId = wsInfo?.mediaFolderId;
+            if (token && targetMediaFolderId) {
+              const driveBlobUrl = await getDriveMediaImageBlobUrl(token, targetMediaFolderId, pureSrc);
+              if (driveBlobUrl) {
+                setImgSrc(queryString ? (driveBlobUrl.includes('?') ? driveBlobUrl + '&' + queryString.substring(1) : driveBlobUrl + queryString) : driveBlobUrl);
+                return;
+              }
+            }
           }
 
           const isMediaSrc = pureSrc.startsWith('./media/') || pureSrc.startsWith('media/') || pureSrc.startsWith('/media/') || pureSrc.includes('media/');
@@ -322,14 +340,14 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
 
   if (errorMsg) {
     return (
-      <span className="inline-flex items-center gap-2 px-3.5 py-2 my-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-bold shadow-xs select-none">
+      <span data-export-state="error" data-export-label="이미지" className="inline-flex items-center gap-2 px-3.5 py-2 my-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-bold shadow-xs select-none">
         <span className="text-sm">⚠️</span>
         <span>{errorMsg}</span>
       </span>
     );
   }
 
-  if (!imgSrc) return <span data-line={extractDataLine(props)} className="inline-block animate-pulse bg-zinc-200 dark:bg-zinc-800 rounded w-full h-32" />;
+  if (!imgSrc) return <span data-export-state="loading" data-export-label="이미지" data-line={extractDataLine(props)} className="inline-block animate-pulse bg-zinc-200 dark:bg-zinc-800 rounded w-full h-32" />;
 
   const onImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
@@ -1730,7 +1748,7 @@ const MermaidBlock = React.memo(function MermaidBlock({ code, dataLine }: { code
   };
 
   return (
-    <div ref={containerRef} data-line={dataLine} className="relative group my-6 border border-zinc-200/60  rounded-lg overflow-hidden shadow-sm bg-white  select-text">
+    <div ref={containerRef} data-line={dataLine} data-export-state={error ? "error" : loading ? "loading" : "ready"} className="relative group my-6 border border-zinc-200/60  rounded-lg overflow-hidden shadow-sm bg-white  select-text">
 
       <div className="flex items-center justify-between px-4 py-2 bg-zinc-50  border-b border-zinc-200/60 ">
         <span className="text-xs font-semibold text-zinc-500  uppercase tracking-wider flex items-center gap-1.5">
@@ -2333,6 +2351,7 @@ function MarkdownViewer({
     <div
       ref={containerRef}
       className="markdown-viewer-root onrivi-content-root bg-transparent mx-auto relative"
+      data-export-content={exportContentFingerprint(originalContent ?? content)}
       style={{
         boxSizing: 'border-box',
         width: '100%',

@@ -3,6 +3,8 @@
 // ====================================================================
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
+// 🚨 @PATCH : **2026-10-03** — [파일/폴더 삭제 시 열린 탭 즉시 닫기 driveId/name 전면 연동]: handleDelete 시 file:close-tab-by-path에 driveId/name/path 일괄 전달하여 삭제된 파일 탭 미종료 결함 해결
+// 🚨 @PATCH : **2026-10-03** — [구글 드라이브(GDRIVE) 파일/폴더 삭제, 생성, 이름 변경 지원 및 /api/delete 404 차단]: 구글 드라이브 항목 삭제 시 trashDriveItem 연동, 생성 시 createDriveMarkdownFile/createDriveFolder 연동, 이름 변경 시 renameDriveItem 연동, 웹 환경 내 불필요한 미구현 /api/delete 등 백엔드 404 호출 원천 차단
 // 🚨 @PATCH : **2026-09-30** — [탐색기 폴더 DOM 식별자(data-path/data-kind) 부여]: 미리보기 및 외부 폴더 링크 클릭 시 탐색기 내 해당 폴더 노드로 자동 스크롤 및 코발트 블루 펄스 하이라이트를 즉각 연결할 수 있도록 루트 요소에 data-path 및 data-kind 속성 탑재
 // 🚨 @PATCH : **2026-09-30** — [탐색기 폴더 우클릭 '폴더 연결' 커서 위치 즉시 기입 연동]: 컨텍스트 메뉴의 '폴더 링크 복사'를 '폴더 연결'로 개편하여 클릭 시 현재 열린 문서의 커서 위치에 [폴더명](<./상대경로/>)을 즉시 삽입(app:insert-folder-link)하고 클립보드에도 자동 복사
 // 🚨 @PATCH : **2026-09-30** — [탐색기 복원 폴더 지연 로딩 누락 및 빈 폴더 오표시 결함 수정]: onrivi_expanded_paths로 복원된 폴더의 localChildren이 빈 배열([])이거나 부모로부터 깡통 노드가 유입되었을 때 !localChildren 가드로 인해 onLazyLoad가 차단되어 파일이 있음에도 '빈 폴더'로 표시되던 결함을 (!localChildren || localChildren.length === 0) 검사 및 초기 덮어쓰기 방어로 완벽 해결
@@ -68,6 +70,14 @@ import { FileNode, getFileIcon } from '@/lib/indexedDbHelper';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { vfsCreateFile, vfsCreateFolder, vfsRename, vfsDelete, vfsReadFile } from '@/lib/virtualFileSystem';
 import PromptModal from '@/components/PromptModal';
+import {
+  getSavedDriveToken,
+  getSavedWorkspaceInfo,
+  trashDriveItem,
+  renameDriveItem,
+  createDriveMarkdownFile,
+  createDriveFolder
+} from '@/lib/gdrive/googleDriveClient';
 import { msg } from '@/lib/systemMessages';
 import { useToast } from '@/components/ToastProvider';
 import { checkKnowledgeGuard } from '@/lib/knowledge/knowledgeGuard';
@@ -524,12 +534,8 @@ const FileTreeItem = ({
           } else if (api?.renameFile) {
             await api.renameFile(sourcePath, newPath);
           } else {
-            const res = await fetch(getApiUrl('/api/rename'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ oldPath: sourcePath, newPath })
-            });
-            if (!res.ok) throw new Error('이동 실패');
+            // 🛡️ [웹 SaaS 백엔드 미구현 404 원천 차단]: electronAPI가 없는 웹 브라우저 환경에서는 VFS 이동 수행
+            vfsRename(sourcePath, newPath);
           }
 
           showToast(`'${sourceName}' 이동 완료`, 'success');
@@ -745,6 +751,30 @@ const FileTreeItem = ({
 
       try {
         setPromptConfig(prev => ({ ...prev, isOpen: false, error: '' }));
+
+        const isDriveNode = !!((node as any).driveId || (node as any).driveFileId || workspaceType === 'cloud' || (typeof window !== 'undefined' && localStorage.getItem('workspaceType') === 'cloud'));
+        if (isDriveNode) {
+          const token = getSavedDriveToken();
+          const targetDriveId = (node as any).driveId || (node as any).driveFileId || (node as any).id;
+          if (token && targetDriveId) {
+            await renameDriveItem(token, targetDriveId, finalName);
+            const oldPath = node.path || node.name;
+            node.name = finalName;
+            const normalizedPath = oldPath.replace(/\\/g, '/');
+            const lastSlashIndex = normalizedPath.lastIndexOf('/');
+            const parentPath = lastSlashIndex !== -1 ? normalizedPath.substring(0, lastSlashIndex) : "";
+            const newPath = parentPath ? `${parentPath}/${finalName}` : finalName;
+            node.path = newPath;
+            refreshParent();
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            window.dispatchEvent(new CustomEvent('file:tab-renamed', {
+              detail: { oldPath, newPath, newName: finalName }
+            }));
+            showToast(`'${finalName}'(으)로 이름이 변경되었습니다.`, 'success');
+            return;
+          }
+        }
+
         if (workspaceType === 'browser') {
           if (node.handle) {
             if (node.kind === 'file') {
@@ -925,20 +955,15 @@ const FileTreeItem = ({
               detail: { oldPath: cleanOldPath, newPath, newName: finalName }
             }));
           } else {
-            const res = await fetch(getApiUrl('/api/rename'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ oldPath: cleanOldPath, newPath })
-            });
-            if (res.ok) {
-              // 💡 [요구사항 1] 이름 변경 시 노드 메모리 정보 즉시 갱신하여 하위 목록의 404 경로 유실 에러 원천 차단
-              node.path = newPath;
-              node.name = finalName;
-              if (isDir) {
-                node.children = [];
-                setLocalChildren(null);
-              }
-              refreshParent();
+            // 🛡️ [웹 SaaS 백엔드 미구현 404 원천 차단]: electronAPI가 없는 웹 브라우저 환경에서는 VFS 이름 변경 수행
+            vfsRename(cleanOldPath, newPath);
+            node.path = newPath;
+            node.name = finalName;
+            if (isDir) {
+              node.children = [];
+              setLocalChildren(null);
+            }
+            refreshParent();
 
               if (isDir) {
                 try {
@@ -967,7 +992,6 @@ const FileTreeItem = ({
               window.dispatchEvent(new CustomEvent('file:tab-renamed', {
                 detail: { oldPath: cleanOldPath, newPath, newName: finalName }
               }));
-            }
           }
         }
       } catch(e) { 
@@ -985,6 +1009,30 @@ const FileTreeItem = ({
 
       try {
         setPromptConfig(prev => ({ ...prev, isOpen: false, error: '' }));
+
+        const isDriveNode = !!((node as any).driveId || (node as any).driveFileId || workspaceType === 'cloud' || (typeof window !== 'undefined' && localStorage.getItem('workspaceType') === 'cloud'));
+        if (isDriveNode) {
+          const token = getSavedDriveToken();
+          const wsInfo = getSavedWorkspaceInfo();
+          const parentDriveId = (node as any).driveId || (node as any).driveFileId || (node as any).id || wsInfo?.workspaceFolderId;
+          if (token && parentDriveId) {
+            const newDoc = await createDriveMarkdownFile(token, parentDriveId, finalName, '');
+            await refreshThisDirectory();
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            const filePath = node.path ? `${node.path}/${finalName}` : finalName;
+            openFile({
+              name: finalName,
+              kind: 'file',
+              path: filePath,
+              driveId: newDoc.id,
+              driveFileId: newDoc.id,
+              id: newDoc.id
+            }, node.handle);
+            showToast(`'${finalName}' 파일이 구글 드라이브에 생성되었습니다.`, 'success');
+            return;
+          }
+        }
+
         if (workspaceType === 'browser') {
           if (node.handle) {
             const handle = await node.handle.getFileHandle(finalName, { create: true });
@@ -1008,18 +1056,13 @@ const FileTreeItem = ({
               window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
               openFile({ name: finalName, kind: 'file', path: result.path }, node.handle);
             }
-          } else {
-            const res = await fetch(getApiUrl('/api/create-file'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ parentPath: node.path, name: finalName })
-            });
-            if (res.ok) {
-              const data = await res.json();
-              await refreshThisDirectory();
-              window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-              openFile({ name: finalName, kind: 'file', path: data.path }, node.handle);
-            }
+          } else if (node.path) {
+            // 🛡️ [웹 SaaS 백엔드 미구현 404 원천 차단]: electronAPI가 없는 웹 브라우저 환경에서는 VFS 파일 생성 수행
+            vfsCreateFile(node.path, finalName);
+            await refreshThisDirectory();
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            const filePath = `${node.path}/${finalName}`;
+            openFile({ name: finalName, kind: 'file', path: filePath }, node.handle);
           }
         }
       } catch(e) { showToast("생성 실패: " + e, 'error'); }
@@ -1032,6 +1075,22 @@ const FileTreeItem = ({
 
       try {
         setPromptConfig(prev => ({ ...prev, isOpen: false, error: '' }));
+
+        const isDriveNode = !!((node as any).driveId || (node as any).driveFileId || workspaceType === 'cloud' || (typeof window !== 'undefined' && localStorage.getItem('workspaceType') === 'cloud'));
+        if (isDriveNode) {
+          const token = getSavedDriveToken();
+          const wsInfo = getSavedWorkspaceInfo();
+          const parentDriveId = (node as any).driveId || (node as any).driveFileId || (node as any).id || wsInfo?.workspaceFolderId;
+          if (token && parentDriveId) {
+            await createDriveFolder(token, name, parentDriveId);
+            setIsOpen(true);
+            await refreshThisDirectory();
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            showToast(`'${name}' 폴더가 구글 드라이브에 생성되었습니다.`, 'success');
+            return;
+          }
+        }
+
         if (workspaceType === 'browser') {
           if (node.handle) {
             await node.handle.getDirectoryHandle(name, { create: true });
@@ -1043,12 +1102,9 @@ const FileTreeItem = ({
           const api = (window as any).electronAPI;
           if (api?.createFolder) {
             await api.createFolder(node.path, name);
-          } else {
-            await fetch(getApiUrl('/api/create-folder'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ parentPath: node.path, name: name })
-            });
+          } else if (node.path) {
+            // 🛡️ [웹 SaaS 백엔드 미구현 404 원천 차단]: electronAPI가 없는 웹 브라우저 환경에서는 VFS 폴더 생성 수행
+            vfsCreateFolder(node.path, name);
           }
         }
         // 🆕 생성 직후 부모 폴더를 열고 새 폴더를 자동 선택/하이라이트
@@ -1171,7 +1227,33 @@ const FileTreeItem = ({
             }
           }));
 
-          if (workspaceType === 'browser') {
+          const isDriveNode = !!((node as any).driveId || (node as any).driveFileId || workspaceType === 'cloud' || (typeof window !== 'undefined' && localStorage.getItem('workspaceType') === 'cloud'));
+
+          if (isDriveNode) {
+            const token = getSavedDriveToken();
+            const targetDriveId = (node as any).driveId || (node as any).driveFileId || (node as any).id;
+            if (token && targetDriveId) {
+              await trashDriveItem(token, targetDriveId);
+              if (isDir && node.path) {
+                try {
+                  const saved = localStorage.getItem('onrivi_expanded_paths');
+                  if (saved) {
+                    const normPath = node.path.replace(/\\/g, '/');
+                    const paths = JSON.parse(saved).filter((p: string) => {
+                      const np = p.replace(/\\/g, '/');
+                      return np !== normPath && !np.startsWith(normPath + '/');
+                    });
+                    localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
+                  }
+                } catch {}
+              }
+              refreshParent();
+              window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            } else {
+              showToast("구글 드라이브 삭제 대상 식별자가 누락되었습니다.", "error");
+              return;
+            }
+          } else if (workspaceType === 'browser') {
             if (node.handle) {
               // 🚀 폴더 및 파일 재귀 삭제 지원 (recursive: true)
               await parentHandle.removeEntry(node.name, { recursive: true });
@@ -1213,13 +1295,9 @@ const FileTreeItem = ({
             const api = (window as any).electronAPI;
             if (api?.deleteFile) {
               await api.deleteFile(node.path);
-            } else {
-              const res = await fetch(getApiUrl('/api/delete'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: node.path })
-              });
-              if (!res.ok) return;
+            } else if (node.path) {
+              // 🛡️ [웹 SaaS 백엔드 미구현 404 원천 차단]: electronAPI가 없는 웹 브라우저 환경에서는 VFS 삭제 수행
+              vfsDelete(node.path);
             }
             if (isDir && node.path) {
               try {
@@ -1240,11 +1318,16 @@ const FileTreeItem = ({
           if (currentFileName === node.name) {
             openFile(null); 
           }
-          // 🚀 삭제된 파일/폴더와 연관된 탭들을 즉시 닫도록 이벤트 발송
-          if (node.path) {
-            window.dispatchEvent(new CustomEvent('file:tab-deleted', { detail: { deletedPath: node.path } }));
-            window.dispatchEvent(new CustomEvent('file:close-tab-by-path', { detail: { path: node.path, name: node.name } }));
-          }
+          // 🚀 삭제된 파일/폴더와 연관된 탭들을 즉시 닫도록 이벤트 발송 (클라우드 driveId 및 path/name 전수 전송)
+          const targetDriveId = (node as any).driveId || (node as any).driveFileId || (node as any).id;
+          window.dispatchEvent(new CustomEvent('file:tab-deleted', { detail: { deletedPath: node.path || node.name, driveId: targetDriveId } }));
+          window.dispatchEvent(new CustomEvent('file:close-tab-by-path', { 
+            detail: { 
+              path: node.path || node.name, 
+              name: node.name, 
+              driveId: targetDriveId 
+            } 
+          }));
           showToast(`[${node.name}] ${isDir ? "폴더" : "파일"}가 삭제되었습니다.`, 'success');
         } catch(e: any) { 
           const errStr = e.message || e.toString();

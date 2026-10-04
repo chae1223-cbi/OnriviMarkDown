@@ -4,6 +4,12 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-10-03** — [구글 드라이브 문서 저장 시 브라우저 파일 다이얼로그 오작동 차단 & useEditorHandlers 직결 연동]: useEditorHandlers에 tabsRef와 saveFile을 주입하고, 클라우드 작업장 문서 저장 시 브라우저 저장 다이얼로그 오작동을 차단하여 구글 드라이브 다이렉트 무음 저장 및 새 문서 저장 프롬프트 정상화
+// 🚨 @PATCH : **2026-10-03** — [파일 삭제 시 열린 탭 자동 닫기(handleCloseTabByPath) driveId/name/접두사 매칭 전면 강화]: 탐색기에서 파일/폴더 삭제 시 driveId 일치, 경로 접두사 무시 매칭(endsWith), 파일명 일치를 모두 수용하여 열려있던 탭을 100% 자동 종료하고 모델 메모리 정리
+// 🚨 @PATCH : **2026-10-03** — [loadUserProfiles 리소스 폴더 미설정 시 불필요한 에러 토스트 차단]: 초기 진입 시 리소스 폴더 미지정 상태에 대한 정상 상태 수용 및 에러 토스트 오발송 방어
+// 🚨 @PATCH : **2026-10-03** — [클라우드 작업장 브레드크럼 ReferenceError(cloudProvider) 결함 완벽 해결]: cloudProvider 미정의 변수 참조 제거 및 rootFolder?.displayName / 'Google Drive' 연동으로 상단 경로 브레드크럼 무결성 확보
+// 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 미디어 저장/연동 전면 동기화]: resourceFolder 변경 시(구글 드라이브 OnriviAuthor/참조파일 및 로컬/웹) 최신 리소스 폴더 하위 media로 이미지 자동 저장, 상대경로(media/...) 표준화 연동
+// 🚨 @PATCH : **2026-10-03** — [구글 드라이브 클라우드 작업장 지원 & 리소스 폴더 실시간 동기화]: connectGoogleDrive/disconnectGoogleDrive 주입, 이미지 붙여넣기 시 구글 드라이브 /참조파일/media 자동 업로드, onrivi:resource_folder_changed 리스너 연동
 // 🚨 @PATCH : **2026-10-03** — [세션 제어권 인수 시 타 세션 제한사용자 유지 및 미리보기 모드 자동 활성화]: '이 화면에서 편집 시작하기' 클릭 시 다른 세션을 강제 로그아웃시키지 않고 제한사용자(읽기 전용) 모드로 안전하게 전환하며, 화면을 자동으로 미리보기(preview) 모드로 전환하여 문서를 끊김 없이 열람할 수 있도록 개선
 // 🚨 @PATCH : **2026-10-02** — [동일 이미지 반복 붙여넣기/드래그 앤 드롭 결함 완전 해결 & Ctrl+V 이벤트 단일 진입점 일원화]: handlePasteImageFile 내 과도한 해시 기반 차단 및 타임스탬프 락을 완전 제거하여 동일 이미지 반복 삽입 100% 정상 작동 보장, handleGlobalKeyDown의 비동기 Ctrl+V 인터셉터를 제거하여 DOM paste 단일 진입점으로 통합함으로써 2중 중복 실행 원천 방어
 // 🚨 @PATCH : **2026-10-02** — [붙여넣기 및 드래그앤드롭 이미지 설명(Alt) 널(빈값) 표준화]: 끌어당기거나 붙여넣기한 이미지 마크다운 생성 시 이미지 설명 텍스트를 제거하여 ![](${path}) 표준 형태로 삽입되도록 변경
@@ -13,7 +19,7 @@
 // 🚨 @PATCH : **2026-10-02** — [이미지 붙여넣기 및 업로드 시 currentFilePath ReferenceError 결함 완벽 해결]: handlePasteImageFile 및 webUploadImage에서 미정의 변수(currentFilePath) 참조로 인한 크래시를 currentFileNode?.path, currentFileNodeRef 및 활성 탭 path 기반 지능형 폴백으로 완전 수정
 // 🚨 @PATCH : **2026-10-02** — [이미지 복사·붙여넣기(Ctrl+V) 및 탐색기/웹 다중 이미지 드래그앤드롭 전면 강화]: 탐색기/데스크톱 이미지 파일 단일/다중 드래그앤드롭 자동 저장 및 커서 위치 삽입, 웹 브라우저 이미지 드래그앤드롭 마크다운 변환, 캡처(Win+Shift+S)/탐색기 파일 복사/웹 이미지 붙여넣기(Ctrl+V) 시 5단계 완전 감지 및 Monaco 기본 텍스트 덮어쓰기 원천 차단
 // 🚨 @PATCH : **2026-10-02** — [이모지 패널 오버레이 플로팅 및 에디터·미리보기 화면 불변 고정]: 이모지 패널을 absolute 우측 플로팅 오버레이(툴바 좌측 밀착)로 전환하여 패널 열림/닫힘 시 에디터와 미리보기 레이아웃 너비가 1px도 축소되거나 움직이지 않도록 완전 고정
-// 🚨 @PATCH : **2026-10-02** — [어르신 및 저시력자 시인성 강화 에디터 커서 두께/고대비 최적화]: cursorWidth를 2px에서 4px(2배 확대)로 대폭 강화, 라이트 모드(코발트 #1d4ed8) 및 다크 모드(스카이블루 #38bdf8) 커서 고대비 명도 최적화로 커서 위치 한눈 식별 보장
+// 🚨 @PATCH : **2026-10-02** — [고대비 커서 시인성 강화 에디터 커서 두께/명도 최적화]: cursorWidth를 2px에서 4px(2배 확대)로 대폭 강화, 라이트 모드(코발트 #1d4ed8) 및 다크 모드(스카이블루 #38bdf8) 커서 고대비 명도 최적화로 커서 위치 한눈 식별 보장
 // 🚨 @PATCH : **2026-10-02** — [이모지 패널 활성화 시 에디터 커서 위치 영구 유지 및 연속 삽입 보정]: 패널 오픈 시 현재 커서 위치(emojiSavedPositionRef) 즉각 백업, 패널 렌더링 후 커서 복원/고정, 전용 insertEmojiAtCursor 연동으로 이모지 삽입 후 커서 자동 전진 및 연속 삽입 위치 유지 완벽 보장
 // 🚨 @PATCH : **2026-10-02** — [우측 툴바 이모지 보관함 패널 연동]: EmojiPanel 컴포넌트 도킹 렌더링, isEmojiPanelOpen 상태 및 TOGGLE_EMOJI_PANEL 커맨드 처리, 단축키(Ctrl+Shift+E) 및 Escape 닫기 연동, 커서 위치 즉시 삽입 지원
 // 🚨 @PATCH : **2026-10-01** — [서명/발신인 단축키 충돌 해결 및 듀얼 바인딩]: 다른 이름으로 저장(Ctrl+Shift+S) 단축키 오지정 수정, 설정 복원 시 신규 단축키 누락 방어, Monaco 및 전역 이벤트에서 서명 단축키 Ctrl+Alt+R 및 Ctrl+Alt+S 동시 지원 및 윈도우 Alt 키 포커스 보정
@@ -315,6 +321,11 @@ import { saveExternalFileHandle } from '@/lib/storage/externalFileStore';
 import { PreviewToolbar } from '@/components/preview/PreviewToolbar';
 import { PreviewFindWidget } from '@/components/preview/PreviewFindWidget';
 import { fetchUserProfiles, persistUserProfiles, getEffectiveResourceFolder } from '@/lib/profileStorage';
+import {
+  getSavedDriveToken,
+  getSavedWorkspaceInfo,
+  uploadDriveImage
+} from '@/lib/gdrive/googleDriveClient';
 
 
 /**
@@ -1267,7 +1278,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (!mounted) return;
     const restoreRF = async () => {
       // 1. IndexedDB에서 웹 브라우저용 Handle 복원
-      if (!resourceFolderHandle && typeof window !== 'undefined') {
+      if (!resourceFolderHandle && resourceFolder !== 'OnriviAuthor/참조파일' && typeof window !== 'undefined') {
         try {
           const savedHandle = await idb.get('resourceFolderHandle');
           if (savedHandle) {
@@ -1289,6 +1300,23 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     };
     void restoreRF();
   }, [mounted, resourceFolderHandle, resourceFolder]);
+
+  // 🌟 [공통 리소스 폴더 동적 변경 실시간 감지 리스너] (구글 드라이브 ↔ 로컬 전환 등)
+  useEffect(() => {
+    const handleResourceFolderChange = (e: any) => {
+      const newFolder = typeof e.detail === 'string' ? e.detail : (e.detail?.path || e.detail?.name);
+      setResourceFolder(newFolder || null);
+      if (newFolder === 'OnriviAuthor/참조파일') {
+        setResourceFolderHandle(null);
+        (window as any).__resourceFolderHandle = null;
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('onrivi:resource_folder_changed', handleResourceFolderChange);
+      return () => window.removeEventListener('onrivi:resource_folder_changed', handleResourceFolderChange);
+    }
+  }, []);
+
   const [profileStorageRevision, setProfileStorageRevision] = useState(0);
   const profileStorageRef = useRef<{ folder: string; handle: any; hash: string } | null>(null);
   useEffect(() => {
@@ -1310,7 +1338,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       } catch (error) {
         if (cancelled) return;
         console.error('[loadUserProfiles] userCssProfiles.json 읽기 실패:', error);
-        showToast('userCssProfiles.json을 읽지 못했습니다. 리소스 폴더 연결과 파일을 확인해 주세요.', 'error');
+        if (folder) {
+          showToast('userCssProfiles.json을 읽지 못했습니다. 리소스 폴더 연결과 파일을 확인해 주세요.', 'error');
+        }
       }
     };
     void load();
@@ -2892,25 +2922,42 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 📊 [OMD-EDIT-MainEditorApp-0012c] MainEditorApp.tsx ➔ file:close-tab-by-path listener
   // 🎯 @KICK  : 탐색기에서 파일/폴더 삭제 시 해당 열린 탭을 즉시 닫고 에디터 정리
   // 🛡️ @GUARD : 삭제된 경로와 일치하거나 하위 경로에 속한 모든 탭 정리, 활성 탭 전환 또는 빈 탭 처리
-  // 🚨 @PATCH : **2026-09-18** — 열려있는 파일/폴더 삭제 지원 및 연관 탭 자동 닫기 연동 (TDZ 방어 배치)
+  // 🚨 @PATCH : **2026-10-03** — [파일 삭제 시 열린 탭 자동 닫기 전면 강화]: driveId 일치, path 끝부분(endsWith) 매칭 및 name 일치 다중 검증 탑재
   // 🔗 @CALLS : setTabs, switchTab, setContent, setCurrentFileName, setCurrentFileNode, setActiveTabId
   // ====================================================================
   useEffect(() => {
     const handleCloseTabByPath = (e: Event) => {
-      const { path, name } = (e as CustomEvent).detail || {};
-      if (!path && !name) return;
+      const { path, name, driveId } = (e as CustomEvent).detail || {};
+      if (!path && !name && !driveId) return;
 
       const normTarget = (path || '').replace(/\\/g, '/').toLowerCase();
+      const targetFileName = (name || (normTarget ? normTarget.split('/').pop() : '') || '').toLowerCase();
 
       // 삭제된 파일 또는 삭제된 폴더 하위에 속한 탭들 찾기
       const tabsToClose = tabsRef.current.filter(t => {
+        // 1. Google Drive ID 일치 확인
+        const tabDriveId = (t as any).driveFileId || (t as any).driveId || (t as any).id;
+        if (driveId && tabDriveId && String(driveId) === String(tabDriveId)) {
+          return true;
+        }
+
         const tabPath = (t.path || '').replace(/\\/g, '/').toLowerCase();
+        // 2. 정확한 경로 일치 또는 하위 폴더 일치
         if (normTarget && (tabPath === normTarget || tabPath.startsWith(normTarget + '/'))) {
           return true;
         }
-        if (!t.path && name && t.name === name) {
+
+        // 3. 경로 끝부분 매칭 (접두사 상이 방어: 예 OnriviAuthor/작업장/02_문서.md vs 02_문서.md)
+        if (normTarget && tabPath && (tabPath.endsWith('/' + normTarget) || normTarget.endsWith('/' + tabPath))) {
           return true;
         }
+
+        // 4. 파일명 일치 여부
+        const tabName = (t.name || (tabPath ? tabPath.split('/').pop() : '') || '').toLowerCase();
+        if (targetFileName && tabName === targetFileName) {
+          return true;
+        }
+
         return false;
       });
 
@@ -3046,7 +3093,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     handleFileClick,
     selectRootFolder,
     restoreFolderPermission,
-    handleFileOpenByPath
+    handleFileOpenByPath,
+    connectGoogleDrive,
+    disconnectGoogleDrive
   } = useFileExplorerResult;
 
   // 🧠 [ONRIVI-KNOWLEDGE-ENGINE-003] 지식 베이스 / 출처 링크 에디터 파일 열기 및 라인 점프 리스너
@@ -5417,9 +5466,32 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           }
           
           const activeFilePath = currentFileNode?.path || currentFileNodeRef.current?.path || tabsRef.current?.find(t => t.id === activeTabIdRef.current)?.path || '';
+          const effectiveRf = resourceFolderRef.current || getEffectiveResourceFolder();
           let targetFolder = activeFilePath || rootFolderRef.current?.name || '';
-          if (resourceFolderRef.current) {
-            targetFolder = resourceFolderRef.current + '\\media';
+          if (effectiveRf) {
+            const sep = effectiveRf.includes('\\') ? '\\' : '/';
+            targetFolder = effectiveRf + sep + 'media';
+          }
+
+          // ☁️ [Google Drive 작업장 시 구글 드라이브 /참조파일/media 자동 업로드]
+          const isDriveTarget = rootFolderRef.current?.type === 'GDRIVE' || workspaceType === 'cloud' || (typeof window !== 'undefined' && (localStorage.getItem('workspaceType') === 'cloud' || (localStorage.getItem('onrivi_resource_folder_path') || '').startsWith('OnriviAuthor')));
+          if (isDriveTarget) {
+            const token = getSavedDriveToken();
+            const wsInfo = getSavedWorkspaceInfo();
+            const mediaFolderId = wsInfo?.mediaFolderId;
+            if (token && mediaFolderId) {
+              try {
+                const uploaded = await uploadDriveImage(token, mediaFolderId, fileOrBlob, fileName);
+                if (uploaded?.id) {
+                  insertImageMarkdown(`media/${fileName}`);
+                  showToast('구글 드라이브(media)에 이미지가 안전하게 저장되었습니다.', 'success');
+                  resolve();
+                  return;
+                }
+              } catch (gErr) {
+                console.error('[GDrive Paste Image Error]', gErr);
+              }
+            }
           }
 
           if (api) {
@@ -6937,7 +7009,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     setTabs,
     activeTabIdRef,
     licenseStatusRef,
-    lastSelectionRef
+    lastSelectionRef,
+    tabsRef,
+    saveFile
   });
 
   handlersRef.current = handlers;
@@ -8053,7 +8127,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     setIsAIDraftModalOpen,
     isAiButtonVisible,
     setIsAiButtonVisible,
-    isRestrictedUser
+    isRestrictedUser,
+    connectGoogleDrive,
+    disconnectGoogleDrive
   };
 
   const { handleMount } = useMonacoSetup({
@@ -8541,7 +8617,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                       }
                     } else if (workspaceType === 'cloud') {
                       rootDrive = 'Cloud:';
-                      rootName = `[${cloudProvider || 'Cloud'}] ${rootFolder?.name || 'Sync'}`;
+                      const cloudName = rootFolder?.type === 'GDRIVE' ? 'Google Drive' : 'Cloud';
+                      rootName = rootFolder?.displayName || rootFolder?.name || `[${cloudName}]`;
                       const subPath = targetPath;
                       const subSegments = subPath.replace(/\\/g, '/').split('/').filter(Boolean);
                       if (subSegments.length > 0) {
@@ -8744,7 +8821,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                 'editor.foreground': activeFg, // 🎯 사용자 명세: 다크 #e2e8f0 (고대비 모드 시 순수 흑백)
                                 'editorLineNumber.foreground': isDark ? '#475569' : '#94A3B8', // 선명한 줄번호
                                 'editorLineNumber.activeForeground': isDark ? '#60A5FA' : '#2563EB', // 활성 행 줄번호 강조
-                                'editorCursor.foreground': isDark ? '#38bdf8' : '#1d4ed8', // 🎯 어르신/저시력자 시인성 강화 (다크: 네온 스카이블루 #38bdf8 / 라이트: 코발트 블루 #1d4ed8)
+                                'editorCursor.foreground': isDark ? '#38bdf8' : '#1d4ed8', // 🎯 고대비 커서 시인성 강화 (다크: 네온 스카이블루 #38bdf8 / 라이트: 코발트 블루 #1d4ed8)
                                 'editor.lineHighlightBackground': isDark ? '#1e293b50' : '#88888810',
                                 'editorIndentGuide.background': '#88888815',
                                 'editorIndentGuide.activeBackground': '#88888830',
@@ -10078,4 +10155,3 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     </>
   );
 }
-

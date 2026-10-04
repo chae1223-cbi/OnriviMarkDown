@@ -8,7 +8,7 @@
 // 🚨 @PATCH : **2026-10-02** — [붙여넣기 리스너 4중 바인딩 및 textarea/전역 전파 보장]: container, editorDom, textarea(inputarea), window 4중 계층에 paste 리스너를 등록하고 depsRef 연동으로 포커스 위치 무관 클립보드 붙여넣기 100% 감지 보장
 // 🚨 @PATCH : **2026-10-02** — [에디터 이미지 드래그 앤 드롭 및 웹/로컬 복사·붙여넣기 전면 강화]: dragover/dragenter 리스너 등록으로 마우스 커서 복사 모양 및 드롭존 즉각 활성화, 로컬 다중 이미지 일괄 드롭, 웹 이미지(URL/img 태그/Base64) 드래그 드롭 마크다운 자동 변환, 코발트 블루 점선 드롭 가이드 링 추가
 // 🚨 @PATCH : **2026-10-02** — [소프트 줄바꿈(Word wrap) 경계면 방향키 2단계 연속 이동 보정]: 문장 끝(윗줄 끝 "단|")에서 오른쪽 키 입력 시 다음 줄 첫 글자 뒤("일|")로 점프하지 않고 아랫줄 시작("|일")에 멈춘 뒤 재입력 시 전진하도록 보정, 아랫줄 시작에서 왼쪽 키 입력 시 윗줄 끝으로 대칭 복귀 지원
-// 🚨 @PATCH : **2026-10-02** — [어르신 및 저시력자 시인성 강화 에디터 커서 두께 4px 확대 및 고대비 최적화]: persistentCaret 너비(4px, 라운드 2px) 및 Monaco 옵션 cursorWidth(4px) 2배 두께 확대, 테마별 커서 고대비 색상(라이트: 코발트 블루 #1d4ed8 / 다크: 스카이블루 #38bdf8) 동기화로 커서 위치 한눈 식별 완벽 보장
+// 🚨 @PATCH : **2026-10-02** — [고대비 에디터 커서 두께 4px 확대 및 시인성 최적화]: persistentCaret 너비(4px, 라운드 2px) 및 Monaco 옵션 cursorWidth(4px) 2배 두께 확대, 테마별 커서 고대비 색상(라이트: 코발트 블루 #1d4ed8 / 다크: 스카이블루 #38bdf8) 동기화로 커서 위치 한눈 식별 완벽 보장
 // 🚨 @PATCH : **2026-09-30** — [[[ 위키링크 자동완성 마크다운 문서 전용 원복]: [[ 입력 시 폴더 노드를 배제하고 마크다운 문서(.md)만 추천하여 [문서명](<./경로.md>) 표준 마크다운 링크 자동 완성
 // 🚨 @PATCH : **2026-09-26** — [에디터 수직 스크롤바 너비 슬림화(32px -> 16px)]: 과도하게 두꺼워진 모나코 에디터 verticalScrollbarSize를 기존 32px에서 절반인 16px로 축소하여 슬림하고 미려한 에디터 디자인 복원
 // 🚨 @PATCH : **2026-09-25** — [에디터 Pretendard 폰트 전면 적용 및 줄바꿈 단어 잘림 방지 32px 안전 여백 확보]: 에디터 글꼴을 가독성·원문자 1위인 Pretendard Variable로 변경하고, verticalScrollbarSize를 32px로 확장하여 가변폭/볼드 환경에서도 줄 끝 단어가 스크롤바에 가려지거나 잘리지 않도록 안전 여백 완벽 보장
@@ -1564,7 +1564,7 @@ export function useMonacoSetup(deps: any) {
                         'editor.foreground': isDark ? '#e2e8f0' : '#1e293b',
                         'editorLineNumber.foreground': isDark ? '#475569' : '#94A3B8',
                         'editorLineNumber.activeForeground': isDark ? '#60A5FA' : '#2563EB',
-                        'editorCursor.foreground': isDark ? '#38bdf8' : '#1d4ed8', // 🎯 어르신/저시력자 시인성 강화 (다크: 네온 스카이블루 #38bdf8 / 라이트: 코발트 블루 #1d4ed8)
+                        'editorCursor.foreground': isDark ? '#38bdf8' : '#1d4ed8', // 🎯 고대비 커서 시인성 강화 (다크: 네온 스카이블루 #38bdf8 / 라이트: 코발트 블루 #1d4ed8)
                         'editor.lineHighlightBackground': isDark ? '#1e293b50' : '#88888810',
                         'editorIndentGuide.background': '#88888815',
                         'editorIndentGuide.activeBackground': '#88888830',

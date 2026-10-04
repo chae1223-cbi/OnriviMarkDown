@@ -9,6 +9,7 @@ import { msg } from './systemMessages';
 // 📊 [OMD-CORE-indexedDbHelper-0001 ✅ FIXED] indexedDbHelper.tsx ➔ idb
 // 🎯 @KICK  : IndexedDB 기반 key-value 저장 헬퍼 (get/set/del/clear)
 // 🛡️ @GUARD : onupgradeneeded 스토어 생성, objectStoreNames 존재 여부 체크
+// 🚨 @PATCH : **2026-10-03** — [FileNode 구글 드라이브 속성 확장]: driveId, driveFileId, id, size 선택적 필드 추가로 클라우드 드라이브 노드 타입 완전 지원
 // 🚨 @PATCH : **2026-09-30** — [문서 연결 내 폴더 링크 지원]: scanDirectoryDeep에 includeDirectories 옵션 추가하여 폴더 링크 생성을 위한 디렉토리 노드 수집 지원
 //             **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import 제거, Icon 컴포넌트로 교체. getFileIcon 탐색기 아이콘 통일
 //             **2026-09-05** — idb.del 및 idb.clear 메서드 구현 추가
@@ -75,6 +76,10 @@ export type FileNode = {
   handle?: any;
   path?: string;
   children?: FileNode[];
+  driveId?: string;
+  driveFileId?: string;
+  id?: string;
+  size?: number;
 };
 
 // 폴더를 재귀적으로 스캔하는 함수 (상대 경로인 parentPath를 인자로 받아 노드별 path 가상 경로 부여)

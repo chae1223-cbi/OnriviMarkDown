@@ -2,7 +2,11 @@
 // 📊 [OMD-UI-LeftSidebar-0001] LeftSidebar.tsx ➔ 에디터 좌측 탐색기 사이드바
 // 🎯 @KICK  : 파일 트리 탐색기, TOC, 북마크, 전역 검색 탭 제공. 폴더 CRUD/드래그앤드롭/컨텍스트메뉴 지원
 // 🛡️ @GUARD : FSA API(웹), IPC(데스크톱) 이중 운영, 드래그 덜렁거림(anti-rattle) 방지 적용
-// 🚨 @PATCH : **2026-09-28** — macOS 작업장 전체 경로는 내부 파일 처리에 유지하고 탐색기 선택 바·루트에는 폴더 이름만 표시
+// 🚨 @PATCH : **2026-10-03** — [AI 타문서 변환 Google 503 High Demand 오류 명확한 안내 및 기본 모델 최신화]: 구글 일시적 과부하(503) 시 정확한 원인 안내 토스트 표출 및 기본 모델 gemini-3.8-flash 일원화
+// 🚨 @PATCH : **2026-10-03** — [타문서 변환 이미지 저장 시 리소스 폴더(구글 드라이브 및 로컬) media 자동 연동]: 문서 가져오기 변환 시 구글 드라이브(OnriviAuthor/참조파일/media) 및 로컬 리소스 폴더의 media 디렉토리로 이미지 자동 업로드 및 연동
+// 🚨 @PATCH : **2026-10-03** — [문구 표준화 및 보편적 사용자 경험 확립]: 탐색기 미연결 안내 카드의 대상을 모든 사용자로 보편화하여 누구나 편안하게 사용할 수 있는 클라우드 연동 안내로 통일
+// 🚨 @PATCH : **2026-10-03** — [구글 드라이브 무설정(Zero-Config) 자동 연동 및 파일/폴더 생성 VFS 폴백 404 차단]: 폴더 미연결 상태 시 '☁️ 내 구글 드라이브 연결' 원클릭 카드 제공, 상단 워크스페이스 바 구글 계정 이름 및 연결 해제 버튼 노출, 구글 드라이브(GDRIVE) 파일 트리 탐색기 렌더링, 파일/폴더 생성(onPromptConfirm) 시 웹 환경 404 fetch 원천 차단 및 VFS/GDRIVE 연동 완벽 보장
+//             **2026-09-28** — macOS 작업장 전체 경로는 내부 파일 처리에 유지하고 탐색기 선택 바·루트에는 폴더 이름만 표시
 //             **2026-09-28** — 제한사용자 루트 컨텍스트 메뉴 전체 표시, 새로고침 외 항목 비활성화 및 변환 이벤트 차단
 //             **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(Plus, Scissors, FolderOpen, FolderTree, FilePlus, FolderPlus, Copy, ClipboardPaste, RotateCw, FolderInput, Undo2) 제거, Icon 컴포넌트로 교체
 //             **2026-09-20** — [eslint exhaustive-deps 경고 해소] moveHistoryRef alias 제거 및 deps 배열 정리
@@ -31,6 +35,7 @@ import { useEditorContext } from '@/context/EditorContext';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { knowledgeClient, canAccessKnowledgeDb } from '@/lib/knowledge/knowledgeClient';
 import { loadSecureData } from '@/lib/secureStorage';
+import { uploadDriveImage, getSavedDriveToken, getSavedWorkspaceInfo } from '@/lib/gdrive/googleDriveClient';
 
 // ====================================================================
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
@@ -158,7 +163,8 @@ export default function LeftSidebar() {
     onSelectRootFolder, onRestoreFolder, previewMode, setPreviewMode,
     tabs = [], activeTabId, switchTab, licenseStatus,
     setIsMergeMode, setSelectedMergeNodes,
-    geminiApiKey, aiModelName
+    geminiApiKey, aiModelName,
+    connectGoogleDrive, disconnectGoogleDrive
   } = useEditorContext();
 
   const searchHighlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -364,9 +370,11 @@ export default function LeftSidebar() {
     licenseStatus?.planName?.includes('제한') ||
     licenseStatus?.planName?.includes('만료')
   );
-  const rootFolderDisplayName = rootFolder?.name
-    ? (rootFolder.handle?.name || rootFolder.name.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || rootFolder.name)
-    : '';
+  const rootFolderDisplayName = rootFolder?.type === 'GDRIVE'
+    ? `☁️ ${(rootFolder.name || '작업장').split('/').pop()}`
+    : (rootFolder?.name
+        ? (rootFolder.handle?.name || rootFolder.name.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || rootFolder.name)
+        : '');
   const onCancelMerge = () => {
     if (setIsMergeMode) setIsMergeMode(false);
     if (setSelectedMergeNodes) setSelectedMergeNodes([]);
@@ -819,11 +827,10 @@ export default function LeftSidebar() {
                 await api.saveFile(res.path || path, content);
               }
             } else {
-              await fetch(getApiUrl('/api/create-file'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ parentPath, name, content })
-              });
+              // 🛡️ [웹 SaaS 백엔드 미구현 404 원천 차단]: electronAPI가 없는 웹 브라우저 환경에서는 VFS 복원 수행
+              const { vfsCreateFile, vfsWriteFile } = await import('@/lib/virtualFileSystem');
+              vfsCreateFile(parentPath, name);
+              vfsWriteFile(path, content);
             }
           }
           await refreshFileList(true);
@@ -1822,6 +1829,27 @@ export default function LeftSidebar() {
 
       try {
         setPromptConfig(prev => ({ ...prev, isOpen: false, error: '' }));
+        if (rootFolder?.type === 'GDRIVE') {
+          const { getSavedDriveToken, getSavedWorkspaceInfo, createDriveMarkdownFile } = await import('@/lib/gdrive/googleDriveClient');
+          const token = getSavedDriveToken();
+          const wsInfo = getSavedWorkspaceInfo();
+          const targetFolderId = rootFolder?.id || wsInfo?.workspaceFolderId;
+          if (token && targetFolderId) {
+            const newFile = await createDriveMarkdownFile(token, targetFolderId, finalName, '');
+            await refreshFileList();
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            openFile({
+              name: finalName,
+              kind: 'file',
+              path: `${rootFolder?.path || 'GoogleDrive'}/${finalName}`,
+              driveId: newFile.id,
+              id: newFile.id
+            });
+            showToast(`'${finalName}' 파일이 구글 드라이브에 생성되었습니다.`, 'success');
+            return;
+          }
+        }
+
         if (workspaceType === 'browser') {
           if (rootFolder?.handle) {
             const handle = await rootFolder.handle.getFileHandle(finalName, { create: true });
@@ -1846,17 +1874,12 @@ export default function LeftSidebar() {
               openFile({ name: finalName, kind: 'file', path: result.path });
             }
           } else {
-            const res = await fetch(getApiUrl('/api/create-file'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ parentPath: rootPath, name: finalName })
-            });
-            if (res.ok) {
-              const data = await res.json();
-              await refreshFileList();
-              window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-              openFile({ name: finalName, kind: 'file', path: data.path });
-            }
+            // 🛡️ [웹 SaaS 백엔드 미구현 404 원천 차단]: electronAPI가 없는 웹 브라우저 환경에서는 VFS 파일 생성 수행
+            const { vfsCreateFile } = await import('@/lib/virtualFileSystem');
+            vfsCreateFile("", finalName);
+            await refreshFileList();
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            openFile({ name: finalName, kind: 'file', path: finalName });
           }
         }
       } catch(e) { showToast("생성 실패: " + e, 'error'); }
@@ -1869,6 +1892,20 @@ export default function LeftSidebar() {
 
       try {
         setPromptConfig(prev => ({ ...prev, isOpen: false, error: '' }));
+        if (rootFolder?.type === 'GDRIVE') {
+          const { getSavedDriveToken, getSavedWorkspaceInfo, createDriveFolder } = await import('@/lib/gdrive/googleDriveClient');
+          const token = getSavedDriveToken();
+          const wsInfo = getSavedWorkspaceInfo();
+          const targetFolderId = rootFolder?.id || wsInfo?.workspaceFolderId;
+          if (token && targetFolderId) {
+            await createDriveFolder(token, name, targetFolderId);
+            await refreshFileList();
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            showToast(`'${name}' 폴더가 구글 드라이브에 생성되었습니다.`, 'success');
+            return;
+          }
+        }
+
         if (workspaceType === 'browser') {
           if (rootFolder?.handle) {
             await rootFolder.handle.getDirectoryHandle(name, { create: true });
@@ -1882,11 +1919,9 @@ export default function LeftSidebar() {
           if (api?.createFolder) {
             await api.createFolder(rootPath, name);
           } else {
-            await fetch(getApiUrl('/api/create-folder'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ parentPath: rootPath, name: name })
-            });
+            // 🛡️ [웹 SaaS 백엔드 미구현 404 원천 차단]: electronAPI가 없는 웹 브라우저 환경에서는 VFS 폴더 생성 수행
+            const { vfsCreateFolder } = await import('@/lib/virtualFileSystem');
+            vfsCreateFolder("", name);
           }
         }
         await refreshFileList();
@@ -1922,6 +1957,25 @@ export default function LeftSidebar() {
         const assetsDir = 'assets';
         const imgPath = `${assetsDir}/${imgName}`;
 
+        const isDriveEnv = workspaceType === 'cloud' || rootFolder?.type === 'GDRIVE' || (typeof window !== 'undefined' && (localStorage.getItem('workspaceType') === 'cloud' || (localStorage.getItem('onrivi_resource_folder_path') || '').startsWith('OnriviAuthor')));
+        if (isDriveEnv) {
+          const token = getSavedDriveToken();
+          const wsInfo = getSavedWorkspaceInfo();
+          const mediaFolderId = wsInfo?.mediaFolderId;
+          if (token && mediaFolderId) {
+            try {
+              const res = await fetch(`data:${contentType};base64,${base64Data}`);
+              const blob = await res.blob();
+              const uploaded = await uploadDriveImage(token, mediaFolderId, blob, imgName);
+              if (uploaded?.id) {
+                return `/media/${imgName}`;
+              }
+            } catch (gErr) {
+              console.error('[LeftSidebar GDrive upload error]', gErr);
+            }
+          }
+        }
+
         if (workspaceType === 'browser') {
           if (resourceFolderHandle) {
             const mediaDir = await resourceFolderHandle.getDirectoryHandle('media', { create: true });
@@ -1951,7 +2005,8 @@ export default function LeftSidebar() {
           // Electron 데스크톱 환경
           const api = (window as any).electronAPI;
           if (api && api.saveImage) {
-            const targetFolder = resourceFolder ? resourceFolder + '\\media' : (rootFolder?.name || "");
+            const sep = resourceFolder?.includes('\\') ? '\\' : '/';
+            const targetFolder = resourceFolder ? resourceFolder + sep + 'media' : (rootFolder?.name || "");
             const saveResult = await api.saveImage(targetFolder, base64Data, imgName);
             if (saveResult && saveResult.success) {
               if (saveResult.mediaPath) {
@@ -1972,34 +2027,15 @@ export default function LeftSidebar() {
 
       const extension = file.name.split('.').pop()?.toLowerCase();
       const isAlreadyTextOrMd = ['md', 'markdown', 'txt'].includes(extension || '');
-      let skipAiFormatting = false;
-
       if (!isAlreadyTextOrMd) {
-        const MAX_CHARS = 30000;
-        if (markdown.length > MAX_CHARS) {
-          // 💡 [초과 크기 폴백] 30,000자 초과 시 전체 에러 대신 AI 구조화만 스킵 처리
-          skipAiFormatting = true;
-          showToast('문서 내용이 너무 커서 AI 마크다운 변환 없이 원본 문서 그대로 신속히 가져옵니다.', 'warning');
-        }
-        if (markdown.trim().length === 0) {
-          throw new Error('문서에서 텍스트를 추출할 수 없습니다. 이미지로만 구성된 문서(스캔본 등)이거나 내용이 비어있습니다.');
-        }
-      }
-
-      if (geminiApiKey && !isAlreadyTextOrMd && !skipAiFormatting) {
-        showToast('AI가 문서를 분석하여 마크다운으로 구조화 중입니다... (최대 30초 소요)', 'info');
-        try {
-          const { formatRawTextToMarkdown } = await import('@/lib/aiFormatter');
-          markdown = await formatRawTextToMarkdown(markdown, geminiApiKey, aiModelName || 'gemini-1.5-pro');
-        } catch (aiError: any) {
-          console.warn('AI 마크다운 구조화 실패, 원본 텍스트로 대체합니다:', aiError);
-          const errMsg = aiError?.message || String(aiError);
-          if (errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('Quota')) {
-            showToast('AI API 호출 제한(429 Quota Exceeded)으로 인해 AI 포맷팅 없이 원본 문서 내용만 그대로 가져옵니다.', 'warning');
-          } else {
-            showToast('AI 구조화 처리에 실패하여 원본 문서 내용으로 가져옵니다.', 'warning');
-          }
-        }
+        if (!markdown.trim()) throw new Error('문서에서 변환할 내용을 추출할 수 없습니다.');
+        if (!geminiApiKey) throw new Error('문서 변환에 필요한 AI API 키를 환경설정에서 등록해 주세요.');
+        showToast('AI가 문서를 마크다운으로 변환하고 있습니다. 최대 2분 기다려 주세요.', 'info');
+        const { formatRawTextToMarkdown } = await import('@/lib/aiFormatter');
+        // Conversion must succeed before creating a document; never save extracted HTML on failure.
+        markdown = await formatRawTextToMarkdown(markdown, geminiApiKey, aiModelName || 'gemini-3.8-flash', (attempt, delayMs) => {
+          showToast(`AI 서버가 혼잡합니다. ${Math.ceil(delayMs / 1000)}초 후 다시 시도합니다. (${attempt}/3회)`, 'info');
+        });
       }
       const targetNode = targetImportNodeRef.current;
       const targetParentHandle = targetImportParentHandleRef.current;
@@ -2055,6 +2091,29 @@ export default function LeftSidebar() {
         }, 120);
       };
 
+      // ☁️ [Google Drive 작업장 시 구글 드라이브 문서 생성]
+      if (rootFolder?.type === 'GDRIVE') {
+        const { getSavedDriveToken, getSavedWorkspaceInfo, createDriveMarkdownFile } = await import('@/lib/gdrive/googleDriveClient');
+        const token = getSavedDriveToken();
+        const wsInfo = getSavedWorkspaceInfo();
+        const targetFolderId = targetNode?.driveId || targetNode?.driveFileId || targetNode?.id || rootFolder?.driveFolderId || wsInfo?.workspaceFolderId;
+        if (token && targetFolderId) {
+          const newDoc = await createDriveMarkdownFile(token, targetFolderId, finalName, markdown);
+          const createdPath = `${targetNode?.path || rootFolder?.path || 'GoogleDrive'}/${finalName}`;
+          await triggerExplorerRefresh(createdPath);
+          openFile({
+            name: finalName,
+            kind: 'file',
+            path: createdPath,
+            driveId: newDoc.id,
+            driveFileId: newDoc.id,
+            id: newDoc.id
+          });
+          showToast(`'${file.name}' 문서가 구글 드라이브에 성공적으로 변환 저장되었습니다.`, 'success');
+          return;
+        }
+      }
+
       if (workspaceType === 'browser') {
         const destDirHandle = targetNode?.handle || (targetNode ? targetParentHandle : rootFolder?.handle);
         if (destDirHandle && typeof destDirHandle.getFileHandle === 'function') {
@@ -2085,23 +2144,12 @@ export default function LeftSidebar() {
             openFile({ name: finalName, kind: 'file', path: result.path });
           }
         } else {
-          const res = await fetch(getApiUrl('/api/create-file'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ parentPath: parentDir, name: finalName })
-          });
-          if (res.ok) {
-            const data = await res.json();
-            await fetch(getApiUrl('/api/save-file'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ path: data.path, content: markdown })
-            });
-            await triggerExplorerRefresh(data.path);
-            openFile({ name: finalName, kind: 'file', path: data.path });
-          } else {
-            throw new Error(`파일 생성 API 호출 실패: ${res.status}`);
-          }
+          // 🛡️ [웹 SaaS 백엔드 미구현 404 원천 차단]: electronAPI가 없는 웹 브라우저 환경에서는 VFS 생성 수행
+          const { vfsCreateFile, vfsWriteFile } = await import('@/lib/virtualFileSystem');
+          vfsCreateFile("", finalName);
+          vfsWriteFile(finalName, markdown);
+          await triggerExplorerRefresh(finalName);
+          openFile({ name: finalName, kind: 'file', path: finalName });
         }
       }
       showToast(`'${file.name}' 문서가 성공적으로 변환되었습니다.`, 'success');
@@ -2175,6 +2223,17 @@ export default function LeftSidebar() {
 // ====================================================================
   const handleLazyLoad = async (node: FileNode): Promise<FileNode[]> => {
     try {
+      // ☁️ [Google Drive 하위 폴더 지연 로딩]
+      if ((node as any).driveId || rootFolder?.type === 'GDRIVE') {
+        const { getSavedDriveToken, fetchDriveFileNodes } = await import('@/lib/gdrive/googleDriveClient');
+        const token = getSavedDriveToken();
+        const folderId = (node as any).driveId || (node as any).id;
+        if (token && folderId) {
+          const children = await fetchDriveFileNodes(token, folderId, node.path || node.name);
+          return children;
+        }
+      }
+
       if (workspaceType === 'browser') {
         if (node.handle) {
           const children: FileNode[] = [];
@@ -2333,6 +2392,19 @@ export default function LeftSidebar() {
               {rootFolderDisplayName || '폴더를 선택하세요'}
             </span>
           </button>
+          {rootFolder?.type === 'GDRIVE' && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (disconnectGoogleDrive) disconnectGoogleDrive();
+              }}
+              title="구글 드라이브 연결 해제"
+              className="px-2 py-1 text-[11px] font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded transition-colors shrink-0 flex items-center gap-1"
+            >
+              <span>🔌</span>
+              <span>해제</span>
+            </button>
+          )}
         </div>
 
       {/* 탭 바디 — 항상 마운트, hidden으로 표시/숨김 제어 */}
@@ -2367,7 +2439,7 @@ export default function LeftSidebar() {
                 🔄 워크스페이스 복구
               </button>
             </div>
-          ) : rootFolder?.handle || (isDesktop && rootFolder?.name) || rootFolder?.name === BROWSER_STORAGE_NAME ? (
+          ) : rootFolder?.handle || (isDesktop && rootFolder?.name) || rootFolder?.name === BROWSER_STORAGE_NAME || rootFolder?.type === 'GDRIVE' ? (
             // 폴더 연결됨 → 파일 트리 표시
             // 🛡️ [빈 폴더 방어] fileList가 비어있어도 루트 폴더 헤더(풀경로+버튼)를 항상 유지
             <div 
@@ -2705,10 +2777,48 @@ export default function LeftSidebar() {
                 )))}
               </div>
           ) : (
-            // 폴더 미연결 상태 — 간결한 안내
-            <div className="flex flex-col items-center justify-center h-full min-h-[150px] text-zinc-400 dark:text-zinc-500 text-[11px] text-center space-y-2 px-4">
-              <Icon name="FolderTree" size={28} strokeWidth={1.5} className="text-current opacity-35 mb-1" />
-              <p className="font-medium opacity-70">위의 폴더 선택 바를 눌러<br/>워크스페이스를 시작하세요.</p>
+            // 폴더 미연결 상태 — 무설정 구글 드라이브 자동 연동 카드
+            <div className="flex flex-col items-center justify-center h-full min-h-[260px] text-zinc-700 dark:text-zinc-200 text-center space-y-4 px-3 py-6">
+              <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 flex items-center justify-center text-[#1d4ed8] shadow-sm">
+                <span className="text-2xl">☁️</span>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-[14px] font-extrabold text-zinc-900 dark:text-zinc-100">
+                  작업장이 아직 비어있습니다
+                </p>
+                <p className="text-[12px] font-medium text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                  구글 계정만 연결하면 별도 설정 없이<br/>
+                  <strong className="text-[#1d4ed8] dark:text-blue-400 font-bold">온리비 서재(작업장)</strong>가 자동 생성됩니다.
+                </p>
+              </div>
+
+              {/* 원클릭 구글 드라이브 연결 버튼 */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (connectGoogleDrive) connectGoogleDrive();
+                }}
+                className="w-full flex items-center justify-center gap-2 px-3 py-3 bg-[#1d4ed8] hover:bg-[#1e40af] text-white rounded-xl text-[13px] font-extrabold shadow-md shadow-blue-500/25 hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer"
+              >
+                <span className="text-base">☁️</span>
+                <span>내 구글 드라이브 연결</span>
+              </button>
+
+              <div className="w-full flex items-center gap-2 my-1">
+                <div className="h-px bg-slate-300 dark:bg-zinc-700 flex-1" />
+                <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-bold">또는</span>
+                <div className="h-px bg-slate-300 dark:bg-zinc-700 flex-1" />
+              </div>
+
+              {/* 로컬 폴더 열기 보조 버튼 */}
+              <button
+                type="button"
+                onClick={onSelectRootFolder}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 rounded-lg text-[12px] font-bold border border-slate-300 dark:border-zinc-700 transition-all cursor-pointer"
+              >
+                <span>📁</span>
+                <span>내 컴퓨터 폴더 선택</span>
+              </button>
             </div>
           )}
         </div>

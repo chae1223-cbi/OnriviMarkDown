@@ -15,7 +15,7 @@ import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
 // ====================================================================
 // 📊 [OMD-EDIT-USEEDITORSETTINGS-0005] useEditorSettings.ts ➔ useEditorSettings
 // 🎯 @KICK  : 에디터 사용자 설정(테마, 단축키, 폰트크기 등)을 관리하고 영구 저장소에 동기화
-// 🛡️ @GUARD : 각 스토리지 로드 실패 시 기본값 fallback
+// 🚨 @PATCH : **2026-10-03** — [구글 드라이브(GDRIVE) 워크스페이스 세션 자동 복원 지원]: 새로고침 시 activeWorkspaceType === 'gdrive'일 때 localStorage의 rootFolder를 확인하여 구글 드라이브 서재 세션을 자동 복구
 // 🚨 @PATCH : **2026-09-25** — [에디터 기본 글꼴 크기 16px 상향 및 가독성 최적화]: 작은 글씨로 인한 피로를 해소하기 위해 기본 에디터 fontSize를 14px에서 16px로 전면 상향 조정
 // 🚨 @PATCH : **2026-10-01** — [단축키/명령어 기본값 자동 병합 복구]: localStorage 복원 시 기존 저장 데이터에 신규 단축키(signature 등)가 누락되지 않도록 getDefaultHotkeys/getDefaultCommands와의 베이스 병합 보장
 // 🚨 @PATCH : **2026-09-25** — [에디터 글꼴 굵기 SemiBold(600) 신설 및 중간 굵기 선택지 확장]: editorFontWeight 타입에 'semibold' 추가, 400(Regular)/500(Medium)/600(SemiBold)/700(Bold) 4단계 굵기 체계 구축
@@ -366,7 +366,20 @@ export const useEditorSettings = (
       const activeWorkspaceType = detectedAddon ? 'browser' : savedWorkspaceType;
       setWorkspaceType(activeWorkspaceType as any);
 
-      if (activeWorkspaceType === 'browser') {
+      if (activeWorkspaceType === 'gdrive' || activeWorkspaceType === 'cloud') {
+        setPreviewMode(baseSettings.previewMode);
+        const savedFolder = localStorage.getItem('rootFolder');
+        if (savedFolder) {
+          try {
+            const folder = JSON.parse(savedFolder);
+            if (folder && folder.type === 'GDRIVE') {
+              setRootFolder(folder);
+              return;
+            }
+          } catch (_) {}
+        }
+        setRootFolder(null);
+      } else if (activeWorkspaceType === 'browser') {
         setPreviewMode(baseSettings.previewMode);
 
         try {

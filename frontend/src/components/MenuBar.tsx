@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
 // 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
+// 🚨 @PATCH : **2026-10-03** — [파일 메뉴 내 구글 드라이브 연결 및 해제 항목 추가]: 상단 파일(File) 메뉴에 '내 구글 드라이브 연결' 및 '구글 드라이브 해제' 항목을 추가하여 워크스페이스 상태와 관계없이 언제든 원클릭으로 클라우드 서재를 바인딩/전환할 수 있도록 접근성 극대화
 // 🚨 @PATCH : **2026-10-02** — [편집 메뉴 이모지 보관함(Ctrl+Shift+E) 연동]: 상단 편집(Edit) 메뉴에 '이모지 보관함' 항목 및 단축키(Ctrl+Shift+E)를 신설하여 데스크톱 및 웹 환경 어디서나 상단 메뉴를 통해 손쉽게 이모지 보관함을 토글할 수 있도록 확장
 // 🚨 @PATCH : **2026-10-01** — [한글(.hwpx) 내보내기 메뉴 삭제]: 상단 파일 > 내보내기 서브메뉴에서 한글 문서(.hwpx) 항목 및 번역 키 완전 제거
 // 🚨 @PATCH : **2026-10-01** — [제한사용자 미리보기 모드 시 메뉴바 내보내기 활성화]: isRestrictedUser 조건으로 인해 미리보기 모드에서도 내보내기 메뉴가 비활성화되던 가드를 해제하여 previewMode === 'preview'일 때 제한사용자도 문서 내보내기(인쇄, Word, 한글, HTML, EPUB, PNG)를 정상 이용할 수 있도록 개선
@@ -142,7 +143,8 @@ export default function MenuBar() {
     themePalette,
     licenseStatus, isActivated,
     resourceFolder, resourceFolderHandle,
-    isRestrictedUser
+    isRestrictedUser,
+    connectGoogleDrive, disconnectGoogleDrive, rootFolder
   } = useEditorContext();
   
   const router = useRouter();
@@ -243,6 +245,9 @@ export default function MenuBar() {
   const fileItems = [
     { label: t('openFolder'), icon: <Icon name="FolderOpen" size={15} />, shortcut: 'Ctrl+O', onClick: () => dispatch('OPEN_FILE') },
     { label: t('openWorkspace'), icon: <Icon name="Folder" size={15} />, shortcut: 'Ctrl+Shift+O', onClick: () => dispatch('OPEN_WORKSPACE') },
+    rootFolder?.type === 'GDRIVE'
+      ? { label: "구글 드라이브 연결 해제", icon: <span className="text-[13px]">🔌</span>, onClick: () => disconnectGoogleDrive && disconnectGoogleDrive() }
+      : { label: "내 구글 드라이브 연결", icon: <span className="text-[13px]">☁️</span>, onClick: () => connectGoogleDrive && connectGoogleDrive() },
     { divider: true },
     { label: t('saveFile'), icon: <Icon name="Save" size={15} />, shortcut: 'Ctrl+S', disabled: isRestrictedUser, onClick: () => dispatch('SAVE') },
     { label: t('saveFileAs'), icon: <Icon name="Export" size={15} />, shortcut: 'Ctrl+Shift+S', disabled: isRestrictedUser, onClick: () => dispatch('SAVE_AS') },

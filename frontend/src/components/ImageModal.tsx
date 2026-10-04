@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 전역 미디어 실시간 연동 강화]: getEffectiveResourceFolder 연동 및 구글 드라이브(OnriviAuthor/참조파일/media) 업로드 지원
 "use client";
 
 import React, { useRef, useState, useEffect, useMemo } from 'react';
@@ -6,6 +7,8 @@ import { X, Image as ImageIcon, Upload, Link as LinkIcon, Eye } from 'lucide-rea
 import { supabase } from '@/lib/supabaseClient';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { loadSecureData } from '@/lib/secureStorage';
+import { getEffectiveResourceFolder } from '@/lib/profileStorage';
+import { getSavedDriveToken, getSavedWorkspaceInfo, uploadDriveImage } from '@/lib/gdrive/googleDriveClient';
 import { MediaAlignmentControl, MediaSizeInputs, type MediaAlign } from '@/components/MediaLayoutFields';
 
 interface ImageModalProps {
@@ -32,6 +35,7 @@ interface ImageModalProps {
 // ====================================================================
 // 📊 [OMD-EDIT-ImageModal-0007] ImageModal ➔ ImageModal
 // 🎯 @KICK  : 이미지 삽입 모달 - URL/파일/클립보드 이미지 경로 입력 및 크기/정렬 설정
+// 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 미디어 저장 연동 동기화]: 구글 드라이브(OnriviAuthor/참조파일/media) 및 로컬/웹 환경에서 리소스 폴더 변경 시 최신 media 폴더로 이미지 자동 저장 및 연동
 // 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-11** — 클립보드 스크린샷 캡처 이미지 붙여넣기 시 Electron api.readClipboardImage 네이티브 폴백 및 인라인 바이너리 변환 지원
 //             2026-08-26 — 데스크탑 및 웹 환경에서 리소스 폴더 이미지를 찾아보기로 선택 시 미리보기가 노출되지 않는 버그 및 자동저장 시 상태가 blob으로 원복되는 문제를 해결하기 위해 useEffect의 의존성 배열에서 initialData를 제거하고, 데스크탑 환경은 readImageAsBase64 API를 활용해 웹 보안 샌드박스를 우회하도록 함; 미리보기 컨테이너 div에 onWheel preventDefault를 연동해 마우스 스크롤 전파를 차단함
@@ -100,13 +104,34 @@ export default function ImageModal({
   const handleLocalImageSave = async (base64Data: string, fileName: string, imageFile: File) => {
     let finalPath = '';
     const api = (window as any).electronAPI;
+
+    // ☁️ [Google Drive 작업장 및 리소스 폴더 지원]
+    const isDriveTarget = workspaceType === 'cloud' || rootFolder?.type === 'GDRIVE' || (typeof window !== 'undefined' && (localStorage.getItem('workspaceType') === 'cloud' || (localStorage.getItem('onrivi_resource_folder_path') || '').startsWith('OnriviAuthor')));
+    if (isDriveTarget) {
+      const token = getSavedDriveToken();
+      const wsInfo = getSavedWorkspaceInfo();
+      const mediaFolderId = wsInfo?.mediaFolderId;
+      if (token && mediaFolderId) {
+        try {
+          const uploaded = await uploadDriveImage(token, mediaFolderId, imageFile, fileName);
+          if (uploaded?.id) {
+            finalPath = `/media/${fileName}`;
+            return finalPath;
+          }
+        } catch (e) {
+          console.error('[ImageModal GDrive upload error]', e);
+        }
+      }
+    }
     
     if (api) {
-      // 💡 [Desktop] targetFolder prop 대신 secureStorage에서 항상 최신 resourceFolder를 읽어 사용
-      const freshResourceFolder = loadSecureData<string>('resourceFolder') || resourceFolder;
-      const effectiveTargetFolder = freshResourceFolder
-        ? freshResourceFolder + '\\media'
-        : (targetFolder || '');
+      // 💡 [Desktop] targetFolder prop 대신 항상 최신 유효 resourceFolder를 읽어 사용
+      const freshResourceFolder = getEffectiveResourceFolder(resourceFolder);
+      let effectiveTargetFolder = targetFolder || '';
+      if (freshResourceFolder) {
+        const sep = freshResourceFolder.includes('\\') ? '\\' : '/';
+        effectiveTargetFolder = freshResourceFolder + sep + 'media';
+      }
       const saveResult = await api.saveImage(effectiveTargetFolder, base64Data, fileName);
       if (saveResult && saveResult.success) {
         if (saveResult.mediaPath) {
@@ -467,7 +492,7 @@ export default function ImageModal({
         setTempPreviewUrl(localMediaUrl);
 
         // 2. 복사 생략(리소스 폴더 내부 파일) 체크
-        const freshResourceFolder = loadSecureData<string>('resourceFolder') || resourceFolder;
+        const freshResourceFolder = getEffectiveResourceFolder(resourceFolder);
         let targetDir = '';
         if (freshResourceFolder) {
           targetDir = freshResourceFolder + (freshResourceFolder.includes('\\') ? '\\media' : '/media');

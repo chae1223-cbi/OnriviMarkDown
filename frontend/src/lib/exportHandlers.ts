@@ -56,6 +56,9 @@
 //             **2026-06-20** — HTML/PNG 내보내기 시 로컬 및 확장프로그램 스타일시트를 런타임에 인라인화하여 테마 서식 동기화 결함 해결; 다크모드 무력화에 대응하여 내보내기 시 라이트모드 기준 스타일 생성(generateExportCss) 및 activeProfile 연동 처리 구현; PDF/HTML/PNG 내보내기 시 @page margin 0 및 body padding 레이아웃을 통해 가장자리 여백 영역까지 배경색이 단일 톤으로 빈틈없이 흐르도록 여백 분리 결함 해결; PDF 내보내기 시 배경색이 흰색으로 누락되는 custom-preview-container transparent 강제 투명화 가드 버그 수정 및 KaTeX 수식 전용 CDN 웹폰트 주입으로 찌그러짐 현상 해결; generateExportCss 선택자 구체성을 .custom-preview-container .markdown-viewer-root 기반으로 대폭 상향하여 사용자 커스텀 서식 100% 보장; HTML 내보내기 시 body 배경색을 용지 배경색(pageBg)과 완벽 동합; PDF 인쇄 템플릿 내의 mm 여백 단위 중복(25mmmm) 결함 수정으로 여백 소실 결함 해결; HTML 내보내기 시 Tailwind CDN에 의한 body 배경색 리셋을 차단하기 위해 body 및 시트지에 인라인 스타일 배경색 강제 지정 적용; PDF 내보내기 및 HTML 인쇄 시 페이지 분할(쪼개짐) 구역의 상하 여백 소실을 차단하기 위해 임시 패딩 래퍼를 롤백하고 표준 @page { margin: ... } 바인딩으로 전환하되, 여백 잘림(흰색 영역)을 막기 위해 html/body 전체 배경색 지정 및 print-color-adjust 강제화 구현; 일렉트론 및 크롬 인쇄 시 여백(마진) 영역의 흰색 잘림 결함을 완벽히 해결하기 위해 @page 지시자 규칙에 background-color 지정을 추가하여 용지 가장자리 영역까지 배경색이 가득 차도록 최종 동기화
 
 import { getApiUrl } from '@/lib/apiUrlBuilder';
+import { prepareExportPreview, waitForExportResources, fetchExportImage, exportBlobToDataUrl, withExportTimeout } from './exportPreparation';
+import { PRINT_TABLE_FLOW_CSS, unwrapPrintTables } from './exportPagination';
+import { cssPx, EXPORT_FIGURE_HEIGHT_RATIO, EXPORT_LEAD_FIGURE_HEIGHT_RATIO, markLeadExportFigure } from './docxFormatting';
 import { msg } from '@/lib/systemMessages';
 import { PAPER_SIZES } from '@/constants/paperSizes';
 import { DEFAULT_PROFILE, normalizeCssProfile } from '@/constants/cssProfile';
@@ -1045,7 +1048,7 @@ pre {
   const extraCss = profile.customCss?.trim()
     ? `\n@layer onrivi-extra {\n${profile.customCss}\n}`
     : '';
-  return `@layer onrivi-settings, onrivi-extra;\n@layer onrivi-settings {\n${css}\n}${extraCss}`;
+  return `@layer onrivi-settings, onrivi-extra;\n@layer onrivi-settings {\n${css}\n}${extraCss}\n${PRINT_TABLE_FLOW_CSS}`;
 }
 
 // ====================================================================
@@ -1574,8 +1577,26 @@ function convertYoutubeIframeToLink(clone: HTMLElement) {
 // 🚨 @PATCH : 없음
 // 🔗 @CALLS : restoreMapsInClone, convertYoutubeIframeToLink
 // ====================================================================
-function clonePreview(previewEl: HTMLElement): HTMLElement {
+function clonePreview(previewEl: HTMLElement, captureWordLayout = false): HTMLElement {
   const clone = previewEl.cloneNode(true) as HTMLElement;
+  if (captureWordLayout) {
+    const sources = [previewEl, ...Array.from(previewEl.querySelectorAll<HTMLElement>('*'))];
+    const copies = [clone, ...Array.from(clone.querySelectorAll<HTMLElement>('*'))];
+    sources.forEach((source, index) => {
+      const copy = copies[index];
+      const css = window.getComputedStyle(source);
+      copy.setAttribute('data-docx-white-space', css.whiteSpace || 'normal');
+      if (/^(TABLE|TD|TH|COL)$/.test(source.tagName)) {
+        const width = source.getBoundingClientRect().width;
+        if (width > 0) copy.setAttribute('data-docx-width', String(width));
+        if (source.tagName === 'TD' || source.tagName === 'TH') {
+          for (const side of ['top', 'right', 'bottom', 'left']) {
+            copy.setAttribute(`data-docx-padding-${side}`, css.getPropertyValue(`padding-${side}`));
+          }
+        }
+      }
+    });
+  }
   clone.querySelectorAll('button, .copy-btn, [title*="복사"]').forEach(el => el.remove());
   restoreMapsInClone(clone);
   convertYoutubeIframeToLink(clone);
@@ -1643,169 +1664,51 @@ function fixListMarkers(clone: HTMLElement): void {
 // 🔗 @CALLS : getApiUrl
 // ====================================================================
 async function inlineLocalImages(clone: HTMLElement): Promise<void> {
-  const imgs = Array.from(clone.querySelectorAll('img'));
-  const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
-
-  await Promise.all(imgs.map(async (img) => {
-    const src = img.getAttribute('src') || '';
-    if (!src || src.startsWith('data:')) return;
-
-    const isBlob = src.startsWith('blob:');
-
-    // 💡 [블롭 가드] 드래그앤드롭 등으로 생성된 로컬 브라우저 메모리 blob URL은 IPC나 외부 프록시를 거치지 않음.
-    // Electron app:// 프로토콜에서는 fetch(blob:)이 차단되므로 캔버스를 우선 사용하여 메모리에서 다이렉트 픽셀 추출을 시도.
-    if (isBlob) {
-      try {
-        const liveImg = document.querySelector(`img[src="${src}"]`) as HTMLImageElement;
-        if (liveImg && liveImg.complete && liveImg.naturalWidth > 0) {
-          const canvas = document.createElement('canvas');
-          canvas.width = liveImg.naturalWidth;
-          canvas.height = liveImg.naturalHeight;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(liveImg, 0, 0);
-            img.setAttribute('src', canvas.toDataURL('image/png'));
-            return;
-          }
-        }
-        
-        // 원본 이미지가 없거나 로드 전이면 임시 객체로 로드 시도
-        await new Promise<void>((resolve, reject) => {
-          const tempImg = new Image();
-          tempImg.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = tempImg.naturalWidth;
-            canvas.height = tempImg.naturalHeight;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(tempImg, 0, 0);
-              img.setAttribute('src', canvas.toDataURL('image/png'));
-              resolve();
-            } else {
-              reject(new Error('Canvas context null'));
-            }
-          };
-          tempImg.onerror = reject;
-          tempImg.src = src;
-        });
-        return;
-      } catch (err) {
-        console.warn(`[Blob Canvas Fallback] failed, trying fetch: ${src}`, err);
-        try {
-          const resp = await fetch(src);
-          if (resp.ok) {
-            const blob = await resp.blob();
-            const reader = new FileReader();
-            await new Promise<void>((resolve) => {
-              reader.onloadend = () => {
-                if (reader.result) img.setAttribute('src', reader.result as string);
-                resolve();
-              };
-              reader.readAsDataURL(blob);
-            });
-          }
-        } catch (fetchErr) {
-          console.error(`Failed to inline blob image via both canvas and fetch: ${src}`, fetchErr);
-        }
-      }
-      return;
-    }
-
-    const isExternal = src.startsWith('http://') || src.startsWith('https://');
-
-    // 💡 [일렉트론 환경 가드] 외부 http/https 이미지이고 일렉트론인 경우, CORS/CSP 우회용 media 프록시로 fetch하여 base64 인라인 변환
-    if (isExternal) {
-      if (isElectron) {
-        try {
-          const proxyUrl = `media://?url=${encodeURIComponent(src)}`;
-          const resp = await fetch(proxyUrl);
-          if (resp.ok) {
-            const blob = await resp.blob();
-            const reader = new FileReader();
-            await new Promise<void>((resolve) => {
-              reader.onloadend = () => {
-                if (reader.result) img.setAttribute('src', reader.result as string);
-                resolve();
-              };
-              reader.readAsDataURL(blob);
-            });
-          }
-        } catch (err) {
-          console.error(`[Electron] Failed to inline external image via media proxy: ${src}`, err);
-        }
-      }
-      return; // 외부 이미지는 로컬 이미지 로직을 타지 않고 처리 종료
-    }
-
-    // 💡 [일렉트론 환경 가드] 일렉트론 런타임 환경에서는 IPC를 사용하여 로컬 파일 경로에서 base64 데이터를 다이렉트로 안전하게 로드합니다.
-    if (isElectron) {
-      try {
-        let filePath = src;
-        if (src.startsWith('media://')) {
-          try {
-            const urlObj = new URL(src);
-            filePath = urlObj.searchParams.get('url') || src;
-          } catch (e) {
-            filePath = src;
-          }
-        }
-        
-        const base64Data = await (window as any).electronAPI.readImageAsBase64(filePath);
-        if (base64Data) {
-          img.setAttribute('src', base64Data);
-        }
-        return;
-      } catch (err) {
-        console.error(`[Electron] Failed to inline local image via IPC: ${src}`, err);
-        // 실패 시 일반 fetch 브라우저 폴백
-      }
-    }
-
-    let absoluteUrl = src;
-    const isElectronMedia = src.startsWith('media://');
-
-    if (!isElectronMedia) {
-      let realSrc = src;
-      // 일반 상대경로인 경우
-      const isAbsoluteWin = /^[a-zA-Z]:[\\/]/.test(realSrc);
-      const isAbsoluteUnix = realSrc.startsWith('/');
-      const isAbsolute = isAbsoluteWin || isAbsoluteUnix;
-
-      if (isAbsolute) {
-        // 절대경로 파일은 백엔드 view API에 url 인자로 전달하여 서빙받음
-        absoluteUrl = getApiUrl(`/api/view?url=${encodeURIComponent(realSrc)}`);
-      } else {
-        // 1차 시도: 백엔드의 워크스페이스 정적 서빙 경로 (/api/view/...)
-        absoluteUrl = realSrc.startsWith('/')
-          ? getApiUrl(`/api/view${realSrc}`)
-          : getApiUrl(`/api/view/${realSrc}`);
-      }
-    }
-
+  const images = Array.from(clone.querySelectorAll('img'));
+  const api = (window as any).electronAPI;
+  await Promise.all(images.map(async (image, index) => {
+    const src = image.getAttribute('src') || '';
+    image.removeAttribute('srcset');
+    image.removeAttribute('sizes');
     try {
-      let resp = await fetch(absoluteUrl);
-
-      // 만약 백엔드에서 못 찾았고, media 프로토콜이 아닌 일반 상대경로였다면 프론트엔드 정적 서빙 경로로 2차 시도
-      if (!resp.ok && !isElectronMedia && src.startsWith('/')) {
-        const fallbackUrl = `${window.location.protocol}//${window.location.host}${src}`;
-        resp = await fetch(fallbackUrl);
+      if (!src) throw new Error('이미지 경로가 없습니다.');
+      if (src.startsWith('data:image/')) return;
+      // The displayed image can already resolve browser handles or authenticated Drive media to a blob.
+      const live = Array.from(document.querySelectorAll('img')).find(candidate =>
+        candidate.getAttribute('src') === src || candidate.src === src);
+      const resolved = live?.currentSrc || live?.src || src;
+      if (resolved.startsWith('data:image/')) { image.src = resolved; return; }
+      let dataUrl: string;
+      if (api && !/^(https?:|blob:)/.test(resolved)) {
+        let path = resolved;
+        if (path.startsWith('media://')) path = new URL(path).searchParams.get('url') || path;
+        dataUrl = await withExportTimeout(api.readImageAsBase64(path), '로컬 이미지') as string;
+        if (!dataUrl?.startsWith('data:image/')) throw new Error('로컬 이미지 데이터를 읽지 못했습니다.');
+      } else {
+        let url = resolved;
+        if (api && /^https?:/.test(url)) url = `media://?url=${encodeURIComponent(url)}`;
+        else if (!/^(https?:|blob:|media:)/.test(url)) {
+          url = getApiUrl(`/api/view?url=${encodeURIComponent(src)}`);
+        }
+        try {
+          dataUrl = await exportBlobToDataUrl(await fetchExportImage(url));
+        } catch (error) {
+          // A successfully loaded image may be readable through canvas even if fetch is unavailable.
+          if (!live?.complete || !live.naturalWidth) throw error;
+          const canvas = document.createElement('canvas');
+          canvas.width = live.naturalWidth; canvas.height = live.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw error;
+          ctx.drawImage(live, 0, 0);
+          dataUrl = canvas.toDataURL('image/png');
+        }
       }
-
-      if (!resp.ok) return;
-
-      const blob = await resp.blob();
-      const reader = new FileReader();
-      await new Promise<void>((resolve) => {
-        reader.onloadend = () => {
-          if (reader.result) img.setAttribute('src', reader.result as string);
-          resolve();
-        };
-        reader.readAsDataURL(blob);
-      });
-    } catch (err) {
-      console.error(`Failed to inline image: ${src}`, err);
+      image.src = dataUrl;
+    } catch {
+      throw new Error(`${index + 1}번째 이미지${image.alt ? ` (${image.alt})` : ''}를 파일에 포함하지 못했습니다. 이미지 경로와 접근 권한을 확인해 주세요.`);
     }
   }));
+  await waitForExportResources(clone);
 }
 
 /**
@@ -2029,8 +1932,10 @@ export async function exportPDF({
     showToast('PDF 내보내기 준비 중...', 'info');
     flushIME();
 
+    await prepareExportPreview(previewEl);
     const targetEl = previewEl.querySelector('.markdown-viewer-root') as HTMLElement || previewEl;
     const clone = clonePreview(targetEl);
+    markLeadExportFigure(clone);
     await inlineLocalImages(clone); // 이미지 Base64 인라인 변환 추가
 
     // 🛡️ Mermaid SVG가 페이지를 넘을 때 헤더(타이틀바)가 분리되지 않고 컨테이너와 SVG가 한 덩어리로 유지되도록
@@ -2058,6 +1963,10 @@ export async function exportPDF({
     });
 
     // 🖼️ 이미지 <figure> 및 래퍼 정규화: Chromium flex 컨테이너 인쇄 버그 및 과도한 높이로 인한 빈 공간 방지
+    const figurePaper = PAPER_SIZES[(paperSize || 'a4').toLowerCase()] || PAPER_SIZES.a4;
+    const figurePageHeight = orientation === 'landscape' ? figurePaper.width : figurePaper.height;
+    const marginMm = (value: string | undefined) => cssPx(value || '18mm') * 25.4 / 96;
+    const pdfImageMaxHeight = Math.max(1, (figurePageHeight - marginMm(marginTop) - marginMm(marginBottom)) * EXPORT_FIGURE_HEIGHT_RATIO);
     clone.querySelectorAll('figure, .onrivi-image-figure').forEach(el => {
       const fig = el as HTMLElement;
       fig.style.setProperty('display', 'block', 'important');
@@ -2075,7 +1984,8 @@ export async function exportPDF({
     clone.querySelectorAll('figure img, .onrivi-image-figure img, .onrivi-image-wrapper img').forEach(el => {
       const img = el as HTMLElement;
       img.style.setProperty('max-width', '100%', 'important');
-      img.style.setProperty('max-height', '190mm', 'important');
+      const heightLimit = img.closest('[data-export-lead-figure]') ? pdfImageMaxHeight * EXPORT_LEAD_FIGURE_HEIGHT_RATIO / EXPORT_FIGURE_HEIGHT_RATIO : pdfImageMaxHeight;
+      img.style.setProperty('max-height', `${heightLimit}mm`, 'important');
       img.style.setProperty('width', 'auto', 'important');
       img.style.setProperty('height', 'auto', 'important');
       img.style.setProperty('object-fit', 'contain', 'important');
@@ -2093,32 +2003,6 @@ export async function exportPDF({
       cap.style.setProperty('break-inside', 'avoid', 'important');
     });
 
-    // 🎯 [P1: Section 시작 위치 최적화] Heading + Intro + 핵심 미디어 원자적 결속
-    // H1~H6 바로 뒤의 소개 문단(p) 또는 목록(ul/ol)이 이미지(figure)나 다이어그램(not-prose)으로 바로 이어질 때,
-    // 이미지가 다음 페이지로 넘어갈 경우 제목과 한 줄 소개만 이전 페이지 하단에 덩그러니 남는 고아 현상을 차단하고,
-    // Heading + Intro + Image가 다음 페이지 첫머리에서 깔끔하게 함께 시작되도록 소개 요소에 break-after: avoid 주입
-    clone.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(heading => {
-      let next = heading.nextElementSibling as HTMLElement | null;
-      while (next && (next.classList.contains('no-export') || next.tagName === 'STYLE' || next.tagName === 'SCRIPT')) {
-        next = next.nextElementSibling as HTMLElement | null;
-      }
-      if (next && (next.tagName === 'P' || next.tagName === 'UL' || next.tagName === 'OL')) {
-        let afterNext = next.nextElementSibling as HTMLElement | null;
-        while (afterNext && (afterNext.classList.contains('no-export') || afterNext.tagName === 'STYLE' || afterNext.tagName === 'SCRIPT')) {
-          afterNext = afterNext.nextElementSibling as HTMLElement | null;
-        }
-        if (afterNext && (
-          afterNext.tagName === 'FIGURE' ||
-          afterNext.classList.contains('onrivi-image-figure') ||
-          afterNext.classList.contains('not-prose') ||
-          afterNext.querySelector('.mermaid-svg-container')
-        )) {
-          next.style.setProperty('page-break-after', 'avoid', 'important');
-          next.style.setProperty('break-after', 'avoid', 'important');
-        }
-      }
-    });
-
     // 🌟 가로폭 좁아짐 현상 해결: 미리보기 컴포넌트에 남겨질 수 있는 가로폭 제약(width, max-width)을 초기화하여
     //    Electron 및 브라우저 인쇄 영역에 맞게 자연스럽게 반응형 100% 본문 너비를 확보하게 처리합니다.
     clone.style.width = '100%';
@@ -2127,6 +2011,7 @@ export async function exportPDF({
 
     // 🌟 html2canvas 한계 보완: 테이블/인라인코드 inline style 강제 적용
     applyExportInlineStyles(clone, activeProfile, targetEl);
+    unwrapPrintTables(clone);
 
     // 📄 페이지 나누기: 제목 기준 강제 페이지 분할 전면 폐지 (자연스러운 본문 흐름 유지, exportPageBreakLevel 미적용)
 
@@ -2257,31 +2142,6 @@ export async function exportPDF({
         break-after: avoid !important;
       }
 
-      /* [P1: Section 시작 위치 최적화] Heading 직후 소개 문단이 이미지/도표로 이어질 때 한 덩어리로 결속 */
-      h1 + p:has(+ figure),
-      h2 + p:has(+ figure),
-      h3 + p:has(+ figure),
-      h4 + p:has(+ figure),
-      h1 + p:has(+ .onrivi-image-figure),
-      h2 + p:has(+ .onrivi-image-figure),
-      h3 + p:has(+ .onrivi-image-figure),
-      h4 + p:has(+ .onrivi-image-figure),
-      h1 + p:has(+ .not-prose),
-      h2 + p:has(+ .not-prose),
-      h3 + p:has(+ .not-prose),
-      h4 + p:has(+ .not-prose),
-      h1 + ul:has(+ figure),
-      h2 + ul:has(+ figure),
-      h3 + ul:has(+ figure),
-      h4 + ul:has(+ figure),
-      h1 + ul:has(+ .onrivi-image-figure),
-      h2 + ul:has(+ .onrivi-image-figure),
-      h3 + ul:has(+ .onrivi-image-figure),
-      h4 + ul:has(+ .onrivi-image-figure) {
-        page-break-after: avoid !important;
-        break-after: avoid !important;
-      }
-
       /* [P0] 일반 본문/문단/인용구/리스트 자연스러운 행 단위 분할 허용 (하단 대형 빈 공간 소거) */
       p, li, .prose p {
         page-break-inside: auto !important;
@@ -2328,7 +2188,7 @@ export async function exportPDF({
       .onrivi-image-figure img,
       .onrivi-image-wrapper img {
         max-width: 100% !important;
-        max-height: 190mm !important;
+        max-height: ${pdfImageMaxHeight}mm !important;
         width: auto !important;
         height: auto !important;
         object-fit: contain !important;
@@ -2336,6 +2196,9 @@ export async function exportPDF({
         margin: 0 auto !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
+      }
+      [data-export-lead-figure] img, img[data-export-lead-figure] {
+        max-height: ${pdfImageMaxHeight * EXPORT_LEAD_FIGURE_HEIGHT_RATIO / EXPORT_FIGURE_HEIGHT_RATIO}mm !important;
       }
       figcaption,
       .onrivi-image-figure figcaption {
@@ -2496,6 +2359,7 @@ export async function exportPDF({
         content: counter(page);
       }
     }
+    ${PRINT_TABLE_FLOW_CSS}
   </style>
 </head>
 <body class="prose prose-base max-w-none custom-preview-container">
@@ -2567,34 +2431,27 @@ export async function exportPDF({
     iframe.style.visibility = 'hidden';
     document.body.appendChild(iframe);
 
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!doc) {
-      throw new Error("인쇄용 iframe 문서 객체를 생성할 수 없습니다.");
+    const cleanup = () => iframe.remove();
+    try {
+      const loaded = new Promise<void>((resolve, reject) => {
+        iframe.onload = () => resolve();
+        iframe.onerror = () => reject(new Error('인쇄 문서를 불러오지 못했습니다.'));
+      });
+      iframe.srcdoc = finalHtml;
+      await withExportTimeout(loaded, '인쇄 문서');
+      const printDocument = iframe.contentDocument;
+      const printWindow = iframe.contentWindow;
+      if (!printDocument || !printWindow) throw new Error('인쇄 문서를 준비하지 못했습니다.');
+      await waitForExportResources(printDocument.body);
+      printWindow.addEventListener('afterprint', cleanup, { once: true });
+      // Safety cleanup for browsers that never dispatch afterprint; never remove immediately after print().
+      setTimeout(cleanup, 300_000);
+      printWindow.focus();
+      printWindow.print();
+    } catch (error) {
+      cleanup();
+      throw error;
     }
-
-    doc.open();
-    doc.write(finalHtml);
-    doc.close();
-
-    // 폰트 및 리소스가 로드될 때까지 대기
-    await new Promise((resolve) => {
-      iframe.onload = () => {
-        setTimeout(resolve, 500); // 폰트 정착을 위한 추가 대기
-      };
-    });
-    if ((iframe.contentWindow as any).document.fonts) {
-      await (iframe.contentWindow as any).document.fonts.ready;
-    }
-
-    iframe.contentWindow?.focus();
-    iframe.contentWindow?.print();
-
-    // 인쇄 동작 완료 후 iframe 수거 (지연 삭제)
-    setTimeout(() => {
-      if (iframe.parentNode) {
-        document.body.removeChild(iframe);
-      }
-    }, 1000);
 
     showToast('PDF 인쇄 대화 상자가 정상적으로 호출되었습니다.', 'success');
   } catch (err: any) {
@@ -2618,8 +2475,10 @@ export async function exportHTML({
   orientation, paperSize, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile 
 }: ExportOptions) {
   try {
+    await prepareExportPreview(previewEl);
     const targetEl = previewEl.querySelector('.markdown-viewer-root') as HTMLElement || previewEl;
     const clone = clonePreview(targetEl);
+    markLeadExportFigure(clone);
     await inlineLocalImages(clone); // 이미지 Base64 인라인 변환 추가
 
     // 🌟 가로폭 좁아짐 현상 해결: 미리보기와 동일하게 A4 용지 규격을 유지하기 위해 width 100%로 설정하고,
@@ -2657,6 +2516,7 @@ export async function exportHTML({
     const minHeightStr = `${pageHeight}mm`;
     const cssPageSize = `${pageWidth}mm ${pageHeight}mm`;
     
+    const printFigureMaxHeight = Math.max(1, (pageHeight - cssPx(marginTop || '18mm') * 25.4 / 96 - cssPx(marginBottom || '18mm') * 25.4 / 96) * EXPORT_FIGURE_HEIGHT_RATIO);
     const pTop = marginTop || '18mm';
     const pBottom = marginBottom || '18mm';
     const pLeft = marginLeft || '12mm';
@@ -2742,6 +2602,17 @@ export async function exportHTML({
       background-color: ${pageBg} !important;
     }
     @media print {
+      .custom-preview-container figure img,
+      .custom-preview-container .onrivi-image-figure img,
+      .custom-preview-container .onrivi-image-wrapper img {
+        max-height: ${printFigureMaxHeight}mm !important;
+        width: auto !important;
+        height: auto !important;
+      }
+      .custom-preview-container [data-export-lead-figure] img,
+      .custom-preview-container img[data-export-lead-figure] {
+        max-height: ${printFigureMaxHeight * EXPORT_LEAD_FIGURE_HEIGHT_RATIO / EXPORT_FIGURE_HEIGHT_RATIO}mm !important;
+      }
       body {
         background-color: ${pageBg} !important;
         padding: 0 !important;
@@ -2757,6 +2628,7 @@ export async function exportHTML({
         box-sizing: border-box !important;
       }
     }
+    ${PRINT_TABLE_FLOW_CSS}
   </style>
 </head>
 <body class="custom-preview-container" style="background-color: ${pageBg} !important;">
@@ -2814,6 +2686,7 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
     showToast('EPUB 내보내기 준비 중...', 'info');
 
     // ✅ PDF/HTML과 동일한 타겟팅
+    await prepareExportPreview(previewEl);
     const targetEl = previewEl.querySelector('.markdown-viewer-root') as HTMLElement || previewEl;
     const clone = clonePreview(targetEl);
     await inlineLocalImages(clone); // 이미지 Base64 인라인 변환 추가
@@ -3017,6 +2890,7 @@ export async function exportPNG({
     const { inlineStyles } = collectAllStyles();
 
     // ✅ PDF/HTML과 동일한 타겟팅
+    await prepareExportPreview(previewEl);
     const targetEl = previewEl.querySelector('.markdown-viewer-root') as HTMLElement || previewEl;
     const clone = clonePreview(targetEl);
     await inlineLocalImages(clone); // 이미지 Base64 인라인 변환 추가
@@ -3273,12 +3147,14 @@ export async function exportPNG({
 // 🚨 @PATCH : **2026-09-30** — MS Word (.docx) 내보내기 파이프라인 신설
 // 🔗 @CALLS : clonePreview, generateDocx, downloadBlob, saveToDownloads
 // ====================================================================
-export async function exportDOCX({ previewEl, currentFileName, showToast }: ExportOptions) {
+export async function exportDOCX({ previewEl, currentFileName, showToast, activeProfile }: ExportOptions) {
   try {
     showToast('Word 문서 (.docx) 생성 중...', 'info');
 
+    await prepareExportPreview(previewEl);
     const targetEl = (previewEl.querySelector('.markdown-viewer-root') as HTMLElement) || previewEl;
-    const clone = clonePreview(targetEl);
+    const clone = clonePreview(targetEl, true);
+    await inlineLocalImages(clone);
 
     // 🖼️ 라이브 DOM과 클론 DOM으로부터 이미지 및 Mermaid 다이어그램 추출 및 래스터라이즈
     const { extractMediaFromElements } = await import('@/lib/exportMediaHelper');
@@ -3288,7 +3164,7 @@ export async function exportDOCX({ previewEl, currentFileName, showToast }: Expo
     const filename = `${docTitle}.docx`;
 
     const { generateDocx, downloadBlob } = await import('@/lib/docxGenerator');
-    const docxBlob = await generateDocx(clone, { title: docTitle, images });
+    const docxBlob = await generateDocx(clone, { title: docTitle, images, profile: activeProfile });
 
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
       const arrayBuffer = await docxBlob.arrayBuffer();

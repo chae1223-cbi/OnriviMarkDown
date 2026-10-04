@@ -19,6 +19,10 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
+// 🚨 @PATCH : **2026-10-04** — [react-hooks/exhaustive-deps 경고 해소]: captureEnvironment/restoreEnvironment를 useCallback으로 메모이즈하고, connectGoogleDrive/disconnectGoogleDrive 의존성 배열에 누락된 ref(tabsRef, activeTabIdRef, contentRef, lastSavedContentRef) 및 헬퍼를 추가
+// 🚨 @PATCH : **2026-10-03** — [saveFile targetTabId ReferenceError 결함 완벽 해결 & 구글 드라이브 무음 저장 연동]: targetTabId 미정의 변수 참조를 activeTabIdRef.current로 교체하고, targetFile/activeTab/currentFileNode에서 driveFileId 및 driveId 포괄 추출하여 자동저장 및 물리 저장 시 구글 드라이브 무음 저장 안정화
+// 🚨 @PATCH : **2026-10-03** — [구글 드라이브 파일 중복 탭 생성 방지 및 본문 수화 완비]: handleFileClick 내 driveFileId/driveId/id 3중 폴백 본문 로딩 및 existingTab driveId/name 매칭 고도화로 중복 탭 및 빈 본문 결함 완전 박멸
+// 🚨 @PATCH : **2026-10-03** — [구글 드라이브 무설정 자동 연동 & 리소스 폴더 자동 동기화 & 보편적 사용자 경험]: connectGoogleDrive(0초 즉각 렌더링, OnriviAuthor/참조파일 자동 바인딩, 시작하기.md 자동 오픈, 로컬 작업장/리소스폴더 백업) 및 disconnectGoogleDrive(직전 로컬 작업장/리소스폴더 자동 원상 복구) 구현, saveFile/refreshFileList/handleFileClick 내 구글 드라이브(GDRIVE) 분기 탑재, 사용자 안내 문구 표준화
 // 🚨 @PATCH : **2026-09-28** — [워크스페이스 변경 시 사이드바 자동 표시]: selectRootFolder의 Desktop(Electron)/Browser(showDirectoryPicker)/localStorage 3개 성공 경로 모두에 setIsSidebarOpen(true) 추가 — 사이드바 숨김 상태에서 워크스페이스를 변경해도 변경 내용이 시각적으로 즉시 인식되도록 보장
 // 🚨 @PATCH : **2026-09-26** — [동일 파일 중복 탭 생성 원천 차단 가드]: handleFileClick 내 setTabs 호출 시 prev 배열을 기준으로 정규화된 경로(NFC/소문자/슬래시) 및 ID 중복 여부를 원자적으로 검사하여, 비동기 파일 읽기 지연 중 동일 파일 탭이 2개 중복 생성되던 결함 완전 해결
 // 🚨 @PATCH : **2026-09-18** — [타문서 변환 후 탐색기 전역 새로고침 force 플래그 지원]: file:refresh-all-directories 이벤트로부터 force 플래그를 전달받아 250ms 쿨다운 락에 막히지 않고 즉시 refreshFileList(true)를 수행하도록 보강
@@ -57,6 +61,19 @@ import {
 // 🔗 @CALLS : scanDirectory, getVfsFiles, fetch, vfsReadFile, vfsWriteFile, stripFrontmatter, idb.get, api.saveFile, api.listDirectory, api.readFromPath, triggerKnowledgeAutoSyncOnSave, saveExternalFileHandle, getExternalFileHandle, verifyHandlePermission, pickExternalFile, isAbsolutePath
 // ====================================================================
 import { isAbsolutePath } from '@/lib/knowledge/pathResolver';
+import {
+  getSavedDriveToken,
+  getSavedWorkspaceInfo,
+  requestGoogleDriveAuth,
+  setupOnriviDriveWorkspace,
+  selectOnriviWorkspaceFolder,
+  disconnectGoogleDrive as disconnectGDriveClient,
+  fetchDriveFileNodes,
+  readDriveFileContent,
+  saveDriveFileContent,
+  createDriveMarkdownFile,
+  createDriveFolder
+} from '@/lib/gdrive/googleDriveClient';
 export const useFileExplorer = ({
   editorRef,
   contentRef,
@@ -99,6 +116,30 @@ export const useFileExplorer = ({
     licenseStatus?.planName?.includes('미인증') ||
     licenseStatus?.planName?.includes('제한사용자');
 
+  const localEnvironmentRef = useRef<any>(null);
+  const driveEnvironmentRef = useRef<any>(null);
+  const storageSwitchRef = useRef(false);
+  const captureEnvironment = useCallback(() => ({
+    root: rootFolderRef.current, tabs: tabsRef.current.map(t => ({ ...t,
+      content: t.id === activeTabIdRef?.current ? contentRef.current : t.content,
+    })),
+    activeId: activeTabIdRef?.current, content: contentRef.current,
+    fileNode: currentFileNode, fileName: currentFileName,
+    parentHandle: currentFileParentHandleRef.current, savedContent: lastSavedContentRef.current,
+  }), [tabsRef, activeTabIdRef, contentRef, currentFileNode, currentFileName, currentFileParentHandleRef, lastSavedContentRef]);
+  const restoreEnvironment = useCallback((environment: any) => {
+    const tabs = environment?.tabs || [];
+    tabsRef.current = tabs;
+    if (activeTabIdRef) activeTabIdRef.current = environment?.activeId || null;
+    contentRef.current = environment?.content || '';
+    lastSavedContentRef.current = environment?.savedContent || '';
+    currentFileParentHandleRef.current = environment?.parentHandle || null;
+    setTabs(tabs);
+    setActiveTabId(environment?.activeId || null);
+    setContent(environment?.content || '');
+    setCurrentFileNode(environment?.fileNode || null);
+    setCurrentFileName(environment?.fileName || '');
+  }, [tabsRef, activeTabIdRef, contentRef, lastSavedContentRef, currentFileParentHandleRef, setTabs, setActiveTabId, setContent, setCurrentFileNode, setCurrentFileName]);
   const rootFolderRef = useRef(rootFolder);
   useEffect(() => { rootFolderRef.current = rootFolder; }, [rootFolder]);
 
@@ -123,6 +164,21 @@ export const useFileExplorer = ({
     lastRefreshTimeRef.current = now;
 
     try {
+      // ☁️ [구글 드라이브 작업장 파일 트리 갱신]
+      if (rootFolderRef.current?.type === 'GDRIVE') {
+        const token = getSavedDriveToken();
+        const wsInfo = getSavedWorkspaceInfo();
+        if (token && wsInfo?.workspaceFolderId) {
+          try {
+            const driveNodes = await fetchDriveFileNodes(token, wsInfo.workspaceFolderId);
+            setFileList(driveNodes);
+          } catch (err) {
+            console.error('[refreshFileList GDRIVE Error]', err);
+          }
+        }
+        return;
+      }
+
       const api = (window as any).electronAPI;
       const isDesktopApp = typeof window !== 'undefined' && !!api;
 
@@ -188,6 +244,11 @@ export const useFileExplorer = ({
   // ====================================================================
   // 2. 워크스페이스 루트 폴더 선택 핸들러
   const selectRootFolder = async (type: 'local' | 'browser', initialPath?: string | null) => {
+    // 메뉴·탐색기·단축키는 현재 작업장의 저장소에서 같은 폴더 선택 동작을 사용한다.
+    if (rootFolderRef.current?.type === 'GDRIVE') {
+      await connectGoogleDrive(true);
+      return;
+    }
     const api = (window as any).electronAPI;
     if (type === 'local') {
       if (api) {
@@ -211,8 +272,20 @@ export const useFileExplorer = ({
             setRootFolder({ name: finalRoot, path: normFinalRoot });
             setWorkspaceType('local');
             localStorage.setItem('onrivi_workspace_path', normFinalRoot);
+            localStorage.setItem('onrivi_last_local_workspace_path', normFinalRoot);
+            localStorage.setItem('onrivi_last_local_root_folder', JSON.stringify({ name: finalRoot, path: normFinalRoot }));
             localStorage.setItem('rootFolder', JSON.stringify({ name: finalRoot, path: normFinalRoot }));
             localStorage.setItem('workspaceType', 'local');
+
+            // 📁 로컬 작업장 복귀 시 리소스 폴더가 구글 드라이브였으면 로컬 작업장 참조파일로 원상복구
+            const currentRf = localStorage.getItem('onrivi_resource_folder_path') || '';
+            const backupRf = localStorage.getItem('onrivi_local_backup_resource_folder_path') || '';
+            const localRf = backupRf && !backupRf.startsWith('OnriviAuthor') ? backupRf : `${normFinalRoot}/참조파일`;
+            if (!currentRf || currentRf.startsWith('OnriviAuthor')) {
+              localStorage.setItem('onrivi_resource_folder_path', localRf);
+              window.dispatchEvent(new CustomEvent('onrivi:resource_folder_changed', { detail: localRf }));
+            }
+
             setTabs([]);
             setActiveTabId(null);
             setContent('');
@@ -263,8 +336,19 @@ export const useFileExplorer = ({
           setRootFolder(folder);
           setWorkspaceType('browser');
           localStorage.setItem('onrivi_workspace_path', absolutePath);
+          localStorage.setItem('onrivi_last_local_workspace_path', absolutePath);
+          localStorage.setItem('onrivi_last_local_root_folder', JSON.stringify({ name: absolutePath, path: absolutePath, displayName: handle.name }));
           localStorage.setItem('rootFolder', JSON.stringify({ name: absolutePath, path: absolutePath, displayName: handle.name }));
           localStorage.setItem('workspaceType', 'browser');
+
+          // 📁 로컬 작업장 복귀 시 리소스 폴더가 구글 드라이브였으면 로컬 작업장 참조파일로 원상복구
+          const currentRf = localStorage.getItem('onrivi_resource_folder_path') || '';
+          const backupRf = localStorage.getItem('onrivi_local_backup_resource_folder_path') || '';
+          const localRf = backupRf && !backupRf.startsWith('OnriviAuthor') ? backupRf : `${absolutePath}/참조파일`;
+          if (!currentRf || currentRf.startsWith('OnriviAuthor')) {
+            localStorage.setItem('onrivi_resource_folder_path', localRf);
+            window.dispatchEvent(new CustomEvent('onrivi:resource_folder_changed', { detail: localRf }));
+          }
           setTabs([]);
           setActiveTabId(null);
           setContent('');
@@ -1143,30 +1227,42 @@ export const useFileExplorer = ({
     if (node.kind === 'directory') return;
 
     const existingTab = tabsRef.current.find(t => {
+      // 0순위: 구글 드라이브 ID 일치 (GDRIVE 모드)
+      const nodeDriveId = (node as any).driveFileId || (node as any).driveId || (node as any).id;
+      const tabDriveId = (t as any).driveFileId || (t as any).driveId || (t.node as any)?.driveFileId || (t.node as any)?.driveId || (t.node as any)?.id;
+      if (nodeDriveId && tabDriveId && nodeDriveId === tabDriveId) {
+        return true;
+      }
+      if (nodeDriveId || tabDriveId) return false;
+
+      // 구글 드라이브 작업장(또는 클라우드 모드)인 경우, 동일 파일명이면 동일 파일로 판별
+      if (rootFolderRef.current?.type === 'GDRIVE' || workspaceType === 'cloud') {
+        return false;
+      }
+
       // 1순위: 절대 경로 정규화 일치 (가장 정확, \ vs / 슬래시 차이 무시)
       if (node.path && t.path) {
         const normNode = node.path.replace(/\\/g, '/').toLowerCase().normalize('NFC');
         const normTab = t.path.replace(/\\/g, '/').toLowerCase().normalize('NFC');
         if (normNode === normTab) return true;
-        // 💡 [치명적 가드] 경로가 서로 다르면 동일 파일이 아니므로 다른 비교를 무시하고 무조건 false 반환
+        if (normTab.endsWith('/' + normNode) || normNode.endsWith('/' + normTab)) {
+          return true;
+        }
         return false;
       }
 
-      // 만약 둘 중 하나만 경로를 가지고 있는 경우에도 동일 파일이 아니므로 false
-      if ((node.path && !t.path) || (!node.path && t.path)) {
-        return false;
+      // 2순위: 이름 기반 일치
+      if (node.name && t.name && node.name.toLowerCase().normalize('NFC') === t.name.toLowerCase().normalize('NFC')) {
+        if (!node.path || !t.path || !node.path.includes('/') || !t.path.includes('/')) {
+          return true;
+        }
       }
-
-      // 2순위: 이름과 경로가 모두 일치 (vfs 등)
-      if (!node.path && !t.path && node.name === t.name) return true;
 
       // 3순위: 핸들 참조 일치 (브라우저 모드)
       if (node.handle && t.node?.handle) {
         if (typeof node.handle.isSameEntry === 'function') {
-          // FileSystemHandle.isSameEntry는 비동기 함수이므로 동기 루프 내에선 promise를 반환합니다.
-          // 여기서 바로 await를 쓸 수 없으므로, 이름과 kind로 fallback 비교합니다.
           if (node.name === t.node.name && node.kind === t.node.kind) return true;
-        } else if (node.handle === t.node.handle) {
+        } else if (node.handle === t.node.handle || node.name === t.node.name) {
           return true;
         }
       }
@@ -1179,6 +1275,28 @@ export const useFileExplorer = ({
         tabsRef.current = cleaned;
         setTabs(cleaned);
       } else {
+        // 기존 탭의 내용이 비어있고 구글 드라이브 파일인 경우 실시간 수화(Hydration)
+        const driveId = (node as any).driveFileId || (node as any).driveId || (node as any).id;
+        if (!existingTab.isModified && (!existingTab.content || existingTab.content.trim() === '') && (driveId || rootFolderRef.current?.type === 'GDRIVE')) {
+          const token = getSavedDriveToken();
+          if (token && driveId) {
+            try {
+              const freshContent = await readDriveFileContent(token, driveId);
+              if (freshContent) {
+                existingTab.content = freshContent;
+                if (existingTab.model && !existingTab.model.isDisposed()) {
+                  existingTab.model.setValue(freshContent);
+                }
+                setContent(freshContent);
+                setTabs(prev => prev.map(t => t.id === existingTab.id ? { ...t, content: freshContent } : t));
+              }
+            } catch (err) {
+              console.warn('[existingTab] 구글 드라이브 수화 실패:', err);
+              showToast('구글 드라이브 문서를 읽지 못했습니다. 연결을 갱신한 뒤 다시 열어 주세요.', 'error');
+              return;
+            }
+          } else { showToast('구글 드라이브 연결을 갱신한 뒤 다시 열어 주세요.', 'error'); return; }
+        }
         switchTab(existingTab.id);
         setIsSidebarOpen(true);
         return;
@@ -1202,7 +1320,23 @@ export const useFileExplorer = ({
       }
 
       let fileContent = '';
-      if (activeMode === 'browser') {
+      const driveId = (node as any).driveFileId || (node as any).driveId || (node as any).id;
+      if (driveId || rootFolderRef.current?.type === 'GDRIVE' || workspaceType === 'cloud') {
+        const token = getSavedDriveToken();
+        if (!token || !driveId) {
+          showToast('구글 드라이브 연결을 갱신한 뒤 다시 열어 주세요.', 'error');
+          return;
+        }
+        if (token && driveId) {
+          try {
+            fileContent = await readDriveFileContent(token, driveId);
+          } catch (e) {
+            console.error('[handleFileClick GDRIVE read error]', e);
+            showToast('구글 드라이브 파일 읽기 실패', 'error');
+            return;
+          }
+        }
+      } else if (activeMode === 'browser') {
         if (node.handle) {
           const file = await node.handle.getFile();
           fileContent = await file.text();
@@ -1274,7 +1408,7 @@ export const useFileExplorer = ({
 
       const monaco = (window as any).monaco;
       let model: any = null;
-      const newTabId = node.path || node.handle?.name || 'tab-' + Date.now();
+      const newTabId = driveId ? `gdrive:${getSavedWorkspaceInfo()?.rootFolderId || ''}:${driveId}` : node.path || node.handle?.name || 'tab-' + Date.now();
 
       if (monaco) {
         model = monaco.editor.createModel(fileContent, 'markdown');
@@ -1293,24 +1427,37 @@ export const useFileExplorer = ({
         content: fileContent,
         isModified: false,
         model: model,
+        driveFileId: driveId,
         previewMode: isRestrictedUser ? 'preview' : (node.name === '도움말.md' ? 'preview' : previewModeRef.current)
       };
 
       setTabs(prev => {
+        const nodeDriveId = driveId;
         const normNewPath = (node.path || '').replace(/\\/g, '/').toLowerCase().normalize('NFC');
         const exists = prev.some(t => {
           if (t.id === newTabId) return true;
+          const tabDriveId = (t as any).driveFileId || (t as any).driveId || (t.node as any)?.driveFileId || (t.node as any)?.driveId;
+          if (nodeDriveId && tabDriveId && nodeDriveId === tabDriveId) return true;
+          if (nodeDriveId || tabDriveId) return false;
           if (node.path && t.path) {
             const normTabPath = t.path.replace(/\\/g, '/').toLowerCase().normalize('NFC');
-            return normTabPath === normNewPath;
+            return normTabPath === normNewPath || normTabPath.endsWith('/' + normNewPath) || normNewPath.endsWith('/' + normTabPath);
           }
-          return !node.path && !t.path && t.name === node.name;
+          return t.name === node.name;
         });
         if (exists) {
           return prev.map(t => {
+            const tabDriveId = (t as any).driveFileId || (t as any).driveId || (t.node as any)?.driveFileId || (t.node as any)?.driveId;
             const normTabPath = (t.path || '').replace(/\\/g, '/').toLowerCase().normalize('NFC');
-            if (t.id === newTabId || (normNewPath && normTabPath === normNewPath)) {
-              return { ...t, content: fileContent, model: model || t.model, node: node || t.node };
+            const isMatch = nodeDriveId || tabDriveId
+              ? Boolean(nodeDriveId && tabDriveId && nodeDriveId === tabDriveId)
+              : t.id === newTabId ||
+              (nodeDriveId && tabDriveId && nodeDriveId === tabDriveId) ||
+              ((rootFolderRef.current?.type === 'GDRIVE' || workspaceType === 'cloud') && t.name?.toLowerCase() === node.name?.toLowerCase()) ||
+              (normNewPath && normTabPath && (normTabPath === normNewPath || normTabPath.endsWith('/' + normNewPath) || normNewPath.endsWith('/' + normTabPath))) ||
+              t.name === node.name;
+            if (isMatch) {
+              return { ...t, content: fileContent || t.content, model: model || t.model, node: node || t.node, driveFileId: driveId || (t as any).driveFileId };
             }
             return t;
           });
@@ -1318,7 +1465,6 @@ export const useFileExplorer = ({
         return [...prev, newTab];
       });
       setActiveTabId(newTabId);
-
       setContent(fileContent);
       setCurrentFileName(node.name);
       setCurrentFileNode(node);
@@ -1355,6 +1501,172 @@ export const useFileExplorer = ({
   };
 
   // ====================================================================
+  // 📊 [OMD-FILE-USEFILEEXPLORER-0010] useFileExplorer.ts ➔ connectGoogleDrive
+  // 🎯 @KICK  : 구글 드라이브 원클릭 무설정 연동, 서재 폴더 자동 바인딩 및 0초 즉각 렌더링
+  // 🛡️ @GUARD : 기존 로컬 작업장 및 리소스 폴더 백업, 예외 발생 시 안내 토스트
+  // 🚨 @PATCH : **2026-10-03** — [구글 드라이브 토큰 추출 타입 불일치 버그 완벽 수정]: requestGoogleDriveAuth 반환값(string) 타입 정규화로 토큰이 undefined로 유입되어 발생하던 401 Unauthorized 결함 박멸
+  // 🚨 @PATCH : **2026-10-03** — 구글 드라이브 무설정 자동 연동, 0초 반응속도 렌더링, 리소스 폴더(OnriviAuthor/참조파일) 자동 동기화
+  // 🔗 @CALLS : requestGoogleDriveAuth, setupOnriviDriveWorkspace, fetchDriveFileNodes, handleFileClick
+  // ====================================================================
+  const connectGoogleDrive = useCallback(async (chooseFolder = false) => {
+    if (storageSwitchRef.current) return;
+    storageSwitchRef.current = true;
+    try {
+      const isLocal = rootFolderRef.current?.type !== 'GDRIVE';
+      if (!isLocal && (tabsRef.current.some(t => t.isModified) ||
+          (activeTabIdRef?.current && contentRef.current !== lastSavedContentRef.current))) {
+        showToast('작업장을 변경하기 전에 작성 중인 글을 저장해 주세요.', 'warning');
+        return;
+      }
+      showToast("구글 드라이브 연결 중...", "info");
+      const authRes = getSavedDriveToken() || await requestGoogleDriveAuth();
+      const token = (typeof authRes === 'string' ? authRes : (authRes as any)?.access_token) || getSavedDriveToken() || '';
+      if (!token) {
+        throw new Error("구글 인증 토큰 획득에 실패했습니다. 다시 시도해주세요.");
+      }
+
+      const selectedFolder = await selectOnriviWorkspaceFolder(token, !chooseFolder);
+      if (!selectedFolder) return;
+      showToast('선택한 작업장에 연결 중...', 'info');
+      const wsInfo = await setupOnriviDriveWorkspace(token, selectedFolder);
+      const driveNodes = await fetchDriveFileNodes(token, selectedFolder.id);
+
+      // Back up only when leaving local storage; cloud folder changes must not overwrite it.
+      if (isLocal) {
+        localEnvironmentRef.current = captureEnvironment();
+        const localRoot = rootFolderRef.current;
+        localStorage.setItem('onrivi_last_local_has_directory_handle', localRoot?.handle ? 'true' : 'false');
+        if (localRoot) {
+          const { handle, ...metadata } = localRoot;
+          localStorage.setItem('onrivi_last_local_root_folder', JSON.stringify(metadata));
+          if (handle) await idb.set('rootFolderHandle', handle);
+        } else localStorage.removeItem('onrivi_last_local_root_folder');
+        localStorage.setItem('onrivi_last_local_workspace_type', workspaceType || 'browser');
+        for (const [source, target] of [
+          ['onrivi_workspace_path', 'onrivi_last_local_workspace_path'],
+          ['onrivi_resource_folder_path', 'onrivi_local_backup_resource_folder_path'],
+        ]) {
+          const value = localStorage.getItem(source);
+          if (value !== null) localStorage.setItem(target, value);
+          else localStorage.removeItem(target);
+        }
+      }
+
+      // 2. 구글 드라이브 작업장 상태 즉시 갱신
+      const gdriveFolder = {
+        name: selectedFolder.name,
+        path: `GoogleDrive/${selectedFolder.name}`,
+        displayName: `☁️ ${selectedFolder.name.split('/').pop()}`,
+        type: 'GDRIVE',
+        driveFolderId: wsInfo.workspaceFolderId
+      };
+      rootFolderRef.current = gdriveFolder;
+      setRootFolder(gdriveFolder);
+      setWorkspaceType('cloud');
+      localStorage.setItem('rootFolder', JSON.stringify(gdriveFolder));
+      localStorage.setItem('workspaceType', 'cloud');
+      localStorage.setItem('onrivi_workspace_path', gdriveFolder.path);
+
+      // 3. 환경설정 공통 리소스 폴더를 구글 드라이브 OnriviAuthor/참조파일 로 자동 동기화
+      localStorage.setItem('onrivi_resource_folder_path', 'OnriviAuthor/참조파일');
+      window.dispatchEvent(new CustomEvent('onrivi:resource_folder_changed', { detail: 'OnriviAuthor/참조파일' }));
+
+      // 4. 탐색기 목록 0초 즉각 렌더링
+      setFileList(driveNodes);
+
+      // 5. 사이드바 열기 및 토스트
+      setIsSidebarOpen(true);
+      showToast(`구글 드라이브에 연결되었습니다. (${wsInfo.userEmail || '연결 완료'})`, "success");
+      console.log(`[connectGoogleDrive] ✅ 구글 드라이브 연결 완료! (${wsInfo.userEmail || '연결됨'}), 파일 수: ${driveNodes.length}`);
+
+      const previous = driveEnvironmentRef.current;
+      restoreEnvironment(previous?.root?.driveFolderId === wsInfo.workspaceFolderId ? previous : null);
+    } catch (err: any) {
+      console.error('[connectGoogleDrive Error]', err);
+      showToast("구글 드라이브 연결 실패: " + (err.message || '인증 오류'), "error");
+    } finally {
+      storageSwitchRef.current = false;
+    }
+  }, [setRootFolder, setWorkspaceType, setFileList, setIsSidebarOpen, showToast, workspaceType, activeTabIdRef, captureEnvironment, contentRef, lastSavedContentRef, restoreEnvironment, tabsRef]);
+
+  // ====================================================================
+  // 📊 [OMD-FILE-USEFILEEXPLORER-0011] useFileExplorer.ts ➔ disconnectGoogleDrive
+  // 🎯 @KICK  : 구글 드라이브 연결 해제 및 직전 로컬 작업장/리소스 폴더 자동 복구
+  // 🛡️ @GUARD : 백업 데이터 검증 후 복원
+  // 🚨 @PATCH : **2026-10-03** — 구글 드라이브 토큰 폐기 및 로컬 작업장 원상 복구 연동
+  // 🔗 @CALLS : disconnectGDriveClient, setRootFolder, setWorkspaceType
+  // ====================================================================
+  const disconnectGoogleDrive = useCallback(async () => {
+    if (storageSwitchRef.current || rootFolderRef.current?.type !== 'GDRIVE') return;
+    storageSwitchRef.current = true;
+    try {
+      const activeId = activeTabIdRef?.current;
+      const hasUnsaved = tabsRef.current.some(t => t.isModified) ||
+        (activeId && contentRef.current !== lastSavedContentRef.current);
+      if (hasUnsaved) {
+        showToast('저장하지 않은 글이 있습니다. 저장하거나 파일로 내려받은 뒤 연결을 해제해 주세요.', 'warning');
+        return;
+      }
+      // Restore the browser directory handle before revoking the cloud connection.
+      const backupRootValue = localStorage.getItem('onrivi_last_local_root_folder');
+      let restoredRoot = localEnvironmentRef.current?.root || (backupRootValue ? JSON.parse(backupRootValue) : null);
+      if (restoredRoot?.type === 'GDRIVE') throw new Error('로컬 작업장 정보가 올바르지 않습니다.');
+      const hadDirectoryHandle = localStorage.getItem('onrivi_last_local_has_directory_handle');
+      if (restoredRoot && !(window as any).electronAPI && !restoredRoot.handle &&
+          (hadDirectoryHandle === 'true' || (hadDirectoryHandle === null && restoredRoot.displayName))) {
+        const handle = await idb.get('rootFolderHandle');
+        if (!handle) throw new Error('로컬 폴더 접근 정보가 없습니다. 작업장 폴더를 다시 선택해 주세요.');
+        restoredRoot = { ...restoredRoot, handle };
+      }
+      if (restoredRoot?.handle && !await verifyHandlePermission(restoredRoot.handle, true)) {
+        showToast('마지막 로컬 작업장으로 돌아가려면 폴더 접근을 허용해 주세요.', 'warning');
+        return;
+      }
+      driveEnvironmentRef.current = captureEnvironment();
+      disconnectGDriveClient();
+
+      // 백업된 로컬 작업장/리소스 폴더 복원
+      const backupWs = localStorage.getItem('onrivi_last_local_workspace_path');
+      const backupRf = localStorage.getItem('onrivi_local_backup_resource_folder_path');
+
+      setRootFolder(restoredRoot);
+      rootFolderRef.current = restoredRoot;
+      if (restoredRoot) {
+        const { handle, ...metadata } = restoredRoot;
+        localStorage.setItem('rootFolder', JSON.stringify(metadata));
+      } else localStorage.removeItem('rootFolder');
+      setFileList([]);
+
+      if (backupWs) {
+        localStorage.setItem('onrivi_workspace_path', backupWs);
+      } else {
+        localStorage.removeItem('onrivi_workspace_path');
+      }
+
+      if (backupRf) {
+        localStorage.setItem('onrivi_resource_folder_path', backupRf);
+        window.dispatchEvent(new CustomEvent('onrivi:resource_folder_changed', { detail: backupRf }));
+      } else {
+        localStorage.removeItem('onrivi_resource_folder_path');
+        window.dispatchEvent(new CustomEvent('onrivi:resource_folder_changed', { detail: '' }));
+      }
+
+      const lastWsType = localStorage.getItem('onrivi_last_local_workspace_type') || ((window as any).electronAPI ? 'local' : 'browser');
+      setWorkspaceType(lastWsType);
+      localStorage.setItem('workspaceType', lastWsType);
+
+      restoreEnvironment(localEnvironmentRef.current);
+      setIsSidebarOpen(true);
+      showToast('구글 드라이브 연결을 해제하고 마지막 로컬 작업장으로 돌아왔습니다.', 'success');
+    } catch (err: any) {
+      console.error('[disconnectGoogleDrive Error]', err);
+      showToast('로컬 작업장 복원 실패: ' + (err.message || '폴더 접근 오류'), 'error');
+    } finally {
+      storageSwitchRef.current = false;
+    }
+  }, [setRootFolder, setWorkspaceType, setIsSidebarOpen, setFileList, showToast, activeTabIdRef, captureEnvironment, contentRef, lastSavedContentRef, restoreEnvironment, tabsRef]);
+
+  // ====================================================================
   // 📊 [OMD-FILE-USEFILEEXPLORER-0002] useFileExplorer.ts ➔ saveFile
   // 🎯 @KICK  : Electron/웹/브라우저 File System Access 환경에 파일을 물리적으로 저장
   // 🛡️ @GUARD : targetFile null 시 false 반환, 권한 거부 시 오류 토스트
@@ -1366,16 +1678,42 @@ export const useFileExplorer = ({
     if (!targetFile) return false;
     try {
       let success = false;
-      const api = typeof window !== 'undefined' && (window as any).electronAPI;
-      const isWebOrAddon = !api;
-      const effectiveWorkspaceType = isWebOrAddon ? 'browser' : workspaceType;
+      const activeTabId = activeTabIdRef?.current;
+      const activeTab = tabsRef.current?.find((t: any) => t.id === activeTabId);
+      const driveFileId = targetFile.driveFileId || 
+        (targetFile as any).driveId || 
+        (activeTab as any)?.driveFileId || 
+        (activeTab as any)?.driveId || 
+        (currentFileNode as any)?.driveFileId || 
+        (currentFileNode as any)?.driveId;
 
-      if (api) {
-        success = await api.saveFile(targetFile.path, targetContent);
-        if (success) {
-          lastSavedContentRef.current = targetContent;
+      if (driveFileId || rootFolderRef.current?.type === 'GDRIVE' || workspaceType === 'cloud') {
+        const token = getSavedDriveToken();
+        if (token && driveFileId) {
+          try {
+            await saveDriveFileContent(token, driveFileId, targetContent);
+            lastSavedContentRef.current = targetContent;
+            success = true;
+          } catch (driveErr) {
+            console.error('[saveFile GDRIVE Error]', driveErr);
+            showToast("구글 드라이브 저장 중 오류가 발생했습니다.", "error");
+            return false;
+          }
+        } else {
+          showToast(token ? '구글 드라이브 저장 대상 파일 ID를 찾을 수 없습니다.' : '구글 드라이브 연결이 만료되었습니다. 연결을 갱신한 뒤 다시 저장해 주세요.', 'error');
+          return false;
         }
-      } else if (effectiveWorkspaceType === 'local') {
+      } else {
+        const api = typeof window !== 'undefined' && (window as any).electronAPI;
+        const isWebOrAddon = !api;
+        const effectiveWorkspaceType = isWebOrAddon ? 'browser' : workspaceType;
+
+        if (api) {
+          success = await api.saveFile(targetFile.path, targetContent);
+          if (success) {
+            lastSavedContentRef.current = targetContent;
+          }
+        } else if (effectiveWorkspaceType === 'local') {
         const res = await fetch(getApiUrl('/api/save'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1468,11 +1806,14 @@ export const useFileExplorer = ({
           }
         }
       }
+      }
 
       if (success) {
         setTabs(prev => prev.map(t => {
           let isMatch = false;
-          if (targetFile.path && t.path) {
+          if (targetFile.driveFileId && (t as any).driveFileId) {
+            isMatch = (t as any).driveFileId === targetFile.driveFileId;
+          } else if (targetFile.path && t.path) {
             isMatch = t.path.replace(/\\/g, '/').toLowerCase().normalize('NFC') === targetFile.path.replace(/\\/g, '/').toLowerCase().normalize('NFC');
           } else if (targetFile.handle && t.node?.handle) {
             isMatch = t.node.handle === targetFile.handle;
@@ -1594,6 +1935,8 @@ export const useFileExplorer = ({
     restoreFolderPermission,
     handleFileOpenByPath,
     handleFileClick,
-    saveFile
+    saveFile,
+    connectGoogleDrive,
+    disconnectGoogleDrive
   };
 };

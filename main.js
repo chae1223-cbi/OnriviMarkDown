@@ -2,6 +2,7 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-10-03** — [구글 드라이브 GIS 연동을 위한 CSP 정책 확장]: cspDirectives 내 script-src, frame-src에 https://accounts.google.com 추가 및 connect-src에 https://accounts.google.com, https://www.googleapis.com 추가하여 구글 로그인 및 드라이브 API 통신 허용
 // 🚨 @PATCH : **2026-10-02** — [클립보드 탐색기 파일 복사 및 스크린샷 3중 네이티브 추출 강화]: clipboard:readImage 핸들러에서 비트맵 외에 Windows FileNameW 버퍼 및 파일 경로 텍스트를 감지하여 탐색기 Ctrl+C 복사 이미지 파일의 바이너리를 Base64로 즉시 추출·전달하도록 개선
 // 🚨 @PATCH : **2026-10-01** — [데스크톱 로컬 이미지 읽기 지능형 하위 media 폴백 탐색]: file:readImageAsBase64 핸들러에서 전달된 파일 경로가 존재하지 않는 경우, 리소스 폴더 하위 media 폴더 또는 상위 경로를 교차 탐색하여 사용자 마크다운 경로(단순 파일명 또는 서브폴더)의 이미지를 100% 정상 로드하도록 보강
 // 🚨 @PATCH : **2026-09-27** — 사용자 서식 읽기·수정·가져오기·AI 생성 저장소를 profiles/userCssProfiles.json 하나로 통일. 개별 CSS 생성 및 다른 저장소 폴백 제거.
@@ -307,13 +308,13 @@ function createWindow(port) {
     "default-src 'self' app:",
     // Monaco와 Mermaid는 로컬 정적 스크립트 태그로 로드합니다. wasm-unsafe-eval을
     // 허용하여 WebAssembly 모듈 인스턴스화가 CSP에 의해 차단되지 않도록 보호합니다.
-    "script-src 'self' app: 'unsafe-inline' 'wasm-unsafe-eval' https://maps.gstatic.com https://maps.googleapis.com https://cdn.jsdelivr.net",
+    "script-src 'self' app: 'unsafe-inline' 'wasm-unsafe-eval' https://maps.gstatic.com https://maps.googleapis.com https://cdn.jsdelivr.net https://accounts.google.com",
     "worker-src 'self' app: blob:",
     "style-src 'self' app: 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
-    "img-src 'self' app: data: blob: http: https: file: media:",
+    "img-src 'self' app: data: blob: http: https: file: media: https://*.googleusercontent.com",
     "font-src 'self' app: data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
-    "connect-src 'self' app: data: blob: ws: wss: https: http: chrome-extension: http://localhost:* http://127.0.0.1:* http://localhost:3100 http://localhost:3000 http://localhost:4000 http://localhost:5000 http://localhost:11434 http://127.0.0.1:3100 http://127.0.0.1:3000 http://127.0.0.1:4000 http://127.0.0.1:5000 media: media-local: https://*.supabase.co wss://*.supabase.co https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://onrivi.com https://cdn.jsdelivr.net https://maps.googleapis.com",
-    "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com",
+    "connect-src 'self' app: data: blob: ws: wss: https: http: chrome-extension: http://localhost:* http://127.0.0.1:* http://localhost:3100 http://localhost:3000 http://localhost:4000 http://localhost:5000 http://localhost:11434 http://127.0.0.1:3100 http://127.0.0.1:3000 http://127.0.0.1:4000 http://127.0.0.1:5000 media: media-local: https://*.supabase.co wss://*.supabase.co https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://onrivi.com https://cdn.jsdelivr.net https://maps.googleapis.com https://accounts.google.com https://www.googleapis.com",
+    "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com https://accounts.google.com",
     "media-src 'self' app: media: https:"
   ];
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
@@ -3761,6 +3762,7 @@ ipcMain.handle('pdf:printHTMLToPDF', async (event, html, options) => {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
+        backgroundThrottling: false,
       }
     });
 
@@ -3770,8 +3772,33 @@ ipcMain.handle('pdf:printHTMLToPDF', async (event, html, options) => {
     
     await printWindow.loadFile(tempFilePath);
 
-    // 3. 웹 폰트 및 스타일 렌더링 리플로우 시간 충분히 부여
-    await new Promise(resolve => setTimeout(resolve, 800));
+    // Wait for the actual print document, including image decoding and web fonts.
+    await printWindow.webContents.executeJavaScript(`(async () => {
+      let timer;
+      try {
+        await Promise.race([
+          (async () => {
+            if (document.fonts) await document.fonts.ready;
+            const failedFonts = Array.from(document.fonts || []).filter(face => face.status === 'error');
+            if (failedFonts.length) {
+              const used = Array.from(document.querySelectorAll('*')).map(el => getComputedStyle(el).fontFamily.replace(/["']/g, '').toLowerCase());
+              if (failedFonts.some(face => used.some(family => family.split(',').map(name => name.trim()).includes(face.family.replace(/["']/g, '').toLowerCase())))) {
+                throw new Error('인쇄 문서의 글꼴을 불러오지 못했습니다. 연결 상태나 글꼴 설정을 확인해 주세요.');
+              }
+            }
+            await Promise.all(Array.from(document.images).map(async (image, index) => {
+              image.loading = 'eager';
+              try {
+                await image.decode();
+                if (!image.naturalWidth || !image.naturalHeight) throw new Error('empty image');
+              } catch { throw new Error((index + 1) + '번째 인쇄 이미지를 준비하지 못했습니다.'); }
+            }));
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          })(),
+          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('인쇄 폰트 및 이미지 준비 시간이 초과되었습니다.')), 15000); })
+        ]);
+      } finally { clearTimeout(timer); }
+    })()`);
 
     // 4. Chromium 네이티브 A4 인쇄 규격으로 PDF 파일 구워내기
     const pdfOptions = {

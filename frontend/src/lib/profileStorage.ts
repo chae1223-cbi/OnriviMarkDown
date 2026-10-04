@@ -4,21 +4,29 @@ import { CssProfile } from '@/types/cssProfile';
 import { isSystemProfileId } from '@/constants/cssProfile';
 import { loadSecureData } from '@/lib/secureStorage';
 import { idb } from '@/lib/indexedDbHelper';
+import {
+  getSavedDriveToken,
+  getSavedWorkspaceInfo,
+  findDriveFile,
+  readDriveFileContent,
+  ensureDriveTextFile,
+  saveDriveFileContent,
+} from '@/lib/gdrive/googleDriveClient';
 
-/**
- * 실시간 환경에 설정된 유효한 리소스 폴더 경로 또는 폴더명을 동적으로 계산합니다.
- */
+// ====================================================================
+// 📊 [OMD-STORE-profileStorage-0001] profileStorage.ts ➔ getEffectiveResourceFolder
+// 🎯 @KICK  : 유효한 공통 리소스 폴더 경로 또는 식별자 안전 획득
+// 🛡️ @GUARD : Rule 1(단일 주석 관리), 평문 우선 검사 및 loadSecureData 암호화 안전 복호화
+// 🚨 @PATCH : **2026-10-03** — [구글 드라이브 서식(userCssProfiles.json) 연동 및 리소스 폴더 미설정 에러 토스트 방어]: 구글 드라이브(OnriviAuthor/참조파일/profiles) 서식 읽기/쓰기 지원, 리소스 폴더 미설정 시 에러 throw 대신 빈 배열 반환으로 런타임 오류 방어
+// 🚨 @PATCH : **2026-10-03** — [Malformed UTF-8 복호화 에러 원천 방지]: 평문 리소스 폴더(localStorage) 우선 감지 및 안전 복호화 연동
+// 🔗 @CALLS : loadSecureData
+// ====================================================================
 export function getEffectiveResourceFolder(explicitFolder?: string | null): string {
   if (explicitFolder && typeof explicitFolder === 'string' && explicitFolder.trim() !== '') {
     return explicitFolder.trim();
   }
 
   if (typeof window === 'undefined') return '';
-
-  const secure = loadSecureData<string>('resourceFolder');
-  if (secure && typeof secure === 'string' && secure.trim() !== '') {
-    return secure.trim();
-  }
 
   const rawPath = localStorage.getItem('onrivi_resource_folder_path');
   if (rawPath && rawPath.trim() !== '') return rawPath.trim();
@@ -29,6 +37,11 @@ export function getEffectiveResourceFolder(explicitFolder?: string | null): stri
   const plain = localStorage.getItem('resourceFolder');
   if (plain && plain.trim() !== '' && !plain.startsWith('U2FsdGVkX1')) {
     return plain.trim();
+  }
+
+  const secure = loadSecureData<string>('resourceFolder');
+  if (secure && typeof secure === 'string' && secure.trim() !== '') {
+    return secure.trim();
   }
 
   return '';
@@ -54,6 +67,13 @@ export async function fetchUserProfiles(
 ): Promise<CssProfile[]> {
   if (typeof window === 'undefined') return [];
   const folder = getEffectiveResourceFolder(explicitFolder);
+  if (folder === 'OnriviAuthor/참조파일') {
+    const token = getSavedDriveToken();
+    const workspace = getSavedWorkspaceInfo();
+    if (!token || !workspace?.profilesFolderId) throw new Error('구글 드라이브 연결을 갱신해 주세요.');
+    const fileId = await findDriveFile(token, 'userCssProfiles.json', workspace.profilesFolderId);
+    return fileId ? parseProfiles(JSON.parse(await readDriveFileContent(token, fileId))) : [];
+  }
   const api = (window as any).electronAPI;
   if (api?.readProfiles) return parseProfiles(await api.readProfiles(folder));
 
@@ -68,14 +88,43 @@ export async function fetchUserProfiles(
       throw err;
     }
   }
-  // 폴더명만으로 서버의 다른 드라이브/폴더를 추측하지 않는다.
-  if (!folder || !/^(?:[a-z]:[\\/]|\/|\\\\)/i.test(folder)) {
-    throw new Error('서식을 읽으려면 설정에서 리소스 폴더를 연결해 주세요.');
+
+  // ☁️ 구글 드라이브(GDRIVE) 리소스 폴더 지원
+  if (folder === 'OnriviAuthor/참조파일') {
+    const token = getSavedDriveToken();
+    const wsInfo = getSavedWorkspaceInfo();
+    const profilesFolderId = wsInfo?.profilesFolderId;
+    if (token && profilesFolderId) {
+      try {
+        const fileId = await findDriveFile(token, 'userCssProfiles.json', profilesFolderId);
+        if (fileId) {
+          const content = await readDriveFileContent(token, fileId);
+          if (content && content.trim() !== '') {
+            return parseProfiles(JSON.parse(content));
+          }
+        }
+        return [];
+      } catch (gErr) {
+        console.warn('[fetchUserProfiles GDrive read failed]:', gErr);
+        return [];
+      }
+    }
+    return [];
   }
-  const res = await fetch(`/api/profiles?resourceFolder=${encodeURIComponent(folder)}`);
-  const data = await res.json();
-  if (!res.ok || !data.success) throw new Error(data.error || 'PROFILE_READ_FAILED');
-  return parseProfiles(data.profiles);
+
+  // 리소스 폴더가 아직 연결되지 않은 초기/미설정 상태에서는 빈 배열 반환 (에러 토스트 방어)
+  if (!folder || !/^(?:[a-z]:[\\/]|\/|\\\\)/i.test(folder)) {
+    return [];
+  }
+
+  try {
+    const res = await fetch(`/api/profiles?resourceFolder=${encodeURIComponent(folder)}`);
+    const data = await res.json();
+    if (!res.ok || !data.success) return [];
+    return parseProfiles(data.profiles);
+  } catch {
+    return [];
+  }
 }
 
 // 비동기 쓰기를 직렬화하여 늦게 완료된 이전 설정이 새 설정을 덮어쓰지 않도록 한다.
@@ -92,6 +141,13 @@ export function persistUserProfiles(
   const save = async (): Promise<boolean> => {
     if (typeof window === 'undefined') return false;
     try {
+      if (folder === 'OnriviAuthor/참조파일') {
+        const token = getSavedDriveToken();
+        const workspace = getSavedWorkspaceInfo();
+        if (!token || !workspace?.profilesFolderId) throw new Error('구글 드라이브 연결을 갱신해 주세요.');
+        const fileId = await ensureDriveTextFile(token, 'userCssProfiles.json', workspace.profilesFolderId, '[]', 'application/json');
+        return await saveDriveFileContent(token, fileId, JSON.stringify(userProfiles, null, 2));
+      }
       const api = (window as any).electronAPI;
       if (api?.saveProfiles) {
         const result = await api.saveProfiles(userProfiles, folder);
@@ -112,8 +168,24 @@ export function persistUserProfiles(
         }
         return true;
       }
+
+      // ☁️ 구글 드라이브(GDRIVE) 리소스 폴더 지원
+      if (folder === 'OnriviAuthor/참조파일') {
+        const token = getSavedDriveToken();
+        const wsInfo = getSavedWorkspaceInfo();
+        const profilesFolderId = wsInfo?.profilesFolderId;
+        if (token && profilesFolderId) {
+          const fileId = await ensureDriveTextFile(token, 'userCssProfiles.json', profilesFolderId, '[]', 'application/json');
+          if (fileId) {
+            await saveDriveFileContent(token, fileId, JSON.stringify(userProfiles, null, 2));
+            return true;
+          }
+        }
+        return false;
+      }
+
       if (!folder || !/^(?:[a-z]:[\\/]|\/|\\\\)/i.test(folder)) {
-        throw new Error('서식을 저장하려면 설정에서 리소스 폴더를 연결해 주세요.');
+        return false;
       }
       const res = await fetch('/api/profiles', {
         method: 'POST',

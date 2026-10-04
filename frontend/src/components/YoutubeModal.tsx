@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 전역 미디어 실시간 연동 강화]: getEffectiveResourceFolder 연동 및 구글 드라이브(OnriviAuthor/참조파일/media) 업로드 지원
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -5,6 +6,8 @@ import { createPortal } from 'react-dom';
 import { X, Check, Video, Upload, ExternalLink, Play, Link as LinkIcon } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
 import { loadSecureData } from '@/lib/secureStorage';
+import { getEffectiveResourceFolder } from '@/lib/profileStorage';
+import { getSavedDriveToken, getSavedWorkspaceInfo, uploadDriveImage } from '@/lib/gdrive/googleDriveClient';
 import { supabase } from '@/lib/supabaseClient';
 import { MediaAlignmentControl, MediaSizeInputs, normalizeMediaDimension, type MediaAlign } from '@/components/MediaLayoutFields';
 
@@ -25,6 +28,7 @@ interface YoutubeModalProps {
 // 📊 [OMD-EDIT-YoutubeModal-0003] YoutubeModal ➔ YoutubeModal
 // 🎯 @KICK  : 동영상 링크 삽입 모달 - YouTube/동영상 URL 및 파일 업로드, 썸네일 미리보기, 고급 테마 마크업
 // 🛡️ @GUARD : isOpen/mounted false 시 null 반환
+// 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 미디어 저장 연동 동기화]: 구글 드라이브(OnriviAuthor/참조파일/media) 및 로컬/웹 환경에서 리소스 폴더 변경 시 최신 media 폴더로 동영상/미디어 자동 저장 및 연동
 // 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-07-15 — 이미지 삽입 모달과 동일한 2단 분할 레이아웃(좌측 입력/우측 미리보기)으로 UI 전면 교체
 // 🔗 @CALLS : uploadVideo, handleFileSelect, handleApplyUrl, handleInsert, createPortal
@@ -78,12 +82,37 @@ export default function YoutubeModal({
     const ext = file.name.split('.').pop() || 'mp4';
     const fileName = file.name ? file.name.replace(/\s+/g, '_') : `video_${Date.now()}.${ext}`;
     const api = (window as any).electronAPI;
+
+    // ☁️ [Google Drive 작업장 및 리소스 폴더 지원]
+    const isDriveTarget = workspaceType === 'cloud' || rootFolder?.type === 'GDRIVE' || (typeof window !== 'undefined' && (localStorage.getItem('workspaceType') === 'cloud' || (localStorage.getItem('onrivi_resource_folder_path') || '').startsWith('OnriviAuthor')));
+    if (isDriveTarget) {
+      const token = getSavedDriveToken();
+      const wsInfo = getSavedWorkspaceInfo();
+      const mediaFolderId = wsInfo?.mediaFolderId;
+      if (token && mediaFolderId) {
+        try {
+          const uploaded = await uploadDriveImage(token, mediaFolderId, file, fileName);
+          if (uploaded?.id) {
+            const finalPath = `/media/${fileName}`;
+            setSourceUrl(finalPath);
+            setAppliedPath(finalPath);
+            showToast('동영상이 구글 드라이브(media)에 저장되었습니다.', 'success');
+            return;
+          }
+        } catch (e) {
+          console.error('[YoutubeModal GDrive upload error]', e);
+        }
+      }
+    }
+
     if (api) {
       // 🖥️ 데스크탑: 무조건 로컬(resourceFolder) 저장
-      const freshResourceFolder = loadSecureData<string>('resourceFolder') || resourceFolder;
-      const effectiveTargetFolder = freshResourceFolder
-        ? freshResourceFolder + '\\media'
-        : (targetFolder || '');
+      const freshResourceFolder = getEffectiveResourceFolder(resourceFolder);
+      let effectiveTargetFolder = targetFolder || '';
+      if (freshResourceFolder) {
+        const sep = freshResourceFolder.includes('\\') ? '\\' : '/';
+        effectiveTargetFolder = freshResourceFolder + sep + 'media';
+      }
       const saveResult = await api.saveImage(effectiveTargetFolder, base64Data, fileName);
       if (saveResult && saveResult.success) {
         const finalPath = saveResult.mediaPath

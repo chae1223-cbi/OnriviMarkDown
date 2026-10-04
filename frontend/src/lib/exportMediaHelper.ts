@@ -7,6 +7,8 @@
 // 🔗 @CALLS : HTMLCanvasElement, XMLSerializer
 // ====================================================================
 
+import { withExportTimeout } from './exportPreparation';
+
 export interface ExtractedImage {
   id: number;
   buffer: ArrayBuffer;
@@ -23,41 +25,13 @@ export interface ExtractedImage {
  * HTMLImageElement로부터 바이너리(ArrayBuffer)와 픽셀 치수를 추출
  */
 export async function imgElementToPng(imgEl: HTMLImageElement): Promise<{ buffer: ArrayBuffer; width: number; height: number } | null> {
-  const w = imgEl.naturalWidth || imgEl.width || 600;
-  const h = imgEl.naturalHeight || imgEl.height || 400;
-
-  // 1) Data URL (Base64)인 경우 직접 버퍼 변환 시도
-  if (imgEl.src && imgEl.src.startsWith('data:image/')) {
-    try {
-      const parts = imgEl.src.split(',');
-      if (parts.length === 2) {
-        const raw = atob(parts[1]);
-        const u8 = new Uint8Array(raw.length);
-        for (let i = 0; i < raw.length; i++) {
-          u8[i] = raw.charCodeAt(i);
-        }
-        return { buffer: u8.buffer, width: w, height: h };
-      }
-    } catch (e) {
-      console.warn('[exportMediaHelper] DataURL decode fallback to canvas:', e);
-    }
+  if (typeof imgEl.decode === 'function') {
+    try { await withExportTimeout(imgEl.decode(), '이미지'); } catch { return null; }
   }
-
-  // 2) Blob URL인 경우 fetch로 직접 버퍼 획득 시도
-  if (imgEl.src && imgEl.src.startsWith('blob:')) {
-    try {
-      const resp = await fetch(imgEl.src);
-      if (resp.ok) {
-        const buf = await resp.arrayBuffer();
-        if (buf && buf.byteLength > 0) {
-          return { buffer: buf, width: w, height: h };
-        }
-      }
-    } catch (e) {
-      console.warn('[exportMediaHelper] Blob fetch fallback to canvas:', e);
-    }
-  }
-
+  const w = imgEl.naturalWidth;
+  const h = imgEl.naturalHeight;
+  if (!w || !h) return null;
+  // Always encode PNG; original JPEG/blob bytes must never be packaged as .png.
   // 3) Canvas 래스터라이즈 (가장 안전하고 표준적인 PNG 변환)
   try {
     const canvas = document.createElement('canvas');
@@ -67,15 +41,15 @@ export async function imgElementToPng(imgEl: HTMLImageElement): Promise<{ buffer
     if (!ctx) return null;
 
     ctx.drawImage(imgEl, 0, 0, w, h);
-    return await new Promise((resolve) => {
+    return await withExportTimeout(new Promise<{ buffer: ArrayBuffer; width: number; height: number } | null>((resolve) => {
       canvas.toBlob((blob) => {
         if (blob) {
-          blob.arrayBuffer().then((buf) => resolve({ buffer: buf, width: w, height: h }));
+          blob.arrayBuffer().then((buf) => resolve({ buffer: buf, width: w, height: h })).catch(() => resolve(null));
         } else {
           resolve(null);
         }
       }, 'image/png');
-    });
+    }), 'PNG 변환');
   } catch (err) {
     console.warn('[exportMediaHelper] Canvas drawImage failed:', err);
     return null;
@@ -86,7 +60,7 @@ export async function imgElementToPng(imgEl: HTMLImageElement): Promise<{ buffer
  * SVGElement(Mermaid 다이어그램 등)를 2x 고해상도 PNG ArrayBuffer로 래스터라이즈
  */
 export async function svgElementToPng(svgEl: SVGElement): Promise<{ buffer: ArrayBuffer; width: number; height: number } | null> {
-  return new Promise((resolve) => {
+  return withExportTimeout(new Promise<{ buffer: ArrayBuffer; width: number; height: number } | null>((resolve) => {
     try {
       let svgWidth = 800;
       let svgHeight = 600;
@@ -177,7 +151,7 @@ export async function svgElementToPng(svgEl: SVGElement): Promise<{ buffer: Arra
       console.warn('[exportMediaHelper] svgElementToPng unexpected error:', err);
       resolve(null);
     }
-  });
+  }), '다이어그램 이미지 변환');
 }
 
 /**
@@ -200,9 +174,10 @@ export async function extractMediaFromElements(
     if (!liveBox || !cloneBox) continue;
 
     const liveSvg = liveBox.querySelector('svg');
-    if (!liveSvg) continue;
+    if (!liveSvg) throw new Error('다이어그램이 아직 준비되지 않았습니다.');
 
     const res = await svgElementToPng(liveSvg);
+    if (!res?.buffer?.byteLength) throw new Error(`${i + 1}번째 다이어그램을 Word 이미지로 변환하지 못했습니다.`);
     if (res && res.buffer && res.buffer.byteLength > 0) {
       const id = nextId++;
       
@@ -260,21 +235,18 @@ export async function extractMediaFromElements(
   const liveImgs = Array.from(liveContainer.querySelectorAll('img:not([data-export-img-id])'));
   const cloneImgs = Array.from(cloneContainer.querySelectorAll('img:not([data-export-img-id])'));
 
-  for (let i = 0; i < liveImgs.length; i++) {
-    const liveImg = liveImgs[i] as HTMLImageElement;
+  for (let i = 0; i < cloneImgs.length; i++) {
     const cloneImg = cloneImgs[i] as HTMLImageElement;
-    if (!liveImg || !cloneImg) continue;
+    const liveImg = (liveImgs[i] || cloneImg) as HTMLImageElement;
+    // Small images may be meaningful document content; preserve them too.
 
-    // 아이콘, 로고 등 24px 이하 극소 에셋은 제외
-    const w = liveImg.naturalWidth || liveImg.width || 0;
-    const h = liveImg.naturalHeight || liveImg.height || 0;
-    if (w > 0 && w < 24 && h > 0 && h < 24) continue;
-
-    const res = await imgElementToPng(liveImg);
+    // Use the embedded clone, so authenticated/external images are not drawn from a tainted live canvas.
+    const res = await imgElementToPng(cloneImg);
+    if (!res?.buffer?.byteLength) throw new Error(`${i + 1}번째 이미지를 Word 파일에 포함하지 못했습니다.`);
     if (res && res.buffer && res.buffer.byteLength > 0) {
       const id = nextId++;
 
-      // 캡션 감지: figcaption 또는 alt 또는 직후 p ([그림 N] ...)
+      // Visible captions only; alt text remains image accessibility metadata.
       let caption = '';
       const parentFigure = cloneImg.closest('figure');
       const figcaption = parentFigure ? parentFigure.querySelector('figcaption') : null;
@@ -286,13 +258,12 @@ export async function extractMediaFromElements(
         if (nextElem && /^(\[|\()?(그림|Figure)\s*\d+/i.test((nextElem.textContent || '').trim())) {
           caption = (nextElem.textContent || '').trim();
           nextElem.setAttribute('data-export-caption-merged', 'true');
-        } else if (cloneImg.alt && !cloneImg.alt.startsWith('image') && cloneImg.alt.length > 2) {
-          caption = cloneImg.alt.trim();
+
         }
       }
 
       const rawSrc = liveImg.getAttribute('src') || liveImg.src || '';
-      const fname = decodeURIComponent(rawSrc.split(/[/\\]/).pop()?.split('?')[0] || '');
+      const fname = rawSrc.startsWith('data:') || rawSrc.startsWith('blob:') ? `image_${i}.png` : decodeURIComponent(rawSrc.split(/[/\\]/).pop()?.split('?')[0] || '');
 
       images.push({
         id,

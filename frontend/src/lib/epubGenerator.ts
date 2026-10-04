@@ -11,6 +11,8 @@
 // ====================================================================
 
 import JSZip from 'jszip';
+import { fetchExportImage } from './exportPreparation';
+import { unwrapPrintTables } from './exportPagination';
 import { msg } from './systemMessages';
 
 // [ONR-EXP-002] EPUB 규격 파일 어셈블링: 마크다운 렌더링된 XHTML 소스와 정적 스타일, OPF 메타데이터 파일을 JSZip을 통해 표준 e-book 구조로 빌드하고 내보내는 비동기 생성기입니다.
@@ -147,49 +149,25 @@ function sanitizeToXHTML(htmlString: string, currentDocTitle: string): string {
     }
   });
 
-  // 🔗 하이퍼링크(<a> 태그) 규격 표준화 및 보안 등급 정비
-  const links = doc.querySelectorAll('a');
-  links.forEach(a => {
-    let href = a.getAttribute('href') || '';
-    if (href) {
-      // 🏆 프로토콜 자동 주입: www.naver.com 이나 naver.com 등 스키마가 생략된 외부 도메인 주소 자동 교정!
-      if (!href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('#') && !href.startsWith('mailto:') && !href.startsWith('tel:')) {
-        if (/^(www\.)|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/.test(href)) {
-          href = `https://${href}`;
-          a.setAttribute('href', href);
-        }
-      }
-
-      if (href.startsWith('http://') || href.startsWith('https://')) {
-        // 1. 외부 도메인 링크: e-reader 리더기 앱 보안 우회 및 외부 시스템 기본 브라우저 팝업 강제 구동!
-        a.setAttribute('target', '_blank');
-        a.setAttribute('rel', 'noopener noreferrer');
-      } else if (href.toLowerCase().endsWith('.md') || href.includes('.md#') || href.includes('.md?')) {
-        // 2. 내부 로컬 마크다운 파일 링크: EPUB 내부의 앵커 해시 링크로 스마트 변환(Rewrite)하여 깨짐 원천 방지!
-        const filename = href.substring(href.lastIndexOf('/') + 1).split('#')[0].split('?')[0];
-        const hash = href.includes('#') ? href.split('#')[1] : '';
-        
-        // 확장자를 제거하고 특수문자를 언더바로 정형화한 안전한 영숫자 앵커 ID 생성
-        const safeDocId = 'doc-' + filename.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9]/g, "_");
-        
-        if (hash) {
-          // 기존에 구체적인 앵커 링크(#헤더)가 걸려 있었다면 리더기가 인식할 수 있도록 승계
-          a.setAttribute('href', `#${decodeURIComponent(hash)}`);
-        } else {
-          // 마크다운 파일 단위로의 단순 이동은 EPUB 내 해당 챕터의 첫 앵커로 스마트 점프!
-          a.setAttribute('href', `#${safeDocId}`);
-        }
-      }
+  // Preserve heading IDs and explicit local fragments; never invent destinations for another file.
+  doc.querySelectorAll('a').forEach(a => {
+    const href = a.getAttribute('href') || '';
+    if (/^(www\.)/i.test(href)) a.setAttribute('href', `https://${href}`);
+    if (/^javascript:/i.test(href)) a.removeAttribute('href');
+  });
+  doc.querySelectorAll('script, style, iframe, object, embed').forEach(el => el.remove());
+  doc.querySelectorAll('*').forEach(el => {
+    Array.from(el.attributes).forEach(attr => { if (/^on/i.test(attr.name)) el.removeAttribute(attr.name); });
+  });
+  // Source line wrappers represent visible paragraph line boundaries.
+  doc.querySelectorAll('p .onrivi-line').forEach(line => {
+    if (line.previousElementSibling?.classList.contains('onrivi-line')) {
+      line.before(doc.createElement('br'));
+      if (line.firstChild?.nodeType === 3) line.firstChild.textContent = line.firstChild.textContent?.replace(/^\r?\n/, '') || '';
     }
   });
-
-  // 각 챕터의 도입부에 앵커 점프를 받을 수 있는 Destination Anchor ID 강제 삽입!
-  const firstHeader = doc.querySelector('h1, h2, h3, p');
-  if (firstHeader) {
-    const safeDocId = 'doc-' + currentDocTitle.replace(/[^a-zA-Z0-9]/g, "_");
-    firstHeader.setAttribute('id', safeDocId);
-  }
-  
+  doc.querySelectorAll('.onrivi-sentence-br').forEach(el => el.replaceWith(doc.createElement('br')));
+  unwrapPrintTables(doc.body);
   // XML/XHTML에서 허용되지 않는 일부 속성이나 class 정돈
   const allElements = doc.querySelectorAll('*');
   allElements.forEach(el => {
@@ -273,14 +251,16 @@ export async function generateEpub({
     for (let idx = 0; idx < images.length; idx++) {
       const img = images[idx];
       const srcUrl = img.getAttribute('src');
+      if (!srcUrl) throw new Error(`${idx + 1}번째 이미지 경로가 없습니다. EPUB 내보내기를 중단합니다.`);
       
       if (srcUrl) {
         try {
           // 💡 [Data URI 보완] Base64 인라인 이미지인 경우 fetch 없이 직접 디코딩하여 zip 동봉
           if (srcUrl.startsWith('data:')) {
-            const parts = srcUrl.split(',');
-            const meta = parts[0];
-            const base64Data = parts[1];
+            const comma = srcUrl.indexOf(',');
+            const meta = srcUrl.slice(0, comma);
+            const base64Data = srcUrl.slice(comma + 1);
+            if (comma < 0 || !meta.startsWith('data:image/') || !base64Data) throw new Error('잘못된 이미지 데이터입니다.');
             
             if (base64Data) {
               const mimeMatch = meta.match(/data:([^;]+)/);
@@ -295,11 +275,11 @@ export async function generateEpub({
               const filename = `image_${idx}.${ext}`;
               const epubImgPath = `OEBPS/images/${filename}`;
               
-              const binaryString = atob(base64Data);
+              const binaryString = meta.includes(';base64') ? atob(base64Data) : new TextEncoder().encode(decodeURIComponent(base64Data));
               const len = binaryString.length;
               const bytes = new Uint8Array(len);
               for (let i = 0; i < len; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
+                bytes[i] = typeof binaryString === 'string' ? binaryString.charCodeAt(i) : binaryString[i];
               }
               const buffer = bytes.buffer;
               
@@ -327,17 +307,14 @@ export async function generateEpub({
           const epubImgPath = `OEBPS/images/${filename}`;
           
           // 브라우저 Fetch를 이용해 이미지 바이너리(ArrayBuffer) 획득 (5초 타임아웃)
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000);
-          const response = await fetch(srcUrl, { signal: controller.signal });
-          clearTimeout(timeoutId);
-          if (response.ok) {
-            const buffer = await response.arrayBuffer();
+          const imageBlob = await fetchExportImage(srcUrl);
+          {
+            const buffer = await imageBlob.arrayBuffer();
             
             // ZIP에 파일 직접 동봉
             zip.file(epubImgPath, buffer);
             
-            const mimeType = response.headers.get('content-type') || getMimeType(filename);
+            const mimeType = imageBlob.type || getMimeType(filename);
             embeddedImages.push({
               id: `img_${idx}`,
               href: `images/${filename}`,
@@ -348,7 +325,7 @@ export async function generateEpub({
             img.setAttribute('src', `../images/${filename}`);
           }
         } catch (err) {
-          msg.warn(`이미지 동봉 실패: ${srcUrl}`, err);
+          throw new Error(`${idx + 1}번째 이미지를 EPUB에 포함하지 못했습니다. 이미지가 표시되는지 확인하고 다시 내보내 주세요.`);
         }
       }
     }
@@ -376,110 +353,63 @@ export async function generateEpub({
   // 4. XHTML 본문 데이터 변환 및 하이퍼링크 표준 조율
   let sanitizedBody = sanitizeToXHTML(processedHtml, title);
 
-  // [OMD-EPUB] 개요수준 페이지나누기와 수동 페이지나누기(---) 충돌 방지:
-  // 헤딩 태그 바로 앞에 있는 수동 페이지 나누기 hr 태그를 제거하여 빈 페이지가 생성되는 것을 막습니다.
-  sanitizedBody = sanitizedBody.replace(/<hr[^>]*class="[^"]*page-break[^"]*"[^>]*>\s*(?=<h[1-6])/gi, '');
-
-  // 5. 📄 EPUB 페이지 물리적 분할 (XHTML 파일 쪼개기)
-  //
-  // 🔑 분할 정책:
-  //   설정 레벨(h(level)) 헤딩이 등장할 때마다 '이전까지의 모든 내용포함' 하나의 단위가 됩니다.
-  //   상위 레벨 헤딩(h1~h(level-1))은 버퍼에 담아듖다가, 다음 h(level)이 나오면 버퍼와 함께 하나의 섹션으로 구성합니다.
-  //   예) h2 기준 : [h1+intro+h2#1+내용] / [h2#2+내용] / [h2#3+내용]
-  //   예) h3 기준 : [h2+h2내용+h3#1+내용] / [h3#2+내용] / [h2(신규)+h2내용+h3#3+내용] / [h3#4+내용]
-  let sections: { id: string; html: string; title: string; }[] = [];
-  const levelNum = exportPageBreakLevel !== 'none' ? parseInt(exportPageBreakLevel.replace('h', '')) : NaN;
-
-  if (!isNaN(levelNum) && levelNum >= 1 && levelNum <= 6) {
-    // h1 ~ h(level) 헤딩과 수동 page-break hr 태그에서 분리
-    const splitRegexAll = new RegExp(`(<h[1-${levelNum}]\\b[^>]*>|<hr\\b[^>]*class="[^"]*page-break[^"]*"[^>]*>)`, 'gi');
-    const allParts = sanitizedBody.split(splitRegexAll);
-
-    let buffer = allParts[0]; // 첫 헤딩/구분선 이전 내용
-    let currentTitle = title;
-    let sectionIdx = 1;
-    
-      let lastSeenLevel = 0;
-      const extractHeadingTitle = (hContent: string): string => {
-        const match = hContent.match(/<\/h[1-6]>/i);
-        return match && match.index !== undefined
-          ? hContent.substring(0, match.index).replace(/<[^>]*>/g, '').trim()
-          : '';
-      };
-
-      for (let i = 1; i < allParts.length; i += 2) {
-        const hTag = allParts[i];
-        const hContent = allParts[i + 1] || '';
-
-        // 수동 페이지 나누기(---)인 경우 즉시 챕터 분할
-        if (hTag.toLowerCase().startsWith('<hr')) {
-          if (buffer.trim()) {
-            sections.push({ id: `section${sectionIdx++}`, html: buffer, title: currentTitle });
-          }
-          buffer = hContent; // hr 태그 자체는 버리고 내용만 새 버퍼에 담음
-          lastSeenLevel = 0;
-          continue;
-        }
-
-        const tagLevelMatch = hTag.match(/<h(\d)/i);
-        const tagLevel = tagLevelMatch ? parseInt(tagLevelMatch[1]) : 0;
-  
-        const headingText = extractHeadingTitle(hContent);
-
-        if (tagLevel > 0 && tagLevel <= levelNum) {
-          // 버퍼 내부에 헤딩(h1~h6) 외의 실제 본문 콘텐츠(<p>, <img> 등)가 있는지 확인
-          const contentWithoutHeadings = buffer.replace(/<h[1-6]\b[^>]*>.*?<\/h[1-6]>/gi, '').trim();
-          const hasContent = contentWithoutHeadings.length > 0;
-
-          // 1. 현재 헤딩이 이전 헤딩보다 상위/동일 레벨이거나 (예: h2 -> h2, h3 -> h2)
-          // 2. 버퍼 내부에 실제 본문 콘텐츠가 이미 존재하는 경우 (예: h1 -> (본문) -> h3)
-          // 챕터를 분리하여 독립된 페이지로 렌더링합니다.
-          if ((lastSeenLevel !== 0 && tagLevel <= lastSeenLevel) || (lastSeenLevel !== 0 && hasContent) || (lastSeenLevel === 0 && hasContent)) {
-             if (buffer.trim()) {
-               sections.push({ id: `section${sectionIdx++}`, html: buffer, title: currentTitle });
-             }
-             buffer = '';
-          }
-          lastSeenLevel = tagLevel;
-        }
-        
-        if (headingText) currentTitle = headingText;
-        buffer += hTag + hContent;
-      }
-      // 남은 버퍼가 있는 경우
-    if (buffer.trim()) {
-      sections.push({ id: `section${sectionIdx++}`, html: buffer, title: currentTitle });
-    }
-  } else {
-    // 개요수준 단원 분할은 안 하지만, 수동 페이지 나누기(---)는 챕터로 분할 처리
-    const manualBreakRegex = /(<hr\b[^>]*class="[^"]*page-break[^"]*"[^>]*>)/gi;
-    const parts = sanitizedBody.split(manualBreakRegex);
-    if (parts.length > 1) {
-      let buffer = parts[0];
-      let sectionIdx = 1;
-      
-      for (let i = 1; i < parts.length; i += 2) {
-        // parts[i] is the <hr> tag, parts[i+1] is the content after it
-        if (buffer.trim()) {
-          sections.push({ id: `section${sectionIdx++}`, html: buffer, title: title });
-        }
-        buffer = parts[i + 1] || '';
-      }
-      if (buffer.trim()) {
-        sections.push({ id: `section${sectionIdx++}`, html: buffer, title: title });
-      }
-    } else {
-      sections.push({
-        id: 'section1',
-        html: sanitizedBody,
-        title: title
+  // Split complete top-level nodes so nested markup cannot be cut into invalid XHTML fragments.
+  const bodyDoc = new DOMParser().parseFromString(sanitizedBody, 'text/html');
+  const sections: { id: string; html: string; title: string }[] = [];
+  const levelNum = /^h[1-6]$/.test(exportPageBreakLevel) ? Number(exportPageBreakLevel.slice(1)) : 0;
+  let buffer: Node[] = [];
+  const serialize = (node: Node) => {
+    if (node.nodeType === 1) {
+      const element = node as Element;
+      [element, ...Array.from(element.querySelectorAll('*'))].forEach(el => {
+        if (el.namespaceURI === 'http://www.w3.org/1999/xhtml') el.removeAttribute('xmlns');
       });
     }
+    return new XMLSerializer().serializeToString(node);
+  };
+  const flush = () => {
+    if (!buffer.some(node => node.nodeType === 1 || node.textContent?.trim())) { buffer = []; return; }
+    const firstHeading = buffer.find(node => node.nodeType === 1 && /^H[1-6]$/.test((node as Element).tagName));
+    sections.push({ id: `section${sections.length + 1}`, html: buffer.map(serialize).join(''), title: firstHeading?.textContent?.trim() || title });
+    buffer = [];
+  };
+  for (const node of Array.from(bodyDoc.body.childNodes)) {
+    const el = node as HTMLElement;
+    const manual = el.classList?.contains('page-break');
+    const heading = /^H[1-6]$/.test(el.tagName || '') && Number(el.tagName.slice(1)) <= levelNum;
+    if (manual || heading) flush();
+    if (!manual) buffer.push(node);
   }
+  flush();
+  if (!sections.length) sections.push({ id: 'section1', html: '<p></p>', title });
 
-  if (sections.length === 0) {
-    sections = [{ id: 'section1', html: sanitizedBody, title: title }];
-  }
+  const navigation: { href: string; title: string; level: number }[] = [];
+  const destinations = new Map<string, string>();
+  const sectionDocs = sections.map(sec => new DOMParser().parseFromString(sec.html, 'text/html'));
+  const usedIds = new Set(sectionDocs.flatMap(doc => Array.from(doc.querySelectorAll('[id]')).map(el => el.id)));
+  let headingNumber = 0;
+  sectionDocs.forEach((doc, index) => {
+    const sec = sections[index];
+    doc.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(heading => {
+      if (!heading.id) {
+        let id: string;
+        do { id = `epub-heading-${++headingNumber}`; } while (usedIds.has(id));
+        heading.id = id; usedIds.add(id);
+      }
+      navigation.push({ href: `${sec.id}.xhtml#${encodeURIComponent(heading.id)}`, title: heading.textContent?.trim() || sec.title, level: Number(heading.tagName.slice(1)) });
+    });
+    doc.querySelectorAll('[id]').forEach(el => { if (!destinations.has(el.id)) destinations.set(el.id, sec.id); });
+    if (!doc.querySelector('h1,h2,h3,h4,h5,h6')) navigation.push({ href: `${sec.id}.xhtml`, title: sec.title, level: 1 });
+  });
+  sectionDocs.forEach((doc, index) => {
+    doc.querySelectorAll('a[href^="#"]').forEach(link => {
+      let id = (link.getAttribute('href') || '').slice(1);
+      try { id = decodeURIComponent(id); } catch {}
+      const section = destinations.get(id);
+      if (section) link.setAttribute('href', `${section}.xhtml#${encodeURIComponent(id)}`);
+    });
+    sections[index].html = Array.from(doc.body.childNodes).map(serialize).join('');
+  });
 
   // 6. 각 분 분할된 챕터(XHTML) 파일 개별 생성 및 매니페스트/스파인 리스트 빌드
   const manifestSectionItems: string[] = [];
@@ -503,13 +433,13 @@ export async function generateEpub({
 </html>`;
     zip.file(`OEBPS/text/${sec.id}.xhtml`, sectionHtml);
     
-    manifestSectionItems.push(`<item id="${sec.id}" href="text/${sec.id}.xhtml" media-type="application/xhtml+xml"/>`);
+    manifestSectionItems.push(`<item id="${sec.id}" href="text/${sec.id}.xhtml" media-type="application/xhtml+xml"${/<math[\s>]/i.test(sec.html) || /<svg[\s>]/i.test(sec.html) ? ` properties="${[...(/<math[\s>]/i.test(sec.html) ? ['mathml'] : []), ...(/<svg[\s>]/i.test(sec.html) ? ['svg'] : [])].join(' ')}"` : ''}/>`);
     spineSectionItems.push(`<itemref idref="${sec.id}"/>`);
   });
 
   // 7. OEBPS/text/toc.xhtml (EPUB3 표준 네비게이션 목차 문서에 쪼개진 챕터 자동 매핑)
-  const tocItems = sections.map(sec => 
-    `<li><a href="${sec.id}.xhtml">${escapeXml(sec.title)}</a></li>`
+  const tocItems = navigation.map(entry => 
+    `<li class="toc-level-${entry.level}"><a href="${escapeXml(entry.href)}">${escapeXml(entry.title)}</a></li>`
   ).join('\n        ');
 
   const tocHtml = `<?xml version="1.0" encoding="utf-8"?>
@@ -922,15 +852,33 @@ del {
   // 🌟 KaTeX 공식 CSS 코어 규칙 병합 탑재 (수식 정밀 렌더링용)
   styleCss += `\n\n/* KaTeX Core CSS */\n${KATEX_CSS}`;
 
+  styleCss += `
+/* Reflow overrides must follow the user's print-oriented profile. */
+.epub-body .table-wrapper-area { display:block !important; overflow:visible !important; break-inside:auto !important; }
+.epub-body table, .epub-body tbody { break-inside:auto !important; page-break-inside:auto !important; }
+.epub-body tr { break-inside:avoid !important; }
+.epub-body thead { display:table-header-group !important; }
+.epub-body p .onrivi-line { display:inline !important; white-space:normal !important; margin:0 !important; }
+.epub-body figure { overflow:visible !important; break-inside:avoid !important; }
+.epub-body figure img { max-width:100% !important; max-height:70vh !important; height:auto !important; width:auto !important; margin:0 auto !important; }
+#toc ol { list-style:none !important; padding-left:0 !important; }
+#toc li { list-style:none !important; }
+#toc .toc-level-1 { margin-left:0 !important; }
+#toc .toc-level-2 { margin-left:1em !important; }
+#toc .toc-level-3 { margin-left:2em !important; }
+#toc .toc-level-4 { margin-left:3em !important; }
+#toc .toc-level-5 { margin-left:4em !important; }
+#toc .toc-level-6 { margin-left:5em !important; }
+`;
   zip.file('OEBPS/styles/style.css', styleCss);
 
   // 8.5. OEBPS/toc.ncx (EPUB2 호환성 목차 파일 생성 - 교보문고, 예스24, 리디북스 등 국내외 이북 리더기 필수 하위 호환 규격)
-  const ncxNavPoints = sections.map((sec, idx) => `
+  const ncxNavPoints = navigation.map((sec, idx) => `
     <navPoint id="num_${idx + 1}" playOrder="${idx + 1}">
       <navLabel>
         <text>${escapeXml(sec.title)}</text>
       </navLabel>
-      <content src="text/${sec.id}.xhtml"/>
+      <content src="text/${escapeXml(sec.href)}"/>
     </navPoint>`).join('');
 
   const tocNcx = `<?xml version="1.0" encoding="utf-8"?>

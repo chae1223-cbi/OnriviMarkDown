@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useCallback } from 'react';
+import { waitForExportContent } from '@/lib/exportPreparation';
 import { exportPDF, exportHTML, exportEPUB, exportPNG, exportDOCX } from '@/lib/exportHandlers';
 import { DEFAULT_PROFILE } from "@/constants/cssProfile";
 import { vfsWriteFile } from '@/lib/virtualFileSystem';
@@ -13,6 +14,11 @@ import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { triggerKnowledgeAutoSyncOnSave } from '@/lib/knowledge/knowledgeAutoSync';
 import { cleanMarkdownDocument } from '@/utils/markdownCleaner';
 import { openAndFocusFindWidget } from '@/utils/findWidgetHelper';
+import {
+  getSavedDriveToken,
+  saveDriveFileContent,
+  getSavedWorkspaceInfo
+} from '@/lib/gdrive/googleDriveClient';
 
 /**
  * [ONR-16-004] useEditorHandlers 커스텀 훅
@@ -21,6 +27,7 @@ import { openAndFocusFindWidget } from '@/utils/findWidgetHelper';
 // ====================================================================
 // 📊 [OMD-EDIT-USEEDITORHANDLERS-0014] useEditorHandlers.ts ➔ useEditorHandlers
 // 🎯 @KICK  : 에디터 주요 액션 핸들러(저장, 내보내기, 서식 삽입 등)를 통합 관리
+// 🚨 @PATCH : **2026-10-03** — [구글 드라이브 저장 시 브라우저 showSaveFilePicker 다이얼로그 오작동 차단 & 클라우드 직결 무음 저장 지원]: driveFileId/driveId 또는 workspaceType === 'cloud' 환경에서 브라우저 파일 다이얼로그로 누락 떨어지던 결함을 차단하고 saveDriveFileContent 직결 무음 저장 및 새 문서 프롬프트 연동
 // 🚨 @PATCH : **2026-10-01** — [서명/발신인 붉은색 인감도장 태그 적용]: 기본 템플릿의 도장 표식을 붉은색 원형 인감도장 태그(<span style="color:#dc2626; border:1.5px solid #dc2626; border-radius:50%; padding:0 3px; font-size:0.85em; font-weight:bold;">인</span>)로 업그레이드
 // 🚨 @PATCH : **2026-10-01** — [서명/발신인 핸들러 추가]: 선택 영역 우측 정렬 감싸기/토글 및 미선택 시 오늘 날짜 기반 기본 서명 템플릿 삽입(작성자명 자동 선택) 구현 (handlers.signature)
 // 🚨 @PATCH : **2026-10-01** — [DOCX 내보내기 시 미리보기 DOM 직결 연동]: 마크다운 태그 누출을 원천 방지하기 위해 렌더링된 previewRef DOM을 기반으로 exportDOCX를 호출하도록 연동
@@ -94,8 +101,30 @@ export const useEditorHandlers = ({
     setTabs,
     activeTabIdRef,
     licenseStatusRef,
-    lastSelectionRef
-}: any) => {
+    lastSelectionRef,
+    tabsRef,
+    saveFile
+  }: any) => {
+
+  const prepareEditorForExport = async () => {
+    try {
+      if (editorRef.current) {
+        // Moving focus commits Korean IME before reading the editor model.
+        const input = document.createElement('input');
+        input.style.cssText = 'position:fixed;left:-9999px;opacity:0';
+        document.body.appendChild(input);
+        try { input.focus({ preventScroll: true }); input.blur(); } finally { input.remove(); }
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        const value = editorRef.current.getValue();
+        if (value !== contentRef.current) updateContent(value);
+        if (previewRef.current) await waitForExportContent(previewRef.current, value);
+      }
+      return true;
+    } catch (error: any) {
+      showToast('내보내기 준비 실패: ' + error.message, 'error');
+      return false;
+    }
+  };
 
   // 날짜/시간 형식 토큰: YYYY(연), MM(월), DD(일), HH(24시), mm(분), ss(초)
   const formatCurrentDateTime = (format = 'YYYY-MM-DD HH:mm:ss') => {
@@ -499,6 +528,56 @@ export const useEditorHandlers = ({
         }
       }
 
+      // ☁️ [Google Drive 클라우드 저장 분기]
+      const activeTab = tabsRef?.current?.find((t: any) => t.id === activeTabIdRef?.current);
+      const driveFileId = fileNode?.driveFileId || 
+        fileNode?.driveId || 
+        (activeTab as any)?.driveFileId || 
+        (activeTab as any)?.driveId;
+      const isCloudWorkspace = wType === 'cloud' || rootFolderRef.current?.type === 'GDRIVE';
+
+      if (isCloudWorkspace || driveFileId) {
+        if (driveFileId) {
+          const token = getSavedDriveToken();
+          if (token) {
+            try {
+              await saveDriveFileContent(token, driveFileId, currentVal);
+              lastSavedContentRef.current = currentVal;
+              setSaveStatus('saved');
+              setTimeout(() => {
+                setTabs(prev => prev.map(t => {
+                  const tDriveId = (t as any).driveFileId || (t as any).driveId;
+                  const isMatch = (tDriveId && String(tDriveId) === String(driveFileId)) || t.id === activeTabIdRef.current;
+                  return isMatch ? { ...t, isModified: false, content: currentVal } : t;
+                }));
+              }, 150);
+              showToast("구글 드라이브에 안전하게 저장되었습니다.", "success");
+              triggerKnowledgeAutoSync(fileNode?.path || fileName, currentVal);
+              return;
+            } catch (driveErr: any) {
+              setSaveStatus('unsaved');
+              showToast("구글 드라이브 저장 실패: " + (driveErr.message || driveErr), 'error');
+              return;
+            }
+          } else {
+            setSaveStatus('unsaved');
+            showToast("구글 드라이브 인증 토큰이 필요합니다. 다시 연결해 주세요.", 'error');
+            return;
+          }
+        } else if (fileName === '새 파일.md' || !driveFileId) {
+          // 구글 드라이브 작업장에서 새 파일 저장 시 파일명 입력 프롬프트 모달 호출
+          setPromptConfig({
+            isOpen: true,
+            title: '구글 드라이브 새 문서 저장',
+            defaultValue: fileName === '새 파일.md' ? '새 문서.md' : fileName,
+            type: 'createFile',
+            error: ""
+          });
+          setSaveStatus('unsaved');
+          return;
+        }
+      }
+
       const hasPathOrHandle = fileNode && (fileNode.path || fileNode.handle);
       if (hasPathOrHandle && fileName !== '새 파일.md') {
         if (api) {
@@ -722,6 +801,20 @@ export const useEditorHandlers = ({
       const suggestedName = fileName !== '새 파일.md' ? fileName : undefined;
       const defaultDir = rootFld?.name && rootFld.name !== BROWSER_STORAGE_NAME ? rootFld.name : undefined;
 
+      const wType = workspaceTypeRef.current;
+      const isCloudWorkspace = wType === 'cloud' || rootFld?.type === 'GDRIVE';
+      if (isCloudWorkspace) {
+        setPromptConfig({
+          isOpen: true,
+          title: '구글 드라이브 다른 이름으로 저장',
+          defaultValue: fileName !== '새 파일.md' ? `복사본_${fileName}` : '새 문서.md',
+          type: 'createFile',
+          error: ""
+        });
+        setSaveStatus('unsaved');
+        return;
+      }
+
       setSaveStatus('saving');
 
       if (api) {
@@ -834,6 +927,7 @@ export const useEditorHandlers = ({
     },
     openExport: () => setIsExportModalOpen(true),
     print: async () => {
+      if (!await prepareEditorForExport()) return;
       if (!previewRef.current) return;
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
       const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
@@ -841,6 +935,7 @@ export const useEditorHandlers = ({
       await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile });
     },
     exportPDF: async () => {
+      if (!await prepareEditorForExport()) return;
       if (!previewRef.current) return;
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
       const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
@@ -848,6 +943,7 @@ export const useEditorHandlers = ({
       await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile });
     },
     exportHTML: async () => {
+      if (!await prepareEditorForExport()) return;
       if (!previewRef.current) return;
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
       const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
@@ -869,15 +965,18 @@ export const useEditorHandlers = ({
       });
     },
     exportEPUB: async () => {
+      if (!await prepareEditorForExport()) return;
       if (!previewRef.current) return;
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
       await exportEPUB({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, dynamicCssString, backgroundColor: activeProfile.pageStyle.backgroundColor, activeProfile });
     },
     exportDOCX: async () => {
+      if (!await prepareEditorForExport()) return;
       if (!previewRef.current) return;
-      await exportDOCX({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast });
+      await exportDOCX({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, activeProfile: profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE });
     },
     exportPNG: async () => {
+      if (!await prepareEditorForExport()) return;
       if (!previewRef.current) return;
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
       const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';

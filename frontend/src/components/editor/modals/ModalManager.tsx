@@ -2,6 +2,8 @@
  * 프로그램명 : OnriviAuthor
  * 프로그램 ID : oaar-modal-manager
  * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 미디어 대상 폴더 동적 경로 동기화]: resourceFolder(구글 드라이브 및 로컬)의 구분자 동적 판별 및 targetFolder media 경로 완전 동기화
+ * 🚨 @PATCH : **2026-10-03** — [구글 드라이브 파일/폴더 생성 지원 및 미구현 백엔드 API 404 차단]: createFile/createFolder 시 구글 드라이브(GDRIVE) 분기 탑재 및 웹 브라우저 VFS 폴백 강화로 404 에러 원천 방어
  * 🚨 @PATCH : **2026-10-01** — [한글(.hwpx) 내보내기 모달 핸들러 제거]: ExportModal의 hwpx 선택 핸들러 분기 완전 삭제
  * 🚨 @PATCH : **2026-09-30** — [내보내기 모달 onExport 핸들러 Word(.docx) 및 한글(.hwpx) 연동]: ExportModal의 docx, hwpx 선택 시 handlers.exportDOCX 및 handlers.exportHWPX 실행 연결
  * 🚨 @PATCH : **2026-09-24** — [새 서식 생성 시 Onrivi 기본서식 100% 완전체 정규화(normalizeCssProfile) 연동]: onAddProfile 호출 시 DEFAULT_PROFILE의 모든 7대 쇼케이스 태그 및 구조체를 100% 하이드레이션하여 누락 없는 완전체로 신규 서식 생성
@@ -44,6 +46,12 @@ import { useEditorModals } from '@/hooks/editor/useEditorModals';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage'; // 모달 관련 상태와 함수들을 hook으로 관리하는 hooks
 import { insertMediaAtCursor } from '@/utils/editorActions'; // 미디어 삽입 후 2행 추가 및 커서 이동 유틸
 import { normalizeCssProfile } from '@/constants/cssProfile'; // 서식 프로필 정규화 및 살균 엔진
+import {
+  getSavedDriveToken,
+  getSavedWorkspaceInfo,
+  createDriveMarkdownFile,
+  createDriveFolder
+} from '@/lib/gdrive/googleDriveClient';
 
 /**
  * props들의 타입을 선언
@@ -246,6 +254,30 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
                 // [시큐어코딩] 경로 탐색(Path Traversal) 공격 방지: 파일명에서 슬래시, 백슬래시 제거
                 const safeValue = value.replace(/[\/\\]/g, '');
                 const finalName = safeValue.endsWith('.md') ? safeValue : `${safeValue}.md`;
+
+                // ☁️ [Google Drive 작업장 시 구글 드라이브 파일 생성]
+                if (rootFolder?.type === 'GDRIVE') {
+                  const token = getSavedDriveToken();
+                  const wsInfo = getSavedWorkspaceInfo();
+                  const targetFolderId = rootFolder?.id || rootFolder?.driveFolderId || wsInfo?.workspaceFolderId;
+                  if (token && targetFolderId) {
+                    const newDoc = await createDriveMarkdownFile(token, targetFolderId, finalName, content ?? '');
+                    setPromptConfig((prev: any) => ({ ...prev, isOpen: false, error: '' }));
+                    await refreshFileList();
+                    window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+                    const newFileNode = { name: finalName, kind: 'file' as const, path: `${rootFolder?.path || 'GoogleDrive'}/${finalName}`, driveId: newDoc.id, driveFileId: newDoc.id, id: newDoc.id };
+                    setCurrentFileName(finalName);
+                    setCurrentFileNode(newFileNode);
+                    lastSavedContentRef.current = content;
+                    setSaveStatus('saved');
+                    if (handlers && handlers.setTabs) {
+                      handlers.setTabs((prev: any[]) => prev.map(t => t.id === finalName || t.path === finalName ? { ...t, isModified: false } : t));
+                    }
+                    showToast(`${finalName} 구글 드라이브 생성 및 저장 완료`, 'success');
+                    return;
+                  }
+                }
+
                 const api = (window as any).electronAPI;
                 if (api && rootFolder?.name && rootFolder.name !== BROWSER_STORAGE_NAME) {
                   const fullPath = rootFolder.name + '\\' + finalName;
@@ -298,37 +330,41 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
                     showToast(`${finalName} 저장 완료`, 'success');
                   }
                 } else {
-                  const res = await fetch(getApiUrl('/api/create-file'), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ parentPath: '', name: finalName })
-                  });
-                  if (res.ok) {
-                    const data = await res.json();
-                    if (content) {
-                      await fetch(getApiUrl('/api/save'), {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ path: data.path, content })
-                      });
-                    }
-                    setPromptConfig((prev: any) => ({ ...prev, isOpen: false, error: '' }));
-                    await refreshFileList();
-                    window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-                    const newFileNode = { name: finalName, kind: 'file' as const, path: data.path };
-                    setCurrentFileName(finalName);
-                    setCurrentFileNode(newFileNode);
-                    lastSavedContentRef.current = content;
-                    setSaveStatus('saved');
-                      if (handlers && handlers.setTabs) {
-                        handlers.setTabs((prev: any[]) => prev.map(t => t.id === finalName || t.path === finalName ? { ...t, isModified: false } : t));
-                      }
-                    showToast(`${finalName} 생성 및 저장 완료`, 'success');
+                  // 🛡️ [웹 SaaS 백엔드 미구현 404 원천 차단]: electronAPI가 없는 웹 브라우저 환경에서는 VFS 생성 수행
+                  vfsCreateFile('', finalName);
+                  if (content) vfsWriteFile(finalName, content);
+                  setPromptConfig((prev: any) => ({ ...prev, isOpen: false, error: '' }));
+                  await refreshFileList();
+                  window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+                  const newFileNode = { name: finalName, kind: 'file' as const, path: finalName };
+                  setCurrentFileName(finalName);
+                  setCurrentFileNode(newFileNode);
+                  lastSavedContentRef.current = content;
+                  setSaveStatus('saved');
+                  if (handlers && handlers.setTabs) {
+                    handlers.setTabs((prev: any[]) => prev.map(t => t.id === finalName || t.path === finalName ? { ...t, isModified: false } : t));
                   }
+                  showToast(`${finalName} 생성 및 저장 완료`, 'success');
                 }
               } else if (promptConfig.type === 'createFolder') {
                 // [시큐어코딩] 경로 탐색(Path Traversal) 공격 방지: 폴더명에서 슬래시, 백슬래시 제거
                 const safeValue = value.replace(/[\/\\]/g, '');
+
+                // ☁️ [Google Drive 작업장 시 구글 드라이브 폴더 생성]
+                if (rootFolder?.type === 'GDRIVE') {
+                  const token = getSavedDriveToken();
+                  const wsInfo = getSavedWorkspaceInfo();
+                  const targetFolderId = rootFolder?.id || rootFolder?.driveFolderId || wsInfo?.workspaceFolderId;
+                  if (token && targetFolderId) {
+                    await createDriveFolder(token, safeValue, targetFolderId);
+                    setPromptConfig((prev: any) => ({ ...prev, isOpen: false, error: '' }));
+                    await refreshFileList();
+                    window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+                    showToast(`${safeValue} 구글 드라이브 폴더 생성 완료`, 'success');
+                    return;
+                  }
+                }
+
                 if (workspaceType === 'browser') {
                   if (rootFolder?.handle) {
                     await rootFolder.handle.getDirectoryHandle(safeValue, { create: true });
@@ -336,11 +372,13 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
                     vfsCreateFolder('', safeValue);
                   }
                 } else {
-                  await fetch(getApiUrl('/api/create-folder'), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ parentPath: '', name: safeValue })
-                  });
+                  const api = (window as any).electronAPI;
+                  if (api?.createFolder) {
+                    await api.createFolder('', safeValue);
+                  } else {
+                    // 🛡️ [웹 SaaS 백엔드 미구현 404 원천 차단]: electronAPI가 없는 웹 브라우저 환경에서는 VFS 폴더 생성 수행
+                    vfsCreateFolder('', safeValue);
+                  }
                 }
                 setPromptConfig((prev: any) => ({ ...prev, isOpen: false, error: '' }));
                 await refreshFileList();
@@ -408,7 +446,8 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
             // 데스크탑: resourceFolderRef.current를 최우선 사용 (state보다 항상 최신)
             const rf = resourceFolderRef?.current ?? resourceFolder;
             if (rf) {
-              return rf + '\\media';
+              const sep = rf.includes('\\') ? '\\' : '/';
+              return rf + sep + 'media';
             }
             // resourceFolder 없으면 현재 파일 경로 기준 폴더 사용
             if (currentFileNodeRef?.current?.path) {
@@ -458,7 +497,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
       }}
       isDarkMode={isDarkMode}
       initialUrl={youtubeInitialUrl || undefined}
-      targetFolder={resourceFolder ? resourceFolder + '\\media' : (rootFolder?.name || '')}
+      targetFolder={resourceFolder ? resourceFolder + (resourceFolder.includes('\\') ? '\\media' : '/media') : (rootFolder?.name || '')}
       resourceFolder={resourceFolder}
       resourceFolderHandle={deps.resourceFolderHandle}
       workspaceType={deps.workspaceType}
