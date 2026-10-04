@@ -2,7 +2,7 @@
 // 📊 [OMD-UI-LeftSidebar-0001] LeftSidebar.tsx ➔ 에디터 좌측 탐색기 사이드바
 // 🎯 @KICK  : 파일 트리 탐색기, TOC, 북마크, 전역 검색 탭 제공. 폴더 CRUD/드래그앤드롭/컨텍스트메뉴 지원
 // 🛡️ @GUARD : FSA API(웹), IPC(데스크톱) 이중 운영, 드래그 덜렁거림(anti-rattle) 방지 적용
-// 🚨 @PATCH : **2026-10-04** — [구글 드라이브 파일/폴더 복사·잘라내기·붙여넣기 전면 지원]: handlePasteNode에 GDRIVE/cloud 분기(0번 케이스) 신설 — moveDriveItem(이동), copyDriveFile(파일 복사), copyDriveFolderRecursive(폴더 재귀 복사) 연동
+// 🚨 @PATCH : **2026-10-04** — [구글 드라이브 파일/폴더 복사·잘라내기·붙여넣기·루트 이동 전면 지원]: handlePasteNode 및 handleDropRoot에 GDRIVE/cloud 분기 신설 — moveDriveItem(이동), copyDriveFile(파일 복사), copyDriveFolderRecursive(폴더 재귀 복사) 연동
 // 🚨 @PATCH : **2026-10-03** — [AI 타문서 변환 Google 503 High Demand 오류 명확한 안내 및 기본 모델 최신화]: 구글 일시적 과부하(503) 시 정확한 원인 안내 토스트 표출 및 기본 모델 gemini-3.8-flash 일원화
 // 🚨 @PATCH : **2026-10-03** — [타문서 변환 이미지 저장 시 리소스 폴더(구글 드라이브 및 로컬) media 자동 연동]: 문서 가져오기 변환 시 구글 드라이브(OnriviAuthor/참조파일/media) 및 로컬 리소스 폴더의 media 디렉토리로 이미지 자동 업로드 및 연동
 // 🚨 @PATCH : **2026-10-03** — [문구 표준화 및 보편적 사용자 경험 확립]: 탐색기 미연결 안내 카드의 대상을 모든 사용자로 보편화하여 누구나 편안하게 사용할 수 있는 클라우드 연동 안내로 통일
@@ -1602,6 +1602,34 @@ export default function LeftSidebar() {
     if (normSourceParent && normSourceParent === normRoot) return;
 
     try {
+      // 0. Google Drive(GDRIVE/cloud) 루트 이동
+      if (workspaceType === 'cloud' || rootFolder?.type === 'GDRIVE') {
+        const token = getSavedDriveToken();
+        const wsInfo = getSavedWorkspaceInfo();
+        const rootDriveId = wsInfo?.workspaceFolderId;
+        const srcDriveId = draggedNode?.driveFileId || draggedNode?.driveId || (draggedNode as any)?.id;
+
+        if (!token) {
+          showToast('구글 드라이브 토큰이 없습니다. 다시 연결해 주세요.', 'error');
+          return;
+        }
+        if (!srcDriveId || !rootDriveId) {
+          showToast('구글 드라이브 파일 또는 루트 폴더 ID를 찾을 수 없습니다.', 'error');
+          return;
+        }
+        if (srcDriveId === rootDriveId) return;
+
+        const srcParentDriveId = (draggedNode as any)?.parentDriveId || (draggedNode as any)?.parentId;
+        await moveDriveItem(token, srcDriveId, rootDriveId, srcParentDriveId);
+        showToast(`'${sourceName}' 루트로 이동 완료`, 'success');
+
+        await refreshFileList(true);
+        window.dispatchEvent(new CustomEvent('file:refresh-all-directories', {
+          detail: { force: true, targetDir: rootDriveId }
+        }));
+        return;
+      }
+
       if (workspaceType === 'local') {
         const rootPath = actualRootPath.replace(/[/\\]+$/, '');
         const sep = rootPath.includes('/') ? '/' : '\\';

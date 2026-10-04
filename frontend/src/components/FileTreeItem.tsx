@@ -3,6 +3,7 @@
 // ====================================================================
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
+// 🚨 @PATCH : **2026-10-04** — [구글 드라이브 드래그앤드롭 이동(handleDrop) GDRIVE 분기 추가]: 드래그로 폴더 간 이동 시 GDRIVE 환경에서 moveDriveItem 호출로 Drive API 기반 실제 이동 수행
 // 🚨 @PATCH : **2026-10-03** — [파일/폴더 삭제 시 열린 탭 즉시 닫기 driveId/name 전면 연동]: handleDelete 시 file:close-tab-by-path에 driveId/name/path 일괄 전달하여 삭제된 파일 탭 미종료 결함 해결
 // 🚨 @PATCH : **2026-10-03** — [구글 드라이브(GDRIVE) 파일/폴더 삭제, 생성, 이름 변경 지원 및 /api/delete 404 차단]: 구글 드라이브 항목 삭제 시 trashDriveItem 연동, 생성 시 createDriveMarkdownFile/createDriveFolder 연동, 이름 변경 시 renameDriveItem 연동, 웹 환경 내 불필요한 미구현 /api/delete 등 백엔드 404 호출 원천 차단
 // 🚨 @PATCH : **2026-09-30** — [탐색기 폴더 DOM 식별자(data-path/data-kind) 부여]: 미리보기 및 외부 폴더 링크 클릭 시 탐색기 내 해당 폴더 노드로 자동 스크롤 및 코발트 블루 펄스 하이라이트를 즉각 연결할 수 있도록 루트 요소에 data-path 및 data-kind 속성 탑재
@@ -76,7 +77,8 @@ import {
   trashDriveItem,
   renameDriveItem,
   createDriveMarkdownFile,
-  createDriveFolder
+  createDriveFolder,
+  moveDriveItem
 } from '@/lib/gdrive/googleDriveClient';
 import { msg } from '@/lib/systemMessages';
 import { useToast } from '@/components/ToastProvider';
@@ -523,6 +525,29 @@ const FileTreeItem = ({
     // 열린 탭 보호 해제: 이제 열려있는 문서도 이동 가능합니다.
 
       try {
+        // 0. Google Drive(GDRIVE/cloud) 환경 드래그 이동
+        if (workspaceType === 'cloud' || (typeof window !== 'undefined' && localStorage.getItem('workspaceType') === 'cloud')) {
+          const token = getSavedDriveToken();
+          const srcDriveId = draggedNode?.driveFileId || draggedNode?.driveId || (draggedNode as any)?.id;
+          const destDriveId = (node as any).driveFileId || (node as any).driveId || (node as any).id;
+          if (!token) {
+            showToast('구글 드라이브 토큰이 없습니다. 다시 연결해 주세요.', 'error');
+            return;
+          }
+          if (!srcDriveId || !destDriveId) {
+            showToast('구글 드라이브 파일 ID를 찾을 수 없습니다.', 'error');
+            return;
+          }
+          if (srcDriveId === destDriveId) return;
+          const srcParentDriveId = (draggedNode as any)?.parentDriveId || (draggedNode as any)?.parentId;
+          await moveDriveItem(token, srcDriveId, destDriveId, srcParentDriveId);
+          showToast(`'${sourceName}' 이동 완료`, 'success');
+          onRefreshAll?.();
+          refreshParent();
+          await refreshThisDirectory(true);
+          return;
+        }
+
         if (workspaceType === 'local') {
           const cleanDestDir = (node.path || '').replace(/[/\\]+$/, '');
           const sep = cleanDestDir.includes('/') && !cleanDestDir.includes('\\') ? '/' : '\\';
