@@ -1,7 +1,8 @@
-// ====================================================================
+﻿// ====================================================================
 // 📊 [OMD-UI-LeftSidebar-0001] LeftSidebar.tsx ➔ 에디터 좌측 탐색기 사이드바
 // 🎯 @KICK  : 파일 트리 탐색기, TOC, 북마크, 전역 검색 탭 제공. 폴더 CRUD/드래그앤드롭/컨텍스트메뉴 지원
 // 🛡️ @GUARD : FSA API(웹), IPC(데스크톱) 이중 운영, 드래그 덜렁거림(anti-rattle) 방지 적용
+// 🚨 @PATCH : **2026-10-04** — [구글 드라이브 파일/폴더 복사·잘라내기·붙여넣기 전면 지원]: handlePasteNode에 GDRIVE/cloud 분기(0번 케이스) 신설 — moveDriveItem(이동), copyDriveFile(파일 복사), copyDriveFolderRecursive(폴더 재귀 복사) 연동
 // 🚨 @PATCH : **2026-10-03** — [AI 타문서 변환 Google 503 High Demand 오류 명확한 안내 및 기본 모델 최신화]: 구글 일시적 과부하(503) 시 정확한 원인 안내 토스트 표출 및 기본 모델 gemini-3.8-flash 일원화
 // 🚨 @PATCH : **2026-10-03** — [타문서 변환 이미지 저장 시 리소스 폴더(구글 드라이브 및 로컬) media 자동 연동]: 문서 가져오기 변환 시 구글 드라이브(OnriviAuthor/참조파일/media) 및 로컬 리소스 폴더의 media 디렉토리로 이미지 자동 업로드 및 연동
 // 🚨 @PATCH : **2026-10-03** — [문구 표준화 및 보편적 사용자 경험 확립]: 탐색기 미연결 안내 카드의 대상을 모든 사용자로 보편화하여 누구나 편안하게 사용할 수 있는 클라우드 연동 안내로 통일
@@ -35,7 +36,7 @@ import { useEditorContext } from '@/context/EditorContext';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { knowledgeClient, canAccessKnowledgeDb } from '@/lib/knowledge/knowledgeClient';
 import { loadSecureData } from '@/lib/secureStorage';
-import { uploadDriveImage, getSavedDriveToken, getSavedWorkspaceInfo } from '@/lib/gdrive/googleDriveClient';
+import { uploadDriveImage, getSavedDriveToken, getSavedWorkspaceInfo, moveDriveItem, copyDriveFile, copyDriveFolderRecursive } from '@/lib/gdrive/googleDriveClient';
 
 // ====================================================================
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
@@ -937,6 +938,63 @@ export default function LeftSidebar() {
     }
 
     try {
+      // 0. Google Drive(GDRIVE/cloud) 환경 — 최우선 분기
+      if (workspaceType === 'cloud' || rootFolder?.type === 'GDRIVE') {
+        const token = getSavedDriveToken();
+        if (!token) {
+          showToast('구글 드라이브 인증 토큰이 없습니다. 다시 연결해 주세요.', 'error');
+          return;
+        }
+
+        const srcDriveId = srcNode.driveFileId || srcNode.driveId || (srcNode as any).id;
+        if (!srcDriveId) {
+          showToast('구글 드라이브 파일 ID를 찾을 수 없습니다.', 'error');
+          return;
+        }
+
+        // 대상 폴더 Drive ID 결정
+        let destDriveId: string | undefined;
+        if (targetDirNode && targetDirNode.kind === 'directory') {
+          destDriveId = (targetDirNode as any).driveFileId || (targetDirNode as any).driveId || (targetDirNode as any).id;
+        }
+        if (!destDriveId) {
+          const wsInfo = getSavedWorkspaceInfo();
+          destDriveId = wsInfo?.workspaceFolderId;
+        }
+        if (!destDriveId) {
+          showToast('붙여넣기 대상 폴더를 확인할 수 없습니다.', 'error');
+          return;
+        }
+
+        if (isCut) {
+          const srcParentDriveId = (srcNode as any).parentDriveId || (srcNode as any).parentId;
+          await moveDriveItem(token, srcDriveId, destDriveId, srcParentDriveId);
+          setClipboardNode(null);
+          if (typeof window !== 'undefined') {
+            (window as any)._omdClipboardNode = null;
+            window.dispatchEvent(new CustomEvent('file:clipboard-changed', { detail: null }));
+          }
+          showToast(`'${srcNode.name}'을(를) 이동했습니다.`, 'success');
+        } else {
+          const isFolder = srcNode.kind === 'directory';
+          if (isFolder) {
+            await copyDriveFolderRecursive(token, srcDriveId, destDriveId, srcNode.name);
+          } else {
+            const ext = srcNode.name.match(/\.[^.]+$/)?.[0] ?? '';
+            const base = ext ? srcNode.name.slice(0, -ext.length) : srcNode.name;
+            const wsInfo = getSavedWorkspaceInfo();
+            const isSameFolder = destDriveId === wsInfo?.workspaceFolderId;
+            const copyName = isSameFolder ? `${base}_copy${ext}` : srcNode.name;
+            await copyDriveFile(token, srcDriveId, destDriveId, copyName);
+          }
+          showToast(`'${srcNode.name}'을(를) 붙여넣었습니다.`, 'success');
+        }
+
+        await refreshFileList(true);
+        window.dispatchEvent(new CustomEvent('file:refresh-all-directories', { detail: { force: true } }));
+        return;
+      }
+
       // 1. Electron Desktop 환경
       const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
       if (workspaceType === 'local' && api) {
