@@ -18,6 +18,7 @@
 "use client";
 
 
+import { useDragHighlight } from '@/hooks/useDragHighlight';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
@@ -396,7 +397,8 @@ export default function LeftSidebar() {
   // TOC 활성 헤딩 상태
   const [activeTocId, setActiveTocId] = useState<string>('');
 
-  const [isDragOverRoot, setIsDragOverRoot] = useState(false);
+  const [isDragOverRoot, setIsDragOverRoot] = useDragHighlight();
+
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const contextCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -1567,6 +1569,10 @@ export default function LeftSidebar() {
   }, [contextMenu, isRestrictedUser, clipboardNode, handleCancelCut, triggerUndo, triggerRefreshRoot, triggerImportRoot, triggerCreateRootFile, triggerCopyRoot, triggerCutRoot, triggerPasteRoot]);
 
   const handleDragOverRoot = (e: React.DragEvent) => {
+    if (isRestrictedUser || !Array.from(e.dataTransfer.types).includes('sourcepath')) {
+      setIsDragOverRoot(false);
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     setIsDragOverRoot(true);
@@ -1580,6 +1586,7 @@ export default function LeftSidebar() {
   };
 
   const handleDropRoot = async (e: React.DragEvent) => {
+    setIsDragOverRoot(false);
     if (isRestrictedUser) return;
     e.preventDefault();
     e.stopPropagation();

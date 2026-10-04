@@ -65,6 +65,7 @@
 // 🔗 @CALLS : @/lib/knowledge/knowledgeClient, @/lib/knowledge/pathResolver, @/lib/knowledge/knowledgeGuard
 // ====================================================================
 
+import { useDragHighlight } from '@/hooks/useDragHighlight';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@/components/icons/Icon';
@@ -437,7 +438,7 @@ const FileTreeItem = ({
     error?: string;
   }>({ isOpen: false, title: "", defaultValue: "", type: null, error: "" });
 
-  const [isDragOver, setIsDragOver] = useState(false);
+  const [isDragOver, setIsDragOver] = useDragHighlight();
 
   const dispatchMovedEvent = (srcPath: string, tgtPath: string, newPath?: string, sourceName?: string, newHandle?: any) => {
     const normSrc = srcPath.replace(/\\/g, '/');
@@ -475,6 +476,10 @@ const FileTreeItem = ({
   };
 
   const handleDragOver = (e: React.DragEvent) => {
+    if (isRestrictedUser || !Array.from(e.dataTransfer.types).includes('sourcepath')) {
+      setIsDragOver(false);
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     if (node.kind === 'directory') {
@@ -499,6 +504,7 @@ const FileTreeItem = ({
   // 🔗 @CALLS : refreshParent, refreshThisDirectory, onRefreshAll, vfsRename, showToast
   // ====================================================================
   const handleDrop = async (e: React.DragEvent) => {
+    setIsDragOver(false);
     if (isRestrictedUser) return; // 제한 사용자는 파일 조작/이동 불가
     e.preventDefault();
     e.stopPropagation();
