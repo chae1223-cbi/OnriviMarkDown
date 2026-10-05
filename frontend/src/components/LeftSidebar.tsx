@@ -18,6 +18,8 @@
 "use client";
 
 
+import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
+import { getEffectiveResourceFolder } from '@/lib/profileStorage';
 import { useDragHighlight } from '@/hooks/useDragHighlight';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -442,26 +444,8 @@ export default function LeftSidebar() {
     if (!isDesktop) return;
 
     const syncKnowledgeDocs = async () => {
-      let rawFolder = (
-        resourceFolder ||
-        loadSecureData<string>('resourceFolder') ||
-        (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder_path') : '') ||
-        (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder') : '') ||
-        (() => {
-          try {
-            const raw = typeof window !== 'undefined' ? localStorage.getItem('onrivi_settings') : null;
-            return raw ? JSON.parse(raw).resourceFolder || '' : '';
-          } catch { return ''; }
-        })() ||
-        'Onrivi_Asset'
-      ).trim();
-
-      if (rawFolder.startsWith('U2FsdGVkX1')) {
-        const decrypted = loadSecureData<string>('resourceFolder');
-        rawFolder = (decrypted && !decrypted.startsWith('U2FsdGVkX1')) ? decrypted : 'Onrivi_Asset';
-      }
-
-      const effectiveResourceFolder = rawFolder || 'Onrivi_Asset';
+      const effectiveResourceFolder = getEffectiveResourceFolder();
+      if(!effectiveResourceFolder || getResourceSettings()?.kind === 'drive') return;
 
       const effectiveApiKey = (
         geminiApiKey ||
@@ -2024,6 +2008,7 @@ export default function LeftSidebar() {
   };
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isImporting) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -2031,6 +2016,7 @@ export default function LeftSidebar() {
     try {
       showToast('파일에서 텍스트를 추출 중입니다...', 'info');
       const imageSaveCallback = async (base64Data: string, contentType: string) => {
+        requireResourceSettings();
         const ext = contentType.split('/')[1] || 'png';
         let imgName = `img_${Date.now()}_${Math.floor(Math.random() * 1000)}.${ext}`;
         try {
@@ -2050,7 +2036,7 @@ export default function LeftSidebar() {
         const assetsDir = 'assets';
         const imgPath = `${assetsDir}/${imgName}`;
 
-        const isDriveEnv = workspaceType === 'cloud' || rootFolder?.type === 'GDRIVE' || (typeof window !== 'undefined' && (localStorage.getItem('workspaceType') === 'cloud' || (localStorage.getItem('onrivi_resource_folder_path') || '').startsWith('OnriviAuthor')));
+        const isDriveEnv = getResourceSettings()?.kind === 'drive';
         if (isDriveEnv) {
           const token = getSavedDriveToken();
           const wsInfo = getSavedWorkspaceInfo();
@@ -2061,12 +2047,14 @@ export default function LeftSidebar() {
               const blob = await res.blob();
               const uploaded = await uploadDriveImage(token, mediaFolderId, blob, imgName);
               if (uploaded?.id) {
-                return `/media/${imgName}`;
+                return `/media/${encodeURIComponent(uploaded.name)}?driveId=${encodeURIComponent(uploaded.id)}`;
               }
             } catch (gErr) {
               console.error('[LeftSidebar GDrive upload error]', gErr);
+              throw new Error('가져온 이미지를 구글 드라이브에 저장하지 못했습니다. 연결 상태를 확인해 주세요.');
             }
           }
+          throw new Error('이미지 저장을 위한 구글 드라이브 연결 또는 미디어 폴더를 찾지 못했습니다.');
         }
 
         if (workspaceType === 'browser') {
@@ -2079,27 +2067,14 @@ export default function LeftSidebar() {
             await writable.write(blob);
             await writable.close();
             return `/media/${imgName}`;
-          } else if (rootFolder?.handle) {
-            const assetsHandle = await rootFolder.handle.getDirectoryHandle(assetsDir, { create: true });
-            const fileHandle = await assetsHandle.getFileHandle(imgName, { create: true });
-            const writable = await fileHandle.createWritable();
-            const res = await fetch(`data:${contentType};base64,${base64Data}`);
-            const blob = await res.blob();
-            await writable.write(blob);
-            await writable.close();
-            return `/${imgPath}`;
-          } else {
-            const { vfsCreateFile, vfsWriteFile } = await import('@/lib/virtualFileSystem');
-            vfsCreateFile("", imgPath);
-            vfsWriteFile(imgPath, base64Data); // Assuming VFS supports base64 string
-            return `/${imgPath}`;
-          }
+          } else { requireResourceSettings(); throw new Error('리소스 폴더 접근 권한을 다시 설정해 주세요.'); }
         } else {
           // Electron 데스크톱 환경
           const api = (window as any).electronAPI;
           if (api && api.saveImage) {
-            const sep = resourceFolder?.includes('\\') ? '\\' : '/';
-            const targetFolder = resourceFolder ? resourceFolder + sep + 'media' : (rootFolder?.name || "");
+            const folder=requireResourceSettings().path;
+            const sep = folder.includes('\\') ? '\\' : '/';
+            const targetFolder = folder + sep + 'media';
             const saveResult = await api.saveImage(targetFolder, base64Data, imgName);
             if (saveResult && saveResult.success) {
               if (saveResult.mediaPath) {
@@ -2111,25 +2086,13 @@ export default function LeftSidebar() {
           }
         }
         
-        // 만약 파일 저장을 건너뛰었다면 (Electron API 한계 등), 그냥 HTML 상에 base64로 직접 내장 (Data URI 반환)
-        return `data:${contentType};base64,${base64Data}`;
+        throw new Error('가져온 이미지 파일을 저장하지 못했습니다. 공통 자원 폴더를 확인해 주세요.');
       };
 
       const { convertFileToMarkdown } = await import('@/lib/fileImporter');
       let markdown = await convertFileToMarkdown(file, imageSaveCallback);
 
-      const extension = file.name.split('.').pop()?.toLowerCase();
-      const isAlreadyTextOrMd = ['md', 'markdown', 'txt'].includes(extension || '');
-      if (!isAlreadyTextOrMd) {
-        if (!markdown.trim()) throw new Error('문서에서 변환할 내용을 추출할 수 없습니다.');
-        if (!geminiApiKey) throw new Error('문서 변환에 필요한 AI API 키를 환경설정에서 등록해 주세요.');
-        showToast('AI가 문서를 마크다운으로 변환하고 있습니다. 최대 2분 기다려 주세요.', 'info');
-        const { formatRawTextToMarkdown } = await import('@/lib/aiFormatter');
-        // Conversion must succeed before creating a document; never save extracted HTML on failure.
-        markdown = await formatRawTextToMarkdown(markdown, geminiApiKey, aiModelName || 'gemini-3.8-flash', (attempt, delayMs) => {
-          showToast(`AI 서버가 혼잡합니다. ${Math.ceil(delayMs / 1000)}초 후 다시 시도합니다. (${attempt}/3회)`, 'info');
-        });
-      }
+      if (!markdown.trim()) throw new Error('문서에서 변환할 내용을 추출할 수 없습니다.');
       const targetNode = targetImportNodeRef.current;
       const targetParentHandle = targetImportParentHandleRef.current;
       targetImportNodeRef.current = null;
@@ -2404,11 +2367,11 @@ export default function LeftSidebar() {
     }
   };
 
-  if (!isSidebarOpen) return <input type="file" ref={importFileInputRef} style={{ display: 'none' }} accept=".docx,.hwp,.pdf,.txt,.md,.markdown,.html" onChange={handleImportFile} />;
+  if (!isSidebarOpen) return <input type="file" ref={importFileInputRef} style={{ display: 'none' }} accept=".docx,.hwp,.pdf,.epub,.txt,.md,.markdown,.html" onChange={handleImportFile} />;
 
   return (
     <>
-      <input type="file" ref={importFileInputRef} style={{ display: 'none' }} accept=".docx,.hwp,.pdf,.txt,.md,.markdown,.html" onChange={handleImportFile} />
+      <input type="file" ref={importFileInputRef} style={{ display: 'none' }} accept=".docx,.hwp,.pdf,.epub,.txt,.md,.markdown,.html" onChange={handleImportFile} />
       <aside 
         style={{ 
           width: sidebarWidth,
@@ -3234,18 +3197,18 @@ export default function LeftSidebar() {
       />
       
       {isImporting && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[9999999] flex items-center justify-center bg-[#0B1120]/95 backdrop-blur-md">
-          <div className="bg-slate-800 rounded-2xl p-8 shadow-2xl flex flex-col items-center max-w-sm mx-4 border border-slate-700/50 text-center animate-in fade-in zoom-in duration-200">
+        <div className="fixed bottom-16 right-6 z-[9999999] pointer-events-none">
+          <div className="bg-slate-800 rounded-2xl p-6 shadow-2xl flex flex-col items-center max-w-sm border border-slate-700/50 text-center animate-in fade-in zoom-in duration-200" role="status" aria-live="polite">
             <div className="relative w-20 h-20 mb-6 flex items-center justify-center">
               <div className="absolute inset-0 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
               <img src="./icon.png" alt="Onrivi" className="w-10 h-10 object-contain animate-pulse" />
             </div>
             <h3 className="text-lg font-bold text-white mb-2">문서 구조화 및 분석 중...</h3>
             <p className="text-sm text-slate-300 opacity-90 leading-relaxed">
-              AI가 문서의 맥락을 유추하여<br/>마크다운으로 예쁘게 포맷팅하고 있습니다.
+              문서의 텍스트·표·이미지를 추출하여<br/>편집할 수 있는 마크다운으로 변환하고 있습니다.
             </p>
             <p className="text-xs text-blue-400 mt-4 font-medium animate-pulse">
-              문서 크기에 따라 30초에서 5분 정도 소요될 수 있습니다. 잠시만 기다려주세요.
+              AI 없이 변환합니다. 문서 크기에 따라 시간이 걸릴 수 있습니다.
             </p>
           </div>
         </div>,

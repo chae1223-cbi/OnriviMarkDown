@@ -2,6 +2,7 @@
 // 📊 [OMD-EDIT-Toolbar-0003] Toolbar.tsx ➔ Toolbar
 // 🎯 @KICK  : 에디터 우측 사이드바 툴바 - 홈, 대시보드, 지식베이스, 서식, 참조, 환경설정 퀵 액션 제공
 // 🛡️ @GUARD : 라이선스 및 뷰포트 상태에 따른 프로덕티비티 도구 조건부 노출
+// 🚨 @PATCH : **2026-10-04** — [우측 툴바 지식 베이스 아이콘 커스텀 PNG 연동] 지식 베이스 버튼 아이콘을 Icon(HeadCircuit) 컴포넌트에서 frontend/public/icons/HeadCircuit.png 원본 이미지로 교체 (dark:invert 적용)
 // 🚨 @PATCH : **2026-10-02** — [우측 툴바 이모지 보관함 퀵 버튼 추가] Toolbar 생산성 도구에 Smile 이모지 보관함 토글 버튼 연동 및 활성 상태 하이라이트 적용
 // 🚨 @PATCH : **2026-09-28** — 제한사용자 툴바에서 서식관리·참조파일 조작을 비활성화하고 이동·설정·로그아웃 유지
 //             **2026-09-23** — [툴바 CubeFocus 아이콘 고대비 선명화] 반투명(opacity-75) 제거하여 100% 완전 불투명하고 선명하게 표시
@@ -154,7 +155,11 @@ export default function Toolbar() {
             }`}
             title={disabledReasonTitle}
           >
-            <Icon name="HeadCircuit" size={20} className="text-teal-600 dark:text-teal-400" />
+            <img
+              src="./icons/HeadCircuit.png"
+              alt="지식 베이스"
+              className="w-5 h-5 object-contain dark:invert"
+            />
           </button>
         );
       })()}

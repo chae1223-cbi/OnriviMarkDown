@@ -11,7 +11,7 @@ import { Download, Printer, Globe, Image as ImageIcon, X, Check, BookOpen, FileT
 interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: (format: 'print' | 'docx' | 'html' | 'png' | 'epub') => void;
+  onExport: (format: 'print' | 'docx' | 'hwpx' | 'html' | 'png' | 'epub') => void;
   isDarkMode: boolean;
 }
 
@@ -36,7 +36,7 @@ export default function ExportModal({
   onExport, 
   isDarkMode,
 }: ExportModalProps) {
-  const [selectedFormat, setSelectedFormat] = useState<'print' | 'docx' | 'html' | 'png' | 'epub'>('print');
+  const [selectedFormat, setSelectedFormat] = useState<'print' | 'docx' | 'hwpx' | 'html' | 'png' | 'epub'>('print');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -49,6 +49,7 @@ export default function ExportModal({
   const formats = [
     { id: 'print', label: "인쇄 / PDF 출력", desc: "OS 인쇄 미리보기 후 프린터 출력 또는 PDF 저장", icon: <Printer size={20} className="text-red-500" /> },
     { id: 'docx', label: "Word 문서 (.docx)", desc: "MS Word 및 구글 Docs 완벽 호환 문서", icon: <FileText size={20} className="text-blue-600" /> },
+    { id: 'hwpx', label: "한글 문서 (.hwpx)", desc: "한컴오피스에서 편집할 수 있는 문서", icon: <FileText size={20} className="text-cyan-600" /> },
     { id: 'html', label: "HTML 파일", desc: "웹 브라우저에서 바로 열기용 (.html)", icon: <Globe size={20} className="text-blue-500" /> },
     { id: 'epub', label: "EPUB 전자책", desc: "eBook 리더 및 태블릿 기기용", icon: <BookOpen size={20} className="text-purple-500" /> },
     { id: 'png', label: "PNG 이미지", desc: "SNS 공유 및 프리젠테이션용", icon: <ImageIcon size={20} className="text-green-500" /> },

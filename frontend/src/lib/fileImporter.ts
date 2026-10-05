@@ -8,6 +8,12 @@ import * as mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as hwpLib from 'hwp.js';
 import { Buffer } from 'buffer';
+import { htmlToImportMarkdown, importHtmlWithImages } from './importHtmlMarkdown';
+import { importEpub } from './epubImporter';
+import { extractPdfPageText } from './pdfImportText';
+import { readDocxImageSizes } from './docxImageSizes';
+import { pdfTextBlocks, pdfImageBoxes, serializePdfBlocks } from './pdfImportLayout';
+import { readHwpCompression, decodeHwpBody, decodeHwpParagraph, isRawHwpImage } from './hwpStreams';
 
 // Next.js 14 (Webpack 5) 환경에서 mammoth.js가 내부적으로 Buffer를 참조할 때 발생하는 오류 방지용 폴리필
 if (typeof globalThis !== 'undefined' && !(globalThis as any).Buffer) {
@@ -24,20 +30,23 @@ export async function convertFileToMarkdown(
   imageSaveCallback?: (base64Data: string, contentType: string) => Promise<string>
 ): Promise<string> {
   const extension = file.name.split('.').pop()?.toLowerCase();
+  if (extension === 'html' || extension === 'htm') return importHtmlWithImages(await file.text(), imageSaveCallback);
+  if (['txt', 'md', 'markdown'].includes(extension || '')) return file.text();
   const arrayBuffer = await file.arrayBuffer();
 
   switch (extension) {
     case 'docx':
       return await importDocx(arrayBuffer, imageSaveCallback);
     case 'pdf':
-      return await importPdf(arrayBuffer);
+      return await importPdf(arrayBuffer, imageSaveCallback);
     case 'hwp':
       return await importHwp(arrayBuffer, imageSaveCallback);
     case 'txt':
     case 'md':
     case 'markdown':
-    case 'html':
       return await file.text();
+    case 'epub':
+      return importEpub(arrayBuffer, imageSaveCallback);
     default:
       throw new Error(`지원하지 않는 파일 형식입니다: ${extension}`);
   }
@@ -50,31 +59,34 @@ async function importDocx(
   try {
     let result;
     if (imageSaveCallback) {
+      const imageSizes = await readDocxImageSizes(arrayBuffer);
       const options = {
+        styleMap: ["p[style-name='Caption'] => figcaption:fresh"],
         convertImage: mammoth.images.imgElement(function(image) {
           return image.read("base64").then(function(imageBuffer) {
+            const width = imageSizes.get(imageBuffer)?.shift();
             return imageSaveCallback(imageBuffer, image.contentType).then(function(src) {
-              return { src: src };
+              return { src: width ? `${src}${src.includes('?') ? '&' : '?'}width=${width}` : src };
             });
           });
         })
       };
       // 이미지 콜백이 있을 경우 HTML 변환 후 반환
       result = await mammoth.convertToHtml({ arrayBuffer }, options);
-      // 추출된 HTML에서 <img src="..."> 태그를 찾아 마크다운 ![...](...) 문법으로 강제 변환
-      let htmlContent = result.value;
-      htmlContent = htmlContent.replace(/<img[^>]*src="([^"]+)"[^>]*>/gi, '![]($1)');
-      // 쓸데없는 <p>, </p> 등 기본 HTML 래퍼 제거 (AI가 헷갈리지 않도록 평문화)
-      htmlContent = htmlContent.replace(/<\/?p[^>]*>/gi, '\n\n');
-      return htmlContent.trim();
+      return htmlToImportMarkdown(result.value);
     } else {
       // 텍스트 추출 방식 사용
-      result = await mammoth.extractRawText({ arrayBuffer });
+      result = await mammoth.convertToHtml({ arrayBuffer }, {
+        styleMap: ["p[style-name='Caption'] => figcaption:fresh"],
+        convertImage: mammoth.images.imgElement(async () => {
+          throw new Error('DOCX 이미지를 저장할 공통 자원 폴더를 연결해 주세요.');
+        })
+      });
     }
-    return result.value.trim();
+    return htmlToImportMarkdown(result.value);
   } catch (error: any) {
     console.error('DOCX Import Error:', error);
-    throw new Error('워드 파일(DOCX)을 읽는 중 오류가 발생했습니다.');
+    throw new Error(`워드 파일(DOCX)을 읽는 중 오류가 발생했습니다: ${error?.message || '알 수 없는 오류'}`);
   }
 }
 
@@ -94,32 +106,49 @@ async function importPdf(
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
-      const strings = content.items.map((item: any) => item.str);
-      const pageText = strings.join(' ').trim();
-      
-      text += pageText + '\n\n';
-
-      // 페이지에 텍스트가 거의 없는 경우(스캔본, 캔바 PPT 등) 페이지 전체를 이미지로 캡처하여 삽입
-      if (pageText.length < 100 && imageSaveCallback && typeof document !== 'undefined') {
-        try {
-          const viewport = page.getViewport({ scale: 2.0 });
-          const canvas = document.createElement('canvas');
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
-            const dataUrl = canvas.toDataURL('image/png');
-            const base64 = dataUrl.split(',')[1];
-            if (base64) {
-              const src = await imageSaveCallback(base64, 'image/png');
-              text += `<img src="${src}" alt="PDF Page ${i}" />\n\n`;
-            }
-          }
-        } catch (e) {
-          console.warn(`PDF 페이지 ${i} 렌더링 실패:`, e);
-        }
+      const pageText = extractPdfPageText(content.items);
+      if (!pageText.trim()) {
+        throw new Error(`PDF ${i}페이지에 추출 가능한 텍스트가 없습니다. 이미지로 구성된 PDF는 OCR(문자 인식)이 필요합니다. 현재 가져오기는 OCR을 지원하지 않습니다. 텍스트가 포함된 PDF 또는 원본 DOCX/HTML/EPUB 파일을 가져와 주세요.`);
       }
+      
+      const operators = await page.getOperatorList();
+      const allBoxes = pdfImageBoxes(operators.fnArray, operators.argsArray, pdfjsLib.OPS);
+      const boxes = allBoxes.filter(box => {
+        // Ignore raster backgrounds under selectable text (such as code panels).
+        const overlapping = content.items.filter((item: any) => item.str?.trim() && item.transform &&
+          item.transform[4]>=box.x && item.transform[4]<box.x+box.width &&
+          item.transform[5]>=box.y && item.transform[5]<box.y+box.height);
+        return overlapping.reduce((count, item: any) => count+item.str.length,0)<40;
+      });
+      const blocks = pdfTextBlocks(content.items, allBoxes.filter(box=>!boxes.includes(box)));
+      if (boxes.length && typeof document !== 'undefined') {
+        // Render once, then crop individual embedded image regions. Never turn
+        // the complete page or its editable text into a bitmap.
+        const viewport = page.getViewport({ scale: 2 });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error(`PDF ${i}페이지의 이미지를 추출하지 못했습니다.`);
+        await page.render({ canvasContext: context, viewport, canvas } as any).promise;
+        for (const [index, box] of Array.from(boxes.entries())) {
+          const [x1,y1] = viewport.convertToViewportPoint(box.x,box.y);
+          const [x2,y2] = viewport.convertToViewportPoint(box.x+box.width,box.y+box.height);
+          const left=Math.max(0,Math.min(x1,x2)), top=Math.max(0,Math.min(y1,y2));
+          const width=Math.min(canvas.width-left,Math.abs(x2-x1)), height=Math.min(canvas.height-top,Math.abs(y2-y1));
+          if (width<=0 || height<=0) continue;
+          const crop=document.createElement('canvas'); crop.width=Math.ceil(width); crop.height=Math.ceil(height);
+          const cropContext=crop.getContext('2d');
+          if (!cropContext) throw new Error('PDF 이미지 저장을 준비하지 못했습니다.');
+          cropContext.drawImage(canvas,left,top,width,height,0,0,width,height);
+          const data=crop.toDataURL('image/png');
+          const src=imageSaveCallback ? await imageSaveCallback(data.split(',')[1],'image/png') : data;
+          blocks.push({y:box.y+box.height,markdown:`![PDF ${i}페이지 이미지 ${index+1}](<${src}>)`});
+        }
+        canvas.width=canvas.height=0;
+      }
+      text += serializePdfBlocks(blocks.sort((a,b)=>b.y-a.y)) + '\n\n';
+
+
     }
     
     return text.trim();
@@ -154,9 +183,17 @@ async function importHwp(
       throw new Error('올바른 한글 문서(HWP) 파일이 아닙니다. 파일 손상 여부 및 올바른 OLE 복합 문서 포맷인지 확인해 주세요.');
     }
 
+    const cfbModule = await import('cfb');
+    const hwpContainer = cfbModule.read(view, {type:'array'});
+    const hwpHeader = hwpContainer.FileIndex.find(entry=>entry.name === 'FileHeader');
+    if (!hwpHeader?.content) throw new Error('HWP FileHeader를 찾을 수 없습니다.');
+    const inputCompressed = readHwpCompression(new Uint8Array(hwpHeader.content));
+    const useRecovery = !inputCompressed || hwpContainer.FileIndex.some(entry=>
+      /^BIN[0-9a-f]+\./i.test(entry.name) && entry.content && isRawHwpImage(new Uint8Array(entry.content)));
     let text = '';
 
     try {
+      if (useRecovery) throw new Error('Use mixed-compression HWP reader');
       // 1단계: 기본 hwp.js 파서 작동 시도
       const hwpDoc = hwpLib.parse(view, { type: 'array' });
       const extractTextNode = (obj: any): string => {
@@ -221,18 +258,22 @@ async function importHwp(
           (view as any)._parsedHwpDoc = hwpDoc;
         }
     } catch (parseError: any) {
-      console.warn('hwp.js 파서 실패, 초경량 OLE 텍스트 복구 폴백 파서 기동:', parseError);
+      if (useRecovery) console.info('[HWP import] 비압축/혼합 이미지 문서: 내장 복구 파서 사용');
+      else console.warn('[HWP import] 기본 파서 실패, 본문 복구 시도:', parseError);
       
       const cfb = await import('cfb');
       const pako = (await import('pako')).default;
 
       // 2단계: cfb 라이브러리로 수동 텍스트 레코드 복구 시도
-      const cfbFile = cfb.read(view, { type: 'array' });
+      const cfbFile = hwpContainer;
+      const fileHeader = cfbFile.FileIndex.find(entry=>entry.name === 'FileHeader');
+      if (!fileHeader?.content) throw new Error('HWP FileHeader를 찾을 수 없습니다.');
+      const compressed = readHwpCompression(new Uint8Array(fileHeader.content));
       
       // BodyText 내부의 Section 스트림 엔트리들 수집
-      const sectionEntries = cfbFile.FileIndex.filter(entry => 
+      const sectionEntries = cfbFile.FileIndex.filter((entry,index) => 
         entry.type === 2 && // 2 = stream
-        entry.name.includes('Section') && 
+        /(?:^|\/)BodyText\/Section\d+$/i.test(cfbFile.FullPaths[index].replace(/\\/g,'/')) &&
         entry.size > 0
       );
       
@@ -250,21 +291,9 @@ async function importHwp(
         let decrypted: Uint8Array;
         
         try {
-          // 💡 zlib 표준 inflate
-          decrypted = pako.inflate(streamData);
+          decrypted = decodeHwpBody(streamData, compressed, data=>pako.inflateRaw(data));
         } catch (e) {
-          try {
-            // 💡 zlib raw inflate
-            decrypted = pako.inflateRaw(streamData);
-          } catch (e2) {
-            try {
-              // 💡 HWP 2바이트 헤더 제거 후 raw inflate
-              decrypted = pako.inflateRaw(streamData.subarray(2));
-            } catch (e3) {
-              console.error(`스트림 ${entry.name} 압축 해제 실패:`, e3);
-              continue;
-            }
-          }
+          throw new Error(`HWP 본문 ${entry.name}의 압축을 해제하지 못했습니다. 파일 손상 여부를 확인해 주세요.`);
         }
         
         // 문단 텍스트(HWPTAG_PARA_TEXT, TagId = 67) 레코드 바이트 스캔
@@ -294,98 +323,19 @@ async function importHwp(
           const recordData = decrypted.subarray(offset, offset + recordSize);
           offset += recordSize;
           
-          if (tagId === 67) { // HWPTAG_PARA_TEXT (문단 텍스트 레코드)
-            let textSegment = '';
-            let hasTableDelimiter = false;
-            
-            // 💡 [인라인 컨트롤 및 테이블 경계자 1차 스캔]
-            // 먼저 문단 전체를 훑어서 표 경계 코드가 포함되어 있는지 확인합니다.
-            for (let i = 0; i < recordData.length; i += 2) {
-              if (i + 1 >= recordData.length) break;
-              const charCode = recordData[i] | (recordData[i+1] << 8);
-              if (charCode === 24 || charCode === 25) {
-                hasTableDelimiter = true;
-                break;
-              }
-            }
-            
-            for (let i = 0; i < recordData.length; i += 2) {
-              if (i + 1 >= recordData.length) break;
-              const charCode = recordData[i] | (recordData[i+1] << 8);
-              
-              // 💡 [인라인 컨트롤 스킵 알고리즘 개량]
-              // 24(셀 경계), 25(행 경계)는 표의 구조를 파악해야 하므로 스킵하지 않고 파싱합니다.
-              if (charCode > 0 && charCode < 32 && 
-                  charCode !== 9 && charCode !== 10 && charCode !== 13 && 
-                  charCode !== 24 && charCode !== 25) {
-                if (charCode === 11) {
-                  // 💡 [TOC/목차 그림 밀림 방지 가드]
-                  // 현재 문단 텍스트(textSegment)나 지금까지 수집된 본문(fallbackText)의 끝자락에
-                  // 목차(차례), 페이지 점선(....) 등이 감지되면, 플레이스홀더를 심지 않고 스킵합니다.
-                  const lastFallbackSlice = fallbackText.substring(Math.max(0, fallbackText.length - 150));
-                  const isTocZone = textSegment.includes('차례') || 
-                                     textSegment.includes('목차') || 
-                                     textSegment.includes('.....') || 
-                                     textSegment.includes('…') ||
-                                     lastFallbackSlice.includes('차례') ||
-                                     lastFallbackSlice.includes('목차') ||
-                                     lastFallbackSlice.includes('.....') ||
-                                     /[\.·…\s]{4,}\d+$/.test(textSegment.trim()) ||
-                                     /[\.·…\s]{4,}\d+$/.test(lastFallbackSlice.trim());
-                  
-                  if (!isTocZone) {
-                    // 그림 앵커 지시자 자리에 임시 플레이스홀더 심기
-                    textSegment += `\n\n::HWP_IMAGE_PLACEHOLDER::\n\n`;
-                  }
-                }
-                // 12바이트 데이터 영역 패스 (16비트 인덱스로는 6만큼 i를 가산)
-                i += 12;
-                continue;
-              }
-              
-              if (charCode === 24) {
-                textSegment += ' | ';
-              } else if (charCode === 25) {
-                textSegment += ' |\n| ';
-              } else if (charCode === 9) {
-                textSegment += '\t';
-              } else if (charCode === 10 || charCode === 13) {
-                // 💡 표(Table) 내부에서는 개행 문자(\n)가 셀을 깨뜨리므로 공백으로 정제 치환하고, 일반 문단일 때만 개행으로 적용합니다.
-                if (hasTableDelimiter) {
-                  textSegment += ' ';
-                } else {
-                  textSegment += '\n';
-                }
-              } else if (charCode >= 32 && charCode !== 0x3000 && charCode !== 0xFEFF) {
-                textSegment += String.fromCharCode(charCode);
-              }
-            }
-            
-            // 💡 만약 문단 내에 표 경계자가 검출되었다면, 행의 시작/끝을 파이프(|) 기호로 감싸주고 단일 개행으로 정합합니다.
-            if (hasTableDelimiter && textSegment.trim()) {
-              let tableLine = textSegment.trim();
-              
-              // 내부의 다중 파이프 및 양끝 공백 정합
-              tableLine = tableLine.replace(/[\r\n]+/g, ' '); // 표 행 내부 줄바꿈 완전 제거
-              if (!tableLine.startsWith('|')) tableLine = '| ' + tableLine;
-              if (!tableLine.endsWith('|')) tableLine = tableLine + ' |';
-              
-              textSegment = tableLine;
-            }
-            
-            if (textSegment.trim()) {
-              if (hasTableDelimiter) {
-                // 표 행은 빈 줄 없이 밀착하여 병합
-                fallbackText += textSegment + '\n';
-              } else {
-                fallbackText += textSegment + '\n\n';
-              }
-            }
+          if (tagId === 67) {
+            const segment = decodeHwpParagraph(recordData).trimEnd();
+            if (segment.trim()) fallbackText += segment + '\n\n';
+          } else if (tagId === 85 && recordData.length >= 73) {
+            // Picture record: BinData ID follows the 68-byte geometry and
+            // three image-effect bytes. Use the actual ID, never file order.
+            const binId = recordData[71] | (recordData[72] << 8);
+            if (binId > 0) fallbackText += `\n\n::HWP_IMAGE_PLACEHOLDER_${binId-1}::\n\n`;
           }
         }
       }
-      
       text = fallbackText;
+      console.info('[HWP import] 본문 복구 완료', { inputCompressed: compressed, sections: sectionEntries.length, textChars: text.length });
     }
 
     // 💡 3단계: OLE BinData 내 첨부 이미지 디코딩 및 미디어 결합 파이프라인
@@ -423,7 +373,7 @@ async function importHwp(
         // fallbackText 등을 탔거나 binData가 비어있는 경우 OLE CFB로 강제 추출
         const cfb = await import('cfb');
         const pako = (await import('pako')).default;
-        const cfbFile = cfb.read(view, { type: 'array' });
+        const cfbFile = hwpContainer;
         const imageEntries = cfbFile.FileIndex.filter((entry: any) => 
           entry.type === 2 && 
           (
@@ -450,8 +400,12 @@ async function importHwp(
               }
             }
             
-            const base64 = Buffer.from(decrypted).toString('base64');
             const ext = entry.name.split('.').pop()?.toLowerCase() || 'png';
+            if (ext === 'tif' || ext === 'tiff') {
+              const {hwpTiffToPng} = await import('./hwpImages');
+              decrypted = hwpTiffToPng(decrypted);
+            }
+            const base64 = Buffer.from(decrypted).toString('base64');
             let mimeType = 'image/png';
             if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
             else if (ext === 'bmp') mimeType = 'image/bmp';
@@ -470,22 +424,20 @@ async function importHwp(
                 const binId = parseInt(binMatch[1], 16) - 1; // 1-based index in file -> 0-based binID
                 imageMap[binId] = imgTag;
               }
-            } catch (saveError) {
-              console.error('이미지 저장 콜백 실패 (CFB):', saveError);
-            }
+            } catch (saveError) { throw saveError; }
           }
         }
       }
-    } catch (cfbError) {
-      console.warn('이미지 추출 실패:', cfbError);
-    }
+    } catch (cfbError) { throw cfbError; }
     
     // 💡 이미지 플레이스홀더 치환 (매핑된 binID 우선, 나머지는 순차)
     let replacedText = text;
+    const usedImages = new Set<string>();
     
     // 1. binID 매핑된 플레이스홀더 치환
     for (const [binId, imgTag] of Object.entries(imageMap)) {
       const ph = `::HWP_IMAGE_PLACEHOLDER_${binId}::`;
+      if (replacedText.includes(ph)) usedImages.add(imgTag);
       replacedText = replacedText.replaceAll(ph, imgTag);
     }
     
@@ -496,17 +448,17 @@ async function importHwp(
     let imageIdx = 0;
     while (replacedText.includes('::HWP_IMAGE_PLACEHOLDER::') && imageIdx < imageTags.length) {
       replacedText = replacedText.replace('::HWP_IMAGE_PLACEHOLDER::', imageTags[imageIdx]);
+      usedImages.add(imageTags[imageIdx]);
       imageIdx++;
     }
     replacedText = replacedText.replaceAll('::HWP_IMAGE_PLACEHOLDER::', ''); 
     
     // 💡 남은 이미지는 하단 첨부 이미지 목록에 순차 나열
     // (이미 맵핑에 사용된 태그도 남을 수 있으나, 보통 fallback일때만 발생함)
-    if (imageIdx < imageTags.length && !parsedDoc) {
+    const remainingImages = imageTags.filter(tag=>!usedImages.has(tag));
+    if (remainingImages.length && !parsedDoc) {
       replacedText += '\n\n---\n### 📎 첨부 이미지 목록\n\n';
-      for (let i = imageIdx; i < imageTags.length; i++) {
-        replacedText += imageTags[i] + '\n\n';
-      }
+      replacedText += remainingImages.join('\n\n');
     }
     replacedText = replacedText.replace(/\n{3,}/g, '\n\n');
 
@@ -557,3 +509,4 @@ async function importHwp(
     throw new Error(error?.message || String(error) || '한글 파일(HWP)을 읽는 중 오류가 발생했습니다.');
   }
 }
+

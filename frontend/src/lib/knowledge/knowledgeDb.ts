@@ -73,65 +73,13 @@ export function resolveSafeResourceFolder(resourceFolder: string | null | undefi
     throw new Error('RESOURCE_FOLDER_NOT_SET: 공통 자원(리소스) 폴더가 설정되지 않았습니다. 환경설정에서 리소스 폴더를 먼저 지정해 주세요.');
   }
 
-  let cleanFolder = resourceFolder.trim();
-  if (cleanFolder === ':memory:') return cleanFolder;
-
-  // 🛡️ [AES 암호화 문자열 원천 방어] 로컬스토리지 AES 암호문(U2FsdGVkX1...)이 유입된 경우 복호화 또는 안전 폴더명으로 정규화
-  if (cleanFolder.startsWith('U2FsdGVkX1')) {
-    try {
-      const cryptoJs = require('crypto-js');
-      const bytes = cryptoJs.AES.decrypt(cleanFolder, 'ONRIVI-AUTHOR-SECURE-KEY-SPEC-SALT');
-      const decrypted = bytes.toString(cryptoJs.enc.Utf8);
-      if (decrypted) {
-        const parsed = JSON.parse(decrypted);
-        if (typeof parsed === 'string' && parsed.trim() && !parsed.startsWith('U2FsdGVkX1')) {
-          cleanFolder = parsed.trim();
-        } else {
-          cleanFolder = 'Onrivi_Asset';
-        }
-      } else {
-        cleanFolder = 'Onrivi_Asset';
-      }
-    } catch {
-      cleanFolder = 'Onrivi_Asset';
-    }
-  }
-
-  const { path, fs } = getNodeModules();
-  if (!path) return cleanFolder;
-
-  // 1) 이미 절대 경로인 경우 실제 존재하는지 확인 후, 없다면 다른 드라이브 확인
-  if (path.isAbsolute(cleanFolder)) {
-    if (fs && fs.existsSync && fs.existsSync(cleanFolder)) return cleanFolder;
-    const baseName = path.basename(cleanFolder);
-    const candidateDrives = ['D:\\', 'C:\\', 'E:\\', 'F:\\'];
-    if (fs && fs.existsSync) {
-      for (const drive of candidateDrives) {
-        const candidate = path.join(drive, baseName);
-        if (fs.existsSync(path.join(candidate, 'db', 'onrivi_knowledge.db')) || fs.existsSync(candidate)) {
-          return candidate;
-        }
-      }
-    }
-    return cleanFolder;
-  }
-
-  // 2) 상대 경로인 경우(브라우저 showDirectoryPicker 폴더명 'Onrivi_Asset' 등)
-  // 실제 onrivi_knowledge.db 또는 폴더가 존재하는 드라이브 우선 탐색
-  if (fs && fs.existsSync) {
-    const candidateDrives = ['D:\\', 'C:\\', 'E:\\', 'F:\\'];
-    for (const drive of candidateDrives) {
-      const candidate = path.join(drive, cleanFolder);
-      if (fs.existsSync(path.join(candidate, 'db', 'onrivi_knowledge.db')) || fs.existsSync(candidate)) {
-        return candidate;
-      }
-    }
-  }
-
-  // 프로젝트 하위(process.cwd())에 생성되지 않도록 현재 작업 드라이브의 최상위 루트(예: D:\)로 안전하게 격리 승격
-  const cwd = typeof process !== 'undefined' && process.cwd ? process.cwd() : '';
-  const rootDrive = cwd && path.parse ? path.parse(cwd).root : 'C:\\';
-  return path.join(rootDrive, cleanFolder);
+  const cleanFolder=resourceFolder.trim();
+  if(cleanFolder===':memory:') return cleanFolder;
+  if(cleanFolder.startsWith('gdrive://')) throw new Error('드라이브 지식 DB 직접 사용은 지원되지 않습니다. 환경설정에서 로컬 리소스 폴더를 선택해 주세요.');
+  const {path,fs}=getNodeModules();
+  if(!path || !path.isAbsolute(cleanFolder)) throw new Error('환경설정의 리소스 폴더 절대경로가 필요합니다.');
+  if(fs && !fs.existsSync(cleanFolder)) throw new Error('환경설정의 리소스 폴더를 찾을 수 없습니다.');
+  return cleanFolder;
 }
 
 /**

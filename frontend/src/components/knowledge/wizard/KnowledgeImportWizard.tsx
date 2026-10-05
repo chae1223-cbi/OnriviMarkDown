@@ -9,6 +9,7 @@
 // 🔗 @CALLS : ./Step1_TargetSelect, ./Step2_ScanResult, ./Step3_ImportConfig, /api/knowledge/queue, /api/knowledge/collection
 // ====================================================================
 
+import { requireResourceSettings } from '@/lib/resourceSettings';
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, ChevronLeft, ChevronRight, UploadCloud, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { Step1_TargetSelect, TargetSelectionMode } from './Step1_TargetSelect';
@@ -16,6 +17,7 @@ import { Step2_ScanResult } from './Step2_ScanResult';
 import { Step3_ImportConfig } from './Step3_ImportConfig';
 import { classifyScannedDocuments, flattenFileTreeNodes, RawScanTarget } from '@/lib/knowledge/documentScanner';
 import { KnowledgeWorkerEngine } from '@/lib/knowledge/knowledgeWorker';
+import { pickResourceTextFile } from '@/lib/gdrive/ResourceFilePicker';
 import { ensureClientAbsolutePath } from '@/lib/knowledge/pathResolver';
 import type { ScanResultSummary, ImportConfig, KnowledgeCollection } from '@/types/knowledge';
 
@@ -113,11 +115,24 @@ export const KnowledgeImportWizard: React.FC<KnowledgeImportWizardProps> = ({
   const handleProceedToStep2 = async () => {
     setIsScanning(true);
     try {
+      requireResourceSettings();
       let rawTargets: RawScanTarget[] = [];
 
       if (targetMode === 'WORKSPACE') {
         rawTargets = flattenFileTreeNodes(fileTreeNodes);
-      } else if (targetMode === 'FOLDER' || targetMode === 'FILES') {
+      } else if (targetMode === 'FILES') {
+        const api=(window as any).electronAPI;
+        if (!api?.saveFile || !api?.createFolder) throw new Error('지식 자료 등록은 데스크탑에서 사용할 수 있습니다.');
+        if (!/^(?:[A-Za-z]:[\\/]|\\\\)/.test(resourceFolder)) throw new Error('지식 DB용 로컬 리소스 폴더를 먼저 지정해 주세요. 드라이브 자료는 이 폴더에 보관한 뒤 등록됩니다.');
+        const file=await pickResourceTextFile('.md,.markdown');
+        if (!file) return;
+        await api.createFolder(resourceFolder,'knowledge-import');
+        const safeName=file.name.replace(/[<>:"/\\|?*\x00-\x1f]/g,'_');
+        const path=resourceFolder.replace(/[\\/]$/,'')+'\\knowledge-import\\'+(file.id ? file.id+'_' : Date.now()+'_')+safeName;
+        const result=await api.saveFile(path,file.content);
+        if (!result || result.success===false) throw new Error('지식 자료 파일을 로컬에 보관하지 못했습니다.');
+        rawTargets=[{name:safeName,path,content:file.content,size:new Blob([file.content]).size}];
+      } else if (targetMode === 'FOLDER') {
         // 데스크탑 또는 브라우저 파일 피커 지원
         if ((window as any).electronAPI?.selectFolder && targetMode === 'FOLDER') {
           const folderRes = await (window as any).electronAPI.selectFolder();
@@ -186,6 +201,7 @@ export const KnowledgeImportWizard: React.FC<KnowledgeImportWizardProps> = ({
 
     setIsSubmitting(true);
     try {
+      requireResourceSettings();
       const itemsToEnqueue = selectedFiles.map(f => ({
         documentId: f.existingDocId || `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         filePath: ensureClientAbsolutePath(f.path, resourceFolder),

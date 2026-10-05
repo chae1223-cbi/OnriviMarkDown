@@ -17,6 +17,7 @@
 
 'use client';
 
+import { getEffectiveResourceFolder } from '@/lib/profileStorage';
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -164,19 +165,7 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
     const syncFromEditorSettings = () => {
       if (typeof window === 'undefined') return;
 
-      let savedFolder = propResourceFolder ||
-                        loadSecureData<string>('resourceFolder') ||
-                        localStorage.getItem('onrivi_resource_folder_path') ||
-                        localStorage.getItem('onrivi_resource_folder');
-      if (savedFolder && savedFolder.startsWith('U2FsdGVkX1')) {
-        const dec = loadSecureData<string>('resourceFolder');
-        savedFolder = (dec && !dec.startsWith('U2FsdGVkX1')) ? dec : 'Onrivi_Asset';
-      }
-      if (savedFolder) {
-        setResourceFolder(savedFolder);
-      } else {
-        setResourceFolder('Onrivi_Asset');
-      }
+      setResourceFolder(getEffectiveResourceFolder());
 
       let editorSettings: any = null;
       try {
@@ -505,7 +494,7 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
           {/* 리소스 폴더 상태 뱃지 */}
           <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-300 border border-zinc-200/80 dark:border-zinc-700/60">
             <FolderGit2 className="w-3.5 h-3.5 text-[#1d4ed8]" />
-            <span className="truncate max-w-[140px]">{resourceFolder || 'Onrivi_Asset'}</span>
+            <span className="truncate max-w-[140px]">{resourceFolder || '미설정'}</span>
           </div>
 
           {/* 대량 문서 가져오기 (마법사 KUI-004~006 트리거) */}

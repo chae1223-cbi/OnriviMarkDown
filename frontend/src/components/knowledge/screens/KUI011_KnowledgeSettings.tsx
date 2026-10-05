@@ -19,6 +19,7 @@
 // 🔗 @CALLS : localStorage, knowledgeClient, /api/knowledge/init, /api/knowledge/backup, /api/knowledge/restore
 // ====================================================================
 
+import { getEffectiveResourceFolder } from '@/lib/profileStorage';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   Shield, Cpu, Sliders, Database, 
@@ -98,28 +99,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
   }, [propAiModelName]);
 
   // 실시간 유효 리소스 폴더 계산 (Props, loadSecureData, localStorage, Onrivi_Asset 안전 폴백)
-  const effectiveResourceFolder = useMemo(() => {
-    let raw = (
-      resourceFolder ||
-      loadSecureData<string>('resourceFolder') ||
-      (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder_path') : '') ||
-      (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder') : '') ||
-      (() => {
-        try {
-          const rawSetting = typeof window !== 'undefined' ? localStorage.getItem('onrivi_settings') : null;
-          return rawSetting ? JSON.parse(rawSetting).resourceFolder || '' : '';
-        } catch { return ''; }
-      })() ||
-      'Onrivi_Asset'
-    ).trim();
-
-    if (raw.startsWith('U2FsdGVkX1')) {
-      const decrypted = loadSecureData<string>('resourceFolder');
-      raw = (decrypted && !decrypted.startsWith('U2FsdGVkX1')) ? decrypted : 'Onrivi_Asset';
-    }
-
-    return raw || 'Onrivi_Asset';
-  }, [resourceFolder]);
+  const effectiveResourceFolder = getEffectiveResourceFolder();
 
   // 실시간 File System Access API 폴더 핸들 동기화 (Props 또는 window 글로벌 캐시)
   const effectiveHandle = useMemo(() => {
@@ -499,25 +479,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
   };
 
   // 웹 브라우저 환경에서 사용자 PC의 Onrivi_Asset 폴더 직접 연결/재인증
-  const handleConnectResourceFolder = async () => {
-    if (typeof (window as any).showDirectoryPicker === 'function') {
-      try {
-        const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
-        if (handle) {
-          (window as any).__resourceFolderHandle = handle;
-          await idb.set('resourceFolderHandle', handle);
-          fetchBackups();
-          showToast(`자원 폴더(${handle.name})가 브라우저에 성공적으로 연결되었습니다.`, 'success');
-        }
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          showToast('폴더 연결 중 오류가 발생했습니다: ' + err.message, 'error');
-        }
-      }
-    } else {
-      showToast('이 브라우저는 폴더 접근 API(showDirectoryPicker)를 지원하지 않습니다. Chrome 또는 Edge를 사용해 주세요.', 'warning');
-    }
-  };
+  const handleConnectResourceFolder = async () => { window.dispatchEvent(new CustomEvent('onrivi:resource-settings')); };
 
   // --- 지식 DB 완전 초기화 (위험 작업) ---
   const handleResetKnowledgeDb = async () => {

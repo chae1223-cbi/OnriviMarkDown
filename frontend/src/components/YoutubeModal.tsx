@@ -1,14 +1,15 @@
 // 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 전역 미디어 실시간 연동 강화]: getEffectiveResourceFolder 연동 및 구글 드라이브(OnriviAuthor/참조파일/media) 업로드 지원
 "use client";
 
+import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Check, Video, Upload, ExternalLink, Play, Link as LinkIcon } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
 import { loadSecureData } from '@/lib/secureStorage';
 import { getEffectiveResourceFolder } from '@/lib/profileStorage';
-import { getSavedDriveToken, getSavedWorkspaceInfo, uploadDriveImage } from '@/lib/gdrive/googleDriveClient';
-import { supabase } from '@/lib/supabaseClient';
+import { getSavedDriveToken, getSavedWorkspaceInfo, uploadDriveImage, getDriveMediaImageBlobUrl } from '@/lib/gdrive/googleDriveClient';
+import { pickDriveResourceFile } from '@/lib/gdrive/ResourceFilePicker';
 import { MediaAlignmentControl, MediaSizeInputs, normalizeMediaDimension, type MediaAlign } from '@/components/MediaLayoutFields';
 
 interface YoutubeModalProps {
@@ -56,6 +57,41 @@ export default function YoutubeModal({
     return () => cancelAnimationFrame(frame);
   }, [isOpen, mounted]);
 
+  const openResourceSettings = () => {
+    onClose();
+    window.dispatchEvent(new CustomEvent('onrivi:resource-settings'));
+  };
+  const requireResourceFolder = () => {
+    const folder=getEffectiveResourceFolder(resourceFolder);
+    const drive=getResourceSettings()?.kind === 'drive';
+    const info=getSavedWorkspaceInfo();
+    const valid=drive ? !!(getSavedDriveToken() && info?.resourceFolderId && info?.mediaFolderId) : (window as any).electronAPI ? /^(?:[A-Za-z]:[\\/]|\\\\)/.test(folder) : !!resourceFolderHandle;
+    if (!valid) {
+      showToast(drive ? '드라이브 리소스 폴더 연결 정보를 확인할 수 없습니다. 환경설정에서 드라이브를 다시 연결해 주세요.' : '리소스 폴더를 먼저 설정해 주세요.','warning');
+      openResourceSettings();
+    }
+    return valid;
+  };
+  const [drivePreview, setDrivePreview] = useState<{path:string;url:string}|null>(null);
+  const handleBrowse = async () => {
+    if (!requireResourceFolder()) return;
+    if (!(getResourceSettings()?.kind === 'drive')) { fileInputRef.current?.click(); return; }
+    try {
+      const token = getSavedDriveToken(); const info = getSavedWorkspaceInfo();
+      if (!token || !info) throw new Error('구글 드라이브를 먼저 연결해 주세요.');
+      const file = await pickDriveResourceFile(token, info.mediaFolderId,{title:'구글 드라이브 동영상 선택',accept:f=>f.mimeType.startsWith('video/') || /\.(mp4|webm|mov|ogg)$/i.test(f.name)});
+      if (!file) return;
+      if (Number(file.size || 0) > 100 * 1024 * 1024) throw new Error('동영상 크기는 100MB를 초과할 수 없습니다.');
+      const sourcePath = `/media/${encodeURIComponent(file.name)}?driveId=${encodeURIComponent(file.id)}`;
+      const url = await getDriveMediaImageBlobUrl(token,info.mediaFolderId,sourcePath);
+      if (!url) throw new Error('선택한 동영상을 읽지 못했습니다.');
+      const blob = await (await fetch(url)).blob();
+      const uploaded = await uploadDriveImage(token,info.mediaFolderId,blob,file.name);
+      const path = `/media/${encodeURIComponent(uploaded.name || file.name)}?driveId=${encodeURIComponent(uploaded.id)}`;
+      setSourceUrl(path); setAppliedPath(path); setDrivePreview({path,url});
+      showToast('동영상을 리소스 폴더의 media에 저장했습니다.', 'success');
+    } catch(e:any) { showToast(e.message,'error'); }
+  };
   const [sourceUrl, setSourceUrl] = useState("");
   const [appliedPath, setAppliedPath] = useState("");
   const [customDisplayName, setCustomDisplayName] = useState("");
@@ -79,28 +115,32 @@ export default function YoutubeModal({
   }, [isOpen, initialUrl]);
 
   const uploadVideo = async (file: File, base64Data: string) => {
+    if (!requireResourceFolder()) return;
     const ext = file.name.split('.').pop() || 'mp4';
     const fileName = file.name ? file.name.replace(/\s+/g, '_') : `video_${Date.now()}.${ext}`;
     const api = (window as any).electronAPI;
 
     // ☁️ [Google Drive 작업장 및 리소스 폴더 지원]
-    const isDriveTarget = workspaceType === 'cloud' || rootFolder?.type === 'GDRIVE' || (typeof window !== 'undefined' && (localStorage.getItem('workspaceType') === 'cloud' || (localStorage.getItem('onrivi_resource_folder_path') || '').startsWith('OnriviAuthor')));
+    const isDriveTarget = getResourceSettings()?.kind === 'drive';
     if (isDriveTarget) {
       const token = getSavedDriveToken();
       const wsInfo = getSavedWorkspaceInfo();
       const mediaFolderId = wsInfo?.mediaFolderId;
+      if (!token || !mediaFolderId) { showToast('구글 드라이브를 먼저 연결해 주세요.', 'error'); return; }
       if (token && mediaFolderId) {
         try {
           const uploaded = await uploadDriveImage(token, mediaFolderId, file, fileName);
           if (uploaded?.id) {
-            const finalPath = `/media/${fileName}`;
+            const finalPath = `/media/${encodeURIComponent(uploaded.name || fileName)}?driveId=${encodeURIComponent(uploaded.id)}`;
             setSourceUrl(finalPath);
             setAppliedPath(finalPath);
+            setDrivePreview({path:finalPath,url:await getDriveMediaImageBlobUrl(token,mediaFolderId,finalPath) || ''});
             showToast('동영상이 구글 드라이브(media)에 저장되었습니다.', 'success');
             return;
           }
         } catch (e) {
-          console.error('[YoutubeModal GDrive upload error]', e);
+          showToast('드라이브 동영상 저장에 실패했습니다. 연결을 확인해 주세요.', 'error');
+          return;
         }
       }
     }
@@ -108,7 +148,8 @@ export default function YoutubeModal({
     if (api) {
       // 🖥️ 데스크탑: 무조건 로컬(resourceFolder) 저장
       const freshResourceFolder = getEffectiveResourceFolder(resourceFolder);
-      let effectiveTargetFolder = targetFolder || '';
+      if (!freshResourceFolder) throw new Error('동영상을 저장할 리소스 폴더를 먼저 지정해 주세요.');
+      let effectiveTargetFolder = '';
       if (freshResourceFolder) {
         const sep = freshResourceFolder.includes('\\') ? '\\' : '/';
         effectiveTargetFolder = freshResourceFolder + sep + 'media';
@@ -136,13 +177,6 @@ export default function YoutubeModal({
             await writable.write(file);
             await writable.close();
             finalPath = `/media/${fileName}`;
-          } else if (rootFolder?.handle) {
-            const assetsDir = await rootFolder.handle.getDirectoryHandle('assets', { create: true });
-            const fileHandle = await assetsDir.getFileHandle(fileName, { create: true });
-            const writable = await fileHandle.createWritable();
-            await writable.write(file);
-            await writable.close();
-            finalPath = `/assets/${fileName}`;
           }
         } catch (e) {
           console.error('브라우저 로컬 저장 실패:', e);
@@ -153,47 +187,20 @@ export default function YoutubeModal({
         showToast('로컬 폴더에 저장되었습니다.', 'success');
         return;
       }
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        const isDev = process.env.NODE_ENV === 'development';
-        const uploadEndpoint = isDev ? '/api/upload-pasted-image' : '/api/upload-image';
-        const headers: any = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        const response = await fetch(uploadEndpoint, {
-          method: 'POST', headers,
-          body: JSON.stringify({ base64Data, targetFolder: targetFolder || '' }),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.status === 'success' && data.relativePath) {
-            setAppliedPath(data.relativePath);
-            showToast('동영상이 업로드되었습니다.', 'success');
-          } else {
-            showToast('서버 저장 실패', 'error');
-          }
-        } else {
-          showToast(`서버 오류 (${response.status})`, 'error');
-        }
-      } catch (err) {
-        showToast('네트워크 오류', 'error');
-      }
+      throw new Error('동영상을 저장할 로컬 리소스 폴더를 먼저 연결해 주세요.');
     }
   };
 
-  const readFile = (file: File) => {
-    const maxSize = 100 * 1024 * 1024;
-    if (file.size > maxSize) {
-      showToast('동영상 크기는 100MB를 초과할 수 없습니다.', 'error');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(',')[1];
-      if (base64) uploadVideo(file, base64);
-    };
-    reader.onerror = () => showToast('파일 읽기 실패', 'error');
-    reader.readAsDataURL(file);
+  const readFile = async (file: File) => {
+    if (file.size > 100 * 1024 * 1024) { showToast('동영상 크기는 100MB를 초과할 수 없습니다.', 'error'); return; }
+    try {
+      const drive = getResourceSettings()?.kind === 'drive';
+      let base64 = '';
+      if (!drive && (window as any).electronAPI) {
+        base64 = await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve((reader.result as string).split(',')[1]);reader.onerror=()=>reject(new Error('파일 읽기 실패'));reader.readAsDataURL(file);});
+      }
+      await uploadVideo(file,base64);
+    } catch(e:any) { showToast(e.message || '동영상 저장 실패','error'); }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -202,6 +209,7 @@ export default function YoutubeModal({
   };
 
   const handleApplyUrl = () => {
+    if (!requireResourceFolder()) return;
     const url = sourceUrl.trim();
     if (!url) {
       showToast('URL을 입력해주세요.', 'warning');
@@ -260,54 +268,31 @@ export default function YoutubeModal({
     return `[${customDisplayName.trim() || displayName}](${url})`;
   }, [appliedPath, cleanPath, videoWidth, videoHeight, customDisplayName, displayName, isYoutube, detectedVideoId, videoAlign]);
 
+  useEffect(()=>{
+    let active=true;
+    const folder=getEffectiveResourceFolder(resourceFolder);
+    const settings=getResourceSettings();
+    if(!folder || settings?.kind!=='drive' || !/^(?:\.?\/)?media\//.test(sourceUrl))return;
+    const token=getSavedDriveToken();if(!token || !settings.mediaFolderId)return;
+    void getDriveMediaImageBlobUrl(token,settings.mediaFolderId,sourceUrl).then(url=>{if(active && url)setDrivePreview({path:sourceUrl,url});}).catch(error=>{if(active)showToast(error.message,'error');});
+    return()=>{active=false;};
+  },[sourceUrl,resourceFolder,showToast]);
   const previewSrc = useMemo(() => {
-    let raw = sourceUrl;
-    try { if (raw) raw = decodeURI(raw); } catch(e){}
-    const isMediaOrAssets = raw && (raw.startsWith('/media/') || raw.startsWith('./media/') || raw.startsWith('/assets/') || raw.startsWith('./assets/'));
-    const isRootRelative = raw && raw.startsWith('/');
-
-    if (isMediaOrAssets) {
-      const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
-      if (api) {
-        const freshRF = loadSecureData<string>('resourceFolder') || resourceFolder;
-        if (freshRF) {
-          const sep = freshRF.includes('\\') ? '\\' : '/';
-          const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
-          const strippedPath = raw.startsWith('./') ? raw.substring(1) : raw;
-          const normalizedSrc = sep === '\\' ? strippedPath.replace(/\//g, '\\') : strippedPath;
-          const absolutePath = cleanRoot + normalizedSrc;
-          return `media-local://serve?url=${encodeURIComponent(absolutePath)}`;
-        } else if (targetFolder) {
-          const sep = targetFolder.includes('\\') ? '\\' : '/';
-          let rawDir = targetFolder;
-          if (rawDir.endsWith('.md') || rawDir.endsWith('.markdown')) {
-            rawDir = rawDir.substring(0, Math.max(rawDir.lastIndexOf('\\'), rawDir.lastIndexOf('/')));
-          }
-          const cleanRoot = rawDir.endsWith(sep) ? rawDir.slice(0, -1) : rawDir;
-          const strippedPath = raw.startsWith('./') ? raw.substring(1) : raw;
-          const normalizedSrc = sep === '\\' ? strippedPath.replace(/\//g, '\\') : strippedPath;
-          const absolutePath = cleanRoot + normalizedSrc;
-          return `media-local://serve?url=${encodeURIComponent(absolutePath)}`;
-        }
-      }
-    } else if (isRootRelative) {
-      const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
-      if (api && targetFolder) {
-          const sep = targetFolder.includes('\\') ? '\\' : '/';
-          let rawDir = targetFolder;
-          if (rawDir.endsWith('.md') || rawDir.endsWith('.markdown')) {
-            rawDir = rawDir.substring(0, Math.max(rawDir.lastIndexOf('\\'), rawDir.lastIndexOf('/')));
-          }
-          const cleanRoot = rawDir.endsWith(sep) ? rawDir.slice(0, -1) : rawDir;
-          const normalizedSrc = sep === '\\' ? raw.replace(/\//g, '\\') : raw;
-          const absolutePath = cleanRoot + normalizedSrc;
-          return `media-local://serve?url=${encodeURIComponent(absolutePath)}`;
-      }
+    if(drivePreview?.path===sourceUrl)return drivePreview.url;
+    if(!sourceUrl)return '';
+    if(/^(https?:|data:|blob:|media:|media-local:)/.test(sourceUrl))return sourceUrl;
+    const settings=getResourceSettings();if(!settings || settings.kind==='drive')return '';
+    if((window as any).electronAPI){
+      const folder=getEffectiveResourceFolder(resourceFolder);
+      const relative=decodeURIComponent(sourceUrl.split('?')[0]).replace(/^\.?[\\/]/,'');
+      const absolute=/^[A-Za-z]:[\\/]/.test(relative)?relative:folder.replace(/[\\/]$/,'')+'/'+relative;
+      return `media-local://serve?url=${encodeURIComponent(absolute)}`;
     }
-    return raw;
-  }, [sourceUrl, resourceFolder, targetFolder]);
+    return sourceUrl;
+  },[drivePreview,sourceUrl,resourceFolder]);
 
   const handleInsert = () => {
+    if (!requireResourceFolder()) return;
     const url = appliedPath || cleanPath;
     if (!url) {
       showToast('동영상 URL을 입력하거나 파일을 선택해주세요.', 'warning');
@@ -389,7 +374,7 @@ export default function YoutubeModal({
                 />
                 <input type="file" ref={fileInputRef} className="hidden" accept="video/*" onChange={handleFileSelect} />
                 <button
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={handleBrowse}
                   className={`px-4 py-2.5 border rounded font-bold text-xs transition-colors shrink-0 flex items-center gap-1.5 ${
                     isDarkMode
                       ? 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white'
@@ -403,6 +388,8 @@ export default function YoutubeModal({
               <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono mt-2 leading-relaxed">
                 YouTube URL 또는 MP4/WebM/Ogg 파일 (최대 100MB)
               </p>
+
+              <button type="button" onClick={openResourceSettings} className="text-xs text-indigo-600 underline">리소스 폴더 설정 / 드라이브 다시 연결</button>
 
               {/* URL 적용 버튼 */}
               {sourceUrl.trim() && !appliedPath && (

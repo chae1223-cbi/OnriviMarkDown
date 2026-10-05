@@ -1,3 +1,4 @@
+import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { exportContentFingerprint } from '@/lib/exportPreparation';
 // 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 전역 미디어 실시간 연동 강화]: 구글 드라이브(OnriviAuthor/참조파일/media) 및 로컬/웹 리소스 폴더 변경 시 AsyncImage 실시간 감지 및 캐싱 Blob URL 렌더링 지원
 // 🚨 @PATCH : **2026-10-01** — [본문 우측/중앙 정렬(align, text-align, table 등) 100% 실시간 렌더링 지원]: [align="right"], [style*="text-align: right"], [align="center"] 등의 CSS 규칙을 탑재하고 div/p 컴포넌트의 align 속성을 inline style로 정밀 바인딩하며, th text-align center 강제를 해제하여 사용자 정렬 완벽 보장
@@ -178,7 +179,7 @@ const extractDataLine = (props: any, node?: any): number | undefined => {
 // 🖼️ [ONR-MD-006] AsyncImage 커스텀 컴포넌트
 // @description 웹 브라우저 환경에서 로컬 파일(OPFS/VFS)을 비동기적으로 읽어와 렌더링합니다.
 // ====================================================================
-const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, workspaceType, api, queryString, style, className, onImageLoaded, ...props }: any) => {
+const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, resourceFolder, workspaceType, api, queryString, style, className, onImageLoaded, ...props }: any) => {
   const [imgSrc, setImgSrc] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
     const [copied, setCopied] = useState(false);
@@ -189,6 +190,19 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
     setErrorMsg('');
     const loadLocalImage = async () => {
       try {
+        const driveWorkspace = getResourceSettings()?.kind === 'drive';
+        if (/(?:^|[\\/])media[\\/]/.test(src) && !/^(https?:|data:|blob:)/.test(src)) requireResourceSettings();
+        const mediaSource = src.split('?')[0].split('#')[0].replace(/\\/g, '/');
+        if (driveWorkspace && /(?:^|\/)media\//.test(mediaSource) && !/^(https?:|data:|blob:)/.test(src)) {
+          const token = getSavedDriveToken();
+          const folderId = getSavedWorkspaceInfo()?.mediaFolderId;
+          if (!token || !folderId) throw new Error('구글 드라이브 이미지 폴더 연결을 확인해 주세요.');
+          const fileName = mediaSource.substring(mediaSource.lastIndexOf('/media/') + 1) + (src.includes('?') ? src.slice(src.indexOf('?')) : queryString || '');
+          const blobUrl = await getDriveMediaImageBlobUrl(token, folderId, fileName);
+          if (!blobUrl) throw new Error(`구글 드라이브 미디어 폴더에서 이미지를 찾지 못했습니다: ${fileName}`);
+          setImgSrc(blobUrl);
+          return;
+        }
         if (api) {
           let targetAbsolutePath = absolutePath;
           if (src.startsWith('media://local/serve')) {
@@ -203,14 +217,7 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
           }
 
           if (targetAbsolutePath && !src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('blob:') && (!src.startsWith('media://') || src.startsWith('media://local/serve'))) {
-            try {
-              const base64Str = await api.readImageAsBase64(targetAbsolutePath);
-              setImgSrc(base64Str);
-            } catch (err: any) {
-              console.error(`[AsyncImage] Base64 ERROR for: ${targetAbsolutePath}`, err);
-              setErrorMsg(`Base64 실패: ${targetAbsolutePath} (${err.message})`);
-              setImgSrc(`media://local/serve?url=${encodeURIComponent(targetAbsolutePath)}`);
-            }
+            setImgSrc(`media://local/serve?url=${encodeURIComponent(targetAbsolutePath)}`);
           } else {
             setImgSrc(src);
           }
@@ -235,7 +242,7 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
           }
 
           // ☁️ [Google Drive 미디어 연동]: 구글 드라이브 작업장이거나 OnriviAuthor/참조파일 리소스 폴더인 경우
-          const isDriveEnv = workspaceType === 'cloud' || rootFolder?.type === 'GDRIVE' || (typeof window !== 'undefined' && (localStorage.getItem('workspaceType') === 'cloud' || (localStorage.getItem('onrivi_resource_folder_path') || '').startsWith('OnriviAuthor')));
+          const isDriveEnv = getResourceSettings()?.kind === 'drive';
           if (isDriveEnv) {
             const token = getSavedDriveToken();
             const wsInfo = getSavedWorkspaceInfo();
@@ -243,7 +250,8 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
             if (token && targetMediaFolderId) {
               const driveBlobUrl = await getDriveMediaImageBlobUrl(token, targetMediaFolderId, pureSrc);
               if (driveBlobUrl) {
-                setImgSrc(queryString ? (driveBlobUrl.includes('?') ? driveBlobUrl + '&' + queryString.substring(1) : driveBlobUrl + queryString) : driveBlobUrl);
+                // Blob URLs are exact identifiers; sizing is already applied via style.
+                setImgSrc(driveBlobUrl);
                 return;
               }
             }
@@ -323,6 +331,10 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
         }
       } catch (e: any) {
         console.error(`[AsyncImage] VFS ERROR:`, e);
+        if (getResourceSettings()?.kind === 'drive') {
+          setErrorMsg(e.message || '구글 드라이브 이미지를 불러오지 못했습니다.');
+          return;
+        }
         setErrorMsg(`VFS 실패: ${absolutePath} (${e.message})`);
         const fallbackSrc = api 
           ? `media://local/serve?url=${encodeURIComponent(absolutePath)}`
@@ -336,7 +348,7 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [src, absolutePath, rootFolder, resourceFolderHandle, workspaceType, api, queryString]);
+  }, [src, absolutePath, rootFolder, resourceFolderHandle, resourceFolder, workspaceType, api, queryString]);
 
   if (errorMsg) {
     return (
@@ -351,7 +363,14 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
 
   const onImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
-    if (img.dataset.fallbackAttempted) return;
+    if (img.src.startsWith('blob:')) {
+      setErrorMsg(`드라이브에서 받은 이미지 데이터를 표시하지 못했습니다: ${src}`);
+      return;
+    }
+    if (img.dataset.fallbackAttempted) {
+      setErrorMsg(`이미지를 불러오지 못했습니다: ${absolutePath || src}`);
+      return;
+    }
     img.dataset.fallbackAttempted = 'true';
     if (api && absolutePath) {
       img.src = `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
@@ -429,6 +448,14 @@ const AsyncVideo = ({ src, absolutePath, rootFolder, resourceFolderHandle, works
     setErrorMsg('');
     const loadLocalVideo = async () => {
       try {
+        const driveQuery = new URLSearchParams((queryString || src.split('?')[1] || '').replace(/^\?/, ''));
+        if (driveQuery.get('driveId') || ((getResourceSettings()?.kind === 'drive') && /media\//.test(src))) {
+          const token = getSavedDriveToken(); const info = getSavedWorkspaceInfo();
+          if (!token || !info) throw new Error('구글 드라이브 연결이 필요합니다.');
+          const url = await getDriveMediaImageBlobUrl(token, info.mediaFolderId, src.split('?')[0] + '?' + driveQuery.toString());
+          if (!url) throw new Error('드라이브에서 동영상을 찾을 수 없습니다.');
+          setVideoSrc(url); return;
+        }
         if (api) {
           let targetAbsolutePath = absolutePath;
           if (src.startsWith('media://local/serve') || src.startsWith('media-local://')) {
@@ -2750,6 +2777,7 @@ function MarkdownViewer({
                 }
               } else if (!isExternal && typeof window !== 'undefined') {
                 const api = (window as any).electronAPI;
+                const isDriveWorkspace = getResourceSettings()?.kind === 'drive';
                 const isAbsoluteWin = /^[a-zA-Z]:[\\/]/.test(pureSrc);
                 // 💡 [마크다운 루트 상대경로 지원]
                 // 마크다운 문법에서 /assets/img.png 처럼 최상단 슬래시(/)로 시작하는 경로는 
@@ -2774,7 +2802,10 @@ function MarkdownViewer({
                   pureSrc.endsWith('.webp')
                 );
 
-                if (isLocalMedia && (api || (dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME))) {
+                if (isDriveWorkspace) {
+                  // Cloud paths stay relative until AsyncImage resolves them through Drive.
+                  absolutePath = pureSrc;
+                } else if (isLocalMedia && (api || (dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME))) {
                   // 💡 [핵심] 리소스 폴더에서만 절대 경로 조합 (rootFolderPath 임의 폴백 원천 차단)
                   const freshRF = getEffectiveResourceFolder(dynamicPropsRef.current.resourceFolder);
                   const hasRFHandle = !!dynamicPropsRef.current.resourceFolderHandle || (typeof window !== 'undefined' && !!(window as any).__resourceFolderHandle);
@@ -2941,6 +2972,7 @@ function MarkdownViewer({
                   absolutePath={absolutePath} 
                   rootFolder={dynamicPropsRef.current.rootFolder} 
                   resourceFolderHandle={dynamicPropsRef.current.resourceFolderHandle}
+                  resourceFolder={dynamicPropsRef.current.resourceFolder}
                   workspaceType={dynamicPropsRef.current.workspaceType} 
                   api={typeof window !== 'undefined' ? (window as any).electronAPI : null} 
                   queryString={queryString} 

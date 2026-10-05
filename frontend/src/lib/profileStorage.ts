@@ -1,7 +1,8 @@
+import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 // 사용자 서식의 유일한 원본은 리소스 폴더의 profiles/userCssProfiles.json이다.
 // 선택한 저장소의 오류/빈 배열을 다른 파일이나 localStorage로 대체하지 않는다.
 import { CssProfile } from '@/types/cssProfile';
-import { isSystemProfileId } from '@/constants/cssProfile';
+import { SYSTEM_PROFILES, isSystemProfileId } from '@/constants/cssProfile';
 import { loadSecureData } from '@/lib/secureStorage';
 import { idb } from '@/lib/indexedDbHelper';
 import {
@@ -21,34 +22,13 @@ import {
 // 🚨 @PATCH : **2026-10-03** — [Malformed UTF-8 복호화 에러 원천 방지]: 평문 리소스 폴더(localStorage) 우선 감지 및 안전 복호화 연동
 // 🔗 @CALLS : loadSecureData
 // ====================================================================
-export function getEffectiveResourceFolder(explicitFolder?: string | null): string {
-  if (explicitFolder && typeof explicitFolder === 'string' && explicitFolder.trim() !== '') {
-    return explicitFolder.trim();
-  }
-
-  if (typeof window === 'undefined') return '';
-
-  const rawPath = localStorage.getItem('onrivi_resource_folder_path');
-  if (rawPath && rawPath.trim() !== '') return rawPath.trim();
-
-  const rawFolder = localStorage.getItem('onrivi_resource_folder');
-  if (rawFolder && rawFolder.trim() !== '') return rawFolder.trim();
-
-  const plain = localStorage.getItem('resourceFolder');
-  if (plain && plain.trim() !== '' && !plain.startsWith('U2FsdGVkX1')) {
-    return plain.trim();
-  }
-
-  const secure = loadSecureData<string>('resourceFolder');
-  if (secure && typeof secure === 'string' && secure.trim() !== '') {
-    return secure.trim();
-  }
-
-  return '';
+export function getEffectiveResourceFolder(_explicitFolder?: string | null): string {
+  return getResourceSettings()?.path || '';
 }
+export function getProfileResourceFolder(explicitFolder?:string|null):string { return getEffectiveResourceFolder(explicitFolder); }
 
 async function getResourceHandle(folder: string, explicitHandle?: any): Promise<any> {
-  if (explicitHandle) return explicitHandle;
+  if (explicitHandle?.name === folder) return explicitHandle;
   const liveHandle = (window as any).__resourceFolderHandle;
   if (liveHandle && liveHandle.name === folder) return liveHandle;
   // 새로고침 후에도 사용자가 선택한 브라우저 폴더를 사용한다.
@@ -66,8 +46,8 @@ export async function fetchUserProfiles(
   resourceFolderHandle?: any
 ): Promise<CssProfile[]> {
   if (typeof window === 'undefined') return [];
-  const folder = getEffectiveResourceFolder(explicitFolder);
-  if (folder === 'OnriviAuthor/참조파일') {
+  const folder = getProfileResourceFolder(explicitFolder);
+  if (getResourceSettings()?.kind === 'drive') {
     const token = getSavedDriveToken();
     const workspace = getSavedWorkspaceInfo();
     if (!token || !workspace?.profilesFolderId) throw new Error('구글 드라이브 연결을 갱신해 주세요.');
@@ -90,7 +70,7 @@ export async function fetchUserProfiles(
   }
 
   // ☁️ 구글 드라이브(GDRIVE) 리소스 폴더 지원
-  if (folder === 'OnriviAuthor/참조파일') {
+  if (getResourceSettings()?.kind === 'drive') {
     const token = getSavedDriveToken();
     const wsInfo = getSavedWorkspaceInfo();
     const profilesFolderId = wsInfo?.profilesFolderId;
@@ -137,16 +117,19 @@ export function persistUserProfiles(
   const userProfiles = JSON.parse(JSON.stringify(rawProfiles.filter(
     p => p && p.id !== 'default' && !isSystemProfileId(p.id)
   )));
-  const folder = getEffectiveResourceFolder(explicitFolder);
+  const folder = getProfileResourceFolder(explicitFolder);
+  const selectedResource=getResourceSettings();
   const save = async (): Promise<boolean> => {
     if (typeof window === 'undefined') return false;
     try {
-      if (folder === 'OnriviAuthor/참조파일') {
+      const currentResource=requireResourceSettings();
+      if (!selectedResource || currentResource.kind!==selectedResource.kind || currentResource.path!==selectedResource.path || currentResource.folderId!==selectedResource.folderId) return false;
+      if (getResourceSettings()?.kind === 'drive') {
         const token = getSavedDriveToken();
         const workspace = getSavedWorkspaceInfo();
         if (!token || !workspace?.profilesFolderId) throw new Error('구글 드라이브 연결을 갱신해 주세요.');
         const fileId = await ensureDriveTextFile(token, 'userCssProfiles.json', workspace.profilesFolderId, '[]', 'application/json');
-        return await saveDriveFileContent(token, fileId, JSON.stringify(userProfiles, null, 2));
+        return await saveDriveFileContent(token, fileId, JSON.stringify([...SYSTEM_PROFILES, ...userProfiles], null, 2));
       }
       const api = (window as any).electronAPI;
       if (api?.saveProfiles) {
@@ -170,14 +153,14 @@ export function persistUserProfiles(
       }
 
       // ☁️ 구글 드라이브(GDRIVE) 리소스 폴더 지원
-      if (folder === 'OnriviAuthor/참조파일') {
+      if (getResourceSettings()?.kind === 'drive') {
         const token = getSavedDriveToken();
         const wsInfo = getSavedWorkspaceInfo();
         const profilesFolderId = wsInfo?.profilesFolderId;
         if (token && profilesFolderId) {
           const fileId = await ensureDriveTextFile(token, 'userCssProfiles.json', profilesFolderId, '[]', 'application/json');
           if (fileId) {
-            await saveDriveFileContent(token, fileId, JSON.stringify(userProfiles, null, 2));
+            await saveDriveFileContent(token, fileId, JSON.stringify([...SYSTEM_PROFILES, ...userProfiles], null, 2));
             return true;
           }
         }

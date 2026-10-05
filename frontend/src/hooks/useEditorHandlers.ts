@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useCallback } from 'react';
 import { waitForExportContent } from '@/lib/exportPreparation';
-import { exportPDF, exportHTML, exportEPUB, exportPNG, exportDOCX } from '@/lib/exportHandlers';
+import { exportPDF, exportHTML, exportEPUB, exportPNG, exportDOCX, exportHWPX } from '@/lib/exportHandlers';
 import { DEFAULT_PROFILE } from "@/constants/cssProfile";
 import { vfsWriteFile } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
@@ -969,6 +969,10 @@ export const useEditorHandlers = ({
       if (!previewRef.current) return;
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
       await exportEPUB({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, dynamicCssString, backgroundColor: activeProfile.pageStyle.backgroundColor, activeProfile });
+    },
+    exportHWPX: async () => {
+      if (!await prepareEditorForExport() || !previewRef.current) return;
+      await exportHWPX({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, activeProfile: profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE });
     },
     exportDOCX: async () => {
       if (!await prepareEditorForExport()) return;

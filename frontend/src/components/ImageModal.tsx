@@ -1,6 +1,8 @@
 // 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 전역 미디어 실시간 연동 강화]: getEffectiveResourceFolder 연동 및 구글 드라이브(OnriviAuthor/참조파일/media) 업로드 지원
 "use client";
 
+import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
+import { idb } from '@/lib/indexedDbHelper';
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Image as ImageIcon, Upload, Link as LinkIcon, Eye } from 'lucide-react';
@@ -8,7 +10,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { loadSecureData } from '@/lib/secureStorage';
 import { getEffectiveResourceFolder } from '@/lib/profileStorage';
-import { getSavedDriveToken, getSavedWorkspaceInfo, uploadDriveImage } from '@/lib/gdrive/googleDriveClient';
+import { getSavedDriveToken, getSavedWorkspaceInfo, uploadDriveImage, getDriveMediaImageBlobUrl } from '@/lib/gdrive/googleDriveClient';
 import { MediaAlignmentControl, MediaSizeInputs, type MediaAlign } from '@/components/MediaLayoutFields';
 
 interface ImageModalProps {
@@ -68,6 +70,30 @@ export default function ImageModal({
   const [mounted, setMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sourceInputRef = useRef<HTMLInputElement>(null);
+  const [browsingDrive,setBrowsingDrive]=useState(false);
+  const guardResource=()=>{try {requireResourceSettings();return true;}catch(e:any){onClose();showToast?.(e.message,'error');return false;}};
+  const browseSource=async()=>{
+    if(!guardResource())return;
+    const drive=getResourceSettings()?.kind === 'drive';
+    if(!drive){fileInputRef.current?.click();return;}
+    if(browsingDrive)return;
+    setBrowsingDrive(true);
+    try {
+      const token=getSavedDriveToken(),info=getSavedWorkspaceInfo();
+      if(!token||!info?.resourceFolderId)throw new Error('구글 드라이브를 먼저 연결해 주세요.');
+      const {pickDriveResourceImage}=await import('@/lib/gdrive/ResourceFilePicker');
+      const file=await pickDriveResourceImage(token,info.resourceFolderId);
+      if(!file)return;
+      const sourcePath=`/media/${encodeURIComponent(file.name)}?driveId=${encodeURIComponent(file.id)}`;
+      const preview=await getDriveMediaImageBlobUrl(token,info.mediaFolderId,sourcePath);
+      if(!preview)throw new Error('선택한 이미지를 불러오지 못했습니다.');
+      const blob=await (await fetch(preview)).blob();
+      const uploaded=await uploadDriveImage(token,info.mediaFolderId,blob,file.name);
+      const path=`/media/${encodeURIComponent(uploaded.name)}?driveId=${encodeURIComponent(uploaded.id)}`;
+      setImagePath(path);setAppliedPath(path);setTempPreviewUrl(preview);setImageLoadError(false);
+    }catch(e){showToast?.(e instanceof Error?e.message:'파일 선택 실패','error');}
+    finally{setBrowsingDrive(false);}
+  };
 
 
   useEffect(() => {
@@ -102,11 +128,13 @@ export default function ImageModal({
   }, [isOpen]);
 
   const handleLocalImageSave = async (base64Data: string, fileName: string, imageFile: File) => {
+    try {
+    requireResourceSettings();
     let finalPath = '';
     const api = (window as any).electronAPI;
 
     // ☁️ [Google Drive 작업장 및 리소스 폴더 지원]
-    const isDriveTarget = workspaceType === 'cloud' || rootFolder?.type === 'GDRIVE' || (typeof window !== 'undefined' && (localStorage.getItem('workspaceType') === 'cloud' || (localStorage.getItem('onrivi_resource_folder_path') || '').startsWith('OnriviAuthor')));
+    const isDriveTarget = getResourceSettings()?.kind === 'drive';
     if (isDriveTarget) {
       const token = getSavedDriveToken();
       const wsInfo = getSavedWorkspaceInfo();
@@ -115,19 +143,20 @@ export default function ImageModal({
         try {
           const uploaded = await uploadDriveImage(token, mediaFolderId, imageFile, fileName);
           if (uploaded?.id) {
-            finalPath = `/media/${fileName}`;
+            finalPath = `/media/${encodeURIComponent(uploaded.name)}?driveId=${encodeURIComponent(uploaded.id)}`;
             return finalPath;
           }
         } catch (e) {
-          console.error('[ImageModal GDrive upload error]', e);
+          throw e;
         }
       }
+      throw new Error('드라이브 리소스 폴더 연결을 확인해 주세요.');
     }
     
     if (api) {
       // 💡 [Desktop] targetFolder prop 대신 항상 최신 유효 resourceFolder를 읽어 사용
       const freshResourceFolder = getEffectiveResourceFolder(resourceFolder);
-      let effectiveTargetFolder = targetFolder || '';
+      let effectiveTargetFolder = '';
       if (freshResourceFolder) {
         const sep = freshResourceFolder.includes('\\') ? '\\' : '/';
         effectiveTargetFolder = freshResourceFolder + sep + 'media';
@@ -144,42 +173,41 @@ export default function ImageModal({
       }
     } else if (workspaceType === 'browser' || workspaceType === 'local') {
       try {
-        if (resourceFolderHandle) {
-          const mediaDir = await resourceFolderHandle.getDirectoryHandle('media', { create: true });
+        const settings = getResourceSettings();
+        let handle = resourceFolderHandle || (window as any).__resourceFolderHandle;
+        if (!handle || handle.name !== settings?.path) handle = await idb.get('resourceFolderHandle');
+        if (settings?.kind === 'browser' && handle?.name === settings.path) {
+          const options = { mode: 'readwrite' };
+          let permission = await handle.queryPermission(options);
+          if (permission !== 'granted') permission = await handle.requestPermission(options);
+          if (permission !== 'granted') throw new Error('리소스 폴더 접근 권한을 다시 설정해 주세요.');
+          (window as any).__resourceFolderHandle = handle;
+          const mediaDir = await handle.getDirectoryHandle('media', { create: true });
           const fileHandle = await mediaDir.getFileHandle(fileName, { create: true });
           const writable = await fileHandle.createWritable();
           await writable.write(imageFile);
           await writable.close();
           finalPath = `/media/${fileName}`;
-        } else if (rootFolder?.handle) {
-          const assetsDir = 'assets';
-          const assetsHandle = await rootFolder.handle.getDirectoryHandle(assetsDir, { create: true });
-          const fileHandle = await assetsHandle.getFileHandle(fileName, { create: true });
-          const writable = await fileHandle.createWritable();
-          await writable.write(imageFile);
-          await writable.close();
-          finalPath = `/${assetsDir}/${fileName}`;
-        } else {
-          const assetsDir = 'assets';
-          const { vfsWriteFile } = await import('@/lib/virtualFileSystem');
-          const imgPath = `${assetsDir}/${fileName}`;
-          vfsWriteFile(imgPath, base64Data);
-          finalPath = `/${imgPath}`;
-        }
+        } else { throw new Error('리소스 폴더 접근 권한을 다시 설정해 주세요.'); }
       } catch (e) {
-        console.error('로컬 이미지 저장 실패', e);
+        throw e;
       }
     }
 
     if (finalPath) {
       setImagePath(finalPath);
       setAppliedPath(finalPath);
-      if (showToast) showToast('로컬 assets 폴더에 저장되었습니다.', 'success');
-    } else {
-      const blobPreview = URL.createObjectURL(imageFile);
-      setTempPreviewUrl(blobPreview);
-      setImagePath(blobPreview);
-      if (showToast) showToast('이미지 로컬 저장 실패 (임시 렌더링)', 'error');
+      if (showToast) showToast('리소스 폴더의 media에 저장되었습니다.', 'success');
+    } else { throw new Error('리소스 폴더에 이미지를 저장하지 못했습니다.'); }
+    return finalPath;
+    } catch (error) {
+      setTempPreviewUrl('');
+      const message = error instanceof Error ? error.message : '이미지를 저장하지 못했습니다.';
+      showToast?.(message, 'error');
+      if (getResourceSettings()?.kind === 'browser') {
+        window.dispatchEvent(new CustomEvent('onrivi:resource-settings'));
+      }
+      return '';
     }
   };
 
@@ -293,170 +321,43 @@ export default function ImageModal({
   }, [imagePath]);
 
   useEffect(() => {
-    let active = true;
-    let createdBlob = '';
-    
-    setLocalBlobUrl('');
-    
-    if (!cleanImagePath) return;
-    const isExternal = cleanImagePath.startsWith('http://') || cleanImagePath.startsWith('https://') || cleanImagePath.startsWith('data:') || cleanImagePath.startsWith('blob:') || cleanImagePath.startsWith('media://');
-    if (isExternal) return;
-    
-    const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
-    if (api) return;
-    
-    if (workspaceType !== 'browser' && workspaceType !== 'local') {
-      setLocalBlobUrl(`/api/view?filePath=${encodeURIComponent(cleanImagePath)}`);
-      return;
-    }
-
-    const loadLocal = async () => {
+    let active=true;let createdBlob='';setLocalBlobUrl('');
+    if(!cleanImagePath || /^(https?:|data:|blob:|media:|media-local:)/.test(cleanImagePath))return;
+    const load=async()=>{
       try {
-        if ((cleanImagePath.startsWith('/media/') || cleanImagePath.startsWith('./media/')) && resourceFolderHandle) {
-          const fileName = cleanImagePath.replace(/^\.?\/media\//, '');
-          const mediaDir = await resourceFolderHandle.getDirectoryHandle('media');
-          const fileHandle = await mediaDir.getFileHandle(fileName);
-          const file = await fileHandle.getFile();
-          createdBlob = URL.createObjectURL(file);
-          if (active) setLocalBlobUrl(createdBlob);
-          return;
+        const settings=requireResourceSettings();
+        if(settings.kind==='drive') {
+          const token=getSavedDriveToken();if(!token || !settings.mediaFolderId)throw new Error('드라이브 연결을 확인해 주세요.');
+          const url=await getDriveMediaImageBlobUrl(token,settings.mediaFolderId,cleanImagePath);if(!url)throw new Error('리소스 폴더에서 이미지를 찾지 못했습니다.');
+          if(active)setLocalBlobUrl(url);return;
         }
-
-        let pathParts = cleanImagePath.split(/[/\\]/).filter(Boolean);
-        if (rootFolder?.handle) {
-          if (pathParts[0] === rootFolder.name) pathParts.shift();
-          let currentHandle = rootFolder.handle;
-          for (let i = 0; i < pathParts.length - 1; i++) {
-            currentHandle = await currentHandle.getDirectoryHandle(pathParts[i]);
-          }
-          const fileHandle = await currentHandle.getFileHandle(pathParts[pathParts.length - 1]);
-          const file = await fileHandle.getFile();
-          createdBlob = URL.createObjectURL(file);
-          if (active) setLocalBlobUrl(createdBlob);
-        } else {
-          const { vfsReadFile } = await import('@/lib/virtualFileSystem');
-          const cleanVfsPath = cleanImagePath.startsWith('/') ? cleanImagePath.substring(1) : cleanImagePath;
-          const b64 = vfsReadFile(cleanVfsPath);
-          if (b64 && active) setLocalBlobUrl(`data:image/png;base64,${b64}`);
-        }
-      } catch (e) {
-        if (active) setLocalBlobUrl(`/api/view?filePath=${encodeURIComponent(cleanImagePath)}`);
-      }
+        if((window as any).electronAPI)return;
+        if(!resourceFolderHandle || resourceFolderHandle.name!==settings.path)throw new Error('리소스 폴더 접근 권한을 다시 설정해 주세요.');
+        const parts=decodeURIComponent(cleanImagePath.split('?')[0]).replace(/^\.?\//,'').split('/').filter(Boolean);
+        let dir=resourceFolderHandle;for(const part of parts.slice(0,-1))dir=await dir.getDirectoryHandle(part);
+        const file=await (await dir.getFileHandle(parts[parts.length-1])).getFile();createdBlob=URL.createObjectURL(file);if(active)setLocalBlobUrl(createdBlob);
+      }catch(error){if(active)setImageLoadError(true);}
     };
-    loadLocal();
-    return () => {
-      active = false;
-      if (createdBlob) URL.revokeObjectURL(createdBlob);
-    };
-  }, [cleanImagePath, workspaceType, rootFolder, resourceFolderHandle]);
+    void load();return()=>{active=false;if(createdBlob)URL.revokeObjectURL(createdBlob);};
+  },[cleanImagePath,resourceFolder,resourceFolderHandle]);
 
   const previewSrc = useMemo(() => {
-    if (tempPreviewUrl) {
-      return tempPreviewUrl;
+    if(tempPreviewUrl)return tempPreviewUrl;
+    if(!cleanImagePath)return '';
+    if(/^(https?:|data:|blob:|media:|media-local:)/.test(cleanImagePath))return cleanImagePath;
+    const settings=getResourceSettings();if(!settings)return '';
+    if(settings.kind==='drive')return localBlobUrl;
+    if((window as any).electronAPI) {
+      const folder=getEffectiveResourceFolder(resourceFolder);
+      const relative=decodeURIComponent(cleanImagePath.split('?')[0]).replace(/^\.?[\\/]/,'');
+      const absolute=/^[A-Za-z]:[\\/]/.test(relative)?relative:folder.replace(/[\\/]$/,'')+'/'+relative;
+      return `media-local://serve?url=${encodeURIComponent(absolute)}`;
     }
-
-    if (!cleanImagePath) return "";
-
-    // 💡 [데스크탑 가드] 이미 만료된 blob URL은 로딩 시 net::ERR_UPLOAD_FILE_CHANGED 에러를 대량 유발하므로 즉시 차단
-    const isDesktop = typeof window !== 'undefined' && (window as any).electronAPI;
-    if (isDesktop && cleanImagePath.startsWith('blob:')) {
-      return "";
-    }
-
-    const isExternal = cleanImagePath.startsWith('http://') || cleanImagePath.startsWith('https://') || cleanImagePath.startsWith('data:') || cleanImagePath.startsWith('blob:');
-    if (isExternal) return cleanImagePath;
-
-    if (cleanImagePath.startsWith('media://')) {
-      if (cleanImagePath.startsWith('media://?url=')) {
-        return cleanImagePath.replace('media://?url=', 'media://local/serve?url=');
-      }
-      return cleanImagePath;
-    }
-
-    if (cleanImagePath.startsWith('/api/image/')) {
-      if ((window as any).electronAPI) return `https://onrivi.com${cleanImagePath}`;
-      return cleanImagePath;
-    }
-
-    let absolutePath = cleanImagePath;
-    if (typeof window !== 'undefined' && (window as any).electronAPI) {
-      const isMediaOrAssets = cleanImagePath.startsWith('/media/') || cleanImagePath.startsWith('./media/') || cleanImagePath.startsWith('/assets/') || cleanImagePath.startsWith('./assets/');
-      const isRootRelative = cleanImagePath.startsWith('/');
-      
-      if (isMediaOrAssets) {
-        const freshRF = loadSecureData<string>('resourceFolder') || resourceFolder;
-        if (freshRF) {
-          const sep = freshRF.includes('\\') ? '\\' : '/';
-          const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
-          const strippedPath = cleanImagePath.startsWith('./') ? cleanImagePath.substring(1) : cleanImagePath;
-          const normalizedSrc = sep === '\\' ? strippedPath.replace(/\//g, '\\') : strippedPath;
-          absolutePath = cleanRoot + normalizedSrc;
-        } else if (targetFolder) {
-          const sep = targetFolder.includes('\\') ? '\\' : '/';
-          // targetFolder가 .md 파일이면 폴더로 잘라냄
-          let rawDir = targetFolder;
-          if (rawDir.endsWith('.md') || rawDir.endsWith('.markdown')) {
-            rawDir = rawDir.substring(0, Math.max(rawDir.lastIndexOf('\\'), rawDir.lastIndexOf('/')));
-          }
-          const cleanRoot = rawDir.endsWith(sep) ? rawDir.slice(0, -1) : rawDir;
-          const strippedPath = cleanImagePath.startsWith('./') ? cleanImagePath.substring(1) : cleanImagePath;
-          const normalizedSrc = sep === '\\' ? strippedPath.replace(/\//g, '\\') : strippedPath;
-          absolutePath = cleanRoot + normalizedSrc;
-        }
-      } else {
-        const isAbsoluteWin = /^[a-zA-Z]:[\\/]/.test(cleanImagePath);
-        const isAbsoluteUnix = cleanImagePath.startsWith('/');
-        const isAbsolute = isAbsoluteWin || isAbsoluteUnix;
-
-        if (!isAbsolute && targetFolder) {
-          const sep = targetFolder.includes('\\') ? '\\' : '/';
-          let rawDir = targetFolder;
-          if (rawDir.endsWith('.md') || rawDir.endsWith('.markdown')) {
-            rawDir = rawDir.substring(0, Math.max(rawDir.lastIndexOf('\\'), rawDir.lastIndexOf('/')));
-          }
-          const cleanRoot = rawDir.endsWith(sep) ? rawDir.slice(0, -1) : rawDir;
-          const normalizedSrc = sep === '\\' ? cleanImagePath.replace(/\//g, '\\') : cleanImagePath;
-          absolutePath = cleanRoot + sep + normalizedSrc;
-        } else if (isRootRelative && targetFolder) {
-          // 일반적인 /images/ 류의 루트 상대경로 처리
-          const sep = targetFolder.includes('\\') ? '\\' : '/';
-          let rawDir = targetFolder;
-          if (rawDir.endsWith('.md') || rawDir.endsWith('.markdown')) {
-            rawDir = rawDir.substring(0, Math.max(rawDir.lastIndexOf('\\'), rawDir.lastIndexOf('/')));
-          }
-          const cleanRoot = rawDir.endsWith(sep) ? rawDir.slice(0, -1) : rawDir;
-          const normalizedSrc = sep === '\\' ? cleanImagePath.replace(/\//g, '\\') : cleanImagePath;
-          absolutePath = cleanRoot + normalizedSrc;
-        }
-      }
-    }
-
-    if (workspaceType === 'browser' || workspaceType === 'local') {
-      if (localBlobUrl) {
-        return localBlobUrl;
-      }
-    }
-    
-    if (absolutePath.startsWith('http') || absolutePath.startsWith('data:') || absolutePath.startsWith('blob:')) {
-      return absolutePath;
-    }
-    
-    if (typeof window !== 'undefined' && (window as any).electronAPI) {
-      return `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
-    }
-
-    if (workspaceType === 'browser' || workspaceType === 'local') {
-      return localBlobUrl;
-    }
-
-    return cleanImagePath;
-  }, [cleanImagePath, targetFolder, localBlobUrl, workspaceType, resourceFolder, tempPreviewUrl]);
-
-  useEffect(() => {
-    setImageLoadError(false);
-  }, [previewSrc]);
+    return localBlobUrl;
+  },[cleanImagePath,localBlobUrl,resourceFolder,tempPreviewUrl]);
 
   const handleInsert = () => {
+    if(!guardResource())return;
     const insertPath = appliedPath || cleanImagePath;
     if (insertPath) {
       let finalPath = insertPath;
@@ -479,12 +380,13 @@ export default function ImageModal({
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if(!guardResource())return;
     const file = event.target.files?.[0];
     if (file) {
       const api = (window as any).electronAPI;
       
       // 💡 [데스크탑 환경] Web Security 샌드박스를 우회하고 파일 잠금 에러를 원천 방지하기 위해 media:// 프로토콜 활용
-      if (api && (file as any).path) {
+      if (api && (file as any).path && getResourceSettings()?.kind === 'local') {
         const filePath = (file as any).path;
         
         // 1. 즉시 media:// 주소로 미리보기 설정 (FileReader 호출 없음 -> ERR_UPLOAD_FILE_CHANGED 원천 예방)
@@ -496,17 +398,6 @@ export default function ImageModal({
         let targetDir = '';
         if (freshResourceFolder) {
           targetDir = freshResourceFolder + (freshResourceFolder.includes('\\') ? '\\media' : '/media');
-        } else if (targetFolder) {
-          let rawDir = targetFolder;
-          if (rawDir.endsWith('.md') || rawDir.endsWith('.markdown')) {
-            rawDir = rawDir.substring(0, Math.max(rawDir.lastIndexOf('\\'), rawDir.lastIndexOf('/')));
-          }
-          const folderName = rawDir.substring(Math.max(rawDir.lastIndexOf('\\'), rawDir.lastIndexOf('/')) + 1).toLowerCase();
-          if (folderName !== 'assets' && folderName !== 'media') {
-            targetDir = rawDir + (rawDir.includes('\\') ? '\\assets' : '/assets');
-          } else {
-            targetDir = rawDir;
-          }
         }
 
         if (targetDir) {
@@ -642,7 +533,7 @@ export default function ImageModal({
                 />
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
                 <button
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={browseSource}
                   className={`px-4 py-2.5 border rounded font-bold text-xs transition-colors shrink-0 ${
                     isDarkMode
                       ? 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white'

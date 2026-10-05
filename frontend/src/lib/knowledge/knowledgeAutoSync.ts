@@ -9,6 +9,7 @@
 // 🔗 @CALLS : crypto-js, ./knowledgeWorker, @/utils/toast
 // ====================================================================
 
+import { getResourceSettings } from '@/lib/resourceSettings';
 import CryptoJS from 'crypto-js';
 import { KnowledgeWorkerEngine } from './knowledgeWorker';
 import { showToast } from '@/utils/toast';
@@ -121,8 +122,9 @@ export async function triggerKnowledgeAutoSyncOnSave(params: AutoSyncParams): Pr
   }
 
   // 5. 환경설정 값 로드
-  const rawFolder = params.resourceFolder || loadSecureData<string>('resourceFolder') || localStorage.getItem('resourceFolder') || localStorage.getItem('onrivi_resource_folder') || 'Onrivi_Asset';
-  const resourceFolder = rawFolder.startsWith('U2FsdGVkX1') ? 'Onrivi_Asset' : rawFolder;
+  const resource=getResourceSettings();
+  if(!resource || resource.kind==='drive')return {enqueued:false,reason:'RESOURCE_FOLDER_NOT_SET',targetHash};
+  const resourceFolder=resource.path;
   const geminiApiKey = params.geminiApiKey || localStorage.getItem('onrivi_gemini_api_key') || '';
   const aiModelName = params.aiModelName || localStorage.getItem('onrivi_ai_model_name') || 'gemini-3.8-flash';
   const planCode = params.planCode || 'ELITEPRO';

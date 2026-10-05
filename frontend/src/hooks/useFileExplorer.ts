@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { getResourceSettings, saveResourceSettings } from '@/lib/resourceSettings';
 import { useEffect, useCallback, useRef } from 'react';
 import { FileNode, scanDirectory, idb } from '@/lib/indexedDbHelper';
 import { getVfsFiles, vfsReadFile, vfsWriteFile } from '@/lib/virtualFileSystem';
@@ -279,13 +280,7 @@ export const useFileExplorer = ({
             localStorage.setItem('workspaceType', 'local');
 
             // 📁 로컬 작업장 복귀 시 리소스 폴더가 구글 드라이브였으면 로컬 작업장 참조파일로 원상복구
-            const currentRf = localStorage.getItem('onrivi_resource_folder_path') || '';
-            const backupRf = localStorage.getItem('onrivi_local_backup_resource_folder_path') || '';
-            const localRf = backupRf && !backupRf.startsWith('OnriviAuthor') ? backupRf : `${normFinalRoot}/참조파일`;
-            if (!currentRf || currentRf.startsWith('OnriviAuthor')) {
-              localStorage.setItem('onrivi_resource_folder_path', localRf);
-              window.dispatchEvent(new CustomEvent('onrivi:resource_folder_changed', { detail: localRf }));
-            }
+            saveResourceSettings(getResourceSettings('local'));
 
             setTabs([]);
             setActiveTabId(null);
@@ -343,13 +338,7 @@ export const useFileExplorer = ({
           localStorage.setItem('workspaceType', 'browser');
 
           // 📁 로컬 작업장 복귀 시 리소스 폴더가 구글 드라이브였으면 로컬 작업장 참조파일로 원상복구
-          const currentRf = localStorage.getItem('onrivi_resource_folder_path') || '';
-          const backupRf = localStorage.getItem('onrivi_local_backup_resource_folder_path') || '';
-          const localRf = backupRf && !backupRf.startsWith('OnriviAuthor') ? backupRf : `${absolutePath}/참조파일`;
-          if (!currentRf || currentRf.startsWith('OnriviAuthor')) {
-            localStorage.setItem('onrivi_resource_folder_path', localRf);
-            window.dispatchEvent(new CustomEvent('onrivi:resource_folder_changed', { detail: localRf }));
-          }
+          saveResourceSettings(getResourceSettings('local'));
           setTabs([]);
           setActiveTabId(null);
           setContent('');
@@ -1544,7 +1533,11 @@ export const useFileExplorer = ({
       const selectedFolder = await selectOnriviWorkspaceFolder(token, !chooseFolder);
       if (!selectedFolder) return;
       showToast('선택한 작업장에 연결 중...', 'info');
-      const wsInfo = await setupOnriviDriveWorkspace(token, selectedFolder);
+      const {pickDriveResourceFolder}=await import('@/lib/gdrive/ResourceFilePicker');
+      const {restoreDriveResourceFolder}=await import('@/lib/gdrive/restoreResourceFolder');
+      const selectedResource=await restoreDriveResourceFolder(token) || await pickDriveResourceFolder(token);
+      if (!selectedResource) { window.dispatchEvent(new CustomEvent('onrivi:resource-settings')); return; }
+      const wsInfo = await setupOnriviDriveWorkspace(token, selectedFolder, selectedResource.id);
       const driveNodes = await fetchDriveFileNodes(token, selectedFolder.id);
 
       // Back up only when leaving local storage; cloud folder changes must not overwrite it.
@@ -1584,8 +1577,7 @@ export const useFileExplorer = ({
       localStorage.setItem('onrivi_workspace_path', gdriveFolder.path);
 
       // 3. 환경설정 공통 리소스 폴더를 구글 드라이브 OnriviAuthor/참조파일 로 자동 동기화
-      localStorage.setItem('onrivi_resource_folder_path', 'OnriviAuthor/참조파일');
-      window.dispatchEvent(new CustomEvent('onrivi:resource_folder_changed', { detail: 'OnriviAuthor/참조파일' }));
+      saveResourceSettings({kind:'drive',path:`gdrive://${selectedResource.id}/${selectedResource.name}`,folderId:wsInfo.resourceFolderId,profilesFolderId:wsInfo.profilesFolderId,promptFolderId:wsInfo.promptFolderId,bibleFolderId:wsInfo.bibleFolderId,mediaFolderId:wsInfo.mediaFolderId,dbFolderId:wsInfo.dbFolderId});
 
       // 4. 탐색기 목록 0초 즉각 렌더링
       setFileList(driveNodes);
@@ -1659,17 +1651,10 @@ export const useFileExplorer = ({
         localStorage.removeItem('onrivi_workspace_path');
       }
 
-      if (backupRf) {
-        localStorage.setItem('onrivi_resource_folder_path', backupRf);
-        window.dispatchEvent(new CustomEvent('onrivi:resource_folder_changed', { detail: backupRf }));
-      } else {
-        localStorage.removeItem('onrivi_resource_folder_path');
-        window.dispatchEvent(new CustomEvent('onrivi:resource_folder_changed', { detail: '' }));
-      }
-
       const lastWsType = localStorage.getItem('onrivi_last_local_workspace_type') || ((window as any).electronAPI ? 'local' : 'browser');
-      setWorkspaceType(lastWsType);
-      localStorage.setItem('workspaceType', lastWsType);
+      setWorkspaceType(lastWsType);localStorage.setItem('workspaceType',lastWsType);
+      const localResource=getResourceSettings('local');
+      saveResourceSettings(localResource);
 
       restoreEnvironment(localEnvironmentRef.current);
       setIsSidebarOpen(true);

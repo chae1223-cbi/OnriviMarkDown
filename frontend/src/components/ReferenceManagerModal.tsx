@@ -5,6 +5,10 @@ import { createPortal } from 'react-dom';
 import { X, Save, FileText, Database, Plus, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
 import { loadSecureData } from '@/lib/secureStorage';
+import { pickResourceTextFile } from '@/lib/gdrive/ResourceFilePicker';
+import { getSavedDriveToken, getSavedWorkspaceInfo, listDriveChildren, readDriveFileContent, ensureDriveTextFile, saveDriveFileContent } from '@/lib/gdrive/googleDriveClient';
+import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
+import { getEffectiveResourceFolder } from '@/lib/profileStorage';
 import { vfsWriteFile } from '@/lib/virtualFileSystem';
 
 interface ReferenceManagerModalProps {
@@ -22,6 +26,7 @@ interface BibFile {
   path?: string;
   handle?: any;
   content: string;
+  driveId?: string;
 }
 
 // ====================================================================
@@ -59,13 +64,21 @@ export default function ReferenceManagerModal({
     setMounted(true);
   }, []);
 
+  const isDrive = getResourceSettings()?.kind === 'drive';
+  const importReference = async () => { try { requireResourceSettings(); const f = await pickResourceTextFile('.bib',getSavedWorkspaceInfo()?.bibleFolderId,isDrive); if(f) {setSelectedFile(null);setIsCreatingNew(true);setFileName(f.name);setContent(f.content);} } catch(e:any) {showToast(e.message,'error');} };
   const loadBibFiles = useCallback(async () => {
     try {
       const api = (window as any).electronAPI;
-      const freshResourceFolder = loadSecureData<string>('resourceFolder') || resourceFolder;
+      const freshResourceFolder = getEffectiveResourceFolder(resourceFolder);
       const loadedFiles: BibFile[] = [];
 
-      if (api && freshResourceFolder) {
+      if (isDrive) {
+        const token=getSavedDriveToken(); const folder=getSavedWorkspaceInfo()?.bibleFolderId;
+        if (!token || !folder) throw new Error('드라이브 참고문헌 폴더 연결이 필요합니다.');
+        for (const f of await listDriveChildren(token,folder)) {
+          if (!f.isFolder && /\.bib$/i.test(f.name)) loadedFiles.push({name:f.name,driveId:f.id,content:await readDriveFileContent(token,f.id)});
+        }
+      } else if (api && freshResourceFolder) {
         // Desktop
         try {
           try {
@@ -104,30 +117,12 @@ export default function ReferenceManagerModal({
         } catch (e) {
           console.error("Browser resource folder bible load error", e);
         }
-      } else if (rootFolder?.handle) {
-        // Fallback Browser Root
-        try {
-          const bibleHandle = await rootFolder.handle.getDirectoryHandle('bible', { create: true });
-          for await (const [name, handle] of bibleHandle.entries()) {
-            if (handle.kind === 'file' && name.toLowerCase().endsWith('.bib')) {
-              const file = await handle.getFile();
-              const text = await file.text();
-              loadedFiles.push({
-                name,
-                handle,
-                content: text
-              });
-            }
-          }
-        } catch (e) {
-          console.error("Browser root folder bible load error", e);
-        }
       }
       setBibFiles(loadedFiles);
     } catch (e) {
       console.error("[loadBibFiles] Error loading bib files:", e);
     }
-  }, [resourceFolderHandle, rootFolder, resourceFolder]);
+  }, [resourceFolderHandle, resourceFolder, isDrive]);
 
   const handleCreateNew = useCallback(() => {
     setSelectedFile(null);
@@ -185,7 +180,11 @@ export default function ReferenceManagerModal({
     setIsDeleting(true);
     try {
       const api = (window as any).electronAPI;
-      if (api && file.path) {
+      if (file.driveId) {
+        const token=getSavedDriveToken(); if (!token) throw new Error('구글 드라이브를 다시 연결해 주세요.');
+        const response=await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.driveId)}`,{method:'DELETE',headers:{Authorization:`Bearer ${token}`}});
+        if (!response.ok) throw new Error(`드라이브 파일 삭제 실패 (${response.status})`);
+      } else if (api && file.path) {
         await api.deleteFile(file.path);
       } else if (resourceFolderHandle && file.handle) {
         const bibleHandle = await resourceFolderHandle.getDirectoryHandle('bible');
@@ -209,6 +208,7 @@ export default function ReferenceManagerModal({
   };
 
   const handleSave = async () => {
+    try {requireResourceSettings();}catch(e:any){onClose();showToast(e.message,'warning');return;}
     if (!fileName.trim()) {
       showToast("파일명을 입력해주세요.", "warning");
       return;
@@ -227,12 +227,19 @@ export default function ReferenceManagerModal({
     setIsSaving(true);
     try {
       const api = (window as any).electronAPI;
-      const freshResourceFolder = loadSecureData<string>('resourceFolder') || resourceFolder;
+      const freshResourceFolder = getEffectiveResourceFolder(resourceFolder);
 
       let saved = false;
+      let savedDriveId:string|undefined;
+      let savedHandle:any;
 
-      if (api) {
-        // 🖥️ 데스크탑: 무조건 로컬(resourceFolder) 저장
+      if (isDrive) {
+        const token=getSavedDriveToken();const folder=getSavedWorkspaceInfo()?.bibleFolderId;
+        if (!token || !folder) throw new Error('드라이브 참고문헌 폴더 연결이 필요합니다.');
+        const id=selectedFile?.driveId && selectedFile.name===finalFileName ? selectedFile.driveId : await ensureDriveTextFile(token,finalFileName,folder,content);
+        saved=await saveDriveFileContent(token,id,content); savedDriveId=id;
+      } else if (api) {
+        // 🖥️ 데스크탑: 로컬 저장
         if (!freshResourceFolder) {
           showToast("먼저 리소스 폴더를 설정해주세요.", "warning");
           setIsSaving(false);
@@ -258,26 +265,10 @@ export default function ReferenceManagerModal({
             const writable = await fileHandle.createWritable();
             await writable.write(content);
             await writable.close();
+            savedHandle=fileHandle;
             saved = true;
-          } else if (rootFolder?.handle) {
-            // 폴백: 루트 폴더에 저장
-            const bibleHandle = await rootFolder.handle.getDirectoryHandle('bible', { create: true });
-            const fileHandle = await bibleHandle.getFileHandle(finalFileName, { create: true });
-            const writable = await fileHandle.createWritable();
-            await writable.write(content);
-            await writable.close();
-            saved = true;
-            showToast("리소스 폴더가 없어 워크스페이스 루트의 bible 폴더에 저장되었습니다.", "info");
-          } else {
-            // VFS 폴백
-            vfsWriteFile(`/bible/${finalFileName}`, content);
-            saved = true;
-          }
-        } else {
-          // VFS 저장
-          vfsWriteFile(`/bible/${finalFileName}`, content);
-          saved = true;
-        }
+          } else { requireResourceSettings(); throw new Error('리소스 폴더 접근 권한을 다시 설정해 주세요.'); }
+        } else { throw new Error('리소스 폴더 연결을 확인해 주세요.'); }
       }
 
       if (saved) {
@@ -288,7 +279,7 @@ export default function ReferenceManagerModal({
         
         // Find and select the newly saved/updated file
         const apiForPath = (window as any).electronAPI;
-        const freshResFolderForPath = loadSecureData<string>('resourceFolder') || resourceFolder;
+        const freshResFolderForPath = getEffectiveResourceFolder(resourceFolder);
         setIsCreatingNew(false);
         setFileName(finalFileName);
         
@@ -296,7 +287,8 @@ export default function ReferenceManagerModal({
         setSelectedFile({
           name: finalFileName,
           content: content,
-          path: apiForPath ? `${freshResFolderForPath}\\bible\\${finalFileName}` : undefined
+          driveId:savedDriveId,handle:savedHandle,
+          path: getResourceSettings()?.kind === 'local' && apiForPath ? `${freshResFolderForPath}\\bible\\${finalFileName}` : undefined
         });
 
       } else {
@@ -345,6 +337,7 @@ export default function ReferenceManagerModal({
               <Plus className="w-4 h-4" />
               <span>새 파일 만들기</span>
             </button>
+              <button onClick={importReference} className="w-full rounded border p-2 mt-2">파일 가져오기 (OS / 드라이브)</button>
 
             <div className="my-2 border-t border-[#EFEFEF] dark:border-white/10" />
             

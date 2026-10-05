@@ -41,6 +41,8 @@
 // ====================================================================
 "use client";
 
+import { getEffectiveResourceFolder } from '@/lib/profileStorage';
+import { readResourceJson, writeResourceJson } from '@/lib/resourceJson';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon } from '@/components/icons/Icon';
 import { useToast } from '@/components/ToastProvider';
@@ -150,17 +152,7 @@ export default function AIDraftModal({
 }: AIDraftModalProps) {
   const { showToast } = useToast();
 
-  const effectiveResourceFolder = useMemo(() => {
-    let saved = resourceFolder ||
-      loadSecureData<string>('resourceFolder') ||
-      (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder_path') : '') ||
-      (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder') : '');
-    if (saved && saved.startsWith('U2FsdGVkX1')) {
-      const dec = loadSecureData<string>('resourceFolder');
-      saved = (dec && !dec.startsWith('U2FsdGVkX1')) ? dec : 'Onrivi_Asset';
-    }
-    return saved || 'Onrivi_Asset';
-  }, [resourceFolder]);
+  const effectiveResourceFolder = getEffectiveResourceFolder();
   const effectiveResourceFolderHandle = resourceFolderHandle;
 
   const isDesktop = useMemo(() => {
@@ -365,33 +357,18 @@ export default function AIDraftModal({
         docTypes: Object.keys(templates[domain])
       }));
     }
-    load();
+    void load().catch((error:any)=>showToast(error.message,'error'));
   // resourceFolder, resourceFolderHandle가 변경될 때 (e.g. 사용자가 폴더를 새로 선택) 템플릿을 다시 로드해야 함
-  }, [resourceFolder, resourceFolderHandle]);
+  }, [resourceFolder, resourceFolderHandle, showToast]);
 
   // Load presets on mount
   useEffect(() => {
     async function loadPresets() {
-      if (typeof window !== 'undefined' && (window as any).electronAPI) {
-        const saved = await (window as any).electronAPI.loadPresets(resourceFolder);
-        if (saved) {
-          setPresets(saved);
-        }
-      } else if (resourceFolderHandle) {
-        try {
-          const promptDir = await resourceFolderHandle.getDirectoryHandle('prompt');
-          const fileHandle = await promptDir.getFileHandle('ai_presets.json');
-          const file = await fileHandle.getFile();
-          const text = await file.text();
-          setPresets(JSON.parse(text));
-        } catch (e) {
-          // No presets file
-        }
-      }
+      try { const saved=await readResourceJson('ai_presets.json',resourceFolderHandle);if(Array.isArray(saved))setPresets(saved); }catch(e:any){showToast(e.message,'error');}
     }
     loadPresets();
   // resourceFolderHandle이 변경될 때도 프리셋을 다시 로드해야 함
-  }, [resourceFolder, resourceFolderHandle]);
+  }, [resourceFolder, resourceFolderHandle, showToast]);
 
   // Auto-Save Drafts logic
   const AI_DRAFT_CACHE_KEY = 'omd_ai_draft_cache';
@@ -464,50 +441,11 @@ export default function AIDraftModal({
       };
       updated = [...presets, newPreset];
     }
-    if (typeof window !== 'undefined' && (window as any).electronAPI) {
-      (window as any).electronAPI.savePresets(updated, resourceFolder).then((result: any) => {
-        if (result.success) {
-          setPresets(updated);
-          showToast("라이브러리가 저장되었습니다.", "success");
-          setIsSavingPreset(false);
-          setShowFolderDropdown(false);
-        } else {
-          if (result.error === 'NO_RESOURCE_FOLDER') {
-            showToast("리소스 폴더가 지정되지 않았거나 존재하지 않습니다. 환경설정에서 확인해주세요.", "error");
-          } else {
-            showToast("라이브러리 저장에 실패했습니다.", "error");
-          }
-          setIsSavingPreset(false);
-          setShowFolderDropdown(false);
-        }
-      }).catch(() => {
-        showToast("라이브러리 저장에 실패했습니다.", "error");
-        setIsSavingPreset(false);
-        setShowFolderDropdown(false);
-      });
-    } else if (resourceFolderHandle) {
-      resourceFolderHandle.getDirectoryHandle('prompt', { create: true })
-        .then((promptDir: any) => promptDir.getFileHandle('ai_presets.json', { create: true }))
-        .then((fileHandle: any) => fileHandle.createWritable())
-        .then(async (writable: any) => {
-          await writable.write(JSON.stringify(updated, null, 2));
-          await writable.close();
-          setPresets(updated);
-          showToast("라이브러리가 저장되었습니다.", "success");
-        })
-        .catch((e: any) => {
-          console.error(e);
-          showToast("라이브러리 저장에 실패했습니다: " + e.message, "error");
-        })
-        .finally(() => {
-          setIsSavingPreset(false);
-          setShowFolderDropdown(false);
-        });
-    } else {
-      showToast("리소스 폴더가 지정되지 않았습니다. 환경설정에서 확인해주세요.", "error");
-      setIsSavingPreset(false);
-      setShowFolderDropdown(false);
-    }
+    void writeResourceJson('ai_presets.json',updated,resourceFolderHandle).then(result=>{
+      if(result.success){setPresets(updated);showToast('라이브러리를 저장했습니다.','success');}
+      else showToast(result.error || '라이브러리 저장 실패','error');
+      setIsSavingPreset(false);setShowFolderDropdown(false);
+    });
   };
 
   const handleCancelSavePreset = () => {
@@ -546,32 +484,11 @@ export default function AIDraftModal({
   const handleDeletePreset = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     const updated = presets.filter(p => p.id !== id);
-    if (typeof window !== 'undefined' && (window as any).electronAPI) {
-      (window as any).electronAPI.savePresets(updated, resourceFolder).then((result: any) => {
-        if (result.success) {
-          setPresets(updated);
-          showToast("라이브러리가 삭제되었습니다.", "success");
-        } else {
-          showToast("라이브러리 삭제에 실패했습니다.", "error");
-        }
-      });
-    } else if (resourceFolderHandle) {
-      resourceFolderHandle.getDirectoryHandle('prompt', { create: true })
-        .then((promptDir: any) => promptDir.getFileHandle('ai_presets.json', { create: true }))
-        .then((fileHandle: any) => fileHandle.createWritable())
-        .then(async (writable: any) => {
-          await writable.write(JSON.stringify(updated, null, 2));
-          await writable.close();
-          setPresets(updated);
-          showToast("라이브러리가 삭제되었습니다.", "success");
-        })
-        .catch((e: any) => {
-          console.error(e);
-          showToast("라이브러리 삭제에 실패했습니다.", "error");
-        });
-    } else {
-      showToast("리소스 폴더가 지정되지 않았습니다.", "error");
-    }
+    void writeResourceJson('ai_presets.json',updated,resourceFolderHandle).then(result=>{
+      if(result.success){setPresets(updated);showToast('라이브러리를 저장했습니다.','success');}
+      else showToast(result.error || '라이브러리 저장 실패','error');
+      setIsSavingPreset(false);setShowFolderDropdown(false);
+    });
   };
 
   const handleStartRename = (e: React.MouseEvent, p: AIPreset) => {
@@ -594,32 +511,11 @@ export default function AIDraftModal({
   const renamePreset = (id: string, newName: string) => {
     const updated = presets.map(p => p.id === id ? { ...p, name: newName } : p);
     
-    if (typeof window !== 'undefined' && (window as any).electronAPI) {
-      (window as any).electronAPI.savePresets(updated, resourceFolder).then((result: any) => {
-        if (result.success) {
-          setPresets(updated);
-          showToast("라이브러리 이름이 변경되었습니다.", "success");
-        } else {
-          showToast("이름 변경에 실패했습니다.", "error");
-        }
-      });
-    } else if (resourceFolderHandle) {
-      resourceFolderHandle.getDirectoryHandle('prompt', { create: true })
-        .then((promptDir: any) => promptDir.getFileHandle('ai_presets.json', { create: true }))
-        .then((fileHandle: any) => fileHandle.createWritable())
-        .then(async (writable: any) => {
-          await writable.write(JSON.stringify(updated, null, 2));
-          await writable.close();
-          setPresets(updated);
-          showToast("라이브러리 이름이 변경되었습니다.", "success");
-        })
-        .catch((e: any) => {
-          console.error(e);
-          showToast("이름 변경에 실패했습니다.", "error");
-        });
-    } else {
-      showToast("리소스 폴더가 지정되지 않았습니다.", "error");
-    }
+    void writeResourceJson('ai_presets.json',updated,resourceFolderHandle).then(result=>{
+      if(result.success){setPresets(updated);showToast('라이브러리를 저장했습니다.','success');}
+      else showToast(result.error || '라이브러리 저장 실패','error');
+      setIsSavingPreset(false);setShowFolderDropdown(false);
+    });
   };
 
   const handleCancelRename = (e: React.MouseEvent) => {

@@ -2475,6 +2475,13 @@ export async function exportPDF({
       const printWindow = iframe.contentWindow;
       if (!printDocument || !printWindow) throw new Error('인쇄 문서를 준비하지 못했습니다.');
       await waitForExportResources(printDocument.body);
+      // Browser print destinations are user controlled; window.print has no
+      // destination parameter. Explain the required choice before opening it.
+      const proceed = window.confirm('PDF로 저장\n\n다음 창의 대상에서 브라우저의 “PDF로 저장”을 선택해 주세요.\nHancom PDF 같은 별도 PDF 프린터는 글자 검색·복사 정보를 잃을 수 있습니다.\n\n브라우저 설정상 앱이 이 대상을 자동 선택할 수는 없습니다.');
+      if (!proceed) {
+        cleanup();
+        return;
+      }
       printWindow.addEventListener('afterprint', cleanup, { once: true });
       // Safety cleanup for browsers that never dispatch afterprint; never remove immediately after print().
       setTimeout(cleanup, 300_000);
@@ -2485,7 +2492,7 @@ export async function exportPDF({
       throw error;
     }
 
-    showToast('PDF 인쇄 대화 상자가 정상적으로 호출되었습니다.', 'success');
+    showToast('인쇄 대상에서 “PDF로 저장”을 선택해 저장해 주세요.', 'info');
   } catch (err: any) {
     msg.error('PDF export error', err);
     showToast('PDF 내보내기 실패: ' + err.message, 'error');
@@ -3181,6 +3188,52 @@ export async function exportPNG({
 // 🚨 @PATCH : **2026-09-30** — MS Word (.docx) 내보내기 파이프라인 신설
 // 🔗 @CALLS : clonePreview, generateDocx, downloadBlob, saveToDownloads
 // ====================================================================
+export async function exportHWPX({ previewEl, currentFileName, showToast, activeProfile }: ExportOptions) {
+  let progress: ReturnType<typeof startExportProgress> | undefined;
+  try {
+    const api = (window as any).electronAPI;
+    const title = currentFileName.replace(/\.[^/.]+$/, '') || 'document';
+    const filename = `${title}.hwpx`;
+    let destination: string | undefined;
+    if (api?.showSaveDialog && api?.saveBinaryFile) {
+      const selection = await api.showSaveDialog({ title: '한글 문서 저장 위치 선택', defaultPath: filename, filters: [{ name: '한글 문서', extensions: ['hwpx'] }] });
+      if (selection.canceled || !selection.filePath) return;
+      destination = selection.filePath;
+    }
+    progress = startExportProgress('HWPX');
+    progress.update('미리보기 확인 중');
+    await prepareExportPreview(previewEl);
+    const target = (previewEl.querySelector('.markdown-viewer-root') as HTMLElement) || previewEl;
+    const clone = clonePreview(target, true);
+    progress.update('이미지 준비 중');
+    await inlineLocalImages(clone);
+    const { extractMediaFromElements } = await import('./exportMediaHelper');
+    const images = await extractMediaFromElements(target, clone);
+    progress.update('한글 문서 생성 중');
+    const { generateHwpx } = await import('./hwpxGenerator');
+    const blob = await generateHwpx(clone, { title, images, defaultFont: activeProfile?.pageStyle.fontFamily });
+    progress.update('파일 저장 중');
+    if (destination) {
+      await api.saveBinaryFile(destination, new Uint8Array(await blob.arrayBuffer()));
+    } else if (api?.saveFileAs) {
+      const data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('한글 문서 저장 데이터를 읽지 못했습니다.'));
+        reader.readAsDataURL(blob);
+      });
+      if (!await api.saveFileAs(data, filename, '', [{ name: '한글 문서', extensions: ['hwpx'] }])) return;
+    } else {
+      const { downloadBlob } = await import('./docxGenerator');
+      downloadBlob(blob, filename);
+    }
+    showToast('한글 문서(.hwpx) 내보내기가 완료되었습니다.', 'success');
+  } catch (error: any) {
+    msg.error('HWPX export error', error);
+    showToast('한글 문서 내보내기 실패: ' + error.message, 'error');
+  } finally { progress?.finish(); }
+}
+
 export async function exportDOCX({ previewEl, currentFileName, showToast, activeProfile }: ExportOptions) {
   try {
     showToast('Word 문서 (.docx) 생성 중...', 'info');

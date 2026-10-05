@@ -33,6 +33,8 @@
  * -----------------------------------------------------------------------
  */
 'use client';
+import { pickResourceTextFile } from '@/lib/gdrive/ResourceFilePicker';
+
 
 import React, { useState, useRef, useEffect } from 'react';
 import { 
@@ -254,6 +256,16 @@ export default function StyleManagerModal({
     }
   };
 
+  const handleBrowseProfile = async () => {
+    try {
+      const file = await pickResourceTextFile('.json'); if (!file) return;
+      const parsed = sanitizeAndParseCssProfileJson(file.content);
+      if (!parsed?.name || !parsed.pageStyle || !parsed.rules) throw new Error('올바른 Onrivi 서식 JSON이 아닙니다.');
+      const normalized = normalizeCssProfile(parsed, profiles);
+      onImportProfile?.(normalized); setSelectedId(normalized.id); onSelectProfile(normalized.id);
+      showToast(`서식 '${normalized.name}'을 가져왔습니다.`);
+    } catch(e:any) { showToast(e.message); }
+  };
   /* ─── 가져오기 (파일 올리기) ─── */
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1005,7 +1017,7 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
                 {importTab === 'file' ? (
                   /* 파일 업로드 모드 */
                   <div
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={handleBrowseProfile}
                     className={`border-2 border-dashed ${hairline} hover:border-[#1d4ed8] rounded-xl p-8 text-center cursor-pointer transition-all ${
                       dk ? 'bg-slate-900/40 hover:bg-slate-900/80' : 'bg-slate-50 hover:bg-blue-50/40'
                     } group`}

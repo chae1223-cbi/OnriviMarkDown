@@ -261,6 +261,7 @@ export default function MenuBar() {
       subItems: [
         { label: t('print'), icon: <Icon name="Print" size={14} />, onClick: () => dispatch('PRINT') },
         { label: t('docx'), icon: <Icon name="Document" size={14} />, onClick: () => dispatch('EXPORT_DOCX') },
+        { label: '한글 문서 (.hwpx)', icon: <Icon name="Document" size={14} />, onClick: () => dispatch('EXPORT_HWPX') },
         { divider: true },
         { label: t('html'), icon: <Icon name="FileCode" size={14} />, onClick: () => dispatch('EXPORT_HTML') },
         { label: t('epub'), icon: <Icon name="Book" size={14} />, onClick: () => dispatch('EXPORT_EPUB') },

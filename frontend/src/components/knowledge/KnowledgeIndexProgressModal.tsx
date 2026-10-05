@@ -10,6 +10,7 @@
 // 🔗 @CALLS : knowledgeClient.indexDocument, ensureClientAbsolutePath, knowledge:show-detail, knowledge:updated
 // ====================================================================
 
+import { requireResourceSettings } from '@/lib/resourceSettings';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, CheckCircle2, Sparkles, Tag, Layers, FileText, 
@@ -184,14 +185,7 @@ export const KnowledgeIndexProgressModal: React.FC<KnowledgeIndexProgressModalPr
       setProgressPercent(60);
 
       // 설정값 취득
-      const rawFolder = (
-        targetParams.resourceFolder ||
-        loadSecureData<string>('resourceFolder') ||
-        (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder_path') : '') ||
-        (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder') : '') ||
-        'Onrivi_Asset'
-      ).trim();
-      const resourceFolder = rawFolder.startsWith('U2FsdGVkX1') ? 'Onrivi_Asset' : rawFolder;
+      const resourceFolder=requireResourceSettings().path;
 
       const geminiApiKey = (
         targetParams.geminiApiKey ||

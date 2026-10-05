@@ -20,6 +20,7 @@
  * 🚨 @PATCH : **2026-07-06** — [시큐어코딩] 파일 및 폴더 생성 시 경로 탐색(Path Traversal) 공격 방지를 위해 생성명에서 슬래시(/) 및 백슬래시(\) 문자를 제거하는 정규식 필터 적용
  * -----------------------------------------------------------------------
  */
+import { requireResourceSettings } from '@/lib/resourceSettings';
 import React from 'react';
 
 // 각종 모달 컴포넌트 임포트
@@ -233,6 +234,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
           }
           if (format === 'print') handlers.print();
           else if (format === 'docx') handlers.exportDOCX();
+          else if (format === 'hwpx') handlers.exportHWPX();
           else if (format === 'html') handlers.exportHTML();
           else if (format === 'png') handlers.exportPNG();
           else if (format === 'epub') handlers.exportEPUB();
@@ -569,12 +571,15 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         aiModelName={aiModelName}
         currentDocContent={content}
         onSelectProfile={setActiveProfileId}
-        onUpdateProfile={(updated: any) => setProfiles((prev: any) =>
+        onUpdateProfile={(updated: any) => {
+          try {requireResourceSettings();}catch(error:any){showToast(error.message,'warning');return;}
+          setProfiles((prev: any) =>
           isSystemProfileId(updated.id) || updated.id === 'default'
             ? prev
             : prev.map((p: any) => p.id === updated.id && !isSystemProfileId(p.id) ? updated : p)
-        )}
+        );}}
         onAddProfile={() => {
+          try {requireResourceSettings();}catch(error:any){showToast(error.message,'warning');return;}
           const newId = 'profile-' + Date.now();
           const count = profiles.filter((p: any) => !isSystemProfileId(p.id)).length + 1;
           const created = normalizeCssProfile({
@@ -593,6 +598,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
           }
         }}
         onImportProfile={(imported: any) => {
+          try {requireResourceSettings();}catch(error:any){showToast(error.message,'warning');return;}
           // 💡 [OMD-PATCH] 표준 정규화 엔진을 통해 ID 중복 방지, 7대 쇼케이스 태그 하이드레이션, 살균, 2-Depth 딥머지 일괄 수행
           const merged = normalizeCssProfile(imported, profiles);
           setProfiles((prev: any) => [...prev, merged]);

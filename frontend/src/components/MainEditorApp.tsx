@@ -223,11 +223,12 @@
  * =========================================================================
 */
 
+import { getResourceSettings, saveResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, useDeferredValue } from 'react';   // 리액트 훅 - 상태관리, 렌더링 제어 등
 import Editor, { loader } from '@monaco-editor/react'; // 모나코 에디터 - 코드 편집기
 const _monacoVsPath = typeof window !== 'undefined' && !!(window as any).electronAPI
   ? './monaco-editor/min/vs'
-  : 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs';
+  : '/monaco-editor/min/vs';
 loader.config({ paths: { vs: _monacoVsPath } });
 import MarkdownViewer from '@/components/MarkdownViewer'; // 마크다운 뷰어 - 마크다운 뷰어
 import { syncPreviewInterpolated } from '@/lib/syncEngine'; // 구간 선형 보간 동기화 엔진
@@ -321,7 +322,7 @@ import { useSingleTabGuard } from '@/lib/singleTabGuard';
 import { saveExternalFileHandle } from '@/lib/storage/externalFileStore';
 import { PreviewToolbar } from '@/components/preview/PreviewToolbar';
 import { PreviewFindWidget } from '@/components/preview/PreviewFindWidget';
-import { fetchUserProfiles, persistUserProfiles, getEffectiveResourceFolder } from '@/lib/profileStorage';
+import { fetchUserProfiles, persistUserProfiles, getEffectiveResourceFolder, getProfileResourceFolder } from '@/lib/profileStorage';
 import {
   getSavedDriveToken,
   getSavedWorkspaceInfo,
@@ -347,7 +348,7 @@ import {
 
 export type EditorCommandType =
   | 'NEW_FILE' | 'OPEN_FILE' | 'SAVE' | 'SAVE_AS' | 'OPEN_WORKSPACE'                   //① 파일 시스템 및 입출력 제어 (OS I/O Message)
-  | 'PRINT' | 'EXPORT_HTML' | 'EXPORT_EPUB' | 'EXPORT_PNG' | 'EXPORT_DOCX' | 'EXIT'                    //② 출력(Export) 및 종료  
+  | 'PRINT' | 'EXPORT_HTML' | 'EXPORT_EPUB' | 'EXPORT_PNG' | 'EXPORT_DOCX' | 'EXPORT_HWPX' | 'EXIT'                    //② 출력(Export) 및 종료  
   | 'UNDO' | 'REDO' | 'FIND' | 'REPLACE' | 'ZOOM_IN' | 'ZOOM_OUT'                      //③ 편집 및 보기 제어
   | 'GLOBAL_SEARCH' | 'TOGGLE_HELP' | 'ERASER' | 'BOLD' | 'ITALIC'                       //④ 스타일 적용
   | 'STRIKETHROUGH' | 'INLINE_CODE' | 'H1' | 'H2' | 'H3' | 'H4' | 'H5' | 'H6'                 //⑤ 스타일 적용
@@ -1278,11 +1279,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   useEffect(() => {
     if (!mounted) return;
     const restoreRF = async () => {
+      if (!getResourceSettings()) {setResourceFolder(null);return;}
       // 1. IndexedDB에서 웹 브라우저용 Handle 복원
-      if (!resourceFolderHandle && resourceFolder !== 'OnriviAuthor/참조파일' && typeof window !== 'undefined') {
+      if (!resourceFolderHandle && getResourceSettings()?.kind === 'browser' && typeof window !== 'undefined') {
         try {
           const savedHandle = await idb.get('resourceFolderHandle');
-          if (savedHandle) {
+          if (savedHandle && savedHandle.name === getResourceSettings()?.path) {
             setResourceFolderHandle(savedHandle);
             (window as any).__resourceFolderHandle = savedHandle;
             if (!resourceFolder) {
@@ -1305,9 +1307,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🌟 [공통 리소스 폴더 동적 변경 실시간 감지 리스너] (구글 드라이브 ↔ 로컬 전환 등)
   useEffect(() => {
     const handleResourceFolderChange = (e: any) => {
-      const newFolder = typeof e.detail === 'string' ? e.detail : (e.detail?.path || e.detail?.name);
+      const newFolder = getResourceSettings()?.path || '';
       setResourceFolder(newFolder || null);
-      if (newFolder === 'OnriviAuthor/참조파일') {
+      setProfileStorageRevision(revision => revision + 1);
+      if (getResourceSettings()?.kind === 'drive') {
         setResourceFolderHandle(null);
         (window as any).__resourceFolderHandle = null;
       }
@@ -1325,7 +1328,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     let cancelled = false;
     profileStorageRef.current = null;
     setIsProfilesLoaded(false);
-    const folder = getEffectiveResourceFolder(resourceFolder);
+    const folder = getProfileResourceFolder(resourceFolder);
     const load = async () => {
       try {
         const users = await fetchUserProfiles(folder, resourceFolderHandle);
@@ -1350,6 +1353,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, [mounted, resourceFolder, resourceFolderHandle, profileStorageRevision]);
 
   const [fileList, setFileList] = useState<FileNode[]>([]);
+  useEffect(() => {
+    const openResourceSettings = () => {setIsImageModalOpen(false);setIsYoutubeModalOpen(false);setIsStyleModalOpen(false);setIsReferenceModalOpen(false);setSettingsModalInitialTab('general');setIsSettingsModalOpen(true);};
+    window.addEventListener('onrivi:resource-settings', openResourceSettings);
+    return () => window.removeEventListener('onrivi:resource-settings', openResourceSettings);
+  }, [setIsSettingsModalOpen,setIsImageModalOpen,setIsYoutubeModalOpen,setIsStyleModalOpen,setIsReferenceModalOpen,setSettingsModalInitialTab]);
+
   const [workspaceType, setWorkspaceType] = useState<'local' | 'cloud' | 'browser'>(() => {
     if (typeof window !== 'undefined' && !(window as any).electronAPI) {
       return 'browser';
@@ -3169,10 +3178,25 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, [handleFileOpenByPath, currentFileNode, currentFileName, setPreviewModeRaw]);
 
   const selectResourceFolder = async () => {
+    if (workspaceType === 'cloud') {
+      try {
+        const {getSavedDriveToken,initializeDriveResourceFolder}=await import('@/lib/gdrive/googleDriveClient');
+        const token=getSavedDriveToken();if(!token)throw new Error('구글 드라이브를 먼저 연결해 주세요.');
+        const {pickDriveResourceFolder}=await import('@/lib/gdrive/ResourceFilePicker');
+        const selected=await pickDriveResourceFolder(token);if(!selected)return;
+        const folders=await initializeDriveResourceFolder(token,selected.id);
+        saveResourceSettings({kind:'drive',path:`gdrive://${selected.id}/${selected.name}`,folderId:selected.id,...folders});
+        setResourceFolderHandle(null);(window as any).__resourceFolderHandle=null;
+        showToast('선택한 드라이브 리소스 폴더에 기본 폴더와 파일을 준비했습니다.','success');
+      } catch(error:any) {showToast(error.message,'error');}
+      return;
+    }
     const api = (window as any).electronAPI;
     if (api && api.selectFolder) {
       const result = await api.selectFolder(resourceFolder || '');
       if (result && result.status !== 'canceled' && result.path) {
+        if (api.initResourceFolder) { const initialized=await api.initResourceFolder(result.path);if(initialized?.success===false) {showToast(initialized.error || '리소스 폴더 초기화 실패','error');return;} }
+        saveResourceSettings({kind:'local',path:result.path});
         setResourceFolder(result.path);
         setProfileStorageRevision(value => value + 1);
         try { saveSecureData('resourceFolder', result.path); } catch { }
@@ -3180,22 +3204,20 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         try { localStorage.setItem('onrivi_resource_folder', result.path); } catch { }
         try { localStorage.setItem('resourceFolder', result.path); } catch { }
         
-        // 🚀 [사용자 지시 완벽 반영] 5대 디렉토리(profiles, prompt, bible, media, db) 및 onrivi_knowledge.db 일괄 생성
-        try {
-          if (api.initResourceFolder) {
-            await api.initResourceFolder(result.path);
-          }
-        } catch (initErr) {
-          console.warn('[ResourceFolder Init Error]:', initErr);
-        }
-
         showToast('리소스 폴더가 설정되었습니다.', 'success');
       }
     } else if (typeof (window as any).showDirectoryPicker === 'function') {
       try {
         const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
-        setResourceFolderHandle(handle);
-        (window as any).__resourceFolderHandle = handle;
+        const defaults:Record<string,string>={'profiles/userCssProfiles.json':JSON.stringify(SYSTEM_PROFILES,null,2),'prompt/ai_prompts.json':'{}','prompt/ai_presets.json':'[]','prompt/promptTemplates.json':'[]','bible/references.bib':'','db/onrivi_knowledge.db':''};
+        for (const name of ['profiles','prompt','bible','media','db']) await handle.getDirectoryHandle(name,{create:true});
+        for (const [relative,content] of Object.entries(defaults)) {
+          const [directory,name]=relative.split('/');const dir=await handle.getDirectoryHandle(directory);
+          try {await dir.getFileHandle(name);}catch(error:any){if(error.name!=='NotFoundError')throw error;const file=await dir.getFileHandle(name,{create:true});const writable=await file.createWritable();await writable.write(content);await writable.close();}
+        }
+        await idb.set('resourceFolderHandle',handle);
+        setResourceFolderHandle(handle);(window as any).__resourceFolderHandle=handle;
+        saveResourceSettings({kind:'browser',path:handle.name});
         setResourceFolder(handle.name);
         await idb.set('resourceFolderHandle', handle);
         try { saveSecureData('resourceFolder', handle.name); } catch { }
@@ -3234,6 +3256,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : saveSecureData, localStorage.removeItem, idb.del, idb.set, showToast
   // ====================================================================
   const clearResourceFolder = async () => {
+    saveResourceSettings(null);
     setResourceFolder(null);
     setResourceFolderHandle(null);
     (window as any).__resourceFolderHandle = null;
@@ -3850,7 +3873,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   useEffect(() => {
     if (!mounted || !isProfilesLoaded) return;
-    const folder = getEffectiveResourceFolder(resourceFolder);
+    const folder = getProfileResourceFolder(resourceFolder);
     const source = profileStorageRef.current;
     if (!source || source.folder !== folder || source.handle !== resourceFolderHandle) return;
     const userProfiles = profiles.filter(p => p.id !== 'default' && !isSystemProfileId(p.id));
@@ -5485,7 +5508,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           }
           
           const activeFilePath = currentFileNode?.path || currentFileNodeRef.current?.path || tabsRef.current?.find(t => t.id === activeTabIdRef.current)?.path || '';
-          const effectiveRf = resourceFolderRef.current || getEffectiveResourceFolder();
+          const effectiveRf = requireResourceSettings().path;
           let targetFolder = activeFilePath || rootFolderRef.current?.name || '';
           if (effectiveRf) {
             const sep = effectiveRf.includes('\\') ? '\\' : '/';
@@ -5493,7 +5516,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           }
 
           // ☁️ [Google Drive 작업장 시 구글 드라이브 /참조파일/media 자동 업로드]
-          const isDriveTarget = rootFolderRef.current?.type === 'GDRIVE' || workspaceType === 'cloud' || (typeof window !== 'undefined' && (localStorage.getItem('workspaceType') === 'cloud' || (localStorage.getItem('onrivi_resource_folder_path') || '').startsWith('OnriviAuthor')));
+          const isDriveTarget = getResourceSettings()?.kind === 'drive';
           if (isDriveTarget) {
             const token = getSavedDriveToken();
             const wsInfo = getSavedWorkspaceInfo();
@@ -5502,17 +5525,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               try {
                 const uploaded = await uploadDriveImage(token, mediaFolderId, fileOrBlob, fileName);
                 if (uploaded?.id) {
-                  insertImageMarkdown(`media/${fileName}`);
+                  insertImageMarkdown(`media/${encodeURIComponent(uploaded.name)}?driveId=${encodeURIComponent(uploaded.id)}`);
                   showToast('구글 드라이브(media)에 이미지가 안전하게 저장되었습니다.', 'success');
                   resolve();
                   return;
                 }
               } catch (gErr) {
-                console.error('[GDrive Paste Image Error]', gErr);
+                throw gErr;
               }
             }
           }
 
+          if (isDriveTarget) throw new Error('드라이브 리소스 폴더 연결을 확인해 주세요.');
           if (api) {
             // 🖥️ 데스크탑 (Electron): 우선적으로 R2 업로드를 시도하고, 실패 시 로컬 assets/ 에 저장
             await insertWithR2Fallback(base64DataClean, targetFolder, fileName);
@@ -5534,7 +5558,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 // 실패하면 아래 R2 업로드로 폴백
               }
             }
-            await webUploadImage(base64Data);
+            throw new Error('리소스 폴더 접근 권한을 확인해 주세요.');
           }
           resolve();
         } catch (err) {
@@ -7100,6 +7124,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'EXPORT_EPUB':
       case 'EXPORT_PNG':
       case 'EXPORT_DOCX':
+      case 'EXPORT_HWPX':
       case 'OPEN_EXPORT': {
         // 🔒 [내보내기 방어 가드] 기능 제거됨
         if (previewMode !== 'preview') {
@@ -7111,6 +7136,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         else if (type === 'EXPORT_EPUB') handlers.exportEPUB();
         else if (type === 'EXPORT_PNG') handlers.exportPNG();
         else if (type === 'EXPORT_DOCX') handlers.exportDOCX();
+        else if (type === 'EXPORT_HWPX') handlers.exportHWPX();
         else if (type === 'OPEN_EXPORT') handlers.openExport();
         return;
       }
@@ -8807,6 +8833,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                     >
                       <Editor
                         height="100%"
+                        loading={
+                          <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
+                            <p>편집기를 불러오는 중입니다.</p>
+                            <p className="text-sm text-slate-500">오래 걸리면 미리보기로 전환해 문서를 확인할 수 있습니다.</p>
+                            <button type="button" className="rounded-lg border px-4 py-2 text-sm" onClick={() => setPreviewMode('preview')}>
+                              미리보기로 전환
+                            </button>
+                          </div>
+                        }
                         language="markdown"
                         theme={themePalette}
                         // 💡 value={content} 속성을 배제하고 defaultValue를 적용하여

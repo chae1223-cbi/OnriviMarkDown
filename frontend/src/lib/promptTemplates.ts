@@ -1,3 +1,4 @@
+import { readResourceJson, writeResourceJson } from './resourceJson';
 export interface PromptTemplate {
   systemPrompt: string;
   userInputTemplate: string;
@@ -392,54 +393,12 @@ export const DEFAULT_PROMPTS: Record<string, Record<string, PromptTemplate>> = {
   }
 };
 
-export async function getPromptTemplates(resourceFolder?: string, resourceFolderHandle?: any): Promise<Record<string, Record<string, PromptTemplate>>> {
-  if (typeof window !== 'undefined' && (window as any).electronAPI) {
-    try {
-      const templates = await (window as any).electronAPI.loadPrompts(resourceFolder);
-      if (templates) return templates;
-    } catch (e) {
-      console.error('Failed to load prompts via IPC', e);
-    }
-  } else if (resourceFolderHandle) {
-    try {
-      const promptDir = await resourceFolderHandle.getDirectoryHandle('prompt');
-      const fileHandle = await promptDir.getFileHandle('ai_prompts.json');
-      const file = await fileHandle.getFile();
-      const text = await file.text();
-      return JSON.parse(text);
-    } catch (e) {
-      console.error('Failed to load prompts via File System Access API', e);
-    }
-  }
-  return DEFAULT_PROMPTS;
+export async function getPromptTemplates(_resourceFolder?:string, resourceFolderHandle?:any):Promise<Record<string,Record<string,PromptTemplate>>> {
+  const templates=await readResourceJson('ai_prompts.json',resourceFolderHandle);
+  return templates && Object.keys(templates).length ? templates : DEFAULT_PROMPTS;
 }
-
-export async function savePromptTemplates(
-  prompts: Record<string, Record<string, PromptTemplate>>, 
-  resourceFolder?: string,
-  resourceFolderHandle?: any
-): Promise<{ success: boolean; error?: string }> {
-  if (typeof window !== 'undefined' && (window as any).electronAPI) {
-    try {
-      return await (window as any).electronAPI.savePrompts(prompts, resourceFolder);
-    } catch (e: any) {
-      console.error('Failed to save prompts via IPC', e);
-      return { success: false, error: e.message };
-    }
-  } else if (resourceFolderHandle) {
-    try {
-      const promptDir = await resourceFolderHandle.getDirectoryHandle('prompt', { create: true });
-      const fileHandle = await promptDir.getFileHandle('ai_prompts.json', { create: true });
-      const writable = await fileHandle.createWritable();
-      await writable.write(JSON.stringify(prompts, null, 2));
-      await writable.close();
-      return { success: true };
-    } catch (e: any) {
-      console.error('Failed to save prompts via File System Access API', e);
-      return { success: false, error: e.message };
-    }
-  }
-  return { success: false, error: 'NO_ELECTRON_API' };
+export async function savePromptTemplates(prompts:Record<string,Record<string,PromptTemplate>>,_resourceFolder?:string,resourceFolderHandle?:any):Promise<{success:boolean;error?:string}> {
+  return writeResourceJson('ai_prompts.json',prompts,resourceFolderHandle);
 }
 
 export async function getPromptTemplate(domain: string, docType: string, resourceFolder?: string, resourceFolderHandle?: any): Promise<PromptTemplate | null> {

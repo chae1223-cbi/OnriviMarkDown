@@ -13,6 +13,8 @@
 // 🔗 @CALLS : knowledgeClient, /api/knowledge/search, /api/knowledge/query, KUI012_EvidenceViewer
 // ====================================================================
 
+import { getEffectiveResourceFolder } from '@/lib/profileStorage';
+import { requireResourceSettings } from '@/lib/resourceSettings';
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, Sparkles, Database, FileText, Layers, ExternalLink, 
@@ -55,19 +57,10 @@ export const KUI003_KnowledgeSearch: React.FC<KUI003KnowledgeSearchProps> = ({
   // Evidence Viewer 상태
   const [selectedEvidence, setSelectedEvidence] = useState<RetrievalCandidate | null>(null);
 
-  const effectiveResourceFolder = useMemo(() => {
-    let saved = resourceFolder ||
-      loadSecureData<string>('resourceFolder') ||
-      (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder_path') : '') ||
-      (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder') : '');
-    if (saved && saved.startsWith('U2FsdGVkX1')) {
-      const dec = loadSecureData<string>('resourceFolder');
-      saved = (dec && !dec.startsWith('U2FsdGVkX1')) ? dec : 'Onrivi_Asset';
-    }
-    return saved || 'Onrivi_Asset';
-  }, [resourceFolder]);
+  const effectiveResourceFolder = getEffectiveResourceFolder();
 
   const executeQASearch = async (targetQuery?: string) => {
+    try {requireResourceSettings();}catch(error:any){showToast(error.message,'warning');return;}
     const q = (targetQuery !== undefined ? targetQuery : query).trim();
     if (!q) {
       showToast('검색할 키워드나 질문을 입력해 주세요.', 'warning');

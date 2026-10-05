@@ -16,7 +16,12 @@
 // 🚨 @PATCH : **2026-10-03** — [클라우드 드라이브 무설정 자동 연동 모듈 신규 구현]: 구글 계정 로그인만으로 /OnriviAuthor/작업장(Root) 및 /참조파일(리소스)을 원클릭 자동 생성하고, 파일 읽기/쓰기/생성/삭제 및 미디어 업로드를 100% 안전하게 지원
 // ====================================================================
 
+import { getResourceSettings } from '@/lib/resourceSettings';
+import CryptoJS from 'crypto-js';
+import { SYSTEM_PROFILES, isSystemProfileId } from '@/constants/cssProfile';
+
 export const GOOGLE_DRIVE_SCOPES = [
+  'https://www.googleapis.com/auth/drive',
   'https://www.googleapis.com/auth/drive.file',
   'https://www.googleapis.com/auth/userinfo.profile',
   'https://www.googleapis.com/auth/userinfo.email',
@@ -158,7 +163,9 @@ export function getSavedWorkspaceInfo(): GoogleDriveWorkspaceInfo | null {
   const raw = localStorage.getItem(STORAGE_KEY_WORKSPACE);
   if (!raw) return null;
   try {
-    return JSON.parse(raw);
+    const workspace = JSON.parse(raw);
+    const resource = getResourceSettings();
+    return {...workspace,resourceFolderId:resource?.kind==='drive'?resource.folderId:'',profilesFolderId:resource?.kind==='drive'?resource.profilesFolderId:'',promptFolderId:resource?.kind==='drive'?resource.promptFolderId:'',bibleFolderId:resource?.kind==='drive'?resource.bibleFolderId:'',mediaFolderId:resource?.kind==='drive'?resource.mediaFolderId:'',dbFolderId:resource?.kind==='drive'?resource.dbFolderId:''};
   } catch {
     return null;
   }
@@ -246,10 +253,10 @@ export async function requestGoogleDriveAuth(clientId?: string): Promise<string>
           }
           if (response.scope) {
             console.log('[GDrive] Granted scopes:', response.scope);
-            if (!response.scope.includes('drive')) {
+            if (!response.scope.split(/\s+/).includes('https://www.googleapis.com/auth/drive')) {
               return reject(
                 new Error(
-                  '구글 드라이브 접근 권한이 체크되지 않았습니다.\n로그인 팝업창에서 "Google Drive에서 앱으로 열거나 생성한 모든 파일을 확인, 수정, 만듭니다" 권한 체크박스를 선택한 후 [계속]을 눌러주세요.'
+                  '전체 드라이브 접근 권한이 필요합니다. 로그인 화면에서 Google Drive 파일 보기, 수정, 생성, 삭제 권한에 동의해 주세요.'
                 )
               );
             }
@@ -543,7 +550,48 @@ export async function ensureDriveTextFile(
  *        ├── /media (이미지 및 미디어 보관)
  *        └── /db (지식 베이스 데이터베이스) ➔ onrivi_knowledge.db
  */
-export async function setupOnriviDriveWorkspace(token?: string, selectedFolder?: { id: string; name: string; path?: Array<{ id: string; name: string }> }): Promise<GoogleDriveWorkspaceInfo> {
+export async function initializeDriveResourceFolder(token:string, resourceFolderId:string) {
+  if (!resourceFolderId) throw new Error('리소스 폴더를 선택해 주세요.');
+  const authToken=resolveAuthToken(token);
+  // 5. [로컬 리소스 폴더 규격 완벽 일치] 5대 하위 디렉토리(profiles, prompt, bible, media, db) 일괄 병렬 생성
+  const [profilesFolderId, promptFolderId, bibleFolderId, mediaFolderId, dbFolderId] = await Promise.all([
+    ensureDriveFolder(authToken, 'profiles', resourceFolderId),
+    ensureDriveFolder(authToken, 'prompt', resourceFolderId),
+    ensureDriveFolder(authToken, 'bible', resourceFolderId),
+    ensureDriveFolder(authToken, 'media', resourceFolderId),
+    ensureDriveFolder(authToken, 'db', resourceFolderId),
+  ]);
+
+  // 6. [로컬 기본 파일 규격 완벽 일치] 6대 기본 파일 & 작업장 파일 목록 일괄 병렬 확인/생성
+  await Promise.all([
+    // (1) profiles/userCssProfiles.json : 사용자 정의 CSS 프로필
+    ensureDriveTextFile(authToken, 'userCssProfiles.json', profilesFolderId, JSON.stringify(SYSTEM_PROFILES, null, 2), 'application/json'),
+    // (2) prompt/ai_prompts.json : AI 프롬프트 딕셔너리
+    ensureDriveTextFile(authToken, 'ai_prompts.json', promptFolderId, '{}', 'application/json'),
+    // (3) prompt/ai_presets.json : AI 프리셋 목록
+    ensureDriveTextFile(authToken, 'ai_presets.json', promptFolderId, '[]', 'application/json'),
+    // (4) prompt/promptTemplates.json : 프롬프트 템플릿 목록
+    ensureDriveTextFile(authToken, 'promptTemplates.json', promptFolderId, '[]', 'application/json'),
+    // (5) bible/references.bib : 참고문헌 서지 데이터
+    ensureDriveTextFile(authToken, 'references.bib', bibleFolderId, '@comment{Onrivi Author Reference Library}\n', 'text/plain'),
+    // (6) db/onrivi_knowledge.db : 온리비 지식 베이스 DB 플레이스홀더
+    ensureDriveTextFile(authToken, 'onrivi_knowledge.db', dbFolderId, '', 'application/octet-stream'),
+  ]);
+
+  // Install bundled profiles without removing existing user profiles.
+  const profileFileId = await findDriveFile(authToken, 'userCssProfiles.json', profilesFolderId);
+  if (!profileFileId) throw new Error('드라이브 서식 파일을 찾을 수 없습니다.');
+  const storedProfiles = JSON.parse(await readDriveFileContent(authToken, profileFileId));
+  if (!Array.isArray(storedProfiles)) throw new Error('드라이브 서식 파일 형식이 올바르지 않습니다. 기존 파일을 확인해 주세요.');
+  if (SYSTEM_PROFILES.some(profile => !storedProfiles.some(existing => existing?.id === profile.id))) {
+    const mergedProfiles = [...SYSTEM_PROFILES, ...storedProfiles.filter(profile => profile && profile.id !== 'default' && !isSystemProfileId(profile.id))];
+    if (!await saveDriveFileContent(authToken, profileFileId, JSON.stringify(mergedProfiles, null, 2))) throw new Error('드라이브 기본 서식 설치에 실패했습니다.');
+  }
+
+  return {resourceFolderId,profilesFolderId,promptFolderId,bibleFolderId,mediaFolderId,dbFolderId};
+}
+
+export async function setupOnriviDriveWorkspace(token?: string, selectedFolder?: { id: string; name: string; path?: Array<{ id: string; name: string }> }, selectedResourceFolderId?:string): Promise<GoogleDriveWorkspaceInfo> {
   const authToken = resolveAuthToken(token);
   console.log('[GDrive] 1. 사용자 정보 및 메인 서재 폴더 조회 시작...');
 
@@ -557,36 +605,12 @@ export async function setupOnriviDriveWorkspace(token?: string, selectedFolder?:
   // 3 & 4 병렬: 작업장(/OnriviAuthor/작업장) & 참조파일(/OnriviAuthor/참조파일) 확인/생성
   const [workspaceFolderId, resourceFolderId] = await Promise.all([
     selectedFolder ? Promise.resolve(selectedFolder.id) : ensureDriveFolder(authToken, '작업장', rootFolderId),
-    ensureDriveFolder(authToken, '참조파일', rootFolderId),
+    selectedResourceFolderId ? Promise.resolve(selectedResourceFolderId) : Promise.reject(new Error('환경설정의 드라이브 리소스 폴더를 선택해 주세요.')),
   ]);
   console.log('[GDrive] 작업장 ID:', workspaceFolderId, '| 참조파일 ID:', resourceFolderId);
 
-  // 5. [로컬 리소스 폴더 규격 완벽 일치] 5대 하위 디렉토리(profiles, prompt, bible, media, db) 일괄 병렬 생성
-  const [profilesFolderId, promptFolderId, bibleFolderId, mediaFolderId, dbFolderId] = await Promise.all([
-    ensureDriveFolder(authToken, 'profiles', resourceFolderId),
-    ensureDriveFolder(authToken, 'prompt', resourceFolderId),
-    ensureDriveFolder(authToken, 'bible', resourceFolderId),
-    ensureDriveFolder(authToken, 'media', resourceFolderId),
-    ensureDriveFolder(authToken, 'db', resourceFolderId),
-  ]);
-
-  // 6. [로컬 기본 파일 규격 완벽 일치] 6대 기본 파일 & 작업장 파일 목록 일괄 병렬 확인/생성
-  const [, , , , , , existingFiles] = await Promise.all([
-    // (1) profiles/userCssProfiles.json : 사용자 정의 CSS 프로필
-    ensureDriveTextFile(authToken, 'userCssProfiles.json', profilesFolderId, '[]', 'application/json'),
-    // (2) prompt/ai_prompts.json : AI 프롬프트 딕셔너리
-    ensureDriveTextFile(authToken, 'ai_prompts.json', promptFolderId, '{}', 'application/json'),
-    // (3) prompt/ai_presets.json : AI 프리셋 목록
-    ensureDriveTextFile(authToken, 'ai_presets.json', promptFolderId, '[]', 'application/json'),
-    // (4) prompt/promptTemplates.json : 프롬프트 템플릿 목록
-    ensureDriveTextFile(authToken, 'promptTemplates.json', promptFolderId, '[]', 'application/json'),
-    // (5) bible/references.bib : 참고문헌 서지 데이터
-    ensureDriveTextFile(authToken, 'references.bib', bibleFolderId, '@comment{Onrivi Author Reference Library}\n', 'text/plain'),
-    // (6) db/onrivi_knowledge.db : 온리비 지식 베이스 DB 플레이스홀더
-    ensureDriveTextFile(authToken, 'onrivi_knowledge.db', dbFolderId, '', 'application/octet-stream'),
-    // 작업장 파일 목록 조회
-    listDriveChildren(authToken, workspaceFolderId),
-  ]);
+  const {profilesFolderId,promptFolderId,bibleFolderId,mediaFolderId,dbFolderId} = await initializeDriveResourceFolder(authToken,resourceFolderId);
+  const existingFiles=await listDriveChildren(authToken,workspaceFolderId);
 
   // 7. 작업장에 시작 가이드 문서가 없으면 기본 환영 문서 1개 자동 생성
   if (!selectedFolder && existingFiles.length === 0) {
@@ -714,10 +738,13 @@ export async function selectGoogleDriveWorkspace(token: string): Promise<{ id: s
 /**
  * 특정 폴더 하위의 파일 및 폴더 목록 조회 (마크다운 및 폴더 우선)
  */
-export async function listDriveChildren(token?: string, parentFolderId?: string): Promise<GoogleDriveFileItem[]> {
+export async function listDriveChildren(token?: string, parentFolderId?: string, searchName?: string): Promise<GoogleDriveFileItem[]> {
   const authToken = resolveAuthToken(token);
   if (!parentFolderId) return [];
-  const query = `'${parentFolderId}' in parents and trashed = false`;
+  const escape = (value: string) => value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const query = searchName?.trim()
+    ? `trashed = false and name contains '${escape(searchName.trim())}'`
+    : `'${escape(parentFolderId)}' in parents and trashed = false`;
   const rawList: any[] = [];
   let pageToken: string | undefined;
   do {
@@ -832,7 +859,13 @@ export async function createDriveMarkdownFile(
 /**
  * 이미지 파일(Blob/File)을 구글 드라이브 /참조파일/media 에 업로드
  */
-export async function uploadDriveImage(
+let imageUploadQueue: Promise<unknown> = Promise.resolve();
+export function uploadDriveImage(token?: string, mediaFolderId?: string, fileBlob?: Blob, fileName?: string): Promise<{id:string;name:string;webViewLink?:string;webContentLink?:string}> {
+  const pending=imageUploadQueue.then(()=>uploadUniqueDriveImage(token,mediaFolderId,fileBlob,fileName));
+  imageUploadQueue=pending.catch(()=>undefined);
+  return pending;
+}
+async function uploadUniqueDriveImage(
   token?: string,
   mediaFolderId?: string,
   fileBlob?: Blob,
@@ -842,6 +875,19 @@ export async function uploadDriveImage(
   if (!mediaFolderId || !fileBlob || !fileName) {
     throw new Error('미디어 폴더 ID 또는 파일 데이터가 누락되었습니다.');
   }
+  const fileBuffer = await fileBlob.arrayBuffer();
+  const checksum = CryptoJS.MD5(CryptoJS.lib.WordArray.create(new Uint8Array(fileBuffer) as any)).toString();
+  let pageToken: string | undefined;
+  do {
+    const params=new URLSearchParams({q:`'${mediaFolderId.replace(/'/g,"\\'")}' in parents and trashed = false`,fields:'nextPageToken,files(id,name,md5Checksum)',pageSize:'1000'});
+    if(pageToken)params.set('pageToken',pageToken);
+    const response=await fetch(`https://www.googleapis.com/drive/v3/files?${params}`,{headers:{Authorization:`Bearer ${authToken}`}});
+    if(!response.ok)throw await parseDriveError(response,'이미지 중복 확인');
+    const result=await response.json();
+    const existing=result.files?.find((item:any)=>item.md5Checksum===checksum);
+    if(existing)return {id:existing.id,name:existing.name};
+    pageToken=result.nextPageToken;
+  }while(pageToken);
   const metadata = {
     name: fileName,
     mimeType: fileBlob.type || 'image/png',
@@ -851,14 +897,6 @@ export async function uploadDriveImage(
   const boundary = '-------imageupload3141592653';
   const delimiter = `\r\n--${boundary}\r\n`;
   const closeDelimiter = `\r\n--${boundary}--`;
-
-  const reader = new FileReader();
-  const fileDataPromise = new Promise<ArrayBuffer>((resolve, reject) => {
-    reader.onload = () => resolve(reader.result as ArrayBuffer);
-    reader.onerror = reject;
-    reader.readAsArrayBuffer(fileBlob);
-  });
-  const fileBuffer = await fileDataPromise;
 
   const headerPart =
     delimiter +
@@ -906,21 +944,22 @@ const driveImageBlobCache = new Map<string, string>();
 export async function getDriveMediaImageBlobUrl(token?: string, mediaFolderId?: string, fileName?: string): Promise<string | null> {
   const authToken = resolveAuthToken(token);
   if (!mediaFolderId || !fileName) return null;
-  const cleanName = fileName.replace(/^\.?\/+/, '').replace(/^media[/\\]/, '').replace(/^\/+/, '');
-  const cacheKey = `${mediaFolderId}:${cleanName}`;
+  const cleanName = fileName.split('?')[0].split('#')[0].replace(/^\.?\/+/, '').replace(/^media[/\\]/, '').replace(/^\/+/, '');
+  const selectedId = new URLSearchParams(fileName.includes('?') ? fileName.slice(fileName.indexOf('?')+1) : '').get('driveId');
+  const cacheKey = `${mediaFolderId}:${selectedId || cleanName}`;
   if (driveImageBlobCache.has(cacheKey)) {
     return driveImageBlobCache.get(cacheKey)!;
   }
 
   try {
-    const fileId = await findDriveFile(authToken, cleanName, mediaFolderId);
+    const fileId = selectedId || await findDriveFile(authToken, cleanName, mediaFolderId);
     if (!fileId) return null;
 
     const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${authToken}` },
     });
-    if (!res.ok) return null;
+    if (!res.ok) throw await parseDriveError(res, `이미지 다운로드 (${cleanName})`);
 
     const blob = await res.blob();
     const objectUrl = URL.createObjectURL(blob);
@@ -928,7 +967,7 @@ export async function getDriveMediaImageBlobUrl(token?: string, mediaFolderId?: 
     return objectUrl;
   } catch (err) {
     console.warn('[getDriveMediaImageBlobUrl] Failed to load drive media:', cleanName, err);
-    return null;
+    throw err;
   }
 }
 
