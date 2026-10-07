@@ -28,6 +28,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/components/ToastProvider';
 import { createPortal } from 'react-dom';
+import { ResourceFolderLocation } from '@/components/ResourceFolderLocation';
+import { getResourceEnvironment } from '@/lib/resourceSettings';
 import { Icon } from '@/components/icons/Icon';
 import { TOOLBAR_ITEMS, getDefaultHotkeys, getDefaultCommands } from '@/lib/toolbarConfig';
 import { testGeminiConnection, ONRIVI_AI_MODELS, getCachedAIModels, fetchGoogleAIStudioModels, normalizeAIModelName, OnriviAIModelItem } from '@/lib/gemini';
@@ -99,7 +101,7 @@ export default function SettingsModal({
   editorHighContrast = false, setEditorHighContrast,
   geminiApiKey, setGeminiApiKey,
   aiModelName, setAiModelName,
-  resourceFolder, onSelectResourceFolder, onClearResourceFolder,
+  resourceFolder, onSelectResourceFolder, onClearResourceFolder, workspaceType,
   userNickname, setUserNickname, userId,
   initialTab
 }: SettingsModalProps) {
@@ -671,19 +673,11 @@ export default function SettingsModal({
                   </span>
                 </div>
                 
-                <SettingRow 
-                  icon={<Icon name="Save" size={18} />}
-                  title="공통 자원 폴더 (Resource Folder)"
-                  description="모든 서식(프로필)과 미디어(이미지/영상), AI 템플릿이 저장될 PC 내 공통 폴더를 지정합니다."
-                  control={
-                    <div className="flex items-center gap-2">
-                      <div className={`text-xs px-2.5 py-1.5 rounded-lg max-w-[200px] truncate font-mono border ${
-                        resourceFolder 
-                          ? 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700' 
-                          : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 font-bold'
-                      }`} title={resourceFolder || "미지정 (필수 설정)"}>
-                        {resourceFolder || "⚠️ 미지정 (필수)"}
-                      </div>
+                <div className="space-y-3 min-w-0">
+                  <div className="font-semibold">공통 자원 폴더 (Resource Folder)</div>
+                  <div className="text-[13px] text-on-surface-variant">현재 작업 환경에서 서식, 이미지·영상, AI 템플릿을 읽고 저장하는 폴더입니다.</div>
+                  <ResourceFolderLocation environment={getResourceEnvironment()} folder={resourceFolder} />
+                  <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         onClick={() => onSelectResourceFolder()}
@@ -705,9 +699,8 @@ export default function SettingsModal({
                           폴더 해제
                         </button>
                       )}
-                    </div>
-                  }
-                />
+                  </div>
+                </div>
               </div>
 
               {/* AI 설정 그룹 */}

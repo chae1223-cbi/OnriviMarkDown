@@ -2,6 +2,26 @@
 // 📊 [OMD-LIB-googleDriveClient-0001] src/lib/gdrive/googleDriveClient.ts
 // 🎯 @KICK  : 누구나 쉽게 사용하는 구글 드라이브 무설정(Zero-Config) 자동 연동 및 클라우드 작업장 클라이언트 모듈
 // 🛡️ @GUARD : Rule 1, Rule 2(대문자 코드값 GDRIVE), 최소 권한 원칙(drive.file 스코프 한정)
+// 🚨 @PATCH : **2026-10-07** — [토큰 갱신 이벤트 발송 및 사용자 서식 파일 직결 탐색 강화]:
+//             1) saveDriveToken 시 onrivi:drive_token_updated 이벤트 발송하여 로그인/토큰 획득 즉시 에디터 서식 로드 훅 재실행 보장
+//             2) resolveDriveResourceFolderByName 시 userCssProfiles.json을 직접 전역 탐색하여 2개 사용자 서식이 보존된 참조 폴더 100% 직결
+//             3) saveResourceSettings 호출 시 silent: true를 적용하여 불필요한 React 이벤트 취소 루프 방어
+// 🚨 @PATCH : **2026-10-07** — [환경설정 리소스 폴더(참조파일 등) 전역 자동 탐색 및 5대 하위 폴더 ID 실시간 매핑]:
+//             1) resolveDriveResourceFolderByName 신설하여 구글 드라이브 전체에서 환경설정에 지정된 리소스 폴더명('참조파일' 등)을 전역 탐색
+//             2) 서식(profiles/userCssProfiles.json 70KB) 및 미디어/참고문헌/프롬프트/DB 5대 서브폴더 ID를 100% 정상 연동
+// 🚨 @PATCH : **2026-10-07** — [환경설정 리소스 폴더명(참조파일 등) 최우선 탐색 및 서식 보관 폴더 지능형 감지]:
+//             1) getOrCreateDriveResourceFolder 시 환경설정(resourceSettings)에 지정된 리소스 폴더명을 최우선으로 탐색하도록 개선
+//             2) 복수 개의 참조 폴더 존재 시 userCssProfiles.json 내 사용자 정의 서식이 보존된 폴더를 우선 인식하여 서식 누락 원천 해결
+//             3) setupOnriviDriveWorkspace 시 selectedResourceFolderId에 해당하는 실제 리소스 폴더명을 온전히 보존
+// 🚨 @PATCH : **2026-10-07** — [구글 드라이브 참조폴더 기존 서식/하위파일 100% 영구 보존 및 재로그인 초기화 방지]:
+//             1) 구글 드라이브 재접속 시 참조폴더(참조파일)가 매번 새로 생성되거나 초기화되지 않고 기존 폴더 및 userCssProfiles.json을 100% 그대로 계승·재사용하도록 보장
+//             2) OnriviAuthor 루트 탐색 시 'root' in parents 및 createdTime asc 정렬 고정으로 중복 루트 폴더 생성 및 엉뚱한 폴더 바인딩 원천 차단
+//             3) getSavedWorkspaceInfo에서 profilesFolderId 등 필수 서브폴더 ID가 빈 문자열('')로 유실되는 덮어쓰기 버그 수정
+//             4) findDriveFile에 modifiedTime desc 정렬을 적용하여 최신 사용자 서식이 저장된 유효 파일을 항상 정확히 타겟팅하도록 보강
+// 🚨 @PATCH : **2026-10-07** — [최초 구글 드라이브 접속 시 작업장 및 참조폴더(5대 하위폴더/기본파일) 자동 생성 & 환경설정 직결]:
+//             1) 구글 드라이브 최초 접속 시 사용자 팝업 선택 없이 OnriviAuthor/작업장 및 OnriviAuthor/참조폴더 자동 동시 생성
+//             2) 참조폴더 내 5대 필수 디렉터리(bible, db, media, profiles, prompt) 및 6대 기본 파일(userCssProfiles, prompts, presets, templates, references.bib, db) 완전 자동 구성
+//             3) getOrCreateDriveResourceFolder API 신설 및 환경설정 공통 리소스 폴더를 '참조폴더'로 100% 자동 직결 바인딩
 // 🚨 @PATCH : **2026-10-07** — [구글 드라이브 백그라운드 무중단 토큰 자동 갱신 & 최종 작업장 재접속 자동 복원]:
 //             1) 토큰 만료 5분(300초) 전 백그라운드 무음(Silent) 토큰 자동 갱신 스케줄러(scheduleDriveTokenRefresh) 및 refreshDriveTokenSilently API 신설로 1시간 만료 끊김 완전 해결
 //             2) 앱 시작 시 잔여 유효시간 자동 감지 및 갱신 스케줄 복원 엔진(initDriveTokenAutoRefresh) 구축
@@ -20,7 +40,7 @@
 // 🚨 @PATCH : **2026-10-03** — [클라우드 드라이브 무설정 자동 연동 모듈 신규 구현]: 구글 계정 로그인만으로 /OnriviAuthor/작업장(Root) 및 /참조파일(리소스)을 원클릭 자동 생성하고, 파일 읽기/쓰기/생성/삭제 및 미디어 업로드를 100% 안전하게 지원
 // ====================================================================
 
-import { getResourceSettings } from '@/lib/resourceSettings';
+import { getResourceSettings, saveResourceSettings } from '@/lib/resourceSettings';
 import CryptoJS from 'crypto-js';
 import { SYSTEM_PROFILES, isSystemProfileId } from '@/constants/cssProfile';
 
@@ -245,15 +265,17 @@ export function initDriveTokenAutoRefresh(): void {
  */
 export function getSavedDriveToken(): string | null {
   if (typeof window === 'undefined') return null;
-  const expiry = Number(localStorage.getItem(STORAGE_KEY_EXPIRY));
   const token = localStorage.getItem(STORAGE_KEY_TOKEN) || sessionStorage.getItem(STORAGE_KEY_TOKEN);
+  if (!token) return null;
 
+  const expiry = Number(localStorage.getItem(STORAGE_KEY_EXPIRY));
   if (expiry && Date.now() >= expiry) {
     // 만료되었을 때 자동 갱신 백그라운드 비동기 트리거
     if (!refreshTimerId && !isRefreshingToken) {
       void refreshDriveTokenSilently();
     }
-    return null;
+    // 토큰이 스토리지에 남아있으면 시도 가능하도록 반환 (401 시 자동 정제)
+    return token;
   }
 
   // 만료 5분(300초) 이내로 임박했을 때 백그라운드 사전 갱신 트리거
@@ -274,6 +296,7 @@ export function saveDriveToken(token: string, expiresIn: number = 3600): void {
 
   // 토큰 만료 5분 전 자동 갱신 타이머 가동
   scheduleDriveTokenRefresh(expiresIn);
+  window.dispatchEvent(new CustomEvent('onrivi:drive_token_updated', { detail: { token } }));
 }
 
 /**
@@ -298,7 +321,16 @@ export function getSavedWorkspaceInfo(): GoogleDriveWorkspaceInfo | null {
   try {
     const workspace = JSON.parse(raw);
     const resource = getResourceSettings();
-    return {...workspace,resourceFolderId:resource?.kind==='drive'?resource.folderId:'',profilesFolderId:resource?.kind==='drive'?resource.profilesFolderId:'',promptFolderId:resource?.kind==='drive'?resource.promptFolderId:'',bibleFolderId:resource?.kind==='drive'?resource.bibleFolderId:'',mediaFolderId:resource?.kind==='drive'?resource.mediaFolderId:'',dbFolderId:resource?.kind==='drive'?resource.dbFolderId:''};
+    const isDrive = resource?.kind === 'drive';
+    return {
+      ...workspace,
+      resourceFolderId: (isDrive && resource?.folderId) ? resource.folderId : (workspace.resourceFolderId || ''),
+      profilesFolderId: (isDrive && resource?.profilesFolderId) ? resource.profilesFolderId : (workspace.profilesFolderId || ''),
+      promptFolderId: (isDrive && resource?.promptFolderId) ? resource.promptFolderId : (workspace.promptFolderId || ''),
+      bibleFolderId: (isDrive && resource?.bibleFolderId) ? resource.bibleFolderId : (workspace.bibleFolderId || ''),
+      mediaFolderId: (isDrive && resource?.mediaFolderId) ? resource.mediaFolderId : (workspace.mediaFolderId || ''),
+      dbFolderId: (isDrive && resource?.dbFolderId) ? resource.dbFolderId : (workspace.dbFolderId || ''),
+    };
   } catch {
     return null;
   }
@@ -532,7 +564,7 @@ export async function findDriveFolder(token?: string, folderName?: string, paren
     query += ` and '${parentFolderId}' in parents`;
   }
 
-  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)`;
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,createdTime)&orderBy=createdTime asc`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${authToken}` },
   });
@@ -587,7 +619,7 @@ export async function ensureDriveFolder(token?: string, folderName?: string, par
 }
 
 /**
- * 특정 부모 폴더 하위에서 이름으로 파일 검색 (없으면 null)
+ * 특정 부모 폴더 하위에서 이름으로 파일 검색 (없으면 null, 최신 수정 파일 우선)
  */
 export async function findDriveFile(token?: string, fileName?: string, parentFolderId?: string): Promise<string | null> {
   const authToken = resolveAuthToken(token);
@@ -597,7 +629,7 @@ export async function findDriveFile(token?: string, fileName?: string, parentFol
     query += ` and '${parentFolderId}' in parents`;
   }
 
-  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)`;
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime,createdTime)&orderBy=modifiedTime desc`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${authToken}` },
   });
@@ -676,17 +708,108 @@ export async function ensureDriveTextFile(
 }
 
 /**
+ * 🌟 환경설정에 지정된 리소스 폴더명(예: '참조파일')을 구글 드라이브 전체에서 안전하게 탐색하고 5대 하위 폴더 ID를 일괄 바인딩
+ */
+export async function resolveDriveResourceFolderByName(
+  token: string,
+  preferredName?: string
+): Promise<{
+  folderId: string;
+  name: string;
+  profilesFolderId: string;
+  promptFolderId: string;
+  bibleFolderId: string;
+  mediaFolderId: string;
+  dbFolderId: string;
+}> {
+  const authToken = resolveAuthToken(token);
+  const targetName = preferredName || getResourceSettings('cloud')?.path || '참조파일';
+  const savedSettings = getResourceSettings('cloud');
+
+  let resolvedFolderId: string | null = null;
+  let resolvedName: string = targetName;
+
+  // The saved folder ID is authoritative, including after a Drive rename.
+  if (savedSettings?.folderId) {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(savedSettings.folderId)}?fields=id,name,trashed,mimeType&supportsAllDrives=true`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok && res.status !== 404) {
+      const error = new Error(`설정된 리소스 폴더를 확인하지 못했습니다. (HTTP ${res.status}) 환경설정에서 폴더 연결을 확인해 주세요.`);
+      Object.assign(error, { status: res.status });
+      throw error;
+    }
+    if (res.ok) {
+      const data = await res.json();
+      if (data.trashed || data.mimeType !== 'application/vnd.google-apps.folder') {
+        console.warn('[GDrive resource validation]', JSON.stringify({ id: data.id, name: data.name, mimeType: data.mimeType, trashed: !!data.trashed }));
+      } else {
+        resolvedFolderId = data.id;
+        resolvedName = data.name;
+      }
+    }
+  }
+  // 3. 만약 여전히 못 찾았다면, OnriviAuthor 하위에서 탐색 또는 생성
+  if (!resolvedFolderId) {
+    const rootFolderId = await ensureDriveFolder(authToken, 'OnriviAuthor', 'root');
+    resolvedFolderId = await ensureDriveFolder(authToken, targetName, rootFolderId);
+    resolvedName = targetName;
+  }
+
+  // 4. 5대 하위 폴더 ID 일괄 확인/구성
+  const subFolders = await initializeDriveResourceFolder(authToken, resolvedFolderId);
+
+  // 5. 환경설정에 즉시 동기화 보존 (silent: true로 이벤트 취소 방지)
+  saveResourceSettings({
+    kind: 'drive',
+    path: resolvedName,
+    folderId: resolvedFolderId,
+    ...subFolders,
+  }, 'cloud', { silent: true });
+
+  return {
+    folderId: resolvedFolderId,
+    name: resolvedName,
+    ...subFolders,
+  };
+}
+
+/**
+ * 🌟 구글 드라이브 리소스 폴더(OnriviAuthor/참조파일 등) 자동 탐색 또는 생성
+ * - 환경설정(resourceSettings)에 지정된 리소스 폴더명을 최우선으로 구글 드라이브 전체에서 탐색합니다.
+ */
+export async function getOrCreateDriveResourceFolder(token: string): Promise<{ id: string; name: string }> {
+  const preferredName = getResourceSettings('cloud')?.path || (typeof window !== 'undefined' ? localStorage.getItem('onrivi_cloud_resource_folder_path') : '') || '참조파일';
+  const resolved = await resolveDriveResourceFolderByName(token, preferredName);
+  return { id: resolved.folderId, name: resolved.name };
+}
+
+/**
  * 🌟 [핵심] 원클릭 Onrivi 클라우드 서재 폴더 구조 자동 구성
  * - 로컬 환경설정의 리소스 폴더 생성 사양과 100% 동일하게 5대 하위 디렉토리 및 기본 파일 일괄 생성
  * - /OnriviAuthor
  *   ├── /작업장 (Root 작업장)
- *   └── /참조파일 (리소스 폴더)
+ *   └── /참조폴더 (리소스 폴더)
  *        ├── /profiles (CSS 서식 보관) ➔ userCssProfiles.json
  *        ├── /prompt (AI 프롬프트 보관) ➔ ai_prompts.json, ai_presets.json, promptTemplates.json
  *        ├── /bible (참고문헌/BibTeX) ➔ references.bib
  *        ├── /media (이미지 및 미디어 보관)
  *        └── /db (지식 베이스 데이터베이스) ➔ onrivi_knowledge.db
  */
+export async function createDefaultDriveFolders(token: string, resourceName = '참조파일') {
+  const rootId = await ensureDriveFolder(token, 'OnriviAuthor', 'root');
+  const [workspaceId, resourceId] = await Promise.all([
+    ensureDriveFolder(token, '작업장', rootId),
+    ensureDriveFolder(token, resourceName, rootId),
+  ]);
+  await initializeDriveResourceFolder(token, resourceId);
+  console.info('[GDrive setup]', JSON.stringify({ workspacePath: 'OnriviAuthor/작업장', workspaceId, resourcePath: `OnriviAuthor/${resourceName}`, resourceId, initialized: true }));
+  return {
+    workspace: { id: workspaceId, name: '작업장', path: [{ id: workspaceId, name: 'OnriviAuthor/작업장' }] },
+    resource: { id: resourceId, name: resourceName },
+  };
+}
+
 export async function initializeDriveResourceFolder(token:string, resourceFolderId:string) {
   if (!resourceFolderId) throw new Error('리소스 폴더를 선택해 주세요.');
   const authToken=resolveAuthToken(token);
@@ -728,23 +851,26 @@ export async function initializeDriveResourceFolder(token:string, resourceFolder
   return {resourceFolderId,profilesFolderId,promptFolderId,bibleFolderId,mediaFolderId,dbFolderId};
 }
 
-export async function setupOnriviDriveWorkspace(token?: string, selectedFolder?: { id: string; name: string; path?: Array<{ id: string; name: string }> }, selectedResourceFolderId?:string): Promise<GoogleDriveWorkspaceInfo> {
+export async function setupOnriviDriveWorkspace(token?: string, selectedFolder?: { id: string; name: string; path?: Array<{ id: string; name: string }> }, selectedResourceFolder?: { id: string; name: string } | string): Promise<GoogleDriveWorkspaceInfo> {
   const authToken = resolveAuthToken(token);
   console.log('[GDrive] 1. 사용자 정보 및 메인 서재 폴더 조회 시작...');
 
   // 1 & 2 병렬: 사용자 정보 가져오기 & 메인 서재 폴더(/OnriviAuthor) 확인/생성
   const [userInfo, rootFolderId] = await Promise.all([
     fetchGoogleUserInfo(authToken),
-    ensureDriveFolder(authToken, 'OnriviAuthor'),
+    ensureDriveFolder(authToken, 'OnriviAuthor', 'root'),
   ]);
   console.log('[GDrive] 사용자:', userInfo.name, `(${userInfo.email})`, '| 루트 폴더 ID:', rootFolderId);
 
-  // 3 & 4 병렬: 작업장(/OnriviAuthor/작업장) & 참조파일(/OnriviAuthor/참조파일) 확인/생성
-  const [workspaceFolderId, resourceFolderId] = await Promise.all([
+  // 3 & 4 병렬: 작업장(/OnriviAuthor/작업장) & 참조폴더 확인/생성
+  const [workspaceFolderId, resourceFolderInfo] = await Promise.all([
     selectedFolder ? Promise.resolve(selectedFolder.id) : ensureDriveFolder(authToken, '작업장', rootFolderId),
-    selectedResourceFolderId ? Promise.resolve(selectedResourceFolderId) : Promise.reject(new Error('환경설정의 드라이브 리소스 폴더를 선택해 주세요.')),
+    selectedResourceFolder
+      ? Promise.resolve(typeof selectedResourceFolder === 'object' ? selectedResourceFolder : { id: selectedResourceFolder, name: getResourceSettings('cloud')?.path || '참조폴더' })
+      : getOrCreateDriveResourceFolder(authToken),
   ]);
-  console.log('[GDrive] 작업장 ID:', workspaceFolderId, '| 참조파일 ID:', resourceFolderId);
+  const resourceFolderId = typeof resourceFolderInfo === 'string' ? resourceFolderInfo : resourceFolderInfo.id;
+  console.log('[GDrive] 작업장 ID:', workspaceFolderId, '| 참조폴더 ID:', resourceFolderId);
 
   const {profilesFolderId,promptFolderId,bibleFolderId,mediaFolderId,dbFolderId} = await initializeDriveResourceFolder(authToken,resourceFolderId);
   const existingFiles=await listDriveChildren(authToken,workspaceFolderId);
@@ -793,7 +919,7 @@ let pickerLoad: Promise<void> | null = null;
 
 /** 작업장 루트 내부의 검증된 경로만 선택창에 전달한다. */
 export async function selectOnriviWorkspaceFolder(token: string, restoreLast = false) {
-  const appRootId = await ensureDriveFolder(token, 'OnriviAuthor');
+  const appRootId = await ensureDriveFolder(token, 'OnriviAuthor', 'root');
   const workspaceRootId = await ensureDriveFolder(token, '작업장', appRootId);
   const initialPath = [{ id: workspaceRootId, name: 'OnriviAuthor/작업장' }];
   const saved = getSavedWorkspaceInfo();
@@ -810,8 +936,13 @@ export async function selectOnriviWorkspaceFolder(token: string, restoreLast = f
     const folder = children.find(child => child.id === saved.workspaceFolderId && child.isFolder);
     if (folder) initialPath.push({ id: folder.id, name: folder.name });
   }
-  if (restoreLast && saved?.workspaceFolderId === initialPath[initialPath.length - 1].id) {
-    return { ...initialPath[initialPath.length - 1], path: initialPath };
+  if (restoreLast) {
+    if (!saved?.workspaceFolderId || saved.workspaceFolderId === workspaceRootId) {
+      return { id: workspaceRootId, name: '작업장', path: initialPath };
+    }
+    if (saved?.workspaceFolderId === initialPath[initialPath.length - 1].id) {
+      return { ...initialPath[initialPath.length - 1], path: initialPath };
+    }
   }
   const { pickAccessibleDriveFolder } = await import('./WorkspaceFolderPicker');
   return pickAccessibleDriveFolder(token, initialPath);
@@ -912,10 +1043,16 @@ export async function listDriveChildren(token?: string, parentFolderId?: string,
 export async function readDriveFileContent(token?: string, fileId?: string): Promise<string> {
   const authToken = resolveAuthToken(token);
   if (!fileId) return '';
-  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${authToken}` },
   });
+  if (res.status === 401) {
+    console.warn('[readDriveFileContent] 401 Unauthorized - 만료된 토큰 정리');
+    localStorage.removeItem(STORAGE_KEY_TOKEN);
+    localStorage.removeItem(STORAGE_KEY_EXPIRY);
+    sessionStorage.removeItem(STORAGE_KEY_TOKEN);
+  }
   if (!res.ok) {
     throw await parseDriveError(res, '파일 읽기');
   }

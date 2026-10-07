@@ -1,5 +1,6 @@
 // @ts-nocheck
-import { getResourceSettings, saveResourceSettings } from '@/lib/resourceSettings';
+import { getResourceSettings, saveResourceSettings, activateDriveAccount } from '@/lib/resourceSettings';
+import { restoreLocalProfileFolder } from '@/lib/profileStorage';
 import { useEffect, useCallback, useRef } from 'react';
 import { FileNode, scanDirectory, idb } from '@/lib/indexedDbHelper';
 import { getVfsFiles, vfsReadFile, vfsWriteFile } from '@/lib/virtualFileSystem';
@@ -20,6 +21,15 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
+// 🚨 @PATCH : **2026-10-07** — [구글 드라이브 연결 시 만료 토큰(401) 자동 감지 및 즉시 재인증 팝업 트리거]:
+//             기존 저장된 토큰이 401 만료 상태인 경우 onrivi_gdrive_token_expires_at 키 소거 후 requestGoogleDriveAuth 팝업을 즉시 띄워 새 토큰을 획득하도록 보강
+// 🚨 @PATCH : **2026-10-07** — [구글 드라이브 연결 및 해제 시 로컬 리소스 폴더 격리 보존]:
+//             1) connectGoogleDrive 시 saveResourceSettings에 'cloud' 환경을 명시하고 로컬 리소스 경로 변수를 덮어쓰지 않도록 개선
+//             2) disconnectGoogleDrive 시 백업된 로컬 리소스 폴더(onrivi_local_backup_resource_folder_path)를 원상 복구하고 saveResourceSettings에 'local'을 명시하여 로컬 작업장 서식 완전 복원
+// 🚨 @PATCH : **2026-10-07** — [최초 구글 드라이브 접속 시 작업장 및 참조폴더(5대 하위폴더/기본파일) 자동 생성 & 환경설정 직결]:
+//             1) 구글 드라이브 연결 시 팝업 선택창 없이 OnriviAuthor/작업장 및 OnriviAuthor/참조폴더를 100% 자동 생성/바인딩
+//             2) 참조폴더 내 5대 필수 폴더(bible, db, media, profiles, prompt) 및 기본 설정 파일들을 무인 자동 구성
+//             3) 환경설정 공통 리소스 폴더를 '참조폴더'로 자동 지정하여 SettingsModal에 선명하게 직결 반영
 // 🚨 @PATCH : **2026-10-07** — [구글 드라이브 최종 접속 상태 재접속 복원 & 백그라운드 토큰 자동 갱신 연동]:
 //             1) refreshFileList 내 구글 드라이브 토큰 누락/만료 시 refreshDriveTokenSilently 백그라운드 무음 갱신을 수행하여 새로고침/재접속 시에도 파일 목록이 즉시 정상 복구되도록 개선
 //             2) connectGoogleDrive 및 disconnectGoogleDrive 시 onrivi_last_workspace_mode 영구 상태를 동기화하여 다음 로그인/재접속 시 마지막 작업장(구글 드라이브)으로 자동 진입 보장
@@ -290,7 +300,8 @@ export const useFileExplorer = ({
             localStorage.setItem('workspaceType', 'local');
 
             // 📁 로컬 작업장 복귀 시 리소스 폴더가 구글 드라이브였으면 로컬 작업장 참조파일로 원상복구
-            saveResourceSettings(getResourceSettings('local'));
+            await restoreLocalProfileFolder();
+            saveResourceSettings(getResourceSettings('local'), 'local');
 
             setTabs([]);
             setActiveTabId(null);
@@ -348,7 +359,8 @@ export const useFileExplorer = ({
           localStorage.setItem('workspaceType', 'browser');
 
           // 📁 로컬 작업장 복귀 시 리소스 폴더가 구글 드라이브였으면 로컬 작업장 참조파일로 원상복구
-          saveResourceSettings(getResourceSettings('local'));
+          await restoreLocalProfileFolder();
+          saveResourceSettings(getResourceSettings('local'), 'local');
           setTabs([]);
           setActiveTabId(null);
           setContent('');
@@ -1519,6 +1531,8 @@ export const useFileExplorer = ({
   // 📊 [OMD-FILE-USEFILEEXPLORER-0010] useFileExplorer.ts ➔ connectGoogleDrive
   // 🎯 @KICK  : 구글 드라이브 원클릭 무설정 연동, 서재 폴더 자동 바인딩 및 0초 즉각 렌더링
   // 🛡️ @GUARD : 기존 로컬 작업장 및 리소스 폴더 백업, 예외 발생 시 안내 토스트
+  // 🚨 @PATCH : **2026-10-07** — [구글 드라이브 연결 시 만료 토큰(401) 자동 감지 및 즉시 재인증 팝업 트리거]:
+  //             기존 저장된 토큰이 401 만료 상태인 경우 자동 폐기 후 requestGoogleDriveAuth 팝업을 즉시 띄워 새 토큰을 획득하도록 보강
   // 🚨 @PATCH : **2026-10-03** — [구글 드라이브 토큰 추출 타입 불일치 버그 완벽 수정]: requestGoogleDriveAuth 반환값(string) 타입 정규화로 토큰이 undefined로 유입되어 발생하던 401 Unauthorized 결함 박멸
   // 🚨 @PATCH : **2026-10-03** — 구글 드라이브 무설정 자동 연동, 0초 반응속도 렌더링, 리소스 폴더(OnriviAuthor/참조파일) 자동 동기화
   // 🔗 @CALLS : requestGoogleDriveAuth, setupOnriviDriveWorkspace, fetchDriveFileNodes, handleFileClick
@@ -1528,26 +1542,50 @@ export const useFileExplorer = ({
     storageSwitchRef.current = true;
     try {
       const isLocal = rootFolderRef.current?.type !== 'GDRIVE';
+      const localResourceBeforeConnect = getResourceSettings('local');
       if (!isLocal && (tabsRef.current.some(t => t.isModified) ||
           (activeTabIdRef?.current && contentRef.current !== lastSavedContentRef.current))) {
         showToast('작업장을 변경하기 전에 작성 중인 글을 저장해 주세요.', 'warning');
         return;
       }
       showToast("구글 드라이브 연결 중...", "info");
-      const authRes = getSavedDriveToken() || await requestGoogleDriveAuth();
-      const token = (typeof authRes === 'string' ? authRes : (authRes as any)?.access_token) || getSavedDriveToken() || '';
+      let token = getSavedDriveToken();
+      if (token) {
+        try {
+          const testRes = await fetch('https://www.googleapis.com/drive/v3/about?fields=user&supportsAllDrives=true', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (testRes.status === 401 || !testRes.ok) {
+            console.warn('[connectGoogleDrive] 기존 토큰 만료 확인 (401) -> 새 토큰 발급 팝업 가동');
+            localStorage.removeItem('onrivi_gdrive_access_token');
+            localStorage.removeItem('onrivi_gdrive_token_expires_at');
+            sessionStorage.removeItem('onrivi_gdrive_access_token');
+            token = null;
+          }
+        } catch {
+          token = null;
+        }
+      }
+      if (!token) {
+        token = await requestGoogleDriveAuth();
+      }
       if (!token) {
         throw new Error("구글 인증 토큰 획득에 실패했습니다. 다시 시도해주세요.");
       }
 
-      const selectedFolder = await selectOnriviWorkspaceFolder(token, !chooseFolder);
+      const { fetchGoogleUserInfo } = await import('@/lib/gdrive/googleDriveClient');
+      const account = await fetchGoogleUserInfo(token);
+      const { isFirstConnection } = activateDriveAccount(account.email);
+      // Account-specific settings -> validate/create resource folder -> initialize
+      // children/files -> connect document workspace.
+      const { resolveDriveResourceFolderByName, createDefaultDriveFolders } = await import('@/lib/gdrive/googleDriveClient');
+      const resource = await resolveDriveResourceFolderByName(token);
+      const selectedResource = { id: resource.folderId, name: resource.name };
+      const initial = isFirstConnection ? await createDefaultDriveFolders(token, resource.name) : null;
+      const selectedFolder = initial?.workspace || await selectOnriviWorkspaceFolder(token, !chooseFolder);
       if (!selectedFolder) return;
       showToast('선택한 작업장에 연결 중...', 'info');
-      const {pickDriveResourceFolder}=await import('@/lib/gdrive/ResourceFilePicker');
-      const {restoreDriveResourceFolder}=await import('@/lib/gdrive/restoreResourceFolder');
-      const selectedResource=await restoreDriveResourceFolder(token) || await pickDriveResourceFolder(token);
-      if (!selectedResource) { window.dispatchEvent(new CustomEvent('onrivi:resource-settings')); return; }
-      const wsInfo = await setupOnriviDriveWorkspace(token, selectedFolder, selectedResource.id);
+      const wsInfo = await setupOnriviDriveWorkspace(token, selectedFolder, selectedResource);
       const driveNodes = await fetchDriveFileNodes(token, selectedFolder.id);
 
       // Back up only when leaving local storage; cloud folder changes must not overwrite it.
@@ -1563,11 +1601,13 @@ export const useFileExplorer = ({
         localStorage.setItem('onrivi_last_local_workspace_type', workspaceType || 'browser');
         for (const [source, target] of [
           ['onrivi_workspace_path', 'onrivi_last_local_workspace_path'],
-          ['onrivi_resource_folder_path', 'onrivi_local_backup_resource_folder_path'],
         ]) {
           const value = localStorage.getItem(source);
           if (value !== null) localStorage.setItem(target, value);
           else localStorage.removeItem(target);
+        }
+        if (localResourceBeforeConnect) {
+          saveResourceSettings(localResourceBeforeConnect, 'local', { silent: true });
         }
       }
 
@@ -1587,8 +1627,19 @@ export const useFileExplorer = ({
       localStorage.setItem('onrivi_workspace_path', gdriveFolder.path);
       localStorage.setItem('onrivi_last_workspace_mode', 'cloud');
 
-      // 3. 환경설정 공통 리소스 폴더를 구글 드라이브 OnriviAuthor/참조파일 로 자동 동기화
-      saveResourceSettings({kind:'drive',path:`gdrive://${selectedResource.id}/${selectedResource.name}`,folderId:wsInfo.resourceFolderId,profilesFolderId:wsInfo.profilesFolderId,promptFolderId:wsInfo.promptFolderId,bibleFolderId:wsInfo.bibleFolderId,mediaFolderId:wsInfo.mediaFolderId,dbFolderId:wsInfo.dbFolderId});
+      // 3. 환경설정 공통 리소스 폴더를 구글 드라이브 리소스 폴더로 자동 동기화
+      const resourceDisplayName = selectedResource.name;
+      saveResourceSettings({
+        kind: 'drive',
+        path: resourceDisplayName,
+        folderId: wsInfo.resourceFolderId,
+        profilesFolderId: wsInfo.profilesFolderId,
+        promptFolderId: wsInfo.promptFolderId,
+        bibleFolderId: wsInfo.bibleFolderId,
+        mediaFolderId: wsInfo.mediaFolderId,
+        dbFolderId: wsInfo.dbFolderId
+      }, 'cloud');
+      localStorage.setItem('onrivi_cloud_resource_folder_path', resourceDisplayName);
 
       // 4. 탐색기 목록 0초 즉각 렌더링
       setFileList(driveNodes);
@@ -1642,12 +1693,17 @@ export const useFileExplorer = ({
         return;
       }
       driveEnvironmentRef.current = captureEnvironment();
+      // Switch resource storage before removing the token, so reloads cannot
+      // observe cloud storage with an already-cleared Drive connection.
+      const localResource=getResourceSettings('local');
+      await restoreLocalProfileFolder();
+      saveResourceSettings(localResource, 'local');
       disconnectGDriveClient();
       localStorage.removeItem('onrivi_last_workspace_mode');
 
       // 백업된 로컬 작업장/리소스 폴더 복원
       const backupWs = localStorage.getItem('onrivi_last_local_workspace_path');
-      const backupRf = localStorage.getItem('onrivi_local_backup_resource_folder_path');
+      const backupRf = localResource?.path;
 
       setRootFolder(restoredRoot);
       rootFolderRef.current = restoredRoot;
@@ -1665,9 +1721,11 @@ export const useFileExplorer = ({
 
       const lastWsType = localStorage.getItem('onrivi_last_local_workspace_type') || ((window as any).electronAPI ? 'local' : 'browser');
       setWorkspaceType(lastWsType);localStorage.setItem('workspaceType',lastWsType);
-      const localResource=getResourceSettings('local');
-      saveResourceSettings(localResource);
-
+      if (backupRf) {
+        localStorage.setItem('onrivi_resource_folder_path', backupRf);
+        localStorage.setItem('onrivi_resource_folder', backupRf);
+        localStorage.setItem('resourceFolder', backupRf);
+      }
       restoreEnvironment(localEnvironmentRef.current);
       setIsSidebarOpen(true);
       showToast('구글 드라이브 연결을 해제하고 마지막 로컬 작업장으로 돌아왔습니다.', 'success');

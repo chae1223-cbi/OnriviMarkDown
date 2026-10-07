@@ -1,6 +1,9 @@
 /**
  * 프로그램명 : OnriviAuthor
  * 파일명 : StyleManagerModal.tsx
+ * 🚨 @PATCH : **2026-10-07** — [구글 드라이브 내 서식 동기화 카드 및 원클릭 재연결 탑재]:
+ *             1) '내 서식' 탭에서 서식이 비어있을 때 구글 드라이브 참조파일(userCssProfiles.json 70KB)과 즉시 연동할 수 있는 원클릭 재연결 카드 제공
+ *             2) requestGoogleDriveAuth 및 saveDriveToken 호출로 새 토큰 발급 즉시 2개 사용자 서식(연습테스트, 소형책 출판 등) 실시간 자동 하이드레이션
  * 🚨 @PATCH : **2026-10-01** — [PDF/EPUB 내보내기 페이지 나누기 기준 기본값 'none' 동기화]: AI 서식 생성 프롬프트 예시 내 exportPageBreakLevel을 'none'으로 변경
  * 🚨 @PATCH : **2026-09-27** — 사용자 서식 읽기·수정·가져오기·AI 생성 저장소를 profiles/userCssProfiles.json 하나로 통일. 개별 CSS 생성 및 다른 저장소 폴백 제거.
  * 🚨 @PATCH : **2026-09-26** — [표 모든 테두리(Grid) 세로선 및 프리셋 가이드·AI 프롬프트 동기화]: tableStructure(outerBorderWidth, rowBorderWidth, colBorderWidth) 세로선(Grid: 1px, Horizontal: 0px) 명세 보강 및 th/td 레거시 border-left/right: none 주입 방지 지시 탑재
@@ -34,6 +37,10 @@
  */
 'use client';
 import { pickResourceTextFile } from '@/lib/gdrive/ResourceFilePicker';
+import { getResourceSettings, saveResourceSettings } from '@/lib/resourceSettings';
+import { getProfileReadStatus, subscribeProfileReadStatus } from '@/lib/profileReadStatus';
+import { reconnectLocalProfileFolder } from '@/lib/profileStorage';
+import { requestGoogleDriveAuth, saveDriveToken, getSavedDriveToken } from '@/lib/gdrive/googleDriveClient';
 
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -84,6 +91,8 @@ export default function StyleManagerModal({
   aiModelName,
 }: StyleManagerModalProps) {
   const [selectedId, setSelectedId] = useState(activeProfileId);
+  const [profileReadStatus, setProfileReadStatus] = useState(getProfileReadStatus);
+  useEffect(() => subscribeProfileReadStatus(() => setProfileReadStatus(getProfileReadStatus())), []);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'system' | 'custom'>('all');
   const [toast, setToast] = useState<string | null>(null);
@@ -118,6 +127,42 @@ export default function StyleManagerModal({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const [isReconnectingDrive, setIsReconnectingDrive] = useState(false);
+  const [isReconnectingLocal, setIsReconnectingLocal] = useState(false);
+  const handleReconnectLocal = async () => {
+    setIsReconnectingLocal(true);
+    try {
+      await reconnectLocalProfileFolder();
+      setToast('로컬 폴더에 다시 연결했습니다. 서식 파일을 읽는 중입니다.');
+    } catch (error: any) {
+      if (error.name !== 'AbortError') setToast(error.message || '로컬 폴더를 연결하지 못했습니다.');
+    } finally { setIsReconnectingLocal(false); }
+  };
+
+  const handleReconnectDrive = async () => {
+    setIsReconnectingDrive(true);
+    try {
+      if (!getSavedDriveToken()) {
+        const token = await requestGoogleDriveAuth();
+        if (!token) throw new Error('Drive 인증이 완료되지 않았습니다.');
+        saveDriveToken(token);
+        // Allow the token update to install the new profile-load effect.
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+      const success = await new Promise<boolean>(resolve => {
+        const timeout = setTimeout(() => resolve(false), 30000);
+        window.dispatchEvent(new CustomEvent('onrivi:reload_profiles', { detail: {
+          resolve: (result: boolean) => { clearTimeout(timeout); resolve(result); },
+        } }));
+      });
+      setToast(success ? '✅ 선택한 리소스 폴더의 서식을 다시 읽었습니다.' : '⚠️ 서식을 읽지 못했습니다. 오류 안내와 환경설정의 리소스 폴더 위치를 확인해 주세요.');
+    } catch (err: any) {
+      console.error('[StyleManagerModal Reconnect Error]', err);
+      setToast('⚠️ ' + (err.message || '인증이 취소되었습니다.'));
+    } finally {
+      setIsReconnectingDrive(false);
+    }
+  };
 
   // 로컬스토리지 API 키 자동 감지 및 복호화 보장
   const rawKey = geminiApiKey || (typeof window !== 'undefined' ? (localStorage.getItem('onrivi_gemini_api_key') || localStorage.getItem('geminiApiKey') || '') : '');
@@ -607,9 +652,58 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
 
           {/* 서식 목록 아이템 영역 (AGENTS.md Rule 6: 세로선 금지, 고대비 볼드 + 코발트 음영 라운드 박스) */}
           <div className="flex-1 overflow-y-auto px-2.5 py-2 space-y-1 custom-scrollbar">
+            <div className="mx-3 mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 space-y-1">
+              <p className="font-bold">서식 저장소: {profileReadStatus?.environment === 'cloud' ? '웹드라이브' : '로컬'}</p>
+              <p className="break-all">{profileReadStatus?.folder || '경로 확인 중'} / profiles / userCssProfiles.json</p>
+              {profileReadStatus?.folderId && <p className="break-all">폴더 ID: {profileReadStatus.folderId}</p>}
+              <p>{profileReadStatus?.state === 'loading' ? '서식 읽는 중' : profileReadStatus?.state === 'success' ? `읽기 완료 · 사용자 서식 ${profileReadStatus.userCount ?? 0}개` : profileReadStatus?.state === 'error' ? '읽기 실패' : '아직 조회되지 않음'}</p>
+              <p className="text-slate-400">저장소 진단 v2026.10.08</p>
+            </div>
+            {profileReadStatus?.environment === 'local' && getResourceSettings('cloud')?.folderId && (
+              <div className="p-3 rounded-xl bg-blue-50 text-blue-900 dark:bg-blue-950 dark:text-blue-200 text-xs space-y-2">
+                <p>현재 서식 저장소는 로컬입니다. 저장된 웹드라이브 리소스 폴더의 서식을 사용할 수 있습니다.</p>
+                <button type="button" className="font-bold underline" onClick={() => {
+                  const drive = getResourceSettings('cloud');
+                  if (drive?.kind === 'drive' && drive.folderId) saveResourceSettings(drive, 'cloud');
+                }}>웹드라이브 서식 사용</button>
+              </div>
+            )}
+            {profileReadStatus?.state === 'error' && (
+              <div role="alert" className="p-3 rounded-xl bg-red-50 text-red-900 dark:bg-red-950 dark:text-red-200 text-xs space-y-2">
+                <p className="font-bold">서식 파일을 읽지 못했습니다.</p>
+                <p>{profileReadStatus.error}</p>
+                <p className="break-all">읽기 위치: {profileReadStatus.folder || '미설정'} / profiles / userCssProfiles.json</p>
+                {profileReadStatus.folderId && <p className="break-all">Drive 폴더 ID: {profileReadStatus.folderId}</p>}
+                {profileReadStatus.environment === 'local' && !(window as any).electronAPI && (
+                  <button type="button" disabled={isReconnectingLocal} className="block font-bold underline disabled:opacity-50" onClick={handleReconnectLocal}>
+                    {isReconnectingLocal ? '로컬 폴더 연결 중...' : '로컬 리소스 폴더 다시 연결'}
+                  </button>
+                )}
+                <button type="button" className="font-bold underline" onClick={() => { onClose(); window.dispatchEvent(new CustomEvent('onrivi:resource-settings')); }}>리소스 폴더 설정 확인</button>
+              </div>
+            )}
             {filteredProfiles.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 dark:text-zinc-500 text-[12px]">
-                일치하는 서식이 없습니다.
+              <div className="py-8 px-2 text-center text-slate-400 dark:text-zinc-500 text-[12px] space-y-3">
+                <p>일치하는 서식이 없습니다.</p>
+                {filterType === 'custom' && !searchTerm.trim() && getResourceSettings()?.kind === 'drive' && (
+                  <div className="p-3 bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 rounded-xl space-y-2 text-center shadow-xs">
+                    <p className="text-[12px] font-bold text-blue-900 dark:text-blue-300">
+                      ☁️ 웹드라이브 서식 다시 읽기
+                    </p>
+                    <p className="text-[11px] text-zinc-600 dark:text-zinc-400 leading-relaxed font-medium">
+                      선택한 리소스 폴더의 profiles/userCssProfiles.json을 다시 읽습니다. 연결된 상태에서는 재인증하지 않습니다.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={isReconnectingDrive}
+                      onClick={handleReconnectDrive}
+                      className="w-full py-2 px-3 bg-[#1d4ed8] hover:bg-[#1e40af] text-white rounded-lg text-[11px] font-extrabold transition-all shadow-xs disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isReconnectingDrive ? 'animate-spin' : ''}`} />
+                      <span>{isReconnectingDrive ? '서식 읽는 중...' : getSavedDriveToken() ? '서식 다시 읽기' : 'Drive 연결 후 서식 읽기'}</span>
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               filteredProfiles.map(p => {

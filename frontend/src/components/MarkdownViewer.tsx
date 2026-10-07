@@ -1,6 +1,7 @@
 import { remarkCodeBlockMetadata } from '../lib/codeBlockMetadata';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { exportContentFingerprint } from '@/lib/exportPreparation';
+// 🚨 @PATCH : **2026-10-07** — [환경설정 리소스 폴더(참조파일 등) 미디어 렌더링 폴더 ID 직결]: AsyncImage 및 AsyncVideo 렌더링 시 getResourceSettings('cloud')?.mediaFolderId를 최우선으로 사용하여 구글 드라이브 리소스 폴더 미디어 100% 정상 표시
 // 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 전역 미디어 실시간 연동 강화]: 구글 드라이브(OnriviAuthor/참조파일/media) 및 로컬/웹 리소스 폴더 변경 시 AsyncImage 실시간 감지 및 캐싱 Blob URL 렌더링 지원
 // 🚨 @PATCH : **2026-10-01** — [본문 우측/중앙 정렬(align, text-align, table 등) 100% 실시간 렌더링 지원]: [align="right"], [style*="text-align: right"], [align="center"] 등의 CSS 규칙을 탑재하고 div/p 컴포넌트의 align 속성을 inline style로 정밀 바인딩하며, th text-align center 강제를 해제하여 사용자 정렬 완벽 보장
 // 🚨 @PATCH : **2026-10-01** — [공통 리소스 폴더 하위 폴더 이미지 경로 인식 및 브라우저 세션 복원 결함 해결]: 1) getEffectiveResourceFolder 연동으로 localStorage의 리소스 폴더 설정(onrivi_resource_folder_path 등)을 100% 반영하여 '리소스 폴더 미지정' 오탐 방지 2) 사용자 마크다운 내부 이미지 경로(subfolder/img.png 등)에 media/ 강제 주입을 배제하고 지정된 해당 서브폴더 경로를 그대로 유지 탐색하도록 경로 정규화 개선 3) 브라우저 모드에서 resolveFileHandleInDirectory 신설로 서브디렉터리 파일 핸들 재귀 탐색 및 IndexedDB 저장소 핸들 동기 복원 지원
@@ -247,7 +248,7 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
           if (isDriveEnv) {
             const token = getSavedDriveToken();
             const wsInfo = getSavedWorkspaceInfo();
-            const targetMediaFolderId = wsInfo?.mediaFolderId;
+            const targetMediaFolderId = getResourceSettings('cloud')?.mediaFolderId || wsInfo?.mediaFolderId;
             if (token && targetMediaFolderId) {
               const driveBlobUrl = await getDriveMediaImageBlobUrl(token, targetMediaFolderId, pureSrc);
               if (driveBlobUrl) {
@@ -453,7 +454,8 @@ const AsyncVideo = ({ src, absolutePath, rootFolder, resourceFolderHandle, works
         if (driveQuery.get('driveId') || ((getResourceSettings()?.kind === 'drive') && /media\//.test(src))) {
           const token = getSavedDriveToken(); const info = getSavedWorkspaceInfo();
           if (!token || !info) throw new Error('구글 드라이브 연결이 필요합니다.');
-          const url = await getDriveMediaImageBlobUrl(token, info.mediaFolderId, src.split('?')[0] + '?' + driveQuery.toString());
+          const targetMediaFolderId = getResourceSettings('cloud')?.mediaFolderId || info.mediaFolderId;
+          const url = await getDriveMediaImageBlobUrl(token, targetMediaFolderId, src.split('?')[0] + '?' + driveQuery.toString());
           if (!url) throw new Error('드라이브에서 동영상을 찾을 수 없습니다.');
           setVideoSrc(url); return;
         }

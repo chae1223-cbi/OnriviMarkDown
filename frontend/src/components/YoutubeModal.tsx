@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-07** — [환경설정 리소스 폴더(참조파일 등) 동영상 media 하위폴더 직결 바인딩]: 구글 드라이브 동영상 저장 시 cloudSettings.mediaFolderId 우선 참조 및 부모 리소스 폴더 하위 탐색으로 안전 업로드
 // 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 전역 미디어 실시간 연동 강화]: getEffectiveResourceFolder 연동 및 구글 드라이브(OnriviAuthor/참조파일/media) 업로드 지원
 "use client";
 
@@ -124,8 +125,18 @@ export default function YoutubeModal({
     const isDriveTarget = getResourceSettings()?.kind === 'drive';
     if (isDriveTarget) {
       const token = getSavedDriveToken();
+      const cloudSettings = getResourceSettings('cloud');
       const wsInfo = getSavedWorkspaceInfo();
-      const mediaFolderId = wsInfo?.mediaFolderId;
+      let mediaFolderId = cloudSettings?.mediaFolderId || wsInfo?.mediaFolderId;
+      if (!mediaFolderId && token && (cloudSettings?.folderId || wsInfo?.resourceFolderId)) {
+        try {
+          const parentId = cloudSettings?.folderId || wsInfo?.resourceFolderId;
+          const { listDriveChildren } = await import('@/lib/gdrive/googleDriveClient');
+          const children = await listDriveChildren(token, parentId!);
+          const m = children.find(c => c.isFolder && c.name === 'media');
+          if (m) mediaFolderId = m.id;
+        } catch {}
+      }
       if (!token || !mediaFolderId) { showToast('구글 드라이브를 먼저 연결해 주세요.', 'error'); return; }
       if (token && mediaFolderId) {
         try {

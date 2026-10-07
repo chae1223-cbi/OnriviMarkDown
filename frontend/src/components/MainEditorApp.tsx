@@ -3,7 +3,19 @@
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
- * 변경내역
+// 🚨 @PATCH : **2026-10-07** — [구글 드라이브 토큰 만료(401) 감지 시 안내 토스트 연동 및 서식 필터 정규화]:
+//             1) onrivi:drive_token_expired 리스너 탑재로 토큰 만료 시 재인증 안내 토스트 자동 발송
+//             2) 서식 필터 시 사용자 서식 이름 보존 및 다이렉트 렌더링 보장
+// 🚨 @PATCH : **2026-10-07** — [환경설정 지정 리소스 폴더(참조파일 등) 폴더 변경 및 이미지 붙여넣기 5대 서브폴더 직결]:
+//             1) selectResourceFolder 시 initializeDriveResourceFolder를 정상 연동하여 5대 하위 폴더 ID를 일괄 갱신
+//             2) 이미지 붙여넣기 시 cloudSettings.mediaFolderId 우선 연동으로 환경설정 리소스 폴더에 안전 저장
+// 🚨 @PATCH : **2026-10-07** — [로컬 vs 구글 드라이브 리소스 서식 완벽 격리 & 모드 전환 실시간 리로드]:
+//             1) workspaceType을 profile load effect 의존성에 등록하고 targetEnv('cloud' vs 'local')를 명시 주입하여 로컬/구글 드라이브 간 서식 교차 노출 결함 원천 해결
+//             2) profilesSave 시에도 targetEnv에 맞춰 로컬은 로컬 리소스 폴더에, 구글 드라이브는 구글 드라이브에만 저장되도록 환경 격리 일원화
+// 🚨 @PATCH : **2026-10-07** — [최초 구글 드라이브 접속 시 작업장 및 참조폴더(5대 하위폴더/기본파일) 자동 생성 & 환경설정 직결]:
+//             1) 구글 드라이브 연결 시 팝업 선택창 없이 OnriviAuthor/작업장 및 OnriviAuthor/참조폴더를 100% 자동 생성/바인딩
+//             2) 참조폴더 내 5대 필수 폴더(bible, db, media, profiles, prompt) 및 기본 설정 파일들을 무인 자동 구성
+//             3) 환경설정 공통 리소스 폴더를 '참조폴더'로 자동 지정하여 SettingsModal에 선명하게 직결 반영
 // 🚨 @PATCH : **2026-10-07** — [구글 드라이브 무중단 토큰 자동 갱신(Auto-Refresh) & 최종 작업장(GDRIVE) 재접속 100% 자동 복원]:
 //             1) initDriveTokenAutoRefresh 연동으로 앱 구동 시 백그라운드 토큰 자동 갱신 타이머 가동하여 1시간 만료 끊김 원천 방어
 //             2) workspaceType 초기 상태를 localStorage(workspaceType/onrivi_last_workspace_mode)와 동기화하여 구글 드라이브 작업장에서 종료 시 다음 재접속/새로고침 시 자동으로 구글 드라이브 작업장 상태로 복원
@@ -37,6 +49,9 @@
 // 🚨 @PATCH : **2026-10-01** — [표 미리보기 외곽 테두리 및 행/열 구분선 동적 인젝션 정합화]: dynamicCssString 내 tableStructure 인젝션 시 최외곽 4면 셀 테두리 및 colBorderWidth 0px 소거 처리를 내보내기 규격과 100% 동기화
 // 🚨 @PATCH : **2026-10-01** — [한글(.hwpx) 내보내기 명령 제거]: EditorCommandType 및 executeCommand에서 EXPORT_HWPX 액션 완전 삭제
 // 🚨 @PATCH : **2026-09-30** — [Word(.docx) 및 한글(.hwpx) 내보내기 명령 연동]: EditorCommandType 및 executeCommand에 EXPORT_DOCX, EXPORT_HWPX 액션 등록 및 핸들러 연결
+// 🚨 @PATCH : **2026-10-07** — [구글 드라이브 토큰 스토리지 키 오타 수정 및 토큰 갱신 이벤트 연동]:
+//             1) targetEnv 판정 시 onrivi_gdrive_auth_token 오타를 onrivi_gdrive_access_token 및 getSavedDriveToken()으로 바로잡아 클라우드 서식 로드 정상화
+//             2) onrivi:drive_token_updated 리스너를 탑재하여 구글 로그인 즉시 사용자 정의 서식 2종('연습테스트', '소형책 출판 전문 서식') 실시간 로드 트리거
 // 🚨 @PATCH : **2026-09-30** — [단축키 리스너 useEffect 의존성 최적화]: handleGlobalKeyDown 내부에서 사용되는 setFontSize를 의존성 배열에 명시하여 ESLint missing dependency 경고 완전 소거
 // 🚨 @PATCH : **2026-09-30** — [문서 연결(DocLinkPicker) 폴더 수집 원복 & 탐색기 폴더 연결 커서 위치 즉시 기입 연동]: 웹/데스크톱 공통으로 문서 연결(DocLinkPicker) 및 [[ 자동완성에서는 폴더 노드를 제외하여 순수 마크다운 문서 연결로 원복하고, 탐색기 폴더 우클릭 '폴더 연결' 클릭 시 app:insert-folder-link 이벤트를 수신하여 현재 열린 문서의 에디터 커서 위치에 [폴더명](<./상대경로/>)을 원자적으로 즉시 삽입
 // 🚨 @PATCH : **2026-09-30** — [미리보기 모드 시 문서 병합(MERGE) 및 각주 정리(ORGANIZE_FOOTNOTES) 실행 차단 방어]: previewMode가 'preview'일 때 명령 실행을 차단하고 경고 토스트 안내
@@ -230,7 +245,7 @@
  * =========================================================================
 */
 
-import { getResourceSettings, saveResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
+import { getResourceSettings, saveResourceSettings, requireResourceSettings, getResourceEnvironment, activateDriveAccount } from '@/lib/resourceSettings';
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, useDeferredValue } from 'react';   // 리액트 훅 - 상태관리, 렌더링 제어 등
 import Editor, { loader } from '@monaco-editor/react'; // 모나코 에디터 - 코드 편집기
 const _monacoVsPath = typeof window !== 'undefined' && !!(window as any).electronAPI
@@ -331,6 +346,7 @@ import { saveExternalFileHandle } from '@/lib/storage/externalFileStore';
 import { PreviewToolbar } from '@/components/preview/PreviewToolbar';
 import { PreviewFindWidget } from '@/components/preview/PreviewFindWidget';
 import { fetchUserProfiles, persistUserProfiles, getEffectiveResourceFolder, getProfileResourceFolder } from '@/lib/profileStorage';
+import { setProfileReadStatus } from '@/lib/profileReadStatus';
 import {
   getSavedDriveToken,
   getSavedWorkspaceInfo,
@@ -1292,7 +1308,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       // 1. IndexedDB에서 웹 브라우저용 Handle 복원
       if (!resourceFolderHandle && getResourceSettings()?.kind === 'browser' && typeof window !== 'undefined') {
         try {
-          const savedHandle = await idb.get('resourceFolderHandle');
+          const savedHandle = await idb.get('localResourceFolderHandle') || await idb.get('resourceFolderHandle');
           if (savedHandle && savedHandle.name === getResourceSettings()?.path) {
             setResourceFolderHandle(savedHandle);
             (window as any).__resourceFolderHandle = savedHandle;
@@ -1322,6 +1338,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (getResourceSettings()?.kind === 'drive') {
         setResourceFolderHandle(null);
         (window as any).__resourceFolderHandle = null;
+      } else {
+        const handle = (window as any).__resourceFolderHandle;
+        setResourceFolderHandle(handle?.name === newFolder ? handle : null);
       }
     };
     if (typeof window !== 'undefined') {
@@ -1330,43 +1349,23 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   }, []);
 
-  const [profileStorageRevision, setProfileStorageRevision] = useState(0);
-  const profileStorageRef = useRef<{ folder: string; handle: any; hash: string } | null>(null);
+  // ☁️ [구글 로그인/토큰 갱신 즉시 서식 로드 실시간 연동]
   useEffect(() => {
-    if (!mounted) return;
-    let cancelled = false;
-    profileStorageRef.current = null;
-    setIsProfilesLoaded(false);
-    const folder = getProfileResourceFolder(resourceFolder);
-    const load = async () => {
-      try {
-        const users = await fetchUserProfiles(folder, resourceFolderHandle);
-        if (cancelled) return;
-        const normalized = users.filter(p => p && p.id !== 'default' && !isSystemProfileId(p.id))
-          .map(p => normalizeCssProfile(p, SYSTEM_PROFILES));
-        // 로드 자체는 저장하지 않는다. 빈 배열도 이 파일의 유효한 원본 상태이다.
-        profileStorageRef.current = { folder, handle: resourceFolderHandle, hash: JSON.stringify(normalized) };
-        setProfiles([...SYSTEM_PROFILES, ...normalized]);
-        setIsProfilesLoaded(true);
-      } catch (error) {
-        if (cancelled) return;
-        console.error('[loadUserProfiles] userCssProfiles.json 읽기 실패:', error);
-        if (folder) {
-          showToast('userCssProfiles.json을 읽지 못했습니다. 리소스 폴더 연결과 파일을 확인해 주세요.', 'error');
-        }
-      }
+    const handleDriveTokenUpdate = () => {
+      setProfileStorageRevision(revision => revision + 1);
     };
-    void load();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, resourceFolder, resourceFolderHandle, profileStorageRevision]);
-
-  const [fileList, setFileList] = useState<FileNode[]>([]);
-  useEffect(() => {
-    const openResourceSettings = () => {setIsImageModalOpen(false);setIsYoutubeModalOpen(false);setIsStyleModalOpen(false);setIsReferenceModalOpen(false);setSettingsModalInitialTab('general');setIsSettingsModalOpen(true);};
-    window.addEventListener('onrivi:resource-settings', openResourceSettings);
-    return () => window.removeEventListener('onrivi:resource-settings', openResourceSettings);
-  }, [setIsSettingsModalOpen,setIsImageModalOpen,setIsYoutubeModalOpen,setIsStyleModalOpen,setIsReferenceModalOpen,setSettingsModalInitialTab]);
+    const handleDriveTokenExpired = () => {
+      showToast('☁️ 구글 드라이브 인증이 만료되었습니다. 파일 메뉴에서 [내 구글 드라이브 연결]을 눌러 재인증해 주세요.', 'warning');
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('onrivi:drive_token_updated', handleDriveTokenUpdate);
+      window.addEventListener('onrivi:drive_token_expired', handleDriveTokenExpired);
+      return () => {
+        window.removeEventListener('onrivi:drive_token_updated', handleDriveTokenUpdate);
+        window.removeEventListener('onrivi:drive_token_expired', handleDriveTokenExpired);
+      };
+    }
+  }, [showToast]);
 
   const [workspaceType, setWorkspaceType] = useState<'local' | 'cloud' | 'browser'>(() => {
     if (typeof window !== 'undefined') {
@@ -1378,6 +1377,97 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
     return 'local';
   });
+
+  const [profileStorageRevision, setProfileStorageRevision] = useState(0);
+  const profileStorageRef = useRef<{ folder: string; handle: any; hash: string } | null>(null);
+  useEffect(() => {
+    if (!mounted) return;
+    let cancelled = false;
+    profileStorageRef.current = null;
+    setIsProfilesLoaded(false);
+    const targetEnv = getResourceEnvironment();
+    let folder = getProfileResourceFolder(resourceFolder, targetEnv);
+    let loadRevision = 0;
+    const load = async () => {
+      const requestRevision = ++loadRevision;
+      setIsProfilesLoaded(false);
+      const destination = { environment: targetEnv, folder, folderId: getResourceSettings(targetEnv)?.folderId };
+      setProfileReadStatus({ ...destination, state: 'loading' });
+      try {
+        const api = (window as any).electronAPI;
+        if (targetEnv === 'cloud') {
+          const token = getSavedDriveToken();
+          if (!token) throw new Error('웹드라이브 인증을 갱신해 주세요.');
+          const drive = await import('@/lib/gdrive/googleDriveClient');
+          const account = await drive.fetchGoogleUserInfo(token);
+          if (cancelled || requestRevision !== loadRevision || getResourceEnvironment() !== targetEnv) return false;
+          if (!account.email) throw new Error('웹드라이브 계정을 확인하지 못했습니다. 다시 연결해 주세요.');
+          if (localStorage.getItem('onrivi_active_drive_account') !== account.email.trim().toLowerCase()) activateDriveAccount(account.email);
+          const resolved = await drive.resolveDriveResourceFolderByName(token);
+          if (cancelled || requestRevision !== loadRevision || getResourceEnvironment() !== targetEnv) return false;
+          folder = resolved.name;
+          destination.folder = folder;
+          destination.folderId = resolved.folderId;
+          if (resourceFolder !== folder) setResourceFolder(folder);
+        }
+        if (targetEnv === 'local' && api?.ensureLocalEnvironment) {
+          const settings = getResourceSettings('local');
+          const initialized = await api.ensureLocalEnvironment({
+            resourceFolder: settings?.kind === 'local' ? settings.path : undefined,
+            workspaceFolder: localStorage.getItem('onrivi_last_local_workspace_path') || (workspaceType === 'local' ? localStorage.getItem('onrivi_workspace_path') : undefined),
+            profiles: SYSTEM_PROFILES,
+          });
+          if (cancelled || requestRevision !== loadRevision || getResourceEnvironment() !== targetEnv) return false;
+          if (!initialized?.success) throw new Error(initialized?.error || '로컬 작업 환경 초기화 실패');
+          folder = initialized.resourcePath;
+          destination.folder = folder;
+          saveResourceSettings({ kind: 'local', path: folder }, 'local', { silent: true });
+          if (resourceFolder !== folder) setResourceFolder(folder);
+          localStorage.setItem('onrivi_last_local_workspace_path', initialized.workspacePath);
+          if (workspaceType !== 'cloud' && !rootFolder?.name) {
+            setRootFolder({ name: initialized.workspacePath });
+            setWorkspaceType('local');
+            localStorage.setItem('onrivi_workspace_path', initialized.workspacePath);
+            localStorage.setItem('rootFolder', JSON.stringify({ name: initialized.workspacePath, path: initialized.workspacePath }));
+            localStorage.setItem('workspaceType', 'local');
+          }
+        }
+        const users = await fetchUserProfiles(folder, resourceFolderHandle, targetEnv);
+        if (cancelled || requestRevision !== loadRevision || getResourceEnvironment() !== targetEnv) return false;
+        const normalized = users.filter(p => p && p.id !== 'default' && !isSystemProfileId(p.id))
+          .map(p => normalizeCssProfile(p, SYSTEM_PROFILES));
+        // 로드 자체는 저장하지 않는다. 빈 배열도 이 파일의 유효한 원본 상태이다.
+        profileStorageRef.current = { folder, handle: resourceFolderHandle, hash: JSON.stringify(normalized) };
+        setProfiles([...SYSTEM_PROFILES, ...normalized]);
+        setIsProfilesLoaded(true);
+        setProfileReadStatus({ ...destination, state: 'success', userCount: normalized.length });
+        return true;
+      } catch (error) {
+        if (cancelled || requestRevision !== loadRevision) return false;
+        console.error('[loadUserProfiles] userCssProfiles.json 읽기 실패:', error);
+        setProfileReadStatus({ ...destination, state: 'error', error: error instanceof Error ? error.message : '서식 파일을 읽지 못했습니다.' });
+        if (folder) {
+          showToast(error instanceof Error ? error.message : 'userCssProfiles.json을 읽지 못했습니다. 리소스 폴더 연결과 파일을 확인해 주세요.', 'error');
+        }
+        return false;
+      }
+    };
+    const reload = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      void load().then(success => detail?.resolve?.(success));
+    };
+    window.addEventListener('onrivi:reload_profiles', reload);
+    void load();
+    return () => { cancelled = true; window.removeEventListener('onrivi:reload_profiles', reload); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, resourceFolder, resourceFolderHandle, profileStorageRevision, workspaceType]);
+
+  const [fileList, setFileList] = useState<FileNode[]>([]);
+  useEffect(() => {
+    const openResourceSettings = () => {setIsImageModalOpen(false);setIsYoutubeModalOpen(false);setIsStyleModalOpen(false);setIsReferenceModalOpen(false);setSettingsModalInitialTab('general');setIsSettingsModalOpen(true);};
+    window.addEventListener('onrivi:resource-settings', openResourceSettings);
+    return () => window.removeEventListener('onrivi:resource-settings', openResourceSettings);
+  }, [setIsSettingsModalOpen,setIsImageModalOpen,setIsYoutubeModalOpen,setIsStyleModalOpen,setIsReferenceModalOpen,setSettingsModalInitialTab]);
   const [currentFileName, setCurrentFileName] = useState<string>('새 파일.md');
   const [currentFileNode, setCurrentFileNode] = useState<FileNode | null>(null);
   const [bibContent, setBibContent] = useState<string>('');
@@ -3203,10 +3293,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         const token=getSavedDriveToken();if(!token)throw new Error('구글 드라이브를 먼저 연결해 주세요.');
         const {pickDriveResourceFolder}=await import('@/lib/gdrive/ResourceFilePicker');
         const selected=await pickDriveResourceFolder(token);if(!selected)return;
-        const folders=await initializeDriveResourceFolder(token,selected.id);
-        saveResourceSettings({kind:'drive',path:`gdrive://${selected.id}/${selected.name}`,folderId:selected.id,...folders});
+        const folderName = selected.name;
+        if (!folderName) throw new Error('선택한 폴더의 이름을 확인할 수 없습니다.');
+        const folders = await initializeDriveResourceFolder(token, selected.id);
+        saveResourceSettings({kind:'drive',path:folderName,folderId:selected.id,...folders}, 'cloud');
+        setResourceFolder(folderName);
+        setProfileStorageRevision(r => r + 1);
         setResourceFolderHandle(null);(window as any).__resourceFolderHandle=null;
-        showToast('선택한 드라이브 리소스 폴더에 기본 폴더와 파일을 준비했습니다.','success');
+        showToast(`드라이브 리소스 폴더가 '${folderName}'(으)로 변경되었습니다.`,'success');
       } catch(error:any) {showToast(error.message,'error');}
       return;
     }
@@ -3214,7 +3308,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (api && api.selectFolder) {
       const result = await api.selectFolder(resourceFolder || '');
       if (result && result.status !== 'canceled' && result.path) {
-        if (api.initResourceFolder) { const initialized=await api.initResourceFolder(result.path);if(initialized?.success===false) {showToast(initialized.error || '리소스 폴더 초기화 실패','error');return;} }
+        if (api.initResourceFolder) { const initialized=await api.initResourceFolder(result.path, SYSTEM_PROFILES);if(initialized?.success===false) {showToast(initialized.error || '리소스 폴더 초기화 실패','error');return;} }
         saveResourceSettings({kind:'local',path:result.path});
         setResourceFolder(result.path);
         setProfileStorageRevision(value => value + 1);
@@ -3235,6 +3329,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           try {await dir.getFileHandle(name);}catch(error:any){if(error.name!=='NotFoundError')throw error;const file=await dir.getFileHandle(name,{create:true});const writable=await file.createWritable();await writable.write(content);await writable.close();}
         }
         await idb.set('resourceFolderHandle',handle);
+        await idb.set('localResourceFolderHandle',handle);
         setResourceFolderHandle(handle);(window as any).__resourceFolderHandle=handle;
         saveResourceSettings({kind:'browser',path:handle.name});
         setResourceFolder(handle.name);
@@ -3275,11 +3370,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : saveSecureData, localStorage.removeItem, idb.del, idb.set, showToast
   // ====================================================================
   const clearResourceFolder = async () => {
+    const clearingLocal = getResourceEnvironment() === 'local';
     saveResourceSettings(null);
     setResourceFolder(null);
     setResourceFolderHandle(null);
     (window as any).__resourceFolderHandle = null;
     setIsDismissedGuide(false);
+    if (clearingLocal) {
     try { saveSecureData('resourceFolder', ''); } catch {}
     try { localStorage.removeItem('resourceFolder'); } catch {}
     try { localStorage.removeItem('onrivi_resource_folder'); } catch {}
@@ -3297,6 +3394,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     } catch {}
     try { await idb.del('resourceFolderHandle'); } catch {}
     try { await idb.set('resourceFolderHandle', null); } catch {}
+    try { await idb.del('localResourceFolderHandle'); } catch {}
+    }
     (window as any)._resourceFolderSynced = false;
     showToast('공통 리소스 폴더 연결이 해제되었습니다.', 'info');
     if (!isSettingsModalOpen) {
@@ -3892,16 +3991,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   useEffect(() => {
     if (!mounted || !isProfilesLoaded) return;
-    const folder = getProfileResourceFolder(resourceFolder);
+    const targetEnv = getResourceEnvironment();
+    const folder = getProfileResourceFolder(resourceFolder, targetEnv);
     const source = profileStorageRef.current;
     if (!source || source.folder !== folder || source.handle !== resourceFolderHandle) return;
     const userProfiles = profiles.filter(p => p.id !== 'default' && !isSystemProfileId(p.id));
     const hash = JSON.stringify(userProfiles);
     if (source.hash === hash) return;
     const timerId = setTimeout(() => {
+      if (profileStorageRef.current !== source || getResourceEnvironment() !== targetEnv || getProfileResourceFolder(null, targetEnv) !== folder) return;
       // 저장 중 이전 값으로 되돌리는 편집도 누락되지 않도록 캐시를 무효화한다.
       source.hash = '';
-      void persistUserProfiles(userProfiles, folder, resourceFolderHandle).then(ok => {
+      void persistUserProfiles(userProfiles, folder, resourceFolderHandle, targetEnv).then(ok => {
         if (profileStorageRef.current !== source) return;
         if (ok) {
           source.hash = hash;
@@ -3912,7 +4013,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }, 500);
     return () => clearTimeout(timerId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, isProfilesLoaded, profiles, resourceFolder, resourceFolderHandle]);
+  }, [mounted, isProfilesLoaded, profiles, resourceFolder, resourceFolderHandle, workspaceType]);
 
 
 
@@ -5608,8 +5709,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           const isDriveTarget = getResourceSettings()?.kind === 'drive';
           if (isDriveTarget) {
             const token = getSavedDriveToken();
+            const cloudSettings = getResourceSettings('cloud');
             const wsInfo = getSavedWorkspaceInfo();
-            const mediaFolderId = wsInfo?.mediaFolderId;
+            let mediaFolderId = cloudSettings?.mediaFolderId || wsInfo?.mediaFolderId;
+            if (!mediaFolderId && token && (cloudSettings?.folderId || wsInfo?.resourceFolderId)) {
+              try {
+                const parentId = cloudSettings?.folderId || wsInfo?.resourceFolderId;
+                const { listDriveChildren } = await import('@/lib/gdrive/googleDriveClient');
+                const children = await listDriveChildren(token, parentId!);
+                const m = children.find(c => c.isFolder && c.name === 'media');
+                if (m) mediaFolderId = m.id;
+              } catch {}
+            }
             if (token && mediaFolderId) {
               try {
                 const uploaded = await uploadDriveImage(token, mediaFolderId, fileOrBlob, fileName);

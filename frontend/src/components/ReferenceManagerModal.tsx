@@ -1,3 +1,11 @@
+// ====================================================================
+// 📊 [OMD-MODAL-ReferenceManagerModal-0001] ReferenceManagerModal.tsx
+// 🎯 @KICK  : 참고문헌(.bib) 파일 관리 모달
+// 🛡️ @GUARD : Rule 1(단일 주석 관리)
+// 🚨 @PATCH : **2026-10-07** — [환경설정 리소스 폴더 기반 드라이브 bible 폴더 안전 조회 및 저장]:
+//             1) getSavedWorkspaceInfo뿐만 아니라 getResourceSettings('cloud')의 bibleFolderId를 우선 적용하여 사용자가 선택한 리소스 폴더의 참조문서를 정확히 로드
+//             2) folderId로부터 bible 하위 폴더 동적 탐색 폴백 구축으로 참조문서 로드 실패 결함 원천 해결
+// ====================================================================
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -65,7 +73,22 @@ export default function ReferenceManagerModal({
   }, []);
 
   const isDrive = getResourceSettings()?.kind === 'drive';
-  const importReference = async () => { try { requireResourceSettings(); const f = await pickResourceTextFile('.bib',getSavedWorkspaceInfo()?.bibleFolderId,isDrive); if(f) {setSelectedFile(null);setIsCreatingNew(true);setFileName(f.name);setContent(f.content);} } catch(e:any) {showToast(e.message,'error');} };
+  const importReference = async () => {
+    try {
+      requireResourceSettings();
+      const settings = getResourceSettings('cloud');
+      const bibleFolderId = settings?.bibleFolderId || getSavedWorkspaceInfo()?.bibleFolderId;
+      const f = await pickResourceTextFile('.bib', bibleFolderId, isDrive);
+      if (f) {
+        setSelectedFile(null);
+        setIsCreatingNew(true);
+        setFileName(f.name);
+        setContent(f.content);
+      }
+    } catch(e: any) {
+      showToast(e.message, 'error');
+    }
+  };
   const loadBibFiles = useCallback(async () => {
     try {
       const api = (window as any).electronAPI;
@@ -73,10 +96,20 @@ export default function ReferenceManagerModal({
       const loadedFiles: BibFile[] = [];
 
       if (isDrive) {
-        const token=getSavedDriveToken(); const folder=getSavedWorkspaceInfo()?.bibleFolderId;
+        const token = getSavedDriveToken();
+        const settings = getResourceSettings('cloud');
+        let folder = settings?.bibleFolderId || getSavedWorkspaceInfo()?.bibleFolderId;
+        if (!folder && (settings?.folderId || getSavedWorkspaceInfo()?.resourceFolderId)) {
+          try {
+            const parentId = settings?.folderId || getSavedWorkspaceInfo()?.resourceFolderId;
+            const children = await listDriveChildren(token!, parentId);
+            const bibleDir = children.find(c => c.isFolder && c.name === 'bible');
+            if (bibleDir) folder = bibleDir.id;
+          } catch {}
+        }
         if (!token || !folder) throw new Error('드라이브 참고문헌 폴더 연결이 필요합니다.');
-        for (const f of await listDriveChildren(token,folder)) {
-          if (!f.isFolder && /\.bib$/i.test(f.name)) loadedFiles.push({name:f.name,driveId:f.id,content:await readDriveFileContent(token,f.id)});
+        for (const f of await listDriveChildren(token, folder)) {
+          if (!f.isFolder && /\.bib$/i.test(f.name)) loadedFiles.push({name: f.name, driveId: f.id, content: await readDriveFileContent(token, f.id)});
         }
       } else if (api && freshResourceFolder) {
         // Desktop
@@ -234,10 +267,20 @@ export default function ReferenceManagerModal({
       let savedHandle:any;
 
       if (isDrive) {
-        const token=getSavedDriveToken();const folder=getSavedWorkspaceInfo()?.bibleFolderId;
+        const token = getSavedDriveToken();
+        const settings = getResourceSettings('cloud');
+        let folder = settings?.bibleFolderId || getSavedWorkspaceInfo()?.bibleFolderId;
+        if (!folder && (settings?.folderId || getSavedWorkspaceInfo()?.resourceFolderId)) {
+          try {
+            const parentId = settings?.folderId || getSavedWorkspaceInfo()?.resourceFolderId;
+            const children = await listDriveChildren(token!, parentId);
+            const bibleDir = children.find(c => c.isFolder && c.name === 'bible');
+            if (bibleDir) folder = bibleDir.id;
+          } catch {}
+        }
         if (!token || !folder) throw new Error('드라이브 참고문헌 폴더 연결이 필요합니다.');
-        const id=selectedFile?.driveId && selectedFile.name===finalFileName ? selectedFile.driveId : await ensureDriveTextFile(token,finalFileName,folder,content);
-        saved=await saveDriveFileContent(token,id,content); savedDriveId=id;
+        const id=selectedFile?.driveId && selectedFile.name===finalFileName ? selectedFile.driveId : await ensureDriveTextFile(token!,finalFileName,folder,content);
+        saved=await saveDriveFileContent(token!,id,content); savedDriveId=id;
       } else if (api) {
         // 🖥️ 데스크탑: 로컬 저장
         if (!freshResourceFolder) {
