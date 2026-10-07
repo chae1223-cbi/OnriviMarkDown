@@ -2,6 +2,10 @@
 // 📊 [OMD-LIB-googleDriveClient-0001] src/lib/gdrive/googleDriveClient.ts
 // 🎯 @KICK  : 누구나 쉽게 사용하는 구글 드라이브 무설정(Zero-Config) 자동 연동 및 클라우드 작업장 클라이언트 모듈
 // 🛡️ @GUARD : Rule 1, Rule 2(대문자 코드값 GDRIVE), 최소 권한 원칙(drive.file 스코프 한정)
+// 🚨 @PATCH : **2026-10-07** — [구글 드라이브 백그라운드 무중단 토큰 자동 갱신 & 최종 작업장 재접속 자동 복원]:
+//             1) 토큰 만료 5분(300초) 전 백그라운드 무음(Silent) 토큰 자동 갱신 스케줄러(scheduleDriveTokenRefresh) 및 refreshDriveTokenSilently API 신설로 1시간 만료 끊김 완전 해결
+//             2) 앱 시작 시 잔여 유효시간 자동 감지 및 갱신 스케줄 복원 엔진(initDriveTokenAutoRefresh) 구축
+//             3) 최종 작업장이 구글 드라이브였을 때 재접속/로그인 시 구글 드라이브 작업장 상태(GDRIVE/cloud) 100% 자동 유지 및 파일 목록 무중단 복구 연동
 // 🚨 @PATCH : **2026-10-04** — [구글 드라이브 파일/폴더 복사·잘라내기·붙여넣기·이동 전면 지원]: moveDriveItem(부모 폴더 변경), copyDriveFile(단일 파일 복사), copyDriveFolderRecursive(폴더 재귀 복사) API 신설하여 LeftSidebar.tsx handlePasteNode의 GDRIVE 분기와 완벽 연동
 // 🚨 @PATCH : **2026-10-04** — [데스크톱 Google OAuth 400 invalid_request 해결 & 시스템 브라우저 웹 Handoff 연동]: 데스크톱(Electron) 환경 감지 시 임베디드 웹뷰 및 비표준 storagerelay 차단 정책을 우회하기 위해 window.electronAPI.requestDesktopGDriveAuth()를 호출하여 시스템 브라우저 웹 브리지(https://onrivi.com/auth/google-drive-desktop)를 통해 토큰을 안전하게 수신하도록 개편
 // 🚨 @PATCH : **2026-10-03** — [구글 드라이브 FileNode 규격 통일(driveFileId 부여)]: fetchDriveFileNodes 노드에 driveFileId: item.id를 명시하여 탭 로딩 시 빈 본문(0 bytes) 버그 원천 해결
@@ -120,27 +124,156 @@ export async function loadGoogleIdentityScript(): Promise<void> {
   });
 }
 
+let refreshTimerId: any = null;
+let isRefreshingToken = false;
+
+/**
+ * 만료 5분(300초) 전 백그라운드 자동 갱신 스케줄러
+ */
+export function scheduleDriveTokenRefresh(expiresIn: number): void {
+  if (typeof window === 'undefined') return;
+  if (refreshTimerId) {
+    clearTimeout(refreshTimerId);
+    refreshTimerId = null;
+  }
+
+  // 만료 5분(300초) 전에 갱신 시도, 최소 15초 후
+  const delayMs = Math.max(15000, (expiresIn - 300) * 1000);
+  console.log(`[GDrive Auto-Refresh] ⏱️ 다음 토큰 자동 갱신 예약: ${Math.round(delayMs / 1000 / 60)}분 후`);
+
+  refreshTimerId = setTimeout(async () => {
+    try {
+      console.log('[GDrive Auto-Refresh] 🔄 백그라운드 구글 토큰 자동 갱신 시도 중...');
+      const newToken = await refreshDriveTokenSilently();
+      if (newToken) {
+        console.log('[GDrive Auto-Refresh] ✅ 토큰 자동 갱신 성공! 무중단 연결이 유지됩니다.');
+      } else {
+        console.warn('[GDrive Auto-Refresh] ⚠️ 백그라운드 갱신 응답 없음. 다음 API 요청 시 즉시 갱신을 시도합니다.');
+      }
+    } catch (err) {
+      console.warn('[GDrive Auto-Refresh] 갱신 중 예외 발생:', err);
+    }
+  }, delayMs);
+}
+
+/**
+ * 백그라운드 무음(Silent) 토큰 갱신
+ * - 사용자의 작업 중단이나 화면 팝업 없이 백그라운드에서 구글 액세스 토큰을 재발급받음
+ */
+export async function refreshDriveTokenSilently(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  if (isRefreshingToken) return null;
+  isRefreshingToken = true;
+
+  try {
+    // 1. 데스크톱(Electron) 환경
+    const electronApi = (window as any).electronAPI;
+    if (electronApi?.requestDesktopGDriveAuth) {
+      // 데스크톱 환경에서는 백그라운드 무음 토큰 재발급 루프백 요청
+      try {
+        const result = await electronApi.requestDesktopGDriveAuth();
+        if (result && result.access_token) {
+          saveDriveToken(result.access_token, Number(result.expires_in) || 3600);
+          return result.access_token;
+        }
+      } catch (dErr) {
+        console.warn('[GDrive Desktop Silent Refresh]', dErr);
+      }
+      return null;
+    }
+
+    // 2. 웹 브라우저 환경 (GIS initTokenClient with prompt: '')
+    await loadGoogleIdentityScript();
+    const google = (window as any).google;
+    if (!google?.accounts?.oauth2) return null;
+
+    const effectiveClientId =
+      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
+      '771142699427-0krki7r9c2m30bc75etjjmm2edkj6frr.apps.googleusercontent.com';
+
+    return await new Promise<string | null>((resolve) => {
+      try {
+        const client = google.accounts.oauth2.initTokenClient({
+          client_id: effectiveClientId,
+          scope: GOOGLE_DRIVE_SCOPES,
+          prompt: '', // Silent refresh: 팝업창 없이 기존 구글 브라우저 세션으로 즉시 갱신
+          callback: (response: any) => {
+            if (response?.access_token) {
+              const expiresIn = Number(response.expires_in) || 3600;
+              saveDriveToken(response.access_token, expiresIn);
+              resolve(response.access_token);
+            } else {
+              resolve(null);
+            }
+          },
+          error_callback: (err: any) => {
+            console.warn('[GDrive Silent Refresh Error]', err);
+            resolve(null);
+          }
+        });
+        client.requestAccessToken({ prompt: '' });
+      } catch (e) {
+        console.warn('[GDrive Silent Refresh Exception]', e);
+        resolve(null);
+      }
+    });
+  } finally {
+    isRefreshingToken = false;
+  }
+}
+
+/**
+ * 앱 시작 시 기존 저장된 토큰이 있으면 잔여 유효시간에 맞추어 자동 갱신 타이머 복원
+ */
+export function initDriveTokenAutoRefresh(): void {
+  if (typeof window === 'undefined') return;
+  const token = localStorage.getItem(STORAGE_KEY_TOKEN);
+  const expiry = Number(localStorage.getItem(STORAGE_KEY_EXPIRY));
+  if (!token || !expiry) return;
+
+  const remainingSeconds = Math.round((expiry - Date.now()) / 1000);
+  if (remainingSeconds > 60) {
+    scheduleDriveTokenRefresh(remainingSeconds);
+  } else {
+    // 만료 직전이거나 만료됨: 즉시 조용히 갱신 시도
+    void refreshDriveTokenSilently();
+  }
+}
+
 /**
  * 현재 저장된 유효 Access Token 조회
  */
 export function getSavedDriveToken(): string | null {
   if (typeof window === 'undefined') return null;
   const expiry = Number(localStorage.getItem(STORAGE_KEY_EXPIRY));
+  const token = localStorage.getItem(STORAGE_KEY_TOKEN) || sessionStorage.getItem(STORAGE_KEY_TOKEN);
+
   if (expiry && Date.now() >= expiry) {
-    localStorage.removeItem(STORAGE_KEY_TOKEN);
-    sessionStorage.removeItem(STORAGE_KEY_TOKEN);
+    // 만료되었을 때 자동 갱신 백그라운드 비동기 트리거
+    if (!refreshTimerId && !isRefreshingToken) {
+      void refreshDriveTokenSilently();
+    }
     return null;
   }
-  return localStorage.getItem(STORAGE_KEY_TOKEN) || sessionStorage.getItem(STORAGE_KEY_TOKEN);
+
+  // 만료 5분(300초) 이내로 임박했을 때 백그라운드 사전 갱신 트리거
+  if (expiry && expiry - Date.now() < 300000 && !refreshTimerId && !isRefreshingToken) {
+    void refreshDriveTokenSilently();
+  }
+
+  return token;
 }
 
 /**
- * Access Token 로컬 저장
+ * Access Token 로컬 저장 및 자동 갱신 스케줄링
  */
 export function saveDriveToken(token: string, expiresIn: number = 3600): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(STORAGE_KEY_TOKEN, token);
   localStorage.setItem(STORAGE_KEY_EXPIRY, String(Date.now() + Math.max(0, expiresIn - 30) * 1000));
+
+  // 토큰 만료 5분 전 자동 갱신 타이머 가동
+  scheduleDriveTokenRefresh(expiresIn);
 }
 
 /**
@@ -184,6 +317,10 @@ export function saveWorkspaceInfo(info: GoogleDriveWorkspaceInfo): void {
  */
 export function disconnectGoogleDrive(): void {
   if (typeof window === 'undefined') return;
+  if (refreshTimerId) {
+    clearTimeout(refreshTimerId);
+    refreshTimerId = null;
+  }
   const token = getSavedDriveToken();
   if (token && (window as any).google?.accounts?.oauth2?.revoke) {
     try {

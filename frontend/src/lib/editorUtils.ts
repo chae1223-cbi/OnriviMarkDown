@@ -104,7 +104,6 @@ export function getCodeBlockLineMask(lines: string[]): boolean[] {
       continue;
     }
 
-    let depth = 1;
     let closingLineIdx = -1;
 
     for (let j = i + 1; j < lines.length; j++) {
@@ -117,22 +116,7 @@ export function getCodeBlockLineMask(lines: string[]): boolean[] {
       const curFenceLen = curMatch[2].length;
       const curInfo = curMatch[3].trim();
 
-      // 4개 이상 펜스로 감싸진 경우 내부의 더 짧은 펜스는 depth를 건드리지 않음
-      if (fenceLen >= 4 && curFenceLen < fenceLen) {
-        continue;
-      }
-
-      if (curInfo.length > 0) {
-        depth++;
-        continue;
-      }
-
-      if (depth > 1) {
-        depth--;
-        continue;
-      }
-
-      if (curFenceLen >= fenceLen || depth === 1) {
+      if (!curInfo && curFenceLen >= fenceLen) {
         closingLineIdx = j;
         break;
       }
@@ -200,11 +184,17 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
 
   content = stripFrontmatter(content);
   const originalLines = content.split("\n");
+  const originalCodeMask = getCodeBlockLineMask(originalLines);
   let expandedLines: string[] = [];
   let expandedLineMap: number[] = []; // 각 확장 라인이 원본의 몇 번째 줄(1-based)인지 기록
 
   originalLines.forEach((line, index) => {
     const originalLineNumber = index + 1 + frontmatterOffset;
+    if (originalCodeMask[index]) {
+      expandedLines.push(line);
+      expandedLineMap.push(originalLineNumber);
+      return;
+    }
     
     // 수식 기호 정규화 및 볼드 수식 분리
     let processedLine = line.replace(/\\/g, '\\');
@@ -431,6 +421,9 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
 
     finalLines.push(curr);
     finalLineMap.push(origLineNum);
+
+    // Paragraph spacing must never add physical lines inside fenced code.
+    if (codeBlockMask[i]) continue;
 
     if (i < deorderedLines.length - 1) {
       const next = deorderedLines[i + 1];

@@ -3066,7 +3066,13 @@ ipcMain.handle('file:watchWorkspace', (event, workspacePath) => {
       .on('unlink', notify)
       .on('addDir', notify)
       .on('unlinkDir', notify)
-      .on('change', notify);
+      .on('change', notify)
+      .on('error', (error) => {
+        // Cloud-backed drives can temporarily reject lstat while syncing.
+        // Handle the asynchronous watcher error so Electron does not crash.
+        console.warn('[Workspace watcher] 파일 변경 감지 오류:', error);
+        notify();
+      });
 
     return { success: true };
   } catch (e) {
@@ -3660,6 +3666,13 @@ ipcMain.handle('file:saveImage', async (event, targetFolder, base64Data, fileNam
       rawFolder = path.dirname(rawFolder);
     }
     
+    // Explicit media destinations must be created, never redirected to temporary assets.
+    if (rawFolder && path.basename(rawFolder).toLowerCase() === 'media') {
+      if (!path.isAbsolute(rawFolder)) throw new Error('리소스 media 폴더는 절대경로여야 합니다.');
+      const resourceRoot = await fs.promises.stat(path.dirname(rawFolder));
+      if (!resourceRoot.isDirectory()) throw new Error('리소스 폴더가 유효하지 않습니다.');
+      await fs.promises.mkdir(rawFolder, { recursive: true });
+    }
     if (rawFolder && fs.existsSync(rawFolder)) {
       // 대상 워크스페이스/파일 디렉토리 하위에 'assets' 폴더를 생성 및 타겟팅
       const folderName = path.basename(rawFolder).toLowerCase();
@@ -3671,19 +3684,23 @@ ipcMain.handle('file:saveImage', async (event, targetFolder, base64Data, fileNam
       }
       isRelative = true;
     } else {
-      // 대상 폴더가 유효하지 않은 경우 사용자 문서 디렉토리 하위의 'OnriviAuthorAssets'에 임시 저장
-      const documentsPath = app.getPath('documents');
-      const tempAssetsFolder = path.join(documentsPath, 'OnriviAuthorAssets');
-      if (!fs.existsSync(tempAssetsFolder)) {
-        fs.mkdirSync(tempAssetsFolder, { recursive: true });
-      }
-      rawFolder = tempAssetsFolder;
-      isRelative = false;
+      throw new Error('리소스 폴더를 찾을 수 없습니다. 환경설정에서 리소스 폴더를 지정해 주세요.');
     }
 
     const absolutePath = path.join(rawFolder, fileName);
     const buffer = Buffer.from(base64Data, 'base64');
-    fs.writeFileSync(absolutePath, buffer);
+    // Reuse byte-identical assets even when their filenames differ.
+    for (const entry of await fs.promises.readdir(rawFolder, { withFileTypes: true })) {
+      if (!entry.isFile() || !/\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(entry.name)) continue;
+      const candidate = path.join(rawFolder, entry.name);
+      const stat = await fs.promises.stat(candidate);
+      if (stat.size !== buffer.length) continue;
+      if ((await fs.promises.readFile(candidate)).equals(buffer)) {
+        return { success: true, fileName: entry.name, absolutePath: candidate, isRelative,
+          mediaPath: isRelative ? `/${path.basename(rawFolder)}/${entry.name}` : null, reused: true };
+      }
+    }
+    await fs.promises.writeFile(absolutePath, buffer);
 
     const finalFolderName = path.basename(rawFolder);
 
@@ -3878,7 +3895,10 @@ ipcMain.handle('pdf:printHTMLToPDF', async (event, html, options) => {
       },
       pageSize: 'A4',
       printBackground: true,
-      ...options
+      ...options,
+      // PDF export always generates a file directly, independent of the OS
+      // default printer and any third-party PDF printer drivers.
+      generateTaggedPDF: true
     };
     
     const pdfBuffer = await printWindow.webContents.printToPDF(pdfOptions);
@@ -3931,7 +3951,7 @@ ipcMain.handle('file:readImageAsBase64', async (event, filePath) => {
       }
     }
     
-    const buffer = fs.readFileSync(targetPath);
+    const buffer = await fs.promises.readFile(targetPath);
     const ext = path.extname(targetPath).toLowerCase();
     const mimeTypes = {
       '.png': 'image/png',

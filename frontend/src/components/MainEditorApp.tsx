@@ -4,6 +4,13 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-10-07** — [구글 드라이브 무중단 토큰 자동 갱신(Auto-Refresh) & 최종 작업장(GDRIVE) 재접속 100% 자동 복원]:
+//             1) initDriveTokenAutoRefresh 연동으로 앱 구동 시 백그라운드 토큰 자동 갱신 타이머 가동하여 1시간 만료 끊김 원천 방어
+//             2) workspaceType 초기 상태를 localStorage(workspaceType/onrivi_last_workspace_mode)와 동기화하여 구글 드라이브 작업장에서 종료 시 다음 재접속/새로고침 시 자동으로 구글 드라이브 작업장 상태로 복원
+// 🚨 @PATCH : **2026-10-07** — [AI 응답 및 웹 문서 마크다운 붙여넣기 시 표 외 텍스트 누락 결함 완벽 해결]:
+//             1) 클립보드 HTML에 table이 포함되어 있을 때 기존 parseHtmlTableToMarkdown이 첫 번째 표만 추출하고 모든 본문/제목/목록/코드를 소실시키던 치명적 결함 원천 해결
+//             2) 단일 표(isStandaloneTable: 엑셀/스프레드시트)와 복합 문서(isRichDocumentWithTable: AI 답변, 웹 문서)를 DOM 기반으로 지능형 분기
+//             3) AI 마크다운 복사본(hasMarkdownTableInText)은 원본 마크다운을 100% 보존하고, 웹 화면 드래그 복사는 htmlToImportMarkdown 연동으로 표와 본문 전체를 표준 마크다운으로 완벽 변환하여 삽입
 // 🚨 @PATCH : **2026-10-04** — [다른 폴더의 동일 파일명 삭제 시 현재 열린 탭 오종료 결함 해결]: handleCloseTabByPath에서 단순 파일명 일치(targetFileName === tabName) 및 접두사 없는 단일 파일명의 endsWith 검사를 제거하고, 고유 driveId / 정확한 경로(tabPath === normTarget) / 폴더 하위(tabPath.startsWith) / 양방향 디렉터리 경로 포함 시에만 엄격하게 매칭하여 다른 폴더 동명 파일 탭이 오종료되는 현상을 완벽 박멸
 // 🚨 @PATCH : **2026-10-03** — [구글 드라이브 문서 저장 시 브라우저 파일 다이얼로그 오작동 차단 & useEditorHandlers 직결 연동]: useEditorHandlers에 tabsRef와 saveFile을 주입하고, 클라우드 작업장 문서 저장 시 브라우저 저장 다이얼로그 오작동을 차단하여 구글 드라이브 다이렉트 무음 저장 및 새 문서 저장 프롬프트 정상화
 // 🚨 @PATCH : **2026-10-03** — [파일 삭제 시 열린 탭 자동 닫기(handleCloseTabByPath) driveId/name/접두사 매칭 전면 강화]: 탐색기에서 파일/폴더 삭제 시 driveId 일치, 경로 접두사 무시 매칭(endsWith), 파일명 일치를 모두 수용하여 열려있던 탭을 100% 자동 종료하고 모델 메모리 정리
@@ -301,6 +308,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
 import UnifiedTabBar, { EditorTab } from '@/components/UnifiedTabBar';
 import * as utilsPasteHandlers from '@/utils/pasteHandlers';
+import { htmlToImportMarkdown } from '@/lib/importHtmlMarkdown';
 import * as utilsEditorActions from '@/utils/editorActions';
 import { useEditorTabs } from '@/hooks/useEditorTabs';
 import { useEditorSettings } from '@/hooks/useEditorSettings';
@@ -326,7 +334,8 @@ import { fetchUserProfiles, persistUserProfiles, getEffectiveResourceFolder, get
 import {
   getSavedDriveToken,
   getSavedWorkspaceInfo,
-  uploadDriveImage
+  uploadDriveImage,
+  initDriveTokenAutoRefresh
 } from '@/lib/gdrive/googleDriveClient';
 
 
@@ -1360,8 +1369,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, [setIsSettingsModalOpen,setIsImageModalOpen,setIsYoutubeModalOpen,setIsStyleModalOpen,setIsReferenceModalOpen,setSettingsModalInitialTab]);
 
   const [workspaceType, setWorkspaceType] = useState<'local' | 'cloud' | 'browser'>(() => {
-    if (typeof window !== 'undefined' && !(window as any).electronAPI) {
-      return 'browser';
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('workspaceType') || localStorage.getItem('onrivi_last_workspace_mode');
+      if (saved === 'cloud' || saved === 'gdrive') return 'cloud';
+      if (!(window as any).electronAPI) {
+        return 'browser';
+      }
     }
     return 'local';
   });
@@ -1403,6 +1416,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       return () => clearTimeout(timer);
     }
   }, [mounted, resourceFolder, resourceFolderHandle, licenseStatus.isActivated, licenseStatus?.isExpired, isDuplicateInstance, isRestrictedUser, isDismissedGuide]);
+
+  // ☁️ [구글 드라이브 무중단 토큰 자동 갱신 엔진 가동]
+  useEffect(() => {
+    if (!mounted) return;
+    initDriveTokenAutoRefresh();
+  }, [mounted]);
 
   // ====================================================================
   useEffect(() => {
@@ -5337,10 +5356,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
     // ====================================================================
     // 💡 [OMD-EDIT-MainEditorApp-0065] MainEditorApp.tsx 의 handleEditorPaste
-    // 📝 @KICK  : 붙여넣기 이벤트 처리: 이미지 업로드, HTML 표 변환, 텍스트 정제
-    // 🛡️ @GUARD : 이미지 붙여넣기 시 기본 동작 차단, 일반 텍스트 폴백 및 HTML 표 시도
-    // 🚨 @PATCH : **2026-10-02** 탐색기 이미지 파일 복사(MIME 누락 확장자 보정) 및 다중 이미지 일괄 처리, HTML 이미지 폴백 강화, 웹 이미지 URL 및 이미지 주소 복사 마크다운 자동 변환, kind:file 전수 조사
-    // 🔄 @CALLS : fetch, FileReader, parseHtmlTableToMarkdown, sanitizePastedText, fixMarkdownTable, insertAtCursor, updateContent, showToast
+    // 📝 @KICK  : 붙여넣기 이벤트 처리: 이미지 업로드, HTML 표/복합 AI 문서 변환, 텍스트 정제
+    // 🛡️ @GUARD : AI 마크다운 복사 및 웹 문서(표+본문) 붙여넣기 시 표 외 텍스트 유실 원천 방어, 단일 표(엑셀) vs 복합 문서 분기
+    // 🚨 @PATCH : **2026-10-07** — AI 응답 및 웹 문서 마크다운 붙여넣기 시 표 외 텍스트 누락 결함 해결 (htmlToImportMarkdown 연동 및 단일 표/복합 문서 지능형 분기)
+    // 🔄 @CALLS : fetch, FileReader, htmlToImportMarkdown, parseHtmlTableToMarkdown, sanitizePastedText, fixMarkdownTable, insertAtCursor, updateContent, showToast
     // ====================================================================
     const handleEditorPaste = async (e: any) => {
     const items = e.clipboardData?.items;
@@ -5382,7 +5401,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 우리가 처리할 대상이면 e.preventDefault()를 즉시 호출해야 합니다.
 
     const htmlData = hasHtml ? e.clipboardData.getData('text/html') : '';
-    const hasTable = htmlData && htmlData.includes('<table');
+    const hasTable = !!htmlData && htmlData.includes('<table');
     const textData = hasText ? e.clipboardData.getData('text/plain') : '';
     const htmlImgMatch = htmlData ? htmlData.match(/<img[^>]+src=["']([^"']+)["']/i) : null;
     const isDirectImgUrl = /^(https?:\/\/[^\s]+?\.(?:png|jpe?g|gif|webp|svg|bmp))(\?[^\s]*)?$/i.test(textData ? textData.trim() : '');
@@ -5399,11 +5418,47 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
     }
 
+    // 💡 [HTML Table 및 AI 마크다운 복사 분석]
+    // AI(ChatGPT, Claude, Gemini 등)나 웹페이지에서 표가 포함된 마크다운/본문을 복사한 경우:
+    // 1) 순수 단일 표(엑셀/스프레드시트 셀 복사 또는 표 하나만 복사)인지
+    // 2) 표 외에 제목, 본문, 목록, 코드 등이 포함된 복합 문서/AI 응답인지 구분
+    let isStandaloneTable = false;
+    let isRichDocumentWithTable = false;
+    let convertedRichMarkdown = '';
+
+    if (hasTable && htmlData) {
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlData, 'text/html');
+        const tables = doc.querySelectorAll('table');
+
+        let tableTextLen = 0;
+        tables.forEach(t => { tableTextLen += (t.textContent || '').trim().length; });
+        const totalTextLen = (doc.body.textContent || '').trim().length;
+        const nonTableTextLen = Math.max(0, totalTextLen - tableTextLen);
+        const nonTableBlocks = doc.querySelectorAll('p, h1, h2, h3, h4, h5, h6, ul, ol, pre, blockquote, article, section');
+
+        if (tables.length === 1 && nonTableBlocks.length === 0 && nonTableTextLen < 20) {
+          isStandaloneTable = true;
+        } else {
+          isRichDocumentWithTable = true;
+          convertedRichMarkdown = htmlToImportMarkdown(htmlData);
+        }
+      } catch (err) {
+        console.warn('HTML table parsing check failed:', err);
+      }
+    }
+
+    // textData가 이미 마크다운 표(|---|) 및 구조를 지닌 마크다운 원문인지 검사 (AI 복사 버튼 등)
+    const hasMarkdownTableInText = !!textData && textData.includes('|') && /\|[\s\t]*:?---*:?[\s\t]*\|/.test(textData);
+
     const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
     const isImagePasting = !!imageItem || !!imageFile || !!htmlImgMatch || isDirectImgUrl || (isElectron && !hasTable && !textData);
 
+    const shouldHandleCustomPaste = isImagePasting || isStandaloneTable || isRichDocumentWithTable || textChanged;
+
     // 대상이 하나라도 있으면 즉시 기본 동작 차단
-    if (isImagePasting || hasTable || textChanged) {
+    if (shouldHandleCustomPaste) {
       if (e.cancelable) e.preventDefault();
       e.stopPropagation?.();
       (e as any).stopImmediatePropagation?.();
@@ -5447,8 +5502,42 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       return;
     }
 
-    // 3. HTML Table 처리
-    if (hasTable) {
+    // 3. 복합 문서(AI 응답, 본문 + 표 포함) 처리: 표뿐만 아니라 본문 전체를 마크다운으로 완벽 보존
+    if (isRichDocumentWithTable) {
+      // 3-1. textData가 이미 마크다운 표(|---|) 및 구조를 가진 순수 마크다운인 경우 (AI 복사 버튼 클릭 시)
+      if (hasMarkdownTableInText && processedText) {
+        insertAtCursor(processedText);
+        if (editorRef.current) {
+          updateContent(editorRef.current.getValue(), true);
+        }
+        showToast("마크다운 문서(본문 및 표 전체)가 완벽하게 삽입되었습니다.", "success");
+        return;
+      }
+
+      // 3-2. 웹 화면 드래그 복사 등: HTML 전체를 마크다운(표+제목+본문+코드+리스트)으로 변환한 결과물 삽입
+      if (convertedRichMarkdown && convertedRichMarkdown.trim()) {
+        const cleanedMd = sanitizePastedText(convertedRichMarkdown);
+        insertAtCursor(cleanedMd);
+        if (editorRef.current) {
+          updateContent(editorRef.current.getValue(), true);
+        }
+        showToast("AI 응답 문서(본문 및 표 전체)가 마크다운으로 완벽하게 변환되었습니다.", "success");
+        return;
+      }
+
+      // 3-3. 폴백: 정제된 텍스트
+      if (processedText) {
+        insertAtCursor(processedText);
+        if (editorRef.current) {
+          updateContent(editorRef.current.getValue(), true);
+        }
+        showToast("텍스트 데이터가 삽입되었습니다.", "success");
+        return;
+      }
+    }
+
+    // 4. 순수 단일 HTML Table 처리 (엑셀, 스프레드시트 셀 복사 또는 표 단독 복사)
+    if (isStandaloneTable) {
       const mdTable = parseHtmlTableToMarkdown(htmlData);
       if (mdTable) {
         insertAtCursor(mdTable);
@@ -5460,7 +5549,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
     }
 
-    // 4. 일반 텍스트 처리 (정제가 필요한 경우에만)
+    // 5. 일반 텍스트 처리 (정제가 필요한 경우에만)
     if (textChanged) {
       insertAtCursor(processedText);
       if (editorRef.current) {
@@ -6274,7 +6363,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           css += `.custom-preview-container .codeblock-area pre {\n  padding: ${padding} !important;\n}\n`;
         }
         const cbLineHeight = ruleObj['line-height'] || '1.35';
-        css += `.custom-preview-container .codeblock-area pre, .custom-preview-container .codeblock-area pre code, .custom-preview-container .codeblock-area .onrivi-line, .custom-preview-container .codeblock-area .onrivi-line * {\n  line-height: ${cbLineHeight} !important;\n  min-height: ${cbLineHeight}em !important;\n}\n`;
+        css += `.custom-preview-container .codeblock-area pre, .custom-preview-container .codeblock-area pre code, .custom-preview-container .codeblock-area .onrivi-line, .custom-preview-container .codeblock-area .onrivi-line * {\n  line-height: ${cbLineHeight} !important;\n  min-height: 0 !important;\n}\n`;
 
         // 💡 프리뷰 모드에서 중첩된 테두리와 배경색(박스 안의 박스 현상) 원천 차단
         css += `.custom-preview-container .codeblock-area pre, .custom-preview-container .codeblock-area pre code {\n  border: none !important;\n  background: transparent !important;\n}\n`;
@@ -6722,7 +6811,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 .onrivi-content-root .codeblock-area .onrivi-line,
 .onrivi-content-root .codeblock-area .onrivi-line * {
   line-height: ${(prof.rules.codeBlock && prof.rules.codeBlock['line-height']) || '1.35'} !important;
-  min-height: ${(prof.rules.codeBlock && prof.rules.codeBlock['line-height']) || '1.35'}em !important;
+  min-height: 0 !important;
 }
 `;
 

@@ -41,7 +41,13 @@ export function htmlToImportMarkdown(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   doc.querySelectorAll('script,style,iframe,object,embed,form,nav,button').forEach(el => el.remove());
   // Exported editor chrome is metadata, not document prose.
-  doc.querySelectorAll('.codeblock-header').forEach(el => el.remove());
+  doc.querySelectorAll('.codeblock-header').forEach(el => {
+    const area = el.closest('.codeblock-area');
+    if (area && !area.hasAttribute('data-code-info')) {
+      area.setAttribute('data-code-info', el.querySelector('.codeblock-header-text')?.textContent?.trim() || '');
+    }
+    el.remove();
+  });
   doc.querySelectorAll('*').forEach(el=>Array.from(el.attributes).forEach(attr=>{
     if(/^on/i.test(attr.name) || (['href','src'].includes(attr.name) && /^\s*javascript:/i.test(attr.value))) el.removeAttribute(attr.name);
   }));
@@ -94,10 +100,10 @@ export function htmlToImportMarkdown(html: string): string {
     if (tag === 'pre') {
       const code=el.querySelector('code')||el;
       const lines=Array.from(code.children);
-      const text=lines.length && lines.every(line=>line.classList.contains('onrivi-line'))
+      const text=code.getAttribute('data-code-text') ?? (lines.length && lines.every(line=>line.classList.contains('onrivi-line'))
         ? lines.map(line=>(line.textContent||'').replace(/^\u200b$/,'')).join('\n')
-        : code.textContent||'';
-      const language=code.className.match(/(?:^|\s)language-([\w+-]+)/)?.[1]||'';
+        : code.textContent||'');
+      const language=code.getAttribute('data-code-info') ?? el.closest('.codeblock-area')?.getAttribute('data-code-info') ?? code.className.match(/(?:^|\s)language-([\w+-]+)/)?.[1] ?? '';
       const fence = '`'.repeat(Math.max(3, ...Array.from(text.matchAll(/`+/g), match => match[0].length + 1)));
       return `\n\n${fence}${language}\n${text}\n${fence}\n\n`;
     }

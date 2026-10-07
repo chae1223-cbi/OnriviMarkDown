@@ -717,7 +717,7 @@ p .onrivi-line + .onrivi-line {
 pre,
 pre code {
   line-height: ${(profile.rules?.codeBlock && profile.rules.codeBlock['line-height']) || '1.35'} !important;
-  min-height: ${(profile.rules?.codeBlock && profile.rules.codeBlock['line-height']) || '1.35'}em !important;
+  min-height: 0 !important;
   white-space: pre-wrap !important;
   word-wrap: break-word !important;
   word-break: break-all !important;

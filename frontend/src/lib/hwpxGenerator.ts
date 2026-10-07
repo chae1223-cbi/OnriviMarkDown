@@ -391,9 +391,9 @@ function buildSectionXml(containerEl: HTMLElement, images: ExtractedImage[]): { 
     if (tag === 'pre') {
       const codeEl = el.querySelector('code') || el;
       const renderedLines = Array.from(codeEl.children);
-      const text = renderedLines.length && renderedLines.every(line=>line.classList.contains('onrivi-line'))
+      const text = codeEl.getAttribute('data-code-text') ?? (renderedLines.length && renderedLines.every(line=>line.classList.contains('onrivi-line'))
         ? renderedLines.map(line=>(line.textContent || '').replace(/^\u200b$/,'')).join('\n')
-        : codeEl.textContent || '';
+        : codeEl.textContent || '');
       const lines = text.split('\n');
 
       let langBadge = 'TEXT';
@@ -403,10 +403,12 @@ function buildSectionXml(containerEl: HTMLElement, images: ExtractedImage[]): { 
         langBadge = langMatch[1].toUpperCase();
       }
 
+      langBadge = el.closest('.codeblock-area')?.getAttribute('data-code-title') || codeEl.getAttribute('data-code-title') || langBadge;
+
       // 배지 헤더 줄
       pListXml.push(`
         <hp:p id="${pCounter++}" paraPrIDRef="24" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
-          <hp:run charPrIDRef="10"><hp:t>[${langBadge}]</hp:t></hp:run>
+          <hp:run charPrIDRef="10"><hp:t>[${escapeXml(langBadge)}]</hp:t></hp:run>
         </hp:p>
       `);
 

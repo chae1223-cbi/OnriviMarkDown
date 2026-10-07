@@ -7,6 +7,7 @@ import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { normalizeAIModelName } from '@/lib/gemini';
 import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
+import { getSavedWorkspaceInfo } from '@/lib/gdrive/googleDriveClient';
 
 /**
  * [ONR-16-002] useEditorSettings 커스텀 훅
@@ -15,6 +16,7 @@ import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
 // ====================================================================
 // 📊 [OMD-EDIT-USEEDITORSETTINGS-0005] useEditorSettings.ts ➔ useEditorSettings
 // 🎯 @KICK  : 에디터 사용자 설정(테마, 단축키, 폰트크기 등)을 관리하고 영구 저장소에 동기화
+// 🚨 @PATCH : **2026-10-07** — [최종 구글 드라이브 작업장 상태 영구 복원 강화]: onrivi_last_workspace_mode 및 getSavedWorkspaceInfo 연동으로 재접속 시 구글 드라이브 작업장 상태 및 rootFolder 100% 자동 복구 보장
 // 🚨 @PATCH : **2026-10-03** — [구글 드라이브(GDRIVE) 워크스페이스 세션 자동 복원 지원]: 새로고침 시 activeWorkspaceType === 'gdrive'일 때 localStorage의 rootFolder를 확인하여 구글 드라이브 서재 세션을 자동 복구
 // 🚨 @PATCH : **2026-09-25** — [에디터 기본 글꼴 크기 16px 상향 및 가독성 최적화]: 작은 글씨로 인한 피로를 해소하기 위해 기본 에디터 fontSize를 14px에서 16px로 전면 상향 조정
 // 🚨 @PATCH : **2026-10-01** — [단축키/명령어 기본값 자동 병합 복구]: localStorage 복원 시 기존 저장 데이터에 신규 단축키(signature 등)가 누락되지 않도록 getDefaultHotkeys/getDefaultCommands와의 베이스 병합 보장
@@ -362,8 +364,9 @@ export const useEditorSettings = (
       );
       setIsAddonEnv(detectedAddon);
 
-      const savedWorkspaceType = localStorage.getItem('workspaceType') || 'local';
-      const activeWorkspaceType = detectedAddon ? 'browser' : savedWorkspaceType;
+      const rawSavedWorkspaceType = localStorage.getItem('workspaceType') || localStorage.getItem('onrivi_last_workspace_mode') || 'local';
+      const isLastCloud = rawSavedWorkspaceType === 'cloud' || rawSavedWorkspaceType === 'gdrive' || localStorage.getItem('onrivi_last_workspace_mode') === 'cloud';
+      const activeWorkspaceType = detectedAddon ? 'browser' : (isLastCloud ? 'cloud' : rawSavedWorkspaceType);
       setWorkspaceType(activeWorkspaceType as any);
 
       if (activeWorkspaceType === 'gdrive' || activeWorkspaceType === 'cloud') {
@@ -377,6 +380,18 @@ export const useEditorSettings = (
               return;
             }
           } catch (_) {}
+        }
+        const wsInfo = getSavedWorkspaceInfo();
+        if (wsInfo?.workspaceFolderId) {
+          const gdriveFolder = {
+            name: wsInfo.workspaceFolderName || '작업장',
+            path: `GoogleDrive/${wsInfo.workspaceFolderName || '작업장'}`,
+            displayName: `☁️ ${(wsInfo.workspaceFolderName || '작업장').split('/').pop()}`,
+            type: 'GDRIVE',
+            driveFolderId: wsInfo.workspaceFolderId
+          };
+          setRootFolder(gdriveFolder);
+          return;
         }
         setRootFolder(null);
       } else if (activeWorkspaceType === 'browser') {

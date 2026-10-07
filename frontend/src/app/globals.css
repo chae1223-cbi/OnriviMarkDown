@@ -653,7 +653,7 @@ option {
 .codeblock-area .onrivi-line,
 .codeblock-area .onrivi-line * {
   line-height: 1.35 !important;
-  min-height: 1.35em !important;
+  min-height: 0 !important;
 }
 
 /* 💻 코드블록 내부 행 하이라이트 — 다크/어두운 배경에서도 뚜렷하게 식별 가능한 고대비 코발트 블루 및 1px 아웃라인 */
@@ -1129,7 +1129,7 @@ mark.onrivi-search-text-highlight {
 
 /* 웹 편집기의 중립적인 회색 코드블록 표시를 데스크톱에도 동일하게 적용한다. */
 .monaco-editor .monaco-codeblock-line {
-  background-color: #f4f4f5 !important;
+  background-color: rgba(161, 161, 170, 0.10) !important;
   box-shadow: none !important;
   width: 100% !important;
   left: 0 !important;
@@ -1138,7 +1138,7 @@ mark.onrivi-search-text-highlight {
 .vs-dark .monaco-editor .monaco-codeblock-line,
 .dark .monaco-editor .monaco-codeblock-line,
 .onrivi-dark .monaco-editor .monaco-codeblock-line {
-  background-color: #27272a !important;
+  background-color: rgba(161, 161, 170, 0.12) !important;
   box-shadow: none !important;
 }
 .monaco-editor .monaco-codeblock-gutter {
@@ -1594,7 +1594,7 @@ div.onrivi-list-spacer {
   font-size: 11px !important;
   font-weight: 700 !important;
   color: #71717a !important;
-  background-color: #f4f4f5 !important;
+  background-color: rgba(161, 161, 170, 0.10) !important;
   border: 1px solid #e4e4e7 !important;
   padding: 2px 8px !important;
   border-radius: 9999px !important;
@@ -1604,7 +1604,7 @@ div.onrivi-list-spacer {
 
 .dark .page-view-badge {
   color: #a1a1aa !important;
-  background-color: #27272a !important;
+  background-color: rgba(161, 161, 170, 0.12) !important;
   border: 1px solid #3f3f46 !important;
 }
 
@@ -2310,3 +2310,7 @@ input::-ms-clear {
   outline: 2px solid rgba(217, 119, 6, 0.9);
   border-radius: 2px;
 }
+
+/* Only physical code rows reserve height; token spans remain inline. */
+.codeblock-area .onrivi-line { min-height: 1lh !important; }
+.codeblock-area .onrivi-line span { display: inline; padding: 0; }

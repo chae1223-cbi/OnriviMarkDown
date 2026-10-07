@@ -20,6 +20,9 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
+// 🚨 @PATCH : **2026-10-07** — [구글 드라이브 최종 접속 상태 재접속 복원 & 백그라운드 토큰 자동 갱신 연동]:
+//             1) refreshFileList 내 구글 드라이브 토큰 누락/만료 시 refreshDriveTokenSilently 백그라운드 무음 갱신을 수행하여 새로고침/재접속 시에도 파일 목록이 즉시 정상 복구되도록 개선
+//             2) connectGoogleDrive 및 disconnectGoogleDrive 시 onrivi_last_workspace_mode 영구 상태를 동기화하여 다음 로그인/재접속 시 마지막 작업장(구글 드라이브)으로 자동 진입 보장
 // 🚨 @PATCH : **2026-10-04** — [데스크톱 파일 열기/수화 시 상대경로 절대경로 자동 승격]: handleFileClick 및 existingOpenTab 수화에서 node.path가 상대경로인 경우 rootFolder.name과 결합하여 완전한 OS 절대경로로 api.readFromPath를 호출하도록 가드 보강
 // 🚨 @PATCH : **2026-10-04** — [react-hooks/exhaustive-deps 경고 해소]: captureEnvironment/restoreEnvironment를 useCallback으로 메모이즈하고, connectGoogleDrive/disconnectGoogleDrive 의존성 배열에 누락된 ref(tabsRef, activeTabIdRef, contentRef, lastSavedContentRef) 및 헬퍼를 추가
 // 🚨 @PATCH : **2026-10-03** — [saveFile targetTabId ReferenceError 결함 완벽 해결 & 구글 드라이브 무음 저장 연동]: targetTabId 미정의 변수 참조를 activeTabIdRef.current로 교체하고, targetFile/activeTab/currentFileNode에서 driveFileId 및 driveId 포괄 추출하여 자동저장 및 물리 저장 시 구글 드라이브 무음 저장 안정화
@@ -168,12 +171,19 @@ export const useFileExplorer = ({
     try {
       // ☁️ [구글 드라이브 작업장 파일 트리 갱신]
       if (rootFolderRef.current?.type === 'GDRIVE') {
-        const token = getSavedDriveToken();
+        let token = getSavedDriveToken();
         const wsInfo = getSavedWorkspaceInfo();
+        if (!token) {
+          try {
+            const { refreshDriveTokenSilently } = await import('@/lib/gdrive/googleDriveClient');
+            token = await refreshDriveTokenSilently();
+          } catch (_) {}
+        }
         if (token && wsInfo?.workspaceFolderId) {
           try {
             const driveNodes = await fetchDriveFileNodes(token, wsInfo.workspaceFolderId);
             setFileList(driveNodes);
+            console.log(`[refreshFileList] ✅ 구글 드라이브 파일 목록 갱신 완료 (${driveNodes.length}개 노드)`);
           } catch (err) {
             console.error('[refreshFileList GDRIVE Error]', err);
           }
@@ -1575,6 +1585,7 @@ export const useFileExplorer = ({
       localStorage.setItem('rootFolder', JSON.stringify(gdriveFolder));
       localStorage.setItem('workspaceType', 'cloud');
       localStorage.setItem('onrivi_workspace_path', gdriveFolder.path);
+      localStorage.setItem('onrivi_last_workspace_mode', 'cloud');
 
       // 3. 환경설정 공통 리소스 폴더를 구글 드라이브 OnriviAuthor/참조파일 로 자동 동기화
       saveResourceSettings({kind:'drive',path:`gdrive://${selectedResource.id}/${selectedResource.name}`,folderId:wsInfo.resourceFolderId,profilesFolderId:wsInfo.profilesFolderId,promptFolderId:wsInfo.promptFolderId,bibleFolderId:wsInfo.bibleFolderId,mediaFolderId:wsInfo.mediaFolderId,dbFolderId:wsInfo.dbFolderId});
@@ -1632,6 +1643,7 @@ export const useFileExplorer = ({
       }
       driveEnvironmentRef.current = captureEnvironment();
       disconnectGDriveClient();
+      localStorage.removeItem('onrivi_last_workspace_mode');
 
       // 백업된 로컬 작업장/리소스 폴더 복원
       const backupWs = localStorage.getItem('onrivi_last_local_workspace_path');
