@@ -377,6 +377,7 @@ export const useEditorSettings = (
             const folder = JSON.parse(savedFolder);
             if (folder && folder.type === 'GDRIVE') {
               setRootFolder(folder);
+              setMounted(true);
               return;
             }
           } catch (_) {}
@@ -391,6 +392,7 @@ export const useEditorSettings = (
             driveFolderId: wsInfo.workspaceFolderId
           };
           setRootFolder(gdriveFolder);
+          setMounted(true);
           return;
         }
         setRootFolder(null);
