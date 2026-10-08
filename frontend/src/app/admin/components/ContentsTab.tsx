@@ -1,0 +1,683 @@
+/**
+ * 프로그램명 : OnriviAuthor
+ * 파일명 : app/admin/components/ContentsTab.tsx
+ * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-10-08** — [사용자 개인 에디터 첨부 제외 공식 콘텐츠 관리(ContentsTab) 신규 구축]:
+ *             1. 사용자 개인 마크다운 에디터 첨부 미디어 철저 배제(프라이버시 보호)
+ *             2. 서비스 운영 공식 에셋(고객 지원 문의 첨부파일, 기술 블로그 공식 에셋) 통합 관리 대시보드 제공
+ *             3. 3대 핵심 통계 카드(총 관리 에셋, 고객 문의 첨부, 블로그 에셋) 탑재
+ *             4. 카드 그리드 뷰(Grid) / 목록 테이블 뷰(Table) 전환 지원
+ *             5. 원본 미디어 대형 팝업 모달, URL 클립보드 복사, 원본 새 창 열기, 페이징 지원
+ * -----------------------------------------------------------------------
+ */
+'use client';
+
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  Files,
+  LifeBuoy,
+  BookOpen,
+  Search,
+  RefreshCw,
+  RotateCcw,
+  LayoutGrid,
+  List,
+  ExternalLink,
+  Copy,
+  Check,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  FileImage,
+  FileArchive,
+  FileText,
+  User,
+  Calendar,
+  ShieldCheck,
+  Eye
+} from 'lucide-react';
+import { adminFetch } from '@/lib/adminFetch';
+import { showToast } from '@/utils/toast';
+
+interface ContentItem {
+  id: string;
+  category: 'INQUIRY' | 'BLOG';
+  category_name: string;
+  url: string;
+  file_name: string;
+  source_title: string;
+  source_id: string;
+  author: string;
+  created_at: string;
+  source_type: 'support' | 'blog';
+}
+
+interface ContentStats {
+  total: number;
+  inquiry: number;
+  blog: number;
+}
+
+const TYPE_OPTIONS = [
+  { value: 'ALL', label: '전체 콘텐츠' },
+  { value: 'INQUIRY', label: '고객 문의 첨부파일' },
+  { value: 'BLOG', label: '기술 블로그 에셋' }
+];
+
+const formatDate = (val?: string | null) => {
+  if (!val) return '-';
+  try {
+    const d = new Date(val);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch {
+    return val;
+  }
+};
+
+const isImageUrl = (url: string) => {
+  const clean = url.toLowerCase().split('?')[0];
+  return clean.match(/\.(jpeg|jpg|png|gif|webp|svg)$/) !== null || url.includes('/api/image/');
+};
+
+export default function ContentsTab() {
+  const [items, setItems] = useState<ContentItem[]>([]);
+  const [stats, setStats] = useState<ContentStats>({ total: 0, inquiry: 0, blog: 0 });
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const limit = 20;
+
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [typeFilter, setTypeFilter] = useState('ALL');
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+
+  const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // 모달 및 복사 상태
+  const [previewTarget, setPreviewTarget] = useState<ContentItem | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const fetchContents = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        search,
+        type: typeFilter
+      });
+
+      const res = await adminFetch(`/api/admin/contents?${params.toString()}`);
+      if (!res.ok) {
+        throw new Error(`콘텐츠 목록 조회 실패 (HTTP ${res.status})`);
+      }
+      const data = await res.json();
+      if (data.success) {
+        setItems(data.data || []);
+        setTotal(data.total || 0);
+        if (data.stats) {
+          setStats({
+            total: Number(data.stats.total || 0),
+            inquiry: Number(data.stats.inquiry || 0),
+            blog: Number(data.stats.blog || 0)
+          });
+        }
+      } else {
+        throw new Error(data.error || '콘텐츠 데이터를 불러오지 못했습니다.');
+      }
+    } catch (err: any) {
+      console.error('Contents fetch error:', err);
+      showToast(err.message || '콘텐츠 목록을 불러오는데 실패했습니다.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, search, typeFilter]);
+
+  useEffect(() => {
+    fetchContents();
+  }, [fetchContents, refreshKey]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPage(1);
+    setSearch(searchInput.trim());
+  };
+
+  const handleResetFilters = () => {
+    setSearchInput('');
+    setSearch('');
+    setTypeFilter('ALL');
+    setPage(1);
+  };
+
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    showToast('미디어 URL이 복사되었습니다.', 'info');
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  return (
+    <div className="space-y-6">
+      {/* 프라이버시 정책 배너 */}
+      <div className="p-4 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-900/50 flex items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-lg bg-blue-600 text-white shrink-0">
+            <ShieldCheck className="w-4 h-4" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-blue-900 dark:text-blue-200">
+              사용자 개인정보 보호 및 에디터 문서 격리 정책
+            </h4>
+            <p className="text-[11px] text-blue-700/90 dark:text-blue-300/80 mt-0.5">
+              사용자가 마크다운 에디터 본문에 직접 첨부한 개인 문서는 일체 수집·노출되지 않으며, 고객 지원 문의 접수 첨부파일 및 공식 기술 블로그 에셋만 관리됩니다.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 1. 상단 통계 카드 3종 */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* 전체 관리 콘텐츠 */}
+        <div
+          onClick={() => { setTypeFilter('ALL'); setPage(1); }}
+          className={`admin-glass-card p-5 cursor-pointer transition-all ${
+            typeFilter === 'ALL' ? 'border-blue-500 shadow-md ring-1 ring-blue-500/30' : 'hover:border-blue-500/40'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 tracking-wider">총 관리 콘텐츠</span>
+            <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400">
+              <Files className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-zinc-900 dark:text-zinc-100 font-mono">
+            {stats.total.toLocaleString()}
+          </div>
+          <div className="text-xs text-zinc-500 mt-1">문의 첨부 및 공식 블로그 에셋 누적</div>
+        </div>
+
+        {/* 고객 문의 첨부파일 */}
+        <div
+          onClick={() => { setTypeFilter('INQUIRY'); setPage(1); }}
+          className={`admin-glass-card p-5 cursor-pointer transition-all ${
+            typeFilter === 'INQUIRY' ? 'border-teal-500 shadow-md ring-1 ring-teal-500/30' : 'hover:border-teal-500/40'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 tracking-wider">고객 문의 첨부</span>
+            <div className="w-8 h-8 rounded-lg bg-teal-500/10 flex items-center justify-center text-teal-600 dark:text-teal-400">
+              <LifeBuoy className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-teal-600 dark:text-teal-400 font-mono">
+            {stats.inquiry.toLocaleString()}
+          </div>
+          <div className="text-xs text-zinc-500 mt-1">1:1 고객 문의 오류 캡처/파일</div>
+        </div>
+
+        {/* 기술 블로그 에셋 */}
+        <div
+          onClick={() => { setTypeFilter('BLOG'); setPage(1); }}
+          className={`admin-glass-card p-5 cursor-pointer transition-all ${
+            typeFilter === 'BLOG' ? 'border-indigo-500 shadow-md ring-1 ring-indigo-500/30' : 'hover:border-indigo-500/40'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 tracking-wider">기술 블로그 에셋</span>
+            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+              <BookOpen className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400 font-mono">
+            {stats.blog.toLocaleString()}
+          </div>
+          <div className="text-xs text-zinc-500 mt-1">공식 블로그 커버 및 본문 미디어</div>
+        </div>
+      </div>
+
+      {/* 2. 검색 및 컨트롤 바 */}
+      <div className="admin-glass-card p-4 space-y-3">
+        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+          {/* 검색창 */}
+          <form onSubmit={handleSearchSubmit} className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              placeholder="파일명, 문의 제목, 블로그 글 제목, 작성자 검색..."
+              className="admin-input pl-9 pr-20 w-full text-sm font-medium text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+            />
+            <button
+              type="submit"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors"
+            >
+              검색
+            </button>
+          </form>
+
+          {/* 컨트롤 그룹 */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 유형 셀렉트 */}
+            <select
+              value={typeFilter}
+              onChange={e => {
+                setTypeFilter(e.target.value);
+                setPage(1);
+              }}
+              className="admin-input text-xs font-medium text-zinc-900 dark:text-zinc-100 py-2 px-3"
+            >
+              {TYPE_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
+            {/* 뷰 모드 토글 (그리드 / 테이블) */}
+            <div className="flex items-center p-0.5 rounded-lg border border-[var(--admin-border)] bg-zinc-100 dark:bg-zinc-800">
+              <button
+                type="button"
+                onClick={() => setViewMode('grid')}
+                className={`p-1.5 rounded-md transition-colors ${
+                  viewMode === 'grid'
+                    ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 shadow-xs'
+                    : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                }`}
+                title="카드 그리드 뷰"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`p-1.5 rounded-md transition-colors ${
+                  viewMode === 'table'
+                    ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 shadow-xs'
+                    : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                }`}
+                title="목록 테이블 뷰"
+              >
+                <List className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* 초기화 */}
+            {(search || typeFilter !== 'ALL') && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="admin-btn-secondary text-xs px-2.5 py-2 flex items-center gap-1 text-zinc-700 dark:text-zinc-300"
+                title="초기화"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>초기화</span>
+              </button>
+            )}
+
+            {/* 새로고침 */}
+            <button
+              type="button"
+              onClick={() => setRefreshKey(k => k + 1)}
+              className="admin-btn-secondary text-xs px-2.5 py-2 flex items-center gap-1 text-zinc-700 dark:text-zinc-300"
+              title="새로고침"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. 콘텐츠 뷰 (그리드 or 테이블) */}
+      {loading && items.length === 0 ? (
+        <div className="admin-glass-card p-16 text-center text-zinc-600 dark:text-zinc-400">
+          <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-600" />
+          콘텐츠 목록을 불러오는 중입니다...
+        </div>
+      ) : items.length === 0 ? (
+        <div className="admin-glass-card p-16 text-center text-zinc-600 dark:text-zinc-400">
+          조회된 콘텐츠가 없습니다.
+        </div>
+      ) : viewMode === 'grid' ? (
+        /* 카드 그리드 뷰 */
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {items.map(item => {
+            const isImg = isImageUrl(item.url);
+            return (
+              <div
+                key={item.id}
+                className="admin-glass-card overflow-hidden group hover:border-blue-500/50 transition-all flex flex-col"
+              >
+                {/* 미디어 썸네일 영역 */}
+                <div
+                  onClick={() => setPreviewTarget(item)}
+                  className="relative aspect-video bg-zinc-100 dark:bg-zinc-900 border-b border-[var(--admin-border)] flex items-center justify-center cursor-pointer overflow-hidden"
+                >
+                  {isImg ? (
+                    <img
+                      src={item.url}
+                      alt={item.file_name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      loading="lazy"
+                    />
+                  ) : item.file_name.endsWith('.zip') ? (
+                    <FileArchive className="w-10 h-10 text-amber-500" />
+                  ) : (
+                    <FileText className="w-10 h-10 text-zinc-400" />
+                  )}
+
+                  {/* 호버 시 오버레이 */}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <span className="p-2 rounded-full bg-white/90 text-zinc-900 hover:scale-110 transition-transform">
+                      <Eye className="w-4 h-4" />
+                    </span>
+                  </div>
+
+                  {/* 분류 배지 */}
+                  <span
+                    className={`absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold shadow-xs ${
+                      item.category === 'INQUIRY'
+                        ? 'bg-teal-500/90 text-white'
+                        : 'bg-indigo-600/90 text-white'
+                    }`}
+                  >
+                    {item.category_name}
+                  </span>
+                </div>
+
+                {/* 정보 영역 */}
+                <div className="p-3.5 flex-1 flex flex-col justify-between space-y-2">
+                  <div>
+                    <h5
+                      className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate cursor-pointer hover:underline"
+                      title={item.file_name}
+                      onClick={() => setPreviewTarget(item)}
+                    >
+                      {item.file_name}
+                    </h5>
+                    <p
+                      className="text-[11px] text-zinc-500 truncate mt-0.5"
+                      title={item.source_title}
+                    >
+                      출처: {item.source_title}
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-[var(--admin-border)] flex items-center justify-between text-[11px] text-zinc-500">
+                    <span className="truncate max-w-[120px]" title={item.author}>
+                      {item.author}
+                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleCopy(item.url, item.id)}
+                        className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-blue-600"
+                        title="URL 복사"
+                      >
+                        {copiedId === item.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-blue-600"
+                        title="새 창에서 열기"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* 목록 테이블 뷰 */
+        <div className="admin-glass-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-zinc-100/80 dark:bg-zinc-800/80 border-b border-[var(--admin-border)] text-zinc-700 dark:text-zinc-300 font-semibold">
+                <tr>
+                  <th className="p-3.5 pl-4 text-xs tracking-wider w-14">미리보기</th>
+                  <th className="p-3.5 text-xs tracking-wider">파일명</th>
+                  <th className="p-3.5 text-xs tracking-wider">구분</th>
+                  <th className="p-3.5 text-xs tracking-wider">연결 출처</th>
+                  <th className="p-3.5 text-xs tracking-wider">등록자</th>
+                  <th className="p-3.5 text-xs tracking-wider">등록 일시</th>
+                  <th className="p-3.5 pr-4 text-xs tracking-wider text-right">관리</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--admin-border)]">
+                {items.map(item => {
+                  const isImg = isImageUrl(item.url);
+                  return (
+                    <tr
+                      key={item.id}
+                      className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40 transition-colors"
+                    >
+                      {/* 미니 썸네일 */}
+                      <td className="p-3.5 pl-4">
+                        <div
+                          onClick={() => setPreviewTarget(item)}
+                          className="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-[var(--admin-border)] overflow-hidden flex items-center justify-center cursor-pointer hover:opacity-80"
+                        >
+                          {isImg ? (
+                            <img src={item.url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                          ) : (
+                            <FileArchive className="w-5 h-5 text-zinc-400" />
+                          )}
+                        </div>
+                      </td>
+
+                      {/* 파일명 */}
+                      <td className="p-3.5 max-w-xs">
+                        <span
+                          className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 truncate block cursor-pointer hover:underline"
+                          title={item.file_name}
+                          onClick={() => setPreviewTarget(item)}
+                        >
+                          {item.file_name}
+                        </span>
+                      </td>
+
+                      {/* 구분 배지 */}
+                      <td className="p-3.5 whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold border ${
+                            item.category === 'INQUIRY'
+                              ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/30'
+                              : 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30'
+                          }`}
+                        >
+                          {item.category_name}
+                        </span>
+                      </td>
+
+                      {/* 연결 출처 */}
+                      <td className="p-3.5 max-w-sm">
+                        <span className="text-xs text-zinc-700 dark:text-zinc-300 truncate block" title={item.source_title}>
+                          {item.source_title}
+                        </span>
+                      </td>
+
+                      {/* 등록자 */}
+                      <td className="p-3.5 whitespace-nowrap text-xs text-zinc-600 dark:text-zinc-400 font-mono">
+                        {item.author}
+                      </td>
+
+                      {/* 등록 일시 */}
+                      <td className="p-3.5 whitespace-nowrap text-xs font-mono text-zinc-900 dark:text-zinc-100">
+                        {formatDate(item.created_at)}
+                      </td>
+
+                      {/* 관리 액션 */}
+                      <td className="p-3.5 pr-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleCopy(item.url, item.id)}
+                            className="p-1.5 rounded-lg text-zinc-500 hover:text-blue-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                            title="URL 복사"
+                          >
+                            {copiedId === item.id ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                          </button>
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-1.5 rounded-lg text-zinc-500 hover:text-blue-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                            title="새 창에서 열기"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 4. 페이지네이션 */}
+      <div className="p-4 admin-glass-card flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-zinc-700 dark:text-zinc-300">
+        <div className="font-medium">
+          총 <span className="font-bold text-zinc-900 dark:text-zinc-100 font-mono">{total.toLocaleString()}</span>개 중{' '}
+          <span className="font-mono">{total === 0 ? 0 : (page - 1) * limit + 1}</span>-
+          <span className="font-mono">{Math.min(page * limit, total)}</span>개 표시
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="p-1.5 rounded-lg border border-[var(--admin-border)] hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            title="이전 페이지"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          <span className="px-3 py-1 font-mono font-bold text-zinc-900 dark:text-zinc-100">
+            {page} / {totalPages}
+          </span>
+
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+            className="p-1.5 rounded-lg border border-[var(--admin-border)] hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            title="다음 페이지"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* 5. 대형 원본 미리보기 모달 */}
+      {previewTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="admin-glass-card max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border-[var(--admin-border)]">
+            <div className="p-4 border-b border-[var(--admin-border)] flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <FileImage className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate max-w-md">
+                  {previewTarget.file_name}
+                </h3>
+              </div>
+              <button
+                onClick={() => setPreviewTarget(null)}
+                className="p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4 custom-scrollbar">
+              {/* 이미지 대형 미리보기 */}
+              {isImageUrl(previewTarget.url) ? (
+                <div className="rounded-xl overflow-hidden border border-[var(--admin-border)] bg-zinc-900/50 flex items-center justify-center max-h-96">
+                  <img
+                    src={previewTarget.url}
+                    alt={previewTarget.file_name}
+                    className="max-h-96 w-auto object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="p-12 rounded-xl border border-[var(--admin-border)] bg-zinc-100 dark:bg-zinc-900 flex flex-col items-center justify-center gap-2">
+                  <FileArchive className="w-12 h-12 text-amber-500" />
+                  <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                    미리보기를 지원하지 않는 바이너리/압축 파일입니다.
+                  </span>
+                </div>
+              )}
+
+              {/* 상세 메타 정보 */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border border-[var(--admin-border)] space-y-1">
+                  <div className="text-zinc-500">콘텐츠 구분</div>
+                  <div className="font-bold text-zinc-900 dark:text-zinc-100">
+                    {previewTarget.category_name}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border border-[var(--admin-border)] space-y-1">
+                  <div className="text-zinc-500">등록 일시</div>
+                  <div className="font-mono font-bold text-zinc-900 dark:text-zinc-100">
+                    {formatDate(previewTarget.created_at)}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border border-[var(--admin-border)] space-y-1 col-span-1 sm:col-span-2">
+                  <div className="text-zinc-500">연결 출처 및 제목</div>
+                  <div className="font-semibold text-zinc-900 dark:text-zinc-100">
+                    {previewTarget.source_title}
+                  </div>
+                  <div className="text-[11px] text-zinc-500">작성자: {previewTarget.author}</div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border border-[var(--admin-border)] space-y-1.5 col-span-1 sm:col-span-2">
+                  <div className="text-zinc-500 flex items-center justify-between">
+                    <span>원본 미디어 URL</span>
+                    <button
+                      onClick={() => handleCopy(previewTarget.url, 'modal_url')}
+                      className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 text-[11px]"
+                    >
+                      {copiedId === 'modal_url' ? '복사됨!' : 'URL 복사'}
+                    </button>
+                  </div>
+                  <div className="p-2 rounded bg-white dark:bg-zinc-900 font-mono text-[11px] text-zinc-700 dark:text-zinc-300 break-all select-all border border-[var(--admin-border)]">
+                    {previewTarget.url}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-[var(--admin-border)] bg-zinc-50/50 dark:bg-zinc-800/30 flex justify-between items-center shrink-0">
+              <a
+                href={previewTarget.url}
+                target="_blank"
+                rel="noreferrer"
+                className="admin-btn-secondary text-xs flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>새 창에서 원본 열기</span>
+              </a>
+
+              <button
+                onClick={() => setPreviewTarget(null)}
+                className="admin-btn-primary px-4 py-2 text-xs font-bold"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
