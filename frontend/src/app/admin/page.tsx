@@ -3,6 +3,7 @@
  * 파일명 : app/admin/page.tsx
  * -----------------------------------------------------------------------
  * 변경내역
+ * 🚨 @PATCH : **2026-10-08** — [시스템 현황 탭(SystemTab) 연동]: 4대 핵심 서비스(DB, R2, Edge) 헬스체크 및 실시간 터미널 로그 콘솔 뷰어 마운트
  * 🚨 @PATCH : **2026-10-08** — [콘텐츠 관리 탭(ContentsTab) 연동]: 사용자 개인 에디터 첨부 제외 공식 콘텐츠(고객 문의 첨부, 기술 블로그 에셋) 통합 관리 대시보드 마운트
  * 🚨 @PATCH : **2026-10-08** — [관리자 감사 로그 탭(AuditTab) 연동]: tab === 'audit' 시 AuditTab 컴포넌트 마운트 및 전체 감사 로그 대시보드 제공
  * 🚨 @PATCH : **2026-09-28** — [사용자별 요금제 변경]: SUPER 관리자만 상세 화면에서 활성 DB 요금제를 수동 부여하고 목록을 새로고침; 캔버스·모달 버튼 디자인 시스템 통일
@@ -33,6 +34,7 @@ import BlogTab from './components/BlogTab';
 import SubscriptionsTab from './components/SubscriptionsTab';
 import AuditTab from './components/AuditTab';
 import ContentsTab from './components/ContentsTab';
+import SystemTab from './components/SystemTab';
 
 function AdminPageContent() {
   const searchParams = useSearchParams();
@@ -53,7 +55,7 @@ function AdminPageContent() {
       {tab === 'blog' && <BlogTab />}
       {tab === 'contents' && <ContentsTab />}
       {tab === 'reports' && <FutureFeatureTab title="리포트 추출" features={['특정 기간 동안의 결제 내역 및 가입자 목록 조회', '세금 신고 및 투자자 보고용 엑셀(CSV) 파일 다운로드']} />}
-      {tab === 'system' && <FutureFeatureTab title="시스템 현황" features={['현재 DB 용량 및 백업 상태 실시간 모니터링', '자동 결제 실패 등 중요 알림에 대한 슬랙(Slack) 웹훅 알림 설정']} />}
+      {tab === 'system' && <SystemTab />}
     </div>
   );
 }
