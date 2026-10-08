@@ -1,3 +1,4 @@
+// 🚨 @PATCH : 2026-10-08 — 상단 핵심 통계 카드 6종(ACTIVE, HAS_DEVICES 포함) 일대일 정합 필터링 완벽 지원
 import { withBlogTransaction, blogJson } from '../../blog/_db.js';
 import { checkAdminAuth } from '../_shared.js';
 
@@ -13,7 +14,7 @@ export async function onRequestGet({ request, env }) {
   const attention = params.get('attention') || 'ALL';
   if (!Number.isInteger(page) || page < 1 || page > 100000 || search.length > 200 ||
       !['ALL', 'ACTIVE', 'CANCELED', 'EXPIRED'].includes(status) ||
-      !['ALL', 'EXPIRING_7', 'EXPIRING_30', 'OVER_LIMIT', 'STALE_ACTIVE'].includes(attention) ||
+      !['ALL', 'ACTIVE', 'EXPIRING_7', 'EXPIRING_30', 'OVER_LIMIT', 'STALE_ACTIVE', 'HAS_DEVICES'].includes(attention) ||
       !['ALL', 'ADMIN_FREE', 'ADMIN_PAID', 'TRIAL', 'UNKNOWN'].includes(grant) ||
       (plan !== 'ALL' && !/^[A-Z][A-Z0-9_]{1,49}$/.test(plan))) {
     return blogJson({ success: false, error: '검색 조건이 올바르지 않습니다.' }, 400);
@@ -50,10 +51,12 @@ export async function onRequestGet({ request, env }) {
             ($7 = 'TRIAL' AND s.billing_cycle = 'TRIAL' AND coalesce(s.payment_no, '') NOT LIKE 'ADMIN-%') OR
             ($7 = 'UNKNOWN' AND s.billing_cycle <> 'TRIAL' AND coalesce(s.payment_no, '') NOT LIKE 'ADMIN-%'))
           AND ($5 = 'ALL'
+            OR ($5 = 'ACTIVE' AND s.is_active AND s.plan_status = 'ACTIVE' AND s.current_period_end > now())
             OR ($5 = 'EXPIRING_7' AND s.is_active AND s.plan_status = 'ACTIVE' AND s.current_period_end BETWEEN now() AND now() + interval '7 days')
             OR ($5 = 'EXPIRING_30' AND s.is_active AND s.plan_status = 'ACTIVE' AND s.current_period_end BETWEEN now() AND now() + interval '30 days')
             OR ($5 = 'OVER_LIMIT' AND coalesce(d.devices, 0) > s.max_devices)
-            OR ($5 = 'STALE_ACTIVE' AND s.is_active AND s.current_period_end <= now()))
+            OR ($5 = 'STALE_ACTIVE' AND s.is_active AND s.current_period_end <= now())
+            OR ($5 = 'HAS_DEVICES' AND coalesce(d.devices, 0) > 0))
         ORDER BY s.created_at DESC, s.id DESC LIMIT 20 OFFSET $6`, [search, term, status, plan, attention, (page - 1) * 20, grant]);
       return { stats: stats.rows[0], rows: rows.rows };
     });

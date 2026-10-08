@@ -2,6 +2,9 @@
  * 프로그램명 : OnriviAuthor
  * 파일명 : app/admin/components/SubscriptionsTab.tsx
  * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-10-08** — [상단 핵심 통계 카드 6종 일대일 정합 필터링 완벽 연동]:
+ *             1. 활성 구독(ACTIVE), 활성 기기(HAS_DEVICES) 카드 클릭 시 통계 지표와 일치하는 조건으로 즉시 필터링 및 토글 지원
+ *             2. 카드 선택 시 상태(status) 필터와의 충돌 방지 초기화 및 선택 인디케이터 정상 표시
  * 🚨 @PATCH : **2026-09-30** — [useCallback 의존성 최적화]: load 콜백의 불필요한 refresh 의존성을 load 호출 useEffect로 이전하여 ESLint unnecessary dependency 경고 완전 소거
  * 🚨 @PATCH : **2026-09-30** — [구독 및 라이선스 관리 고도화]: 
  *             1. Modern Technical Editorial 디자인 시스템(Cobalt #1d4ed8) 및 고대비(High-Contrast) 시인성 표준 전면 적용
@@ -268,7 +271,7 @@ export default function SubscriptionsTab() {
     { 
       label: '활성 구독', 
       value: stats?.active, 
-      filter: 'ALL', 
+      filter: 'ACTIVE', 
       icon: CheckCircle2, 
       color: 'text-emerald-600 dark:text-emerald-400', 
       bg: 'bg-emerald-50 dark:bg-emerald-950/40', 
@@ -304,7 +307,7 @@ export default function SubscriptionsTab() {
     { 
       label: '활성 기기 합계', 
       value: stats?.devices, 
-      filter: 'ALL', 
+      filter: 'HAS_DEVICES', 
       icon: Laptop, 
       color: 'text-indigo-600 dark:text-indigo-400', 
       bg: 'bg-indigo-50 dark:bg-indigo-950/40', 
@@ -351,14 +354,18 @@ export default function SubscriptionsTab() {
       {/* 6대 핵심 지표 통계 카드 */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
         {statCards.map((card, idx) => {
-          const isSelected = attention === card.filter && card.filter !== 'ALL';
+          const isSelected = attention === card.filter;
           const IconComp = card.icon;
           return (
             <button
               key={idx}
               type="button"
               onClick={() => {
-                setAttention(card.filter);
+                const next = attention === card.filter ? 'ALL' : card.filter;
+                setAttention(next);
+                if (next !== 'ALL') {
+                  setStatus('ALL');
+                }
                 setPage(1);
               }}
               className={`p-4 rounded-xl border text-left transition-all duration-200 group relative ${card.bg} ${
@@ -464,9 +471,11 @@ export default function SubscriptionsTab() {
             }}
           >
             <option value="ALL">전체 조치 대상</option>
+            <option value="ACTIVE">활성 구독 (정상 이용)</option>
             <option value="EXPIRING_7">7일 내 만료 예정</option>
             <option value="EXPIRING_30">30일 내 만료 예정</option>
             <option value="STALE_ACTIVE">만료 처리 필요</option>
+            <option value="HAS_DEVICES">활성 기기 보유</option>
             <option value="OVER_LIMIT">기기 초과</option>
           </select>
 

@@ -1,3 +1,4 @@
+/** 🚨 @PATCH : 2026-10-08 — 상단 핵심 통계 카드 6종(ACTIVE, HAS_DEVICES 포함) 일대일 정합 필터링 완벽 지원 */
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { verifyAdmin } from '@/lib/adminAuth';
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
   const attention = params.get('attention') || 'ALL';
   if (!Number.isInteger(page) || page < 1 || page > 100000 || search.length > 200 ||
       !['ALL', 'ACTIVE', 'CANCELED', 'EXPIRED'].includes(status) ||
-      !['ALL', 'EXPIRING_7', 'EXPIRING_30', 'OVER_LIMIT', 'STALE_ACTIVE'].includes(attention) ||
+      !['ALL', 'ACTIVE', 'EXPIRING_7', 'EXPIRING_30', 'OVER_LIMIT', 'STALE_ACTIVE', 'HAS_DEVICES'].includes(attention) ||
       !['ALL', 'ADMIN_FREE', 'ADMIN_PAID', 'TRIAL', 'UNKNOWN'].includes(grant) ||
       (plan !== 'ALL' && !/^[A-Z][A-Z0-9_]{1,49}$/.test(plan))) {
     return NextResponse.json({ success: false, error: '검색 조건이 올바르지 않습니다.' }, { status: 400 });
@@ -59,10 +60,12 @@ export async function GET(request: Request) {
           (${grant} = 'TRIAL' AND s.billing_cycle = 'TRIAL' AND coalesce(s.payment_no, '') NOT LIKE 'ADMIN-%') OR
           (${grant} = 'UNKNOWN' AND s.billing_cycle <> 'TRIAL' AND coalesce(s.payment_no, '') NOT LIKE 'ADMIN-%'))
         AND (${attention} = 'ALL'
+          OR (${attention} = 'ACTIVE' AND s.is_active AND s.plan_status = 'ACTIVE' AND s.current_period_end > now())
           OR (${attention} = 'EXPIRING_7' AND s.is_active AND s.plan_status = 'ACTIVE' AND s.current_period_end BETWEEN now() AND now() + interval '7 days')
           OR (${attention} = 'EXPIRING_30' AND s.is_active AND s.plan_status = 'ACTIVE' AND s.current_period_end BETWEEN now() AND now() + interval '30 days')
           OR (${attention} = 'OVER_LIMIT' AND coalesce(d.devices, 0) > s.max_devices)
-          OR (${attention} = 'STALE_ACTIVE' AND s.is_active AND s.current_period_end <= now()))
+          OR (${attention} = 'STALE_ACTIVE' AND s.is_active AND s.current_period_end <= now())
+          OR (${attention} = 'HAS_DEVICES' AND coalesce(d.devices, 0) > 0))
       ORDER BY s.created_at DESC, s.id DESC LIMIT 20 OFFSET ${(page - 1) * 20}`;
     return NextResponse.json({ success: true, data: rows.map(({ total: _total, ...row }) => row), total: rows[0]?.total || 0, stats: stats[0], canManage: auth.adminRole === 'SUPER', asOf: new Date().toISOString() }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
