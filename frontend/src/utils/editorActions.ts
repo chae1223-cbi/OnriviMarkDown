@@ -39,22 +39,26 @@ export const scrollToLine = (editorRef: any, lineNumber: number) => {
  * @param text 삽입할 텍스트 내용
  */
 export const insertAtCursor = (editorRef: any, lastSelectionRef: any, text: string) => {
+  if (!text) return false;
   if (editorRef.current) {
     const editor = editorRef.current;
+    const model = editor.getModel();
+    if (!model) return false;
     let selection = editor.getSelection();
-    if (!selection || (selection.isEmpty() && lastSelectionRef.current)) {
+    if (!selection && lastSelectionRef.current) {
       selection = lastSelectionRef.current;
     }
+    if (!selection) {
+      const position=editor.getPosition?.() || {lineNumber:1,column:1};
+      selection={startLineNumber:position.lineNumber,startColumn:position.column,endLineNumber:position.lineNumber,endColumn:position.column};
+    }
     if (selection) {
-      const range = new (window as any).monaco.Range(
-        selection.startLineNumber,
-        selection.startColumn,
-        selection.endLineNumber,
-        selection.endColumn
-      );
+      const range = model.validateRange({startLineNumber:selection.startLineNumber,startColumn:selection.startColumn,
+        endLineNumber:selection.endLineNumber,endColumn:selection.endColumn});
       editor.pushUndoStop();
-      editor.executeEdits("insert", [{ range, text, forceMoveMarkers: true }]);
+      const inserted=editor.executeEdits("insert", [{ range, text, forceMoveMarkers: true }]);
       editor.pushUndoStop();
+      if (!inserted) return false;
       
       try {
         const model = editor.getModel();
@@ -69,8 +73,10 @@ export const insertAtCursor = (editorRef: any, lastSelectionRef: any, text: stri
       } catch (_) {}
 
       editor.focus();
+      return true;
     }
   }
+  return false;
 };
 
 // ====================================================================

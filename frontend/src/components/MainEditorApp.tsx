@@ -1433,8 +1433,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             localStorage.setItem('workspaceType', 'local');
           }
         }
+        const readSettings = getResourceSettings(targetEnv);
+        const readAccount = localStorage.getItem('onrivi_active_drive_account');
         const users = await fetchUserProfiles(folder, resourceFolderHandle, targetEnv);
         if (cancelled || requestRevision !== loadRevision || getResourceEnvironment() !== targetEnv) return false;
+        const currentSettings = getResourceSettings(targetEnv);
+        if (currentSettings?.path !== readSettings?.path || currentSettings?.folderId !== readSettings?.folderId ||
+            (targetEnv === 'cloud' && localStorage.getItem('onrivi_active_drive_account') !== readAccount)) return false;
         const normalized = users.filter(p => p && p.id !== 'default' && !isSystemProfileId(p.id))
           .map(p => normalizeCssProfile(p, SYSTEM_PROFILES));
         // 로드 자체는 저장하지 않는다. 빈 배열도 이 파일의 유효한 원본 상태이다.
@@ -4783,7 +4788,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : utilsEditorActions.insertAtCursor
   // ====================================================================
   const insertAtCursor = (text: string) => {
-    utilsEditorActions.insertAtCursor(editorRef, lastSelectionRef, text);
+    return utilsEditorActions.insertAtCursor(editorRef, lastSelectionRef, text);
   };
 
   // ====================================================================
@@ -5684,7 +5689,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
     // 5. 일반 텍스트 처리 (정제가 필요한 경우에만)
     if (textChanged) {
-      insertAtCursor(processedText);
+      const safeText=processedText.trim() ? processedText : textData;
+      if (!insertAtCursor(safeText)) {
+        showToast("텍스트를 삽입하지 못했습니다. 편집영역을 클릭한 뒤 다시 붙여넣어 주세요.", "error");
+        return;
+      }
       if (editorRef.current) {
         updateContent(editorRef.current.getValue(), true);
       }

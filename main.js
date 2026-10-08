@@ -3984,7 +3984,7 @@ function resolveUserProfilesPath(resourceFolder) {
 
 ipcMain.handle('file:readProfiles', async (event, resourceFolder) => {
   const profilePath = resolveUserProfilesPath(resourceFolder);
-  if (!fs.existsSync(profilePath)) return [];
+  if (!fs.existsSync(profilePath)) throw new Error(`서식 파일을 찾을 수 없습니다: ${profilePath}`);
   const profiles = JSON.parse(fs.readFileSync(profilePath, 'utf-8').replace(/^\uFEFF/, ''));
   if (!Array.isArray(profiles)) throw new Error('INVALID_PROFILES_ARRAY');
   console.info('[Desktop profiles]', JSON.stringify({ file: profilePath, count: profiles.length }));

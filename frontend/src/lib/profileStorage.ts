@@ -246,10 +246,10 @@ export async function fetchUserProfiles(
     try {
       const res = await fetch(`/api/profiles?resourceFolder=${encodeURIComponent(folder)}`);
       const data = await res.json();
-      if (!res.ok || !data.success) return [];
+      if (!res.ok || !data.success) throw new Error(data.error || '로컬 서식 파일을 읽지 못했습니다.');
       return parseAnyProfiles(data.profiles);
-    } catch {
-      return [];
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -269,11 +269,14 @@ export function persistUserProfiles(
   )));
   const folder = getProfileResourceFolder(explicitFolder, environment);
   const selectedResource = getResourceSettings(environment);
+  const selectedAccount = typeof window !== 'undefined' ? localStorage.getItem('onrivi_active_drive_account') : null;
   const save = async (): Promise<boolean> => {
     if (typeof window === 'undefined') return false;
     try {
       const currentResource = requireResourceSettings();
-      if (!selectedResource || currentResource.kind !== selectedResource.kind || currentResource.path !== selectedResource.path) return false;
+      if (!selectedResource || currentResource.kind !== selectedResource.kind || currentResource.path !== selectedResource.path ||
+        currentResource.folderId !== selectedResource.folderId ||
+        (selectedResource.kind === 'drive' && localStorage.getItem('onrivi_active_drive_account') !== selectedAccount)) return false;
       if (selectedResource?.kind === 'drive') {
         const token = getSavedDriveToken();
         if (!token || !selectedResource.folderId) throw new Error('구글 드라이브 연결과 리소스 폴더를 확인해 주세요.');
