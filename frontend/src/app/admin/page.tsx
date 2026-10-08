@@ -3,8 +3,10 @@
  * 파일명 : app/admin/page.tsx
  * -----------------------------------------------------------------------
  * 변경내역
+ * 🚨 @PATCH : **2026-10-08** — [관리자 감사 로그 탭(AuditTab) 연동]: tab === 'audit' 시 AuditTab 컴포넌트 마운트 및 전체 감사 로그 대시보드 제공
  * 🚨 @PATCH : **2026-09-28** — [사용자별 요금제 변경]: SUPER 관리자만 상세 화면에서 활성 DB 요금제를 수동 부여하고 목록을 새로고침; 캔버스·모달 버튼 디자인 시스템 통일
- * ----------------------------------------------------------------------- * 🚨 @PATCH : **2026-09-26** — [기술 블로그 관리 탭 연동]: tab === 'blog' 시 BlogTab 컴포넌트 렌더링 및 초안 선택 발행 관리 연동
+ * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-09-26** — [기술 블로그 관리 탭 연동]: tab === 'blog' 시 BlogTab 컴포넌트 렌더링 및 초안 선택 발행 관리 연동
  *             2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
  *             2026-09-02** — LINE Design System (LDSG v5.0) 표준 적용: .admin-theme, 대시보드 통계 카드 및 관리자 탭 LDSG Green(#1d4ed8)/Blue(#4D73FF) 토큰 통일
  * -----------------------------------------------------------------------
@@ -28,6 +30,7 @@ import FaqsTab from './components/FaqsTab';
 import PromotionsTab from './components/PromotionsTab';
 import BlogTab from './components/BlogTab';
 import SubscriptionsTab from './components/SubscriptionsTab';
+import AuditTab from './components/AuditTab';
 
 function AdminPageContent() {
   const searchParams = useSearchParams();
@@ -43,7 +46,7 @@ function AdminPageContent() {
       {tab === 'plans' && <PlansTab />}
       {tab === 'faqs' && <FaqsTab />}
       {tab === 'support' && <InquiriesTab />}
-      {tab === 'audit' && <FutureFeatureTab title="감사 로그" features={['누가, 언제, 어떤 고객의 데이터를 건드렸는지 행동 기록 추적', '내부 직원의 실수나 어뷰징 방지 및 보안 강화']} />}
+      {tab === 'audit' && <AuditTab />}
       {tab === 'promotions' && <PromotionsTab />}
       {tab === 'blog' && <BlogTab />}
       {tab === 'contents' && <FutureFeatureTab title="콘텐츠 관리" features={['사용자들이 업로드한 이미지 및 파일 첨부 내역 조회', '불법 콘텐츠 필터링 및 불필요한 대용량 파일 강제 삭제(서버 용량 관리)']} />}
