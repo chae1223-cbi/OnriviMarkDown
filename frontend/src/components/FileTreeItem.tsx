@@ -76,6 +76,7 @@ import PromptModal from '@/components/PromptModal';
 import {
   getSavedDriveToken,
   getSavedWorkspaceInfo,
+  readDriveFileContent,
   trashDriveItem,
   renameDriveItem,
   createDriveMarkdownFile,
@@ -1178,9 +1179,19 @@ const FileTreeItem = ({
           let content = '';
           let backupPath = '';
           let items: any[] = [];
+          const isDriveNode = !!((node as any).driveId || (node as any).driveFileId || workspaceType === 'cloud' || (typeof window !== 'undefined' && localStorage.getItem('workspaceType') === 'cloud'));
+          const driveToken = isDriveNode ? getSavedDriveToken() : null;
+          const driveItemId = (node as any).driveId || (node as any).driveFileId || (node as any).id;
+          if (isDriveNode && (!driveToken || !driveItemId)) {
+            showToast('구글 드라이브 연결과 삭제 대상 정보를 확인해 주세요.', 'error');
+            return;
+          }
 
           try {
-            if (!isDir) {
+            if (isDriveNode) {
+              // Drive folders remain intact in the trash; never back them up through OS APIs.
+              if (!isDir) content = await readDriveFileContent(driveToken!, driveItemId);
+            } else if (!isDir) {
               if (workspaceType === 'browser') {
                 if (node.handle) {
                   const f = await node.handle.getFile();
@@ -1258,8 +1269,6 @@ const FileTreeItem = ({
               workspaceType
             }
           }));
-
-          const isDriveNode = !!((node as any).driveId || (node as any).driveFileId || workspaceType === 'cloud' || (typeof window !== 'undefined' && localStorage.getItem('workspaceType') === 'cloud'));
 
           if (isDriveNode) {
             const token = getSavedDriveToken();

@@ -246,6 +246,7 @@
 */
 
 import { getResourceSettings, saveResourceSettings, requireResourceSettings, getResourceEnvironment, activateDriveAccount } from '@/lib/resourceSettings';
+import { importedCheckboxEdit } from '@/lib/importCheckboxes';
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, useDeferredValue } from 'react';   // 리액트 훅 - 상태관리, 렌더링 제어 등
 import Editor, { loader } from '@monaco-editor/react'; // 모나코 에디터 - 코드 편집기
 const _monacoVsPath = typeof window !== 'undefined' && !!(window as any).electronAPI
@@ -350,6 +351,7 @@ import { setProfileReadStatus } from '@/lib/profileReadStatus';
 import {
   getSavedDriveToken,
   getSavedWorkspaceInfo,
+  readDriveFileContent,
   uploadDriveImage,
   initDriveTokenAutoRefresh
 } from '@/lib/gdrive/googleDriveClient';
@@ -1385,11 +1387,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     let cancelled = false;
     profileStorageRef.current = null;
     setIsProfilesLoaded(false);
-    const targetEnv = getResourceEnvironment();
-    let folder = getProfileResourceFolder(resourceFolder, targetEnv);
     let loadRevision = 0;
     const load = async () => {
       const requestRevision = ++loadRevision;
+      const targetEnv = getResourceEnvironment();
+      let folder = getProfileResourceFolder(null, targetEnv);
       setIsProfilesLoaded(false);
       const destination = { environment: targetEnv, folder, folderId: getResourceSettings(targetEnv)?.folderId };
       setProfileReadStatus({ ...destination, state: 'loading' });
@@ -1399,16 +1401,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           const token = getSavedDriveToken();
           if (!token) throw new Error('웹드라이브 인증을 갱신해 주세요.');
           const drive = await import('@/lib/gdrive/googleDriveClient');
-          const account = await drive.fetchGoogleUserInfo(token);
-          if (cancelled || requestRevision !== loadRevision || getResourceEnvironment() !== targetEnv) return false;
-          if (!account.email) throw new Error('웹드라이브 계정을 확인하지 못했습니다. 다시 연결해 주세요.');
-          if (localStorage.getItem('onrivi_active_drive_account') !== account.email.trim().toLowerCase()) activateDriveAccount(account.email);
-          const resolved = await drive.resolveDriveResourceFolderByName(token);
+          // 계정 선택과 폴더 구성은 연결 단계에서 완료한다. 조회 중 재활성화하면
+          // 전환 직후 확정된 설정을 이전 요청이 다시 덮어쓸 수 있다.
+          const saved = getResourceSettings('cloud');
+          const resolved = saved?.folderId
+            ? { name: saved.path, folderId: saved.folderId }
+            : await drive.resolveDriveResourceFolderByName(token);
           if (cancelled || requestRevision !== loadRevision || getResourceEnvironment() !== targetEnv) return false;
           folder = resolved.name;
           destination.folder = folder;
           destination.folderId = resolved.folderId;
-          if (resourceFolder !== folder) setResourceFolder(folder);
         }
         if (targetEnv === 'local' && api?.ensureLocalEnvironment) {
           const settings = getResourceSettings('local');
@@ -1422,7 +1424,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           folder = initialized.resourcePath;
           destination.folder = folder;
           saveResourceSettings({ kind: 'local', path: folder }, 'local', { silent: true });
-          if (resourceFolder !== folder) setResourceFolder(folder);
           localStorage.setItem('onrivi_last_local_workspace_path', initialized.workspacePath);
           if (workspaceType !== 'cloud' && !rootFolder?.name) {
             setRootFolder({ name: initialized.workspacePath });
@@ -1439,6 +1440,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         // 로드 자체는 저장하지 않는다. 빈 배열도 이 파일의 유효한 원본 상태이다.
         profileStorageRef.current = { folder, handle: resourceFolderHandle, hash: JSON.stringify(normalized) };
         setProfiles([...SYSTEM_PROFILES, ...normalized]);
+        if (resourceFolder !== folder) setResourceFolder(folder);
         setIsProfilesLoaded(true);
         setProfileReadStatus({ ...destination, state: 'success', userCount: normalized.length });
         return true;
@@ -3643,11 +3645,21 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🚨 @PATCH : None
   // 🔗 @CALLS : editor.getModel, editor.pushUndoStop, editor.executeEdits
   // ====================================================================
-  const handleCheckboxToggle = useCallback((lineNumber: number, checked: boolean) => {
+  const handleCheckboxToggle = useCallback((lineNumber: number, checked: boolean, importedId?: string) => {
     if (!editorRef.current || typeof window === 'undefined' || !(window as any).monaco) return;
     const editor = editorRef.current;
     const model = editor.getModel();
     if (!model) return;
+    if (importedId) {
+      const edit = importedCheckboxEdit(model.getValue(), importedId, checked);
+      if (!edit) return;
+      const start=model.getPositionAt(edit.start), end=model.getPositionAt(edit.end);
+      const Range=(window as any).monaco.Range;
+      editor.pushUndoStop();
+      editor.executeEdits('importedCheckboxToggle',[{range:new Range(start.lineNumber,start.column,end.lineNumber,end.column),text:edit.text,forceMoveMarkers:true}]);
+      editor.pushUndoStop();
+      return;
+    }
 
     if (lineNumber < 1 || lineNumber > model.getLineCount()) return;
 
@@ -5019,10 +5031,20 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   const readFileText = async (node: FileNode): Promise<string> => {
     let fileContent = '';
+    const currentRoot = rootFolderRef.current;
+    const driveId = (node as any).driveFileId || (node as any).driveId ||
+      (currentRoot?.type === 'GDRIVE' ? (node as any).id : undefined);
+    if (driveId || currentRoot?.type === 'GDRIVE' || workspaceType === 'cloud') {
+      const token = getSavedDriveToken();
+      if (!token || !driveId) {
+        throw new Error('구글 드라이브 문서의 연결 정보가 없습니다. 파일 목록에서 다시 열어 주세요.');
+      }
+      return readDriveFileContent(token, driveId);
+    }
     let activeMode = workspaceType;
     if (workspaceType === 'browser') {
       activeMode = 'browser';
-    } else if (node.path && !node.handle) {
+    } else if (node.path && !node.handle && /^(?:file:\/\/\/|[a-zA-Z]:[/\\]|\/)/i.test(node.path)) {
       activeMode = 'local';
     } else if (node.handle && !node.path) {
       activeMode = 'browser';
@@ -5076,10 +5098,20 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       }
     } else if (activeMode === 'local' && node.path) {
+      let targetPath = node.path;
+      if (!/^(?:file:\/\/\/|[a-zA-Z]:[/\\]|\/)/i.test(targetPath)) {
+        const rootPath = currentRoot?.name || '';
+        if (!/^(?:[a-zA-Z]:[/\\]|\/)/.test(rootPath)) {
+          const virtualContent = vfsReadFile(targetPath);
+          if (virtualContent) return virtualContent;
+          throw new Error('로컬 작업장 경로가 없습니다. 작업장을 연결한 뒤 문서를 다시 열어 주세요.');
+        }
+        targetPath = `${rootPath.replace(/[/\\]+$/, '')}/${targetPath.replace(/^[/\\]+/, '')}`;
+      }
       const api = (window as any).electronAPI;
       if (api?.readFromPath) {
         try {
-          const file = await api.readFromPath(node.path);
+          const file = await api.readFromPath(targetPath);
           if (file) {
             fileContent = file.content;
           }
@@ -5088,7 +5120,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       } else {
         try {
-          const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(node.path)}`));
+          const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(targetPath)}`));
           if (res.ok) {
             const data = await res.json();
             fileContent = data.content;

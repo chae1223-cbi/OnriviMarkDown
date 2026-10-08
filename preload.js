@@ -16,7 +16,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveBinaryFile: (filePath, bytes) => ipcRenderer.invoke('file:saveBinary', filePath, bytes),
 
   // 4. 경로를 지정하여 직접 파일 읽기 (검색 결과 파일 로드용)
-  readFromPath: (filePath) => ipcRenderer.invoke('file:readFromPath', filePath),
+  readFromPath: (filePath) => {
+    const caller = new Error('readFromPath caller').stack;
+    return ipcRenderer.invoke('file:readFromPath', filePath).catch((error) => {
+      console.error('[file:readFromPath failed]', { filePath, caller });
+      throw error;
+    });
+  },
   readFile: async (filePath) => {
     const res = await ipcRenderer.invoke('file:readFromPath', filePath);
     return typeof res === 'object' && res !== null ? (res.content ?? '') : (res ?? '');
@@ -163,7 +169,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   decryptData: (cipherTextHex) => ipcRenderer.invoke('security:decrypt', cipherTextHex),
 
   // 27. 리소스 폴더 5대 디렉토리 및 onrivi_knowledge.db 일괄 생성 API
-  initResourceFolder: (resourceFolder) => ipcRenderer.invoke('resourceFolder:initStructure', resourceFolder),
+  initResourceFolder: (resourceFolder, profiles) => ipcRenderer.invoke('resourceFolder:initStructure', resourceFolder, profiles),
+  ensureLocalEnvironment: (settings) => ipcRenderer.invoke('desktop:ensureLocalEnvironment', settings),
 
   // 28. Mermaid 다이어그램 새 창으로 확대 뷰잉 (Electron BrowserWindow 직접 생성 — window.open 팝업 차단 우회)
   openMermaidWindow: (svgHtml, options) => ipcRenderer.invoke('mermaid:open-window', svgHtml, options),

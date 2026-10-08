@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "onrivi-author",
+  "version": "0.1.1",
+  "description": "대화에서 로컬 마크다운 문서를 읽고 안전하게 수정합니다.",
+  "author": { "name": "Onrivi Studio" },
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "온리비 어서",
+        "shortDescription": "로컬 마크다운 문서 편집",
+        "longDescription": "대화에서 로컬 마크다운 파일을 읽고 변경 충돌을 확인하며 저장합니다.",
+        "developerName": "Onrivi Studio",
+        "category": "Productivity",
+        "defaultPrompt": "내 로컬 마크다운 문서를 읽고 수정해 줘."
+      }
+    }
+  }
+}

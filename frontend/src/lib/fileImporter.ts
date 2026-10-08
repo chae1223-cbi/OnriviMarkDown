@@ -14,6 +14,7 @@ import { extractPdfPageText } from './pdfImportText';
 import { readDocxImageSizes } from './docxImageSizes';
 import { pdfTextBlocks, pdfImageBoxes, serializePdfBlocks } from './pdfImportLayout';
 import { readHwpCompression, decodeHwpBody, decodeHwpParagraph, isRawHwpImage } from './hwpStreams';
+import { convertFormCheckboxes } from './importCheckboxes';
 
 // Next.js 14 (Webpack 5) 환경에서 mammoth.js가 내부적으로 Buffer를 참조할 때 발생하는 오류 방지용 폴리필
 if (typeof globalThis !== 'undefined' && !(globalThis as any).Buffer) {
@@ -188,29 +189,62 @@ async function importHwp(
     const hwpHeader = hwpContainer.FileIndex.find(entry=>entry.name === 'FileHeader');
     if (!hwpHeader?.content) throw new Error('HWP FileHeader를 찾을 수 없습니다.');
     const inputCompressed = readHwpCompression(new Uint8Array(hwpHeader.content));
-    const useRecovery = !inputCompressed || hwpContainer.FileIndex.some(entry=>
-      /^BIN[0-9a-f]+\./i.test(entry.name) && entry.content && isRawHwpImage(new Uint8Array(entry.content)));
+    const useRecovery = !inputCompressed;
     let text = '';
 
     try {
       if (useRecovery) throw new Error('Use mixed-compression HWP reader');
       // 1단계: 기본 hwp.js 파서 작동 시도
-      const hwpDoc = hwpLib.parse(view, { type: 'array' });
+      const pako = (await import('pako')).default;
+      const parserContainer = cfbModule.read(view, {type:'array'});
+      for (const entry of parserContainer.FileIndex) {
+        if (/^BIN[0-9a-f]+\./i.test(entry.name) && entry.content && isRawHwpImage(new Uint8Array(entry.content))) {
+          entry.content = pako.deflateRaw(new Uint8Array(entry.content));
+          entry.size = entry.content.length;
+        }
+      }
+      const hwpDoc = hwpLib.parse(cfbModule.write(parserContainer, { type: 'array' }), { type: 'array' });
       const extractTextNode = (obj: any): string => {
           let result = '';
           if (typeof obj === 'string') {
             return obj;
           } else if (Array.isArray(obj)) {
-            return obj.map(item => extractTextNode(item)).join(' ');
+            return obj.map(item => extractTextNode(item)).join('');
           } else if (obj !== null && typeof obj === 'object') {
+            // hwp.js stores individual WCHARs; spaces must come from the
+            // original controls, never from joining the character array.
+            if (obj.constructor?.name === 'HWPChar') {
+              if (typeof obj.value === 'string') return obj.value;
+              if (obj.value === 30 || obj.value === 31) return ' ';
+              if (obj.value === 9) return '\t';
+              if (obj.value === 10 || obj.value === 13) return '\n';
+              return '';
+            }
             // Table (id = 543974004)
-            if (obj.id === 543974004 && Array.isArray(obj.content)) {
+            if ((obj.id === 1952607264 || obj.id === 543974004) && Array.isArray(obj.content)) {
+              if (obj.rowCount === 1 && obj.columnCount === 1) return extractTextNode(obj.content) + '\n\n';
+              // HWP omits cells covered by row/column spans. Place each cell
+              // at its recorded coordinate instead of packing rows to the left.
+              const rowCount = Math.max(obj.rowCount || 0, obj.content.length);
+              const columnCount = Math.max(obj.columnCount || 0, ...obj.content.map((row: any) => Array.isArray(row) ? row.length : 0));
+              const grid = Array.from({ length: rowCount }, () => Array(columnCount).fill(''));
+              obj.content.forEach((row: any, rowIndex: number) => {
+                if (!Array.isArray(row)) return;
+                row.forEach((cell: any, cellIndex: number) => {
+                  const attr = cell.attribute || {};
+                  const r = Number.isInteger(attr.row) ? attr.row : rowIndex;
+                  const c = Number.isInteger(attr.column) ? attr.column : cellIndex;
+                  if (r >= 0 && r < rowCount && c >= 0 && c < columnCount) {
+                    grid[r][c] = extractTextNode(cell).trim().replace(/\|/g, '\\|').replace(/\r?\n+/g, '<br>');
+                  }
+                });
+              });
               let mdTable = '\n\n';
-              obj.content.forEach((row: any, rIdx: number) => {
+              grid.forEach((row: any, rIdx: number) => {
                 let rowText = '| ';
                 if (Array.isArray(row)) {
                   row.forEach((cell: any) => {
-                    let cellStr = extractTextNode(cell).replace(/\r?\n/g, ' ').trim();
+                    const cellStr = cell;
                     rowText += cellStr + ' | ';
                   });
                 }
@@ -227,7 +261,7 @@ async function importHwp(
             }
             
             // Picture (type = 1667854372 or GenShapeObject = 544174951)
-            if (obj.type === 1667854372 || obj.id === 544174951) {
+            if (obj.type === 611346787 || obj.type === 1667854372 || obj.id === 544174951) {
               let placeholder = '::HWP_IMAGE_PLACEHOLDER::';
               if (obj.info && obj.info.binID !== undefined) {
                 placeholder = '::HWP_IMAGE_PLACEHOLDER_' + obj.info.binID + '::';
@@ -351,11 +385,22 @@ async function importHwp(
           const image = binDataArray[i];
           if (!image || !image.payload) continue;
           
-          const base64 = Buffer.from(image.payload).toString('base64');
           const ext = (image.extension || 'png').toLowerCase();
+          let payload = new Uint8Array(image.payload);
+          let convertedBmp = false;
+          if (ext === 'tif' || ext === 'tiff') {
+            const {hwpTiffToPng} = await import('./hwpImages');
+            payload = hwpTiffToPng(payload);
+          }
+          if (ext === 'bmp') {
+            const {hwpBmpToPng} = await import('./hwpImages');
+            const png = hwpBmpToPng(payload);
+            if (png) {payload=png;convertedBmp=true;}
+          }
+          const base64 = Buffer.from(payload).toString('base64');
           let mimeType = 'image/png';
           if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
-          else if (ext === 'bmp') mimeType = 'image/bmp';
+          else if (ext === 'bmp' && !convertedBmp) mimeType = 'image/bmp';
           else if (ext === 'gif') mimeType = 'image/gif';
           else if (ext === 'webp') mimeType = 'image/webp';
           else if (ext === 'svg') mimeType = 'image/svg+xml';
@@ -470,7 +515,7 @@ async function importHwp(
         if (!isInTable) {
           // 표의 시작 감지! 열(Column) 개수를 세어 구분선 구성
           const colCount = line.split('|').length - 2; // 양 끝 제외한 열 개수
-          if (colCount > 0) {
+          if (colCount > 0 && !/^\|(?:\s*:?-+:?\s*\|)+\s*$/.test(lines[i + 1] || '')) {
             const separator = '|' + Array(colCount).fill('---').join('|') + '|';
             lines.splice(i + 1, 0, separator);
             i++; // 삽입된 구분선 인덱스 패스
@@ -485,8 +530,26 @@ async function importHwp(
       }
     }
     replacedText = lines.join('\n');
+    // Compact the imported manuscript; only tables need separating blank rows.
+    const compactLines: string[] = [];
+    const isMarkdownTableRow = (line: string) => /^\s*\|/.test(line);
+    let pendingBlank = false;
+    for (const line of replacedText.split('\n')) {
+      if (!line.trim()) { pendingBlank = true; continue; }
+      const previous = compactLines[compactLines.length - 1];
+      if (previous !== undefined) {
+        const previousIsTable = isMarkdownTableRow(previous);
+        const currentIsTable = isMarkdownTableRow(line);
+        if (previousIsTable !== currentIsTable || (pendingBlank && previousIsTable && currentIsTable)) {
+          compactLines.push('');
+        }
+      }
+      compactLines.push(line);
+      pendingBlank = false;
+    }
+    replacedText = compactLines.join('\n');
     
-    text = replacedText;
+    text = convertFormCheckboxes(replacedText);
     return text.trim() || '[HWP 텍스트 추출에 실패했습니다 (지원하지 않는 포맷일 수 있습니다)]';
   } catch (error: any) {
     console.error('HWP Import Error:', error);

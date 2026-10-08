@@ -1,1208 +1,167 @@
-국세청 홈택스 설치프로그램 가이드
-
-[ 목   차 ]
-
-■ OS별 프로그램 설치&삭제 방법
-
-1. Window
-
-   1) 통합설치 프로그램 (VeraPort)
-
-   2) 공인인증서 (MAGIC-PKI)
-
-   3) 보고서 (REXPERT)
-
-   4) 파일전송 (KUPLOAD)
-
-   5) 전자서명 (MAGIC-XML)
-
-   6) 부정접속차단 (IPINSIDE)
-
-   7) 증명서 위변조 방지 (E-SAFER)
-
-2. Fedora Linux
-
-   1) 통합설치 프로그램 (VeraPort)
-
-   2) 공인인증서 (MAGIC-PKI)
-
-   3) 파일전송 (KUPLOAD)
-
-   4) 전자서명 (MAGIC-XML)
-
-   5) 부정접속차단 (IPINSIDE)
-
-   6) 증명서 위변조 방지 (E-SAFER)
-
-[ 목   차 ]
-
-■ OS별 프로그램 설치&삭제 방법 (계속)
-
-3. Ubuntu Linux
-
-   1) 통합설치 프로그램 (VeraPort)
-
-   2) 공인인증서 (MAGIC-PKI)
-
-   3) 파일전송 (KUPLOAD)
-
-   4) 전자서명 (MAGIC-XML)
-
-   5) 부정접속차단 (IPINSIDE)
-
-   6) 증명서 위변조 방지 (E-SAFER)
-
-4. MAC
-
-   1) 통합설치 프로그램 (VeraPort)
-
-   2) 공인인증서 (MAGIC-PKI)
-
-   3) 파일전송 (KUPLOAD)
-
-   4) 전자서명 (MAGIC-XML)
-
-   5) 부정접속차단 (IPINSIDE)
-
-   6) 증명서 위변조 방지 (E-SAFER)
-
-■ OS별 프로그램 설치&삭제 방법
-
-1. Window
-
-1-1) 통합설치프로그램(VERAPORT)
-
-* 설치하기
-
-자동설치
-
-수동설치
-
-1. 홈택스에서 아래와 같은 창이 뜨면 [확인]버튼을 눌러 설치화면으로 이동.
-
-<img src="./image-67.bmp" alt="BIN0038.bmp" style="max-width: 100%; height: auto;" />
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-29.bmp" alt="BIN004A.bmp" style="max-width: 100%; height: auto;" />
-
-2. ① 설치화면에서 [통합설치프로그램 다운로드]
-
-      버튼 클릭하여 프로그램 다운로드.
-
-   ② 다운로드 완료되면 브라우저 하단의
-
-      [실행]버튼 클릭하여 설치 프로그램 실행.
-
-<img src="./image-30.bmp" alt="BIN004B.bmp" style="max-width: 100%; height: auto;" />
-
-2. ① 보안프로그램 필수 탭의 통합설치프로그램           [다운로드]버튼 클릭.
-
-   ② 브라우저 하단의 [실행]버튼 클릭.
-
-<img src="./image-65.jpg" alt="BIN0036.jpg" style="max-width: 100%; height: auto;" />
-
-【참고】 다운로드 받은 설치파일을 실행하는 방법은 브라우저별로 다르므로 아래의 표시된 부분을 클릭해줘야 함.
-
-    (크롬)                                  (파이어폭스)
-
-<img src="./image-33.bmp" alt="BIN004E.bmp" style="max-width: 100%; height: auto;" />
-
-<img src="./image-32.bmp" alt="BIN004D.bmp" style="max-width: 100%; height: auto;" />
-
-3. 설치 프로그램 창이 뜨면 [다음]버튼 클릭으로 설치를 진행하여 완료함.
-
-<img src="./image-68.bmp" alt="BIN0039.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-1. 컴퓨터 [제어판] - [프로그램 및 기능]에서
-
-   【Veraport(보안모듈 관리 프로그램) G3 - 3,7,1,2】 더블클릭 또는 오른쪽버튼을 눌러 [제거]클릭.
-
-<img src="./image-76.bmp" alt="BIN0047.bmp" style="max-width: 100%; height: auto;" />
-
-2. [예] 클릭하여 제거하고,
-
-<img src="./image-77.bmp" alt="BIN0048.bmp" style="max-width: 100%; height: auto;" />
-
-  제거완료 창이 뜨면 [확인]버튼 클릭.
-
-<img src="./image-78.bmp" alt="BIN0049.bmp" style="max-width: 100%; height: auto;" />
-
-1-2) 공인인증서 (MAGIC-PKI)
-
-   : 공인인증서 전자서명용 프로그램입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 공인인증서(MAGIC-PKI) [설치하기] 버튼 클릭.
-
-<img src="./image-66.bmp" alt="BIN0037.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-1. 컴퓨터 [제어판] - [프로그램 및 기능]에서
-
-  【NTSMagicLineNP】 더블클릭 또는 오른쪽버튼을 눌러 [제거]클릭.
-
-<img src="./image-31.bmp" alt="BIN004C.bmp" style="max-width: 100%; height: auto;" />
-
-1-3) 보고서 (REXPERT)
-
-   : 보고서 미리보기 및 출력용 프로그램 입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 보고서(REXPERT) [설치하기] 버튼 클릭.
-
-<img src="./image-18.bmp" alt="BIN002D.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-1. 컴퓨터 [제어판] - [프로그램 및 기능]에서
-
-  【Rexpert30 Print Service 1,0,0,5】 더블클릭 또는 오른쪽버튼을 눌러 [제거]클릭.
-
-<img src="./image-62.bmp" alt="BIN0033.bmp" style="max-width: 100%; height: auto;" />
-
-1-4) 파일전송 (KUPLOAD)
-
-  : 파일 전송(업로드/다운로드) 프로그램 입니 다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 파일전송(KUPLOAD) [설치하기] 버튼 클릭.
-
-<img src="./image-19.bmp" alt="BIN002E.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-1. 컴퓨터 [제어판] - [프로그램 및 기능]에서
-
-  【RAON K 2018】 더블클릭 또는 오른쪽버튼을 눌러 [제거]클릭.
-
-<img src="./image-63.bmp" alt="BIN0034.bmp" style="max-width: 100%; height: auto;" />
-
-1-5) 전자서명 (MAGIC-XML)
-
-  : 전자서명 프로그램 입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 전자서명(MAGIC-XML) [설치하기] 버튼 클릭.
-
-<img src="./image-20.bmp" alt="BIN002F.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-1. 컴퓨터 [제어판] - [프로그램 및 기능]에서
-
-  【NTSMagicXMLSecurityNP】 더블클릭 또는 오른쪽버튼을 눌러 [제거]클릭.
-
-<img src="./image-16.bmp" alt="BIN002B.bmp" style="max-width: 100%; height: auto;" />
-
-1-6) 부정접속차단 (IPINSIDE)
-
-  : 부정접속 차단 관련 프로그램 입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 부정접속차단(IPINSIDE) [설치하기] 버튼 클릭.
-
-<img src="./image-59.bmp" alt="BIN0030.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-1. 컴퓨터 [제어판] - [프로그램 및 기능]에서
-
-  【IPinside LWS Agent】 더블클릭 또는 오른쪽버튼을 눌러 [제거]클릭.
-
-<img src="./image-17.bmp" alt="BIN002C.bmp" style="max-width: 100%; height: auto;" />
-
-1-7) 증명서 위변조 방지 (E-SAFER)
-
-  : 민원증명 발급 시 사용하는 프로그램 입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 증명서위변조방지(E-SAFER) [설치하기] 버튼 클릭.
-
-<img src="./image-60.bmp" alt="BIN0031.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-1. 컴퓨터 [제어판] - [프로그램 및 기능]에서
-
-  【MarkAny Inc. e-PageSafer v2.5 NTS NOAX Rex】 더블클릭 또는 오른쪽버튼을 눌러 [제거]클릭.
-
-<img src="./image-61.bmp" alt="BIN0032.bmp" style="max-width: 100%; height: auto;" />
-
-2. Fedora Linux
-
-2-1) 통합설치 프로그램 (VERAPORT)
-
-* 설치하기
-
-자동설치
-
-1. 홈택스에서 아래와 같은 창이 뜨면 [확인]버튼을 눌러 설치화면으로 이동.
-
-<img src="./image-67.bmp" alt="BIN0038.bmp" style="max-width: 100%; height: auto;" />
-
-2. ① 설치화면에서 [통합설치프로그램 다운로드]
-
-      버튼 클릭하여 프로그램 다운로드.
-
-<img src="./image-55.bmp" alt="BIN0026.bmp" style="max-width: 100%; height: auto;" />
-
-※ 64bit 설치파일 : veraport-g3.x86_64.rpm
-
-※ 32bit 설치파일 : veraport-g3.i386.rpm
-
-   ② 다운로드 완료 되면 [열기]->[확인] 버튼을
-
-      클릭하여 설치 프로그램 실행
-
-<img src="./image-56.png" alt="BIN0027.png" style="max-width: 100%; height: auto;" />
-
-3. ① 프로그램설치 화면에서 [설치] 클릭
-
-   ※ 인증창이 나오면 관리자 패스워드 입력
-
-<img src="./image-57.png" alt="BIN0028.png" style="max-width: 100%; height: auto;" />
-
-   ② 설치 완료 후 [실행] 클릭
-
-<img src="./image-58.png" alt="BIN0029.png" style="max-width: 100%; height: auto;" />
-
-4. 프로세스 구동 확인
-
-※ 프로세스가 구동되어 있지 않으면 베라포트 설치가 계속 유도 될 수 있음
-
-<img src="./image-15.png" alt="BIN002A.png" style="max-width: 100%; height: auto;" />
-
-수동설치
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-29.bmp" alt="BIN004A.bmp" style="max-width: 100%; height: auto;" />
-
-2. ① 보안프로그램 필수 탭의 통합설치프로그램 [다운로드]버튼 클릭.
-
-<img src="./image-54.bmp" alt="BIN0025.bmp" style="max-width: 100%; height: auto;" />
-
-   ② 터미널에서 커맨드로 설치 진행
-
-   ]# rpm –ivh veraport-g3.x86_64.rpm (64bit)
-
-   ]# rpm –ivh veraport-g3.i386.rpm (32bit)
-   ※ 해당 파일이 있는 위치에서 vera(탭) 키를 누르면 자동 완성 됨
-
-<img src="./image-26.bmp" alt="BIN003E.bmp" style="max-width: 100%; height: auto;" />
-
-   ③ 설치 확인
-
-   ]# rpm –qa |grep veraport
-
-  ※ 아무것도 출력되지 않으면 설치되지 않은 것임
-
-<img src="./image-27.bmp" alt="BIN003F.bmp" style="max-width: 100%; height: auto;" />
-
-   ④ 서비스 동작 확인
-
-   ]# ps –ef |grep veraport
-
-<img src="./image-53.bmp" alt="BIN0024.bmp" style="max-width: 100%; height: auto;" />
-
-  ※ 구동되어 있지 않은 경우 [파일] -> /opt/wizvera/veraport/veraport 를 찾아 더블클릭으로 실행
-
-<img src="./image-43.png" alt="BIN0014.png" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-   ※ 패키지명을 정확히 써줘야 삭제가 진행 됨
-
-종류
-
-설치 패키지명
-
-통합설치
-
-베라포트, 위즈베라
-
-veraport-g3
-
-   ]# rpm –e veraport-g3 
-   ※ veraport: no process found 메시지 뜨지 않고 완료되어도 정상 삭제 됨
-
-<img src="./image-69.bmp" alt="BIN0040.bmp" style="max-width: 100%; height: auto;" />
-
-2-2) 공인인증서 (MAGIC-PKI)
-
-   : 공인인증서 전자서명용 프로그램입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 공인인증서(MAGIC-PKI) [설치하기] 버튼 클릭.
-
-※ 인증창이 나오면 관리자 패스워드 입력
-
-<img src="./image-66.bmp" alt="BIN0037.bmp" style="max-width: 100%; height: auto;" />
-
-3. 설치 확인
-
-   ]# rpm –qa |grep ntsmagiclinenp
-
-  ※ 아무것도 출력되지 않으면 설치되지 않은 것임
-
-<img src="./image-11.bmp" alt="BIN001D.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-   ※ 패키지명을 정확히 써줘야 삭제가 진행 됨
-
-종류
-
-설치 패키지명
-
-공인인증서
-
-PKI툴킷, 드림시큐리티
-
-ntsmagiclinenp
-
-   ]# rpm –e ntsmagiclinenp
-
-<img src="./image-12.bmp" alt="BIN001E.bmp" style="max-width: 100%; height: auto;" />
-
-2-3) 파일전송 (KUPLOAD)
-
-  : 파일 전송(업로드/다운로드) 프로그램 입니 다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 파일전송(KUPLOAD) [설치하기] 버튼 클릭.
-
-※ 인증창이 나오면 관리자 패스워드 입력
-
-<img src="./image-19.bmp" alt="BIN002E.bmp" style="max-width: 100%; height: auto;" />
-
-3. 설치 확인
-
-   ]# rpm –qa |grep raonk-2018
-
-  ※ 아무것도 출력되지 않으면 설치되지 않은 것임
-
-<img src="./image-9.bmp" alt="BIN001B.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-   ※ 패키지명을 정확히 써줘야 삭제가 진행 됨
-
-종류
-
-설치 패키지명
-
-파일업로드
-
-Raon K upload, 라온위즈
-
-raonk-2018
-
-   ]# rpm –e raonk-2018
-
-<img src="./image-10.bmp" alt="BIN001C.bmp" style="max-width: 100%; height: auto;" />
-
-2-4) 전자서명 (MAGIC-XML)
-
-  : 전자서명 프로그램 입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 전자서명(MAGIC-XML) [설치하기] 버튼 클릭.
-
-※ 인증창이 나오면 관리자 패스워드 입력
-
-<img src="./image-20.bmp" alt="BIN002F.bmp" style="max-width: 100%; height: auto;" />
-
-3. 설치 확인
-
-   ]# rpm –qa |grep ntsmagicxmlsecuritynp
-
-  ※ 아무것도 출력되지 않으면 설치되지 않은 것임
-
-<img src="./image-48.bmp" alt="BIN0019.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-   ※ 패키지명을 정확히 써줘야 삭제가 진행 됨
-
-종류
-
-설치 패키지명
-
-XML전자서명
-
-XML전자서명, 드림시큐리티
-
-ntsmagicxmlsecuritynp
-
-   ]# rpm –e ntsmagicxmlsecuritynp
-
-<img src="./image-8.bmp" alt="BIN001A.bmp" style="max-width: 100%; height: auto;" />
-
-2-5) 부정접속차단 (IPINSIDE)
-
-  : 부정접속 차단 관련 프로그램 입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 부정접속차단(IPINSIDE) [설치하기] 버튼 클릭.
-
-※ 인증창이 나오면 관리자 패스워드 입력
-
-<img src="./image-59.bmp" alt="BIN0030.bmp" style="max-width: 100%; height: auto;" />
-
-3. 설치 확인
-
-   ]# rpm –qa |grep ipinside
-
-  ※ 아무것도 출력되지 않으면 설치되지 않은 것임
-
-<img src="./image-46.bmp" alt="BIN0017.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-   ※ 패키지명을 정확히 써줘야 삭제가 진행 됨
-
-종류
-
-설치 패키지명
-
-접속단말정보수집
-
-IPINSIDE, 인터리젠
-
-ipinside-lws
-
-   ]# rpm –e ipinside-lws
-
-<img src="./image-47.bmp" alt="BIN0018.bmp" style="max-width: 100%; height: auto;" />
-
-2-6) 증명서 위변조 방지 (E-SAFER)
-
-  : 민원증명 발급 시 사용하는 프로그램 입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 증명서위변조방지(E-SAFER) [설치하기] 버튼 클릭.
-
-※ 인증창이 나오면 관리자 패스워드 입력
-
-<img src="./image-60.bmp" alt="BIN0031.bmp" style="max-width: 100%; height: auto;" />
-
-2. 설치 확인
-
-   ]# rpm –qa |grep mdmview
-
-  ※ 아무것도 출력되지 않으면 설치되지 않은 것임
-
-<img src="./image-44.bmp" alt="BIN0015.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-   ※ 패키지명을 정확히 써줘야 삭제가 진행 됨
-
-종류
-
-설치 패키지명
-
-전자문서위변조방지
-
-e-Safer, 마크애니
-
-mdmviewer-markany
-
-   ]# rpm –e mdmviewer-markany
-
-<img src="./image-45.bmp" alt="BIN0016.bmp" style="max-width: 100%; height: auto;" />
-
-3. Ubuntu Linux
-
-3-1) 통합설치 프로그램 (VERAPORT)
-
-* 설치하기
-
-자동설치
-
-1. 홈택스에서 아래와 같은 창이 뜨면 [확인]버튼을 눌러 설치화면으로 이동.
-
-<img src="./image-67.bmp" alt="BIN0038.bmp" style="max-width: 100%; height: auto;" />
-
-2. ① 설치화면에서 [통합설치프로그램 다운로드]
-
-      버튼 클릭하여 프로그램 다운로드.
-
-<img src="./image-50.bmp" alt="BIN0021.bmp" style="max-width: 100%; height: auto;" />
-
-※ 64bit 설치파일 : veraport-g3.x86_64.deb
-
-※ 32bit 설치파일 : veraport-g3.i386.deb
-
-   ② 다운로드 완료 되면 [열기]->[확인] 버튼을
-
-      클릭하여 설치 프로그램 실행
-
-<img src="./image-51.png" alt="BIN0022.png" style="max-width: 100%; height: auto;" />
-
-3. ① 프로그램설치 화면에서 [install] 클릭
-
-   ※ 인증창이 나오면 관리자 패스워드 입력
-
-<img src="./image-49.png" alt="BIN0020.png" style="max-width: 100%; height: auto;" />
-
-   ② [파일]-> /opt/wizvera/veraport/veraport 를
-
-   찾아 더블클릭으로 실행
-
-<img src="./image-52.png" alt="BIN0023.png" style="max-width: 100%; height: auto;" />
-
-4. 프로세스 구동 확인
-
-※ 프로세스가 구동되어 있지 않으면 베라포트 설치가 계속 유도 될 수 있음
-
-<img src="./image-15.png" alt="BIN002A.png" style="max-width: 100%; height: auto;" />
-
-수동설치
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-29.bmp" alt="BIN004A.bmp" style="max-width: 100%; height: auto;" />
-
-2. ① 보안프로그램 필수 탭의 통합설치프로그램 [다운로드]버튼 클릭.
-
-<img src="./image-54.bmp" alt="BIN0025.bmp" style="max-width: 100%; height: auto;" />
-
-   ② 터미널에서 커맨드로 설치 진행
-
-   ]# dpkg –i veraport-g3_amd64.deb (64bit)
-
-   ]# rpm –ivh veraport-g3_i386.deb (32bit)
-   ※ 해당 파일이 있는 위치에서 vera(탭) 키를 누르면 자동 완성 됨
-
-<img src="./image-70.bmp" alt="BIN0041.bmp" style="max-width: 100%; height: auto;" />
-
-   ③ 설치 확인
-
-   ]# dpkg –l |grep veraport
-
-  ※ 아무것도 출력되지 않으면 설치되지 않은 것임
-
-<img src="./image-71.bmp" alt="BIN0042.bmp" style="max-width: 100%; height: auto;" />
-
-   ④ 서비스 동작 확인
-
-   ]# ps –ef |grep veraport
-
-<img src="./image-13.bmp" alt="BIN001F.bmp" style="max-width: 100%; height: auto;" />
-
-  ※ 구동되어 있지 않은 경우 [파일] -> /opt/wizvera/veraport/veraport 를 찾아 더블클릭으로 실행
-
-<img src="./image-52.png" alt="BIN0023.png" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-   ※ 패키지명을 정확히 써줘야 삭제가 진행 됨
-
-종류
-
-설치 패키지명
-
-통합설치
-
-베라포트, 위즈베라
-
-veraport-g3
-
-   ]# dpkg –r veraport-g3
-
-<img src="./image-72.bmp" alt="BIN0043.bmp" style="max-width: 100%; height: auto;" />
-
-3-2) 공인인증서 (MAGIC-PKI)
-
-   : 공인인증서 전자서명용 프로그램입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 공인인증서(MAGIC-PKI) [설치하기] 버튼 클릭.
-
-※ 인증창이 나오면 관리자 패스워드 입력
-
-<img src="./image-66.bmp" alt="BIN0037.bmp" style="max-width: 100%; height: auto;" />
-
-3. 설치 확인
-
-   ]# dpkg -l |grep –i ntsmagiclinenp
-
-  ※ 아무것도 출력되지 않으면 설치되지 않은 것임
-
-<img src="./image-41.bmp" alt="BIN0012.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-   ※ 패키지명을 정확히 써줘야 삭제가 진행 됨
-
-종류
-
-설치 패키지명
-
-공인인증서
-
-PKI툴킷, 드림시큐리티
-
-ntsmagiclinenp
-
-   ]# dpkg -r ntsmagiclinenp
-
-<img src="./image-42.png" alt="BIN0013.png" style="max-width: 100%; height: auto;" />
-
-3-3) 파일전송 (KUPLOAD)
-
-  : 파일 전송(업로드/다운로드) 프로그램 입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 파일전송(KUPLOAD) [설치하기] 버튼 클릭.
-
-※ 인증창이 나오면 관리자 패스워드 입력
-
-<img src="./image-19.bmp" alt="BIN002E.bmp" style="max-width: 100%; height: auto;" />
-
-3. 설치 확인
-
-  ]# dpkg -l |grep –i raonk
-
-  ※ 아무것도 출력되지 않으면 설치되지 않은 것임
-
-<img src="./image-39.bmp" alt="BIN0010.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-   ※ 패키지명을 정확히 써줘야 삭제가 진행 됨
-
-종류
-
-설치 패키지명
-
-파일업로드
-
-Raon K upload, 라온위즈
-
-raonk-2018
-
-   ]# dpkg –r raonk-2018
-
-   
-3-4) 전자서명 (MAGIC-XML)
-
-<img src="./image-40.png" alt="BIN0011.png" style="max-width: 100%; height: auto;" />
-
-  : 전자서명 프로그램 입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 전자서명(MAGIC-XML) [설치하기] 버튼 클릭.
-
-※ 인증창이 나오면 관리자 패스워드 입력
-
-<img src="./image-20.bmp" alt="BIN002F.bmp" style="max-width: 100%; height: auto;" />
-
-3. 설치 확인
-
-  ]# dpkg -l |grep –i ntsmagicxml
-
-  ※ 아무것도 출력되지 않으면 설치되지 않은 것임
-
-<img src="./image-5.bmp" alt="BIN000E.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-   ※ 패키지명을 정확히 써줘야 삭제가 진행 됨
-
-종류
-
-설치 패키지명
-
-XML전자서명
-
-XML전자서명, 드림시큐리티
-
-ntsmagicxmlsecuritynp
-
-   ]# dpkg -r ntsmagicxmlsecuritynp
-
-<img src="./image-6.png" alt="BIN000F.png" style="max-width: 100%; height: auto;" />
-
-3-5) 부정접속차단 (IPINSIDE)
-
-  : 부정접속 차단 관련 프로그램 입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 부정접속차단(IPINSIDE) [설치하기] 버튼 클릭.
-
-※ 인증창이 나오면 관리자 패스워드 입력
-
-<img src="./image-59.bmp" alt="BIN0030.bmp" style="max-width: 100%; height: auto;" />
-
-3. 설치 확인
-
-  ]# dpkg -l |grep –i ipinside
-
-  ※ 아무것도 출력되지 않으면 설치되지 않은 것임
-
-<img src="./image-3.bmp" alt="BIN000C.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-   ※ 패키지명을 정확히 써줘야 삭제가 진행 됨
-
-종류
-
-설치 패키지명
-
-접속단말정보수집
-
-IPINSIDE, 인터리젠
-
-ipinside-lws
-
-   ]# dpkg -r ipinside-lws
-
-<img src="./image-4.png" alt="BIN000D.png" style="max-width: 100%; height: auto;" />
-
-3-6) 증명서 위변조 방지 (E-SAFER)
-
-  : 민원증명 발급 시 사용하는 프로그램 입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 증명서위변조방지(E-SAFER) [설치하기] 버튼 클릭.
-
-※ 인증창이 나오면 관리자 패스워드 입력
-
-<img src="./image-60.bmp" alt="BIN0031.bmp" style="max-width: 100%; height: auto;" />
-
-2. 설치 확인
-
-  ]# dpkg -l |grep –i mdmview
-
-  ※ 아무것도 출력되지 않으면 설치되지 않은 것임
-
-<img src="./image-1.bmp" alt="BIN000A.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-   ※ 패키지명을 정확히 써줘야 삭제가 진행 됨
-
-종류
-
-설치 패키지명
-
-전자문서위변조방지
-
-e-Safer, 마크애니
-
-mdmviewer-markany
-
-   ]# dpkg –r mdmviewer-markany
-
-<img src="./image-2.png" alt="BIN000B.png" style="max-width: 100%; height: auto;" />
-
-4. MAC
-
-4-1) 통합설치프로그램(VERAPORT)
-
-* 설치하기
-
-자동설치
-
-수동설치
-
-1. 홈택스에서 아래와 같은 창이 뜨면 [확인]버튼을 눌러 설치화면으로 이동.
-
-<img src="./image-67.bmp" alt="BIN0038.bmp" style="max-width: 100%; height: auto;" />
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-29.bmp" alt="BIN004A.bmp" style="max-width: 100%; height: auto;" />
-
-2. ① 설치화면에서 [통합설치프로그램 다운로드]
-
-      버튼 클릭하여 프로그램 다운로드.
-
-<img src="./image-55.bmp" alt="BIN0026.bmp" style="max-width: 100%; height: auto;" />
-
-   ② 다운로드 완료되면 Finder -> 즐겨찾기 ->
-
-      다운로드에서 다운 된 패키지를 더블클릭하여
-
-      설치 프로그램 실행.
-
-<img src="./image-23.png" alt="BIN003B.tiff" style="max-width: 100%; height: auto;" />
-
-<img src="./image-22.png" alt="BIN003A.tiff" style="max-width: 100%; height: auto;" />
-
-<img src="./image-24.png" alt="BIN003C.tiff" style="max-width: 100%; height: auto;" />
-
-<img src="./image-25.png" alt="BIN003D.tiff" style="max-width: 100%; height: auto;" />
-
-2. ① 보안프로그램 필수 탭의 통합설치프로그램           [다운로드]버튼 클릭.
-
-<img src="./image-54.bmp" alt="BIN0025.bmp" style="max-width: 100%; height: auto;" />
-
-  ② 다운로드 완료되면 Finder -> 즐겨찾기 ->
-
-      다운로드에서 다운 된 패키지를 더블클릭하여
-
-      설치 프로그램 실행.
-
-<img src="./image-23.png" alt="BIN003B.tiff" style="max-width: 100%; height: auto;" />
-
-<img src="./image-22.png" alt="BIN003A.tiff" style="max-width: 100%; height: auto;" />
-
-<img src="./image-24.png" alt="BIN003C.tiff" style="max-width: 100%; height: auto;" />
-
-<img src="./image-25.png" alt="BIN003D.tiff" style="max-width: 100%; height: auto;" />
-
-* 설치 확인
-
-- 열린 Finder 메뉴 중 즐겨찾기 -> 응용프로그램에서 설치 된 패키지 확인
-
-<img src="./image-73.png" alt="BIN0044.tiff" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-- 열린 Finder 메뉴 중 즐겨찾기 -> 응용프로그램에서 설치 된 패키지 확인 -> 더블클릭 -> uninstaller
-
-   ->
-
-<img src="./image-75.png" alt="BIN0046.tiff" style="max-width: 100%; height: auto;" />
-
-<img src="./image-74.png" alt="BIN0045.tiff" style="max-width: 100%; height: auto;" />
-
-4-2) 공인인증서 (MAGIC-PKI)
-
-   : 공인인증서 전자서명용 프로그램입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 공인인증서(MAGIC-PKI) [설치하기] 버튼 클릭.
-
-※ 인증창이 나오면 관리자 패스워드 입력
-
-<img src="./image-66.bmp" alt="BIN0037.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-- 열린 Finder 메뉴 중 즐겨찾기 -> 응용프로그램에서 설치 된 패키지 확인 -> 우클릭 -> 휴지통으로 이동
-
-※ 항목이 열려있기 때문에 휴지통으로 이동할 수 없습니다“ 라는 메세지와 함께 패키지가 삭제되지 않으면
-
-   [활성상태보기]->우클릭->[종료] 를 클릭해서 활성화 되어있는 프로세스 종료 후 삭제
-
-<img src="./image-38.bmp" alt="BIN0009.bmp" style="max-width: 100%; height: auto;" />
-
-                        [ 활성화 된 프로세스 종료 ]                       
-4-3) 파일전송 (KUPLOAD)
-
-  : 파일 전송(업로드/다운로드) 프로그램 입니 다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 파일전송(KUPLOAD) [설치하기] 버튼 클릭.
-
-※ 인증창이 나오면 관리자 패스워드 입력
-
-<img src="./image-19.bmp" alt="BIN002E.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-- 열린 Finder 메뉴 중 즐겨찾기 -> 응용프로그램에서 설치 된 패키지 확인 -> 우클릭 -> 휴지통으로 이동
-
-4-4) 전자서명 (MAGIC-XML)
-
-  : 전자서명 프로그램 입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 전자서명(MAGIC-XML) [설치하기] 버튼 클릭.
-
-※ 인증창이 나오면 관리자 패스워드 입력
-
-<img src="./image-20.bmp" alt="BIN002F.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-- 열린 Finder 메뉴 중 즐겨찾기 -> 응용프로그램에서 설치 된 패키지 확인 -> 우클릭 -> 휴지통으로 이동
-
-※ 항목이 열려있기 때문에 휴지통으로 이동할 수 없습니다“ 라는 메세지와 함께 패키지가 삭제되지 않으면
-
-   [활성상태보기]->우클릭->[종료] 를 클릭해서 활성화 되어있는 프로세스 종료 후 삭제
-
-<img src="./image-37.bmp" alt="BIN0008.bmp" style="max-width: 100%; height: auto;" />
-
-                   [ 활성화 된 프로세스 종료 ]
-
-4-5) 부정접속차단 (IPINSIDE)
-
-  : 부정접속 차단 관련 프로그램 입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 부정접속차단(IPINSIDE) [설치하기] 버튼 클릭.
-
-※ 인증창이 나오면 관리자 패스워드 입력
-
-<img src="./image-59.bmp" alt="BIN0030.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-- 열린 Finder 메뉴 중 즐겨찾기 -> 응용프로그램에서 설치 된 패키지 확인 -> 우클릭 -> 휴지통으로 이동
-
-4-6) 증명서 위변조 방지 (E-SAFER)
-
-  : 민원증명 발급 시 사용하는 프로그램 입니다.
-
-* 설치하기
-
-0. 통합설치프로그램(VeraPort)가 설치되어 있는 경우에는 해당 프로그램이 필요한 화면 접근 시 자동설치.
-
-   수동으로 설치할 경우에는 아래 순서대로 설치 진행.
-
-1. 홈택스 메인페이지 하단의 [통합설치프로그램] 메뉴 클릭.
-
-<img src="./image-64.bmp" alt="BIN0035.bmp" style="max-width: 100%; height: auto;" />
-
-2. 보안프로그램 선택 탭의 증명서위변조방지(E-SAFER) [설치하기] 버튼 클릭.
-
-※ 인증창이 나오면 관리자 패스워드 입력
-
-<img src="./image-60.bmp" alt="BIN0031.bmp" style="max-width: 100%; height: auto;" />
-
-* 삭제하기
-
-- 열린 Finder 메뉴 중 즐겨찾기 -> 응용프로그램에서 설치 된 패키지 확인 -> 우클릭 -> 휴지통으로 이동
-
-홈택스 프로그램 삭제하기
-
-컴퓨터 [제어판] - [프로그램 및 기능]에서 아래의 프로그램 목록을 참고하여
-
-삭제할 프로그램을 더블클릭 또는 오른쪽 버튼을 눌러 [제거] 클릭.
-
-프로그램명
-
-[제어판]-[프로그램및기능]에서 삭제
-
-통합설치 프로그램 (VERAPORT)
-
-: Veraport(보안모듈 관리 프로그램) G3 - 3,7,3,4
-
-<img src="./image-7.jpg" alt="BIN0001.jpeg" style="max-width: 100%; height: auto;" />
-
-공인인증서 (MAGIC-PKI)
-
-: MagicLine4NX
-
-<img src="./image-14.jpg" alt="BIN0002.jpeg" style="max-width: 100%; height: auto;" />
-
-보고서 (REXPERT)
-
-: Rexpert30 Print Service 1,0,0,24 - 06
-
-<img src="./image-21.jpg" alt="BIN0003.jpeg" style="max-width: 100%; height: auto;" />
-
-파일전송 (KUPLOAD)
-
-: RAON K 2018
-
-<img src="./image-28.jpg" alt="BIN0004.jpeg" style="max-width: 100%; height: auto;" />
-
-전자서명 (MAGIC-XML)
-
-: NTSMagicXMLSecurityNP
-
-<img src="./image-34.jpg" alt="BIN0005.jpeg" style="max-width: 100%; height: auto;" />
-
-부정접속차단 (IPINSIDE)
-
-: IPinside LWS Agent
-
-<img src="./image-35.jpg" alt="BIN0006.jpeg" style="max-width: 100%; height: auto;" />
-
-증명서위변조방지 (E-SAFER)
-
-: MarkAny Inc. e-PageSafer v2.5 NTS NOAX Rex
-
-<img src="./image-36.jpg" alt="BIN0007.jpeg" style="max-width: 100%; height: auto;" />
+[공고번호 제2026-00호]
+2026년 서부 경기문화창조허브 
+공간입주 17기 3차 입주기업 모집 공고 
+ 경기콘텐츠진흥원이 운영하는  ‘서부 경기문화창조허브’에서 우수 역량을 보유한 IP 기반 콘텐츠 분야 창업자 및 기업을 모집하오니, 많은 관심과 지원 부탁드립니다. 
+□ 서부 경기문화창조허브 지원 공간 
+ ㅇ 위    치 : 경기콘텐츠진흥원 서부 경기문화창조허브
+ ㅇ 주    소 : 경기도 부천시 원미구 부천로 198번길 18 춘의테크노파크 2차 202동 10층
+                 (※ 지하철 7호선 춘의역 2번 출구에서 도보 5분)
+ ㅇ 공간구성                   
+
+| 연번 | 층수 | 공간용도 | 공간 수 | 운영사항 | 
+|---|---|---|---|---|
+| 1 | 10층 | 서부 경기문화창조허브 | 회의실, 세미나실, 공용장비 등 입주기업 지원 시설 | 운영시간 10:00~17:00 | 
+| 2 | 10층 | 사무공간 | · 스페이스S(1인 지정 좌석)<br>· 스페이스Z(지정 구역형) | 24시간 개방 | 
+| 3 | 12층 | 휘트니스센터 | 운동시설 및 탈의실(새워실) | 24시간 개방 | 
+| 4 | 9층 | 정보자료실 | 도서 열람 및 대출/반납 | 운영시간 10:00~17:00 | 
+
+□ 공간입주 17기 2차 모집 내용
+  ㅇ 모집규모
+
+| 공간명 | 인실 | 모집규모 | 비고 | 
+|---|---|---|---|
+| 스페이스S | 1인 지정 좌석 | 5개 석 | 기업당 최대 6개석 지원가능 | 
+| 스페이스Z | 지정 구역형<br>(1구역 3인 구성) | 3개 구역 | 기업당 최대 2구역 지원가능 | 
+| 총 모집규모 | 7개석, 8구역 |  |  | 
+
+    ※ 입주기업 현황에 따라 변동될 수 있음
+    ※ 스페이스Z 공간의 경우 2인 이상 인원 구성되어야함.
+  ㅇ 모집대상 : IP 기반 콘텐츠 분야 7년 미만 스타트업 또는 예비창업자 
+     - 공고일 기준 창업일로부터 7년이 경과되지 아니한 창업기업 (7년 미만)
+     - 입주협약 체결 후 2개월 이내 창업 가능한 예비창업자 (사업장 주소지 이전 포함)
+     - 입주협약 체결 후 1개월 이내 입주 가능한 기업 (사업장 주소지 이전 포함)
+     - 본사 이외 지사, 연구소, 이중 사업자 지원 불가
+     - 스페이스Z 지원시, 2인 이상 구성 증빙 가능한 기업
+     - (가점) 콘텐츠IP분야 사업을 수행 또는 보유중인 기업 가점 적용(최대 5점)
+  ㅇ 신청자격
+
+| 자격사항 | 
+|---|
+| ㅇ (기 창업자) 모집 공고일 기준 창업 7년 미만 기업 (2019. 8. 30. 이후 설립 기업)<br>ㅇ 법인/개인사업자(본사 이외의 지사, 연구소, 이중 사업장 및 휴업중인 기업 지원불가)<br>ㅇ 스페이스Z 공간입주 지원시 2인이상 구성 증빙 가능한 기업(예비창업자 포함) | 
+
+  ㅇ 지원제외 대상
+     - 금융기관 등으로부터 채무불이행으로 규제중인 자 또는 기업
+     - 국세, 지방세, 4대 보험 중 1개 이상 체납 중인 자 또는 기업
+     - 정부 부처 및 지방자치단체, 기관 사업에 참여 제한(법적 문제가 해결 되지 않은 기업)으로 제재중인 자 또는 기업
+  ㅇ 사 용 료
+
+| 구  분 | 사용료 | 부과 기준 | 비고 | 
+|---|---|---|---|
+| 스페이스S | 314,000원 | 12개월 / 일시납 | 1개석 | 
+| 스페이스Z | 942,000원 | 12개월 / 일시납 | 1구역 | 
+
+  ㅇ 협약기간 : 2026. 10. 1. ~ 2027. 6. 30.
+     - 최초 협약기간은 기본 12개월 원칙으로 하되, 모집일정에 따라 변동될 수 있음
+      - 협약 만료 전 연장 평가를 통한 최대 24개월 지원
+     - 협약 체결 후 ‘법인/개인 사업자’는 1개월 이내 해당 입주공간으로 본사 주소지 이전, 사업자등록증 제출
+     - 협약 체결 후 ‘예비창업자’는 2개월 이내 해당 입주공간으로 사업자등록, 사업자등록증 제출 
+  ㅇ 모집일정
+
+| 모집공고 | ▶ | 심  사 | ▶ | 결과발표 | ▶ | 입주협약체결 | ▶ | 협약기간 | 
+|---|---|---|---|---|---|---|---|---|
+| 26.8.31. ~<br>26.9.18. 14:00 |  | 26.9.21. |  | 26.9.28. |  | 26.9.30. |  | 26.10.1.~<br>27.6.30. | 
+
+      ※ 일정은 변동될 수 있으며, 변동 시 안내 예정
+□ 접수방법
+  ㅇ 접수기간 : 2026. 8. 31.(월) ~ 2026. 9. 18(금) 14:00 까지
+  ㅇ 접수방법 : 홈페이지 접수
+     - 경기문화창조허브 홈페이지(https://www.gcon.or.kr/ghub) 접속 
+     - 상단의 ‘알림마당’ 탭 ⇨ ‘사업공고’ ⇨ ‘2026년 서부 경기문화창조허브 공입주 17기 2차 입주기업 모집’ 선택
+        ※‘사업신청(개인)’는 ‘예비창업자’만 해당 / ‘법인/개인 사업자’는 ‘사업신청(기업)’ 선택
+     - 첨부문서 ‘지원 신청서’ 다운로드 후 양식 작성
+     - ‘지원하기’ 버튼을 눌러 작성한 신청서 및 필수 제출 서류 압축하여(zip) 제출
+  ㅇ 제출서류
+
+| 번호 | 구분 | 제출서류 | 내용 | 비고 | 
+|---|---|---|---|---|
+| 1 | 필수 | 지원 신청서(첨부1) | 개인정보 제공‧이용동의서 포함 |  | 
+| 2 |  | 사업자등록증/법인등기부등본 | 개인사업자는 법인등기부등본 제외 | 예비창업자 제외 | 
+| 3 |  | 4대보험가입자명부 | 공고일 기준으로 3개월 내 발행 |  | 
+| 4 |  | 국세/지방세 납입증명서 | 공고일 기준으로 3개월 내 발행 |  | 
+| 5 |  | 개인/법인 인감 증명서 | 또는 본인서명사실확인서 |  | 
+| 6 |  | 지콘 스타트업 <br>사전진단 확인증 | https://gcon-startup.com/startup/intro/<br>접속 후 진단 실시 |  | 
+| 7 |  | 기업 및 사업 소개서 | - 2차 심사 발표 시 활용할 파일(pdf)<br>- ppt 내 영상 삽입 시 오류 발생 대비한 별도 영상 파일 저장 매체 추가 지참<br>- 사업역량/성장가능성/팀 역량 드러나도록 작성 | 신청서 외 <br>기업별 준비 | 
+| 8 | 해당 시 | 지원서 관련 증빙자료 | 전년도 표준재무제표증명원 |  | 
+| 9 |  |  | 전년도 매출확인서(부가가치세과세표준증명원) |  | 
+| 10 |  |  | 투자확약서(계약서) | 공개 가능 <br>범위 내 | 
+| 11 |  |  | 수상경력서 |  | 
+| 12 |  |  | 타 지원사업 선정이력서 |  | 
+| 13 |  |  | 지식재산권 취득 확인서 |  | 
+| 14 |  |  | 기타(벤처기업확인서, 여성기업확인서 등) |  | 
+
+    - (가점적용) 제출 서류 ※발표심사 때 적용
+
+| 번호 | 구분 | 제출서류 | 내용 | 비고 | 
+|---|---|---|---|---|
+| 1 | 가점 대상<br>필수 | 콘텐츠 IP 특화 기업 자가점검표 | 지정 양식 사용 | 서명본 제출 필요 | 
+| 2 |  | IP 보유 인증 서류 | 권리증서, 라이선싱 계약서, 상표권 등 |  | 
+| 3 |  | IP 사업 운영 인증 서류 | 수상내역, 계약서 등 |  | 
+
+     ※ ‘필수 서류’ 미제출 시 서류 심사에 반영되지 않음
+     ※ ‘필수 서류’ 날인으로 제출할 경우 인감증명서로 증빙할 수 있는 도장으로 날인
+        (서명일 경우 본인서명사실확인서 - 행정복지센터 발급 후 제출)
+     ※ 국세, 지방세 완납 증명서 / 4대 보험 완납 증명서(법인, 개인 사업자일 경우 제출, 예비창업자 미제출 가능)
+     ※ 심사시 발표는 팀당 총 20분 이내로 5분 발표 15분 질의응답으로 진행 예정
+  ㅇ 유의사항
+    - 제출 파일명 파일명 : 기업명(대표자명)_서부 공간입주 17기 3차
+    - 제출서류 전체를 1개의 PDF 파일로 업로드 또는 압축파일(ZIP)로 1개로 업로드
+□ 지원내용
+  ㅇ 사무공간 24시간 개방
+  ㅇ 호실, 지정석별 사무용 가구(책상, 의자), 인터넷, 사물함 제공
+  ㅇ 10층 서부 경기문화창조허브 공간 및 장비 이용
+     - 회의실, 교육장, 세미나실, 영상편집실, 사진촬영실 등 제공
+     - 3D 프린터 등 장비 이용(당일)
+  ㅇ 정보자료실 도서 및 DVD 대여, 24시간 피트니스센터 제공
+  ㅇ 서부 경기문화창조허브 입주기업 네트워킹 참여
+  ㅇ 기타 경기콘텐츠진흥원 주관사업, 프로그램 추천 및 연계지원
+□ 주의사항 및 이용조건
+  ㅇ 입주기간 내 일회용품 사용을 자제하시기 바랍니다.
+  ㅇ 사용료를 기간 내 납부하지 않거나 협약 체결이후 사업자등록 주소지를 이전하지 않을 경우(법인/개인-1개월 이내, 예비창업-2개월 이내) 강제퇴거 조치될 수 있습니다.
+  ㅇ 협약기간 내 상주 30% 미달시 연장평가에 불이익이 있을 수 있습니다.
+     ※세부내용은 정책 및 규정에 따라 변동 될 수 있음
+□ 선정방법
+
+| 구 분 | 통합평가 | 비고 | 
+|---|---|---|
+| 평가대상 | 신청기업 중 자격요건 충족기업 |  | 
+| 평가위원 | 외부 5명<br>(가점 적용은 담당자 평가) | 변동가능 | 
+| 평가장소 | 서부 경기문화창조허브 10층 세미나실 | 변동가능 | 
+| 평가일시 | 2026. 9. 21.(월) 14:00 | 변동가능 | 
+| 평가방식 | - 통합 평가 100점 산출 (가점(5)+서류(45)+발표(50))<br>- 가점 증빙 담당자 평가<br>- 기업별 제출 서류평가<br>- 대표자 발표 및 질의응답 |  | 
+| 평가자료 | - 공간입주 신청서 및 증빙자료<br>- 제출한 기업 발표자료 |  | 
+| 선정방법 | - 최고/최저점 제외한 점수의 평균값<br> - 평균 70점 이상 고득점 순<br>    (공석만큼 최종 합격)<br> - 모집규모 2배수 이내 예비합격기업 선정 |  | 
+| 평가지표 | - (가점) IP 특화 기업(5)<br> - 서류평가(45점)<br>    (지원동기(20),사업내용(10),사업추진계획(10), 기업현황(5))<br> - 발표평가(50점)<br>    (사업역량(15), 성장가능성(15), 대표자의지 및 역량(10),<br>     공간지원의 적정성(10)) |  | 
+
+□ 문 의 처
+  ㅇ 담당자 : 경기콘텐츠진흥원 서부권역센터 박다연 매니저
+  ㅇ 연락처 : 032-623-8094, da830@gcon.or.kr
+
+| 별첨 | 평가 지표 | 
+|---|---|
+
+□ 서류평가
+
+| 평가항목 | 평가 세부내용 | 배 점 | 
+|---|---|---|
+| 지원동기 | ·지원동기 및 향후 목표 등의 적정성<br>·지원공간 활용 계획의 타당성<br>·사업모델이 콘텐츠 분야 및 융복합 제품 분야에 부합하는지 여부 | 20 | 
+| 사업내용 | ·사업 아이디어의 경쟁력 및 시장성<br>·진출하고자 하는 시장과 목표 고객의 명확성<br>·목표 고객에 대한 분석 및 고객의 니즈를 파악하였는지 여부 | 10 | 
+| 사업추진계획 | ·사업목표의 명확성 및 실현가능성<br>·기업 성장 가능성과 고용창출 가능성<br>·사업 확장을 위한 자금조달 및 투자처 확보 가능성 | 10 | 
+| 기업현황 | ·기존 매출액, 투자실적 보유 여부<br>·특허, 기술인증 등 보유실적 여부 | 5 | 
+| 합 계 |  | 45 | 
+
+ □ 발표평가
+
+| 평가항목 | 평가 세부내용 | 배 점 | 
+|---|---|---|
+| 사업역량 | ·사업계획(BM)이 구체성 및 논리성<br>·사업아이템의 경쟁력 및 우수성<br>·사업목표의 적정성 및 실현가능성 | 15 | 
+| 성장가능성 | ·기업의 성장가능성 및 고용창출 가능성<br>·사업 실현, 유지를 위한 자본 또는 투자유치 계획 여부<br>·추진사업에 대한 시장성<br>·예비창업자의 경우, 2개월 이내 창업할 가능성 | 15 | 
+| 대표자 의지 및 팀역량 | ·사업에 대한 의지와 열정<br>·대표자의 창업가로서의 자질 및 능력<br>·대표자의 사업 위기대처 능력<br>·팀원 간 의사소통 및 조직력 | 10 | 
+| 공간지원의 적정성 | ·서부허브 지원분야에 대한 적합한 기업인지 여부<br>  (콘텐츠 분야 및 융복합 제품 분야)<br>·공간 활용 계획 및 목표의 명확성 | 10 | 
+| 합 계 |  | 50 | 
+
+ □ 가점사항
+
+| 평가항목 | 평가 세부내용 | 배 점 | 
+|---|---|---|
+| 가점<br>(추가점수) | · 콘텐츠IP 분야 사업을 수행중인 기업<br>·보유 콘텐츠IP 권리 완결성<br>·IP 가치창출 정도 등 | 5 | 
+| 합 계 |  | 5 |

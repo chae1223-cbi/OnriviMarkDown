@@ -5,6 +5,7 @@ import { useEffect, useCallback, useRef } from 'react';
 import { FileNode, scanDirectory, idb } from '@/lib/indexedDbHelper';
 import { getVfsFiles, vfsReadFile, vfsWriteFile } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
+import { resolveNativeDocumentPath } from '@/lib/nativeDocumentPath';
 import { stripFrontmatter } from "@/lib/editorUtils";
 import { EditorTab } from '@/components/UnifiedTabBar';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
@@ -659,10 +660,10 @@ export const useFileExplorer = ({
 
         // 1) 로컬 디스크 파일 읽기 시도 (데스크톱 Electron IPC 우선, 로컬 개발 서버 폴백)
         const electronApi = typeof window !== 'undefined' ? ((window as any).electronAPI || (window as any).api) : null;
-        if (electronApi?.readFromPath) {
+        const hydrationPath = resolveNativeDocumentPath(existingOpenTab.path || pathWithoutHash || cleanPath, rootFolderRef.current);
+        if (electronApi?.readFromPath && hydrationPath) {
           try {
-            const queryPath = existingOpenTab.path || pathWithoutHash || cleanPath;
-            let nativePath = queryPath;
+            let nativePath = hydrationPath;
             if (nativePath.startsWith('file:///')) {
               nativePath = decodeURIComponent(nativePath.replace(/^file:\/\/\/?/, ''));
             }
@@ -992,9 +993,10 @@ export const useFileExplorer = ({
 
     // 💡 [로컬 디스크 파일 직접 읽기 (데스크톱 Electron IPC 우선, 로컬 개발 서버 디스크 API 폴백)]
     const electronApi = typeof window !== 'undefined' ? ((window as any).electronAPI || (window as any).api) : null;
-    if (electronApi?.readFromPath) {
+    const resolvedNativePath = resolveNativeDocumentPath(pathWithoutHash || cleanPath, rootFolderRef.current);
+    if (electronApi?.readFromPath && resolvedNativePath) {
       try {
-        let nativePath = pathWithoutHash.startsWith('file:///') ? pathWithoutHash : (cleanPath.startsWith('file:///') ? cleanPath : pathWithoutHash);
+        let nativePath = resolvedNativePath;
         if (nativePath.startsWith('file:///')) {
           nativePath = decodeURIComponent(nativePath.replace(/^file:\/\/\/?/, ''));
         }
@@ -1405,12 +1407,10 @@ export const useFileExplorer = ({
         const api = (window as any).electronAPI;
         if (api?.readFromPath) {
           try {
-            let targetPath = node.path;
-            const isAbs = /^(?:file:\/\/\/|[a-zA-Z]:[\/\\]|\/)/i.test(targetPath);
-            if (!isAbs && rootFolderRef.current?.name) {
-              const root = rootFolderRef.current.name.replace(/[\/\\]+$/, '');
-              const sep = root.includes('/') ? '/' : '\\';
-              targetPath = `${root}${sep}${targetPath.replace(/^[\/\\]+/, '')}`;
+            const targetPath = resolveNativeDocumentPath(node.path, rootFolderRef.current);
+            if (!targetPath) {
+              showToast('로컬 작업장 경로를 확인할 수 없습니다. 작업장을 다시 연결해 주세요.', 'error');
+              return;
             }
             const file = await api.readFromPath(targetPath);
             if (file) {
@@ -1651,6 +1651,7 @@ export const useFileExplorer = ({
 
       const previous = driveEnvironmentRef.current;
       restoreEnvironment(previous?.root?.driveFolderId === wsInfo.workspaceFolderId ? previous : null);
+      window.dispatchEvent(new CustomEvent('onrivi:reload_profiles'));
     } catch (err: any) {
       console.error('[connectGoogleDrive Error]', err);
       showToast("구글 드라이브 연결 실패: " + (err.message || '인증 오류'), "error");
@@ -1727,6 +1728,7 @@ export const useFileExplorer = ({
         localStorage.setItem('resourceFolder', backupRf);
       }
       restoreEnvironment(localEnvironmentRef.current);
+      window.dispatchEvent(new CustomEvent('onrivi:reload_profiles'));
       setIsSidebarOpen(true);
       showToast('구글 드라이브 연결을 해제하고 마지막 로컬 작업장으로 돌아왔습니다.', 'success');
     } catch (err: any) {

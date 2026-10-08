@@ -399,7 +399,7 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
         // 다음 줄이 들여쓰기가 있는 서브리스트인 경우 들여쓰기 계층 보존
         if (nextNonEmpty && isAnyListLine(nextNonEmpty) && nextIndent > 0) {
           const indentSpaces = " ".repeat(nextIndent);
-          return `${indentSpaces}- onrivi-empty-row`;
+          return `${indentSpaces}- <span aria-hidden="true" class="onrivi-empty-list-row"></span>`;
         }
 
         // 최상위 리스트 분리 및 독립 블록 보장
@@ -419,8 +419,12 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
     const curr = deorderedLines[i];
     const origLineNum = expandedLineMap[i];
 
-    finalLines.push(curr);
-    finalLineMap.push(origLineNum);
+    // Indented list wrappers can contain several physical lines. Every one
+    // needs an entry, otherwise all subsequent list items point to earlier rows.
+    for (const physicalLine of curr.split('\n')) {
+      finalLines.push(physicalLine);
+      finalLineMap.push(origLineNum);
+    }
 
     // Paragraph spacing must never add physical lines inside fenced code.
     if (codeBlockMask[i]) continue;
@@ -470,10 +474,13 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
     }
   }
 
-  let finalText = finalLines.join("\n");
   if (listHasActiveDiv) {
-    finalText += "\n\n</div>\n\n";
+    for (const line of ['', '</div>', '', '']) {
+      finalLines.push(line);
+      finalLineMap.push(expandedLineMap[expandedLineMap.length - 1] || 1);
+    }
   }
+  const finalText = finalLines.join("\n");
 
   return {
     text: finalText,

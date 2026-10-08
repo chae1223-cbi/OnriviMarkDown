@@ -1,6 +1,26 @@
 import UTIF from 'utif';
 import pako from 'pako';
 
+/** Lossless conversion of uncompressed 24-bit BMP screenshots. */
+export function hwpBmpToPng(bytes: Uint8Array): Uint8Array | null {
+  if (bytes.length < 54 || bytes[0] !== 66 || bytes[1] !== 77) return null;
+  const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (v.getUint16(28, true) !== 24 || v.getUint32(30, true) !== 0) return null;
+  const width=v.getInt32(18,true), signedHeight=v.getInt32(22,true), height=Math.abs(signedHeight);
+  const offset=v.getUint32(10,true), stride=Math.ceil(width*3/4)*4;
+  if(width<=0 || height<=0 || width*height>40_000_000 || offset+stride*height>bytes.length) throw new Error('HWP BMP 이미지가 손상되었습니다.');
+  const rows=new Uint8Array(height*(width*3+1));
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++) {
+    const src=offset+(signedHeight>0?height-1-y:y)*stride+x*3, dest=y*(width*3+1)+1+x*3;
+    rows[dest]=bytes[src+2];rows[dest+1]=bytes[src+1];rows[dest+2]=bytes[src];
+  }
+  const header=new Uint8Array(13),hv=new DataView(header.buffer);
+  hv.setUint32(0,width);hv.setUint32(4,height);header[8]=8;header[9]=2;
+  const parts=[new Uint8Array([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',pako.deflate(rows)),chunk('IEND',new Uint8Array())];
+  const result=new Uint8Array(parts.reduce((sum,p)=>sum+p.length,0));let pos=0;
+  for(const part of parts){result.set(part,pos);pos+=part.length;}return result;
+}
+
 function chunk(name: string, data: Uint8Array): Uint8Array {
   const result = new Uint8Array(data.length+12);
   const view = new DataView(result.buffer);

@@ -2206,10 +2206,11 @@ export default function LeftSidebar() {
         if (api?.createFile && api?.saveFile) {
           const result = await api.createFile(parentDir, finalName);
           if (result.success) {
-            await api.saveFile(result.path, markdown);
+            const saved = await api.saveFile(result.path, markdown);
+            if (saved === false || saved?.success === false) throw new Error(saved?.error || '변환 문서를 저장하지 못했습니다. 작업장 경로와 쓰기 권한을 확인해 주세요.');
             await triggerExplorerRefresh(result.path);
             openFile({ name: finalName, kind: 'file', path: result.path });
-          }
+          } else throw new Error(result.error || '변환 문서 파일을 만들지 못했습니다. 작업장 폴더를 확인해 주세요.');
         } else {
           // 🛡️ [웹 SaaS 백엔드 미구현 404 원천 차단]: electronAPI가 없는 웹 브라우저 환경에서는 VFS 생성 수행
           const { vfsCreateFile, vfsWriteFile } = await import('@/lib/virtualFileSystem');

@@ -3647,7 +3647,8 @@ ipcMain.handle('settings:save', async (event, settings) => {
   try {
     const userDataPath = app.getPath('userData');
     const settingsFilePath = path.join(userDataPath, 'settings.json');
-    fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2), 'utf-8');
+    const previous = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf-8').replace(/^\uFEFF/, '')) : {};
+    fs.writeFileSync(settingsFilePath, JSON.stringify({ ...settings, localResourceFolder: previous.localResourceFolder, localWorkspaceFolder: previous.localWorkspaceFolder }, null, 2), 'utf-8');
     return true;
   } catch (e) {
     console.error('환경설정 저장 실패:', e);
@@ -3984,8 +3985,9 @@ function resolveUserProfilesPath(resourceFolder) {
 ipcMain.handle('file:readProfiles', async (event, resourceFolder) => {
   const profilePath = resolveUserProfilesPath(resourceFolder);
   if (!fs.existsSync(profilePath)) return [];
-  const profiles = JSON.parse(fs.readFileSync(profilePath, 'utf-8'));
+  const profiles = JSON.parse(fs.readFileSync(profilePath, 'utf-8').replace(/^\uFEFF/, ''));
   if (!Array.isArray(profiles)) throw new Error('INVALID_PROFILES_ARRAY');
+  console.info('[Desktop profiles]', JSON.stringify({ file: profilePath, count: profiles.length }));
   return profiles;
 });
 
@@ -4005,7 +4007,7 @@ ipcMain.handle('file:saveProfiles', async (event, profiles, resourceFolder) => {
 // ──────────────────────────────────────────────
 // 리소스 폴더 5대 디렉토리 및 onrivi_knowledge.db 일괄 생성 핸들러
 // ──────────────────────────────────────────────
-ipcMain.handle('resourceFolder:initStructure', async (event, resourceFolder) => {
+async function initializeDesktopResourceFolder(resourceFolder, initialProfiles = []) {
   try {
     if (!resourceFolder || !fs.existsSync(resourceFolder)) {
       return { success: false, error: 'FOLDER_NOT_FOUND' };
@@ -4023,7 +4025,7 @@ ipcMain.handle('resourceFolder:initStructure', async (event, resourceFolder) => 
     // 2. 기본 파일 생성 (기존 파일 보존)
     const profilesFile = path.join(resourceFolder, 'profiles', 'userCssProfiles.json');
     if (!fs.existsSync(profilesFile)) {
-      fs.writeFileSync(profilesFile, '[]', 'utf-8');
+      fs.writeFileSync(profilesFile, JSON.stringify(initialProfiles, null, 2), 'utf-8');
     }
 
     const promptDir = path.join(resourceFolder, 'prompt');
@@ -4158,6 +4160,31 @@ ipcMain.handle('resourceFolder:initStructure', async (event, resourceFolder) => 
   } catch (err) {
     console.error('[resourceFolder:initStructure Error]:', err);
     return { success: false, error: err.message };
+  }
+}
+ipcMain.handle('resourceFolder:initStructure', (event, folder, profiles) => initializeDesktopResourceFolder(folder, profiles));
+ipcMain.handle('desktop:ensureLocalEnvironment', async (event, settings = {}) => {
+  try {
+    const base = path.join(app.getPath('documents'), 'OnriviAuthor');
+    const settingsFile = path.join(app.getPath('userData'), 'settings.json');
+    const saved = fs.existsSync(settingsFile) ? JSON.parse(fs.readFileSync(settingsFile, 'utf-8').replace(/^\uFEFF/, '')) : {};
+    const savedResource = saved.localResourceFolder || saved.resourceFolder;
+    const resolveFolder = (configured, fallback) => {
+      if (configured && !path.isAbsolute(configured)) throw new Error('환경설정에 로컬 폴더의 전체 경로를 지정해 주세요.');
+      const folder = configured || path.join(base, fallback);
+      fs.mkdirSync(folder, { recursive: true });
+      return folder;
+    };
+    const resourcePath = resolveFolder(settings.resourceFolder || (typeof savedResource === 'string' && path.isAbsolute(savedResource) ? savedResource : undefined), '참조파일');
+    const workspacePath = resolveFolder(settings.workspaceFolder || saved.localWorkspaceFolder, '작업장');
+    const result = await initializeDesktopResourceFolder(resourcePath, Array.isArray(settings.profiles) ? settings.profiles : []);
+    if (!result.success) return result;
+    fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+    fs.writeFileSync(settingsFile, JSON.stringify({ ...saved, localResourceFolder: resourcePath, localWorkspaceFolder: workspacePath }, null, 2), 'utf-8');
+    console.info('[Desktop resource]', JSON.stringify({ resourcePath, workspacePath }));
+    return { success: true, resourcePath, workspacePath };
+  } catch (error) {
+    return { success: false, error: error.message };
   }
 });
 

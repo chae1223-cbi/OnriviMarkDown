@@ -144,7 +144,7 @@ interface MarkdownViewerProps {
   content: string;
   originalContent?: string;
   lineMap?: number[];
-  onCheckboxToggle?: (lineNumber: number, checked: boolean) => void;
+  onCheckboxToggle?: (lineNumber: number, checked: boolean, importedId?: string) => void;
   currentFilePath?: string;
   rootFolderPath?: string;
   onFileOpen?: (resolvedPath: string, hashPart?: string) => void;
@@ -1907,8 +1907,9 @@ function MarkdownViewer({
       }
 
       let proseText = seg.text;
-      // 다중 빈 줄(&nbsp;) 보존은 본문(prose) 영역에만 적용하여 코드블록 내부 빈 줄 오염 차단
-      proseText = proseText.replace(/\n{3,}/g, (match) => '\n\n' + '&nbsp;\n\n'.repeat(match.length - 2));
+      // Markdown blank lines separate blocks. Do not turn structural blank
+      // lines around list wrappers into visible paragraphs with their own margins.
+      // Leaving them intact also preserves the source-line mapping.
 
       return proseText.split('\n').map(line => {
         const isListItem = /^[ \t]*([*+-]|\d+\.)\s+/.test(line);
@@ -3445,7 +3446,13 @@ function MarkdownViewer({
                 </figure>
               );
             },
-            input: ({ node, ...props }: any) => <input {...props} />,
+            input: ({ node, ...props }: any) => {
+              const importedId = props['data-import-checkbox'];
+              if (!importedId) return <input {...props} />;
+              return <input {...props} disabled={false} checked={!!props.checked}
+                onChange={e => dynamicPropsRef.current.onCheckboxToggle?.(0, e.target.checked, importedId)}
+                style={{ ...props.style, cursor: 'pointer', verticalAlign: 'middle', marginRight: '0.25em' }} />;
+            },
             p: ({ node, children, style, align, ...props }: any) => {
               if (!children) return <p />;
               const alignVal = align || (node?.properties && node.properties.align);

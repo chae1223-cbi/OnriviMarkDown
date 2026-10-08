@@ -133,6 +133,21 @@ export function htmlToImportMarkdown(html: string): string {
       }).join('\n') + '\n';
     }
     if (tag === 'table') {
+      if (el.querySelector('td[colspan], th[colspan], td[rowspan], th[rowspan]')) {
+        // Pipe tables cannot represent merged cells. Keep the table structure
+        // and inline formatting, without carrying source scripts or handlers.
+        const table = el.cloneNode(true) as HTMLElement;
+        const allowedAttributes = new Set(['colspan', 'rowspan', 'href', 'src', 'alt', 'title', 'width', 'height']);
+        for (const child of [table, ...Array.from(table.querySelectorAll('*'))]) {
+          for (const attr of Array.from(child.attributes)) {
+            if (!allowedAttributes.has(attr.name.toLowerCase()) ||
+                (['href', 'src'].includes(attr.name.toLowerCase()) && /^\s*(?:javascript|vbscript):/i.test(attr.value))) {
+              child.removeAttribute(attr.name);
+            }
+          }
+        }
+        return '\n\n' + table.outerHTML.replace(/\r?\n/g, ' ') + '\n\n';
+      }
       const rows = Array.from(el.querySelectorAll('tr')).map(row => Array.from(row.children).filter(cell => /^(TD|TH)$/.test(cell.tagName)).map(cell =>
         Array.from(cell.childNodes).map(child => walk(child, depth)).join('').trim().replace(/\|/g, '\\|').replace(/\n+/g, '<br>')));
       const width = Math.max(0, ...rows.map(row => row.length));
