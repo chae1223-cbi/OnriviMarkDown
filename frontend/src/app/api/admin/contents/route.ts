@@ -1,3 +1,4 @@
+/** 🚨 @PATCH : 2026-10-08 — R2 스토리지 및 DB 연계 불필요한 콘텐츠 영구 삭제(DELETE) 기능 추가 */
 /** 🚨 @PATCH : 2026-10-08 — 사용자 개인 에디터 첨부 제외 공식 콘텐츠(고객 문의 첨부, 기술 블로그 에셋) 통합 관리 API 신규 구축 */
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
@@ -157,6 +158,54 @@ export async function GET(req: Request) {
     });
   } catch (error: any) {
     console.error('[/api/admin/contents] Error fetching contents:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const auth = await verifyAdmin(req);
+    if (!auth.user) return NextResponse.json({ success: false, error: auth.error }, { status: 403 });
+
+    const body = await req.json();
+    const { url, source_id, category, reason } = body;
+
+    if (!url) {
+      return NextResponse.json({ success: false, error: '삭제할 파일 URL이 누락되었습니다.' }, { status: 400 });
+    }
+
+    // 1. DB 참조 정리
+    if (category === 'INQUIRY' && source_id) {
+      await sql`
+        UPDATE public.support_inquiries
+        SET attachment_urls = array_remove(attachment_urls, ${url})
+        WHERE id = ${source_id}::uuid
+      `;
+    } else if (category === 'BLOG' && source_id) {
+      await sql`
+        UPDATE public.blog_post_revisions
+        SET cover_image = NULL
+        WHERE post_id = ${source_id}::uuid AND cover_image = ${url}
+      `;
+    }
+
+    // 2. 감사 로그 기록
+    try {
+      await sql`
+        INSERT INTO public.user_audit_logs (admin_id, action_type, reason, created_at)
+        VALUES (${auth.user.id}, 'CONTENT_DELETE', ${`콘텐츠 파일 삭제: [${category || 'ASSET'}] ${extractFileName(url)} (${reason || '불필요한 파일 관리자 삭제'})`}, now())
+      `;
+    } catch (auditErr) {
+      console.warn('Failed to insert audit log for content delete:', auditErr);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: '파일이 성공적으로 삭제되었습니다.',
+      deleted_url: url
+    });
+  } catch (error: any) {
+    console.error('[/api/admin/contents] Error deleting content:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

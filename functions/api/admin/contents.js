@@ -1,3 +1,4 @@
+// 🚨 @PATCH : 2026-10-08 — R2 스토리지 및 DB 연계 불필요한 콘텐츠 영구 삭제(DELETE) 기능 추가
 // 🚨 @PATCH : 2026-10-08 — 사용자 개인 에디터 첨부 제외 공식 콘텐츠(고객 문의 첨부, 기술 블로그 에셋) 통합 관리 API 신규 구축
 import { handleOptions, checkAdminAuth } from './_shared.js';
 import { withBlogTransaction, blogJson } from '../blog/_db.js';
@@ -18,6 +19,22 @@ function extractFileName(url) {
     const parts = url.split('/');
     return decodeURIComponent(parts[parts.length - 1].split('?')[0]) || 'file';
   }
+}
+
+// URL에서 R2 키 추출 유틸
+function extractR2Key(url) {
+  if (!url) return null;
+  if (url.includes('/api/image/')) {
+    const rawKey = url.split('/api/image/')[1].split('?')[0];
+    try {
+      let key = decodeURIComponent(rawKey);
+      if (key.includes('%')) key = decodeURIComponent(key);
+      return key;
+    } catch {
+      return rawKey;
+    }
+  }
+  return null;
 }
 
 export async function onRequestGet(context) {
@@ -175,6 +192,77 @@ export async function onRequestGet(context) {
     });
   } catch (error) {
     console.error('[/api/admin/contents] Error fetching contents:', error);
+    return blogJson({ success: false, error: error.message }, 500);
+  }
+}
+
+// 💥 DELETE: 콘텐츠 파일 삭제 및 스토리지/DB 동기화
+export async function onRequestDelete(context) {
+  try {
+    const { request, env } = context;
+
+    const authResult = await checkAdminAuth(request, env, ['SUPER', 'SUPPORT']);
+    if (authResult.error) {
+      return blogJson({ success: false, error: authResult.error }, authResult.status || 403);
+    }
+
+    const body = await request.json();
+    const { url, source_id, category, reason } = body;
+
+    if (!url) {
+      return blogJson({ success: false, error: '삭제할 파일 URL이 누락되었습니다.' }, 400);
+    }
+
+    // 1. R2 버킷에서 파일 실제 삭제
+    const r2Key = extractR2Key(url);
+    if (r2Key && env.R2_BUCKET) {
+      try {
+        await env.R2_BUCKET.delete(r2Key);
+        console.log(`[R2_DELETE] Successfully deleted from R2: ${r2Key}`);
+      } catch (r2Err) {
+        console.warn(`[R2_DELETE] Failed to delete from R2 (${r2Key}):`, r2Err);
+      }
+    }
+
+    // 2. 데이터베이스 참조 정리
+    await withBlogTransaction(env, async db => {
+      if (category === 'INQUIRY' && source_id) {
+        // 고객 문의 첨부파일 목록에서 해당 URL 제거
+        await db.query(`
+          UPDATE public.support_inquiries
+          SET attachment_urls = array_remove(attachment_urls, $1)
+          WHERE id = $2::uuid
+        `, [url, source_id]);
+      } else if (category === 'BLOG' && source_id) {
+        // 블로그 포스트 커버 이미지인 경우 null 처리
+        await db.query(`
+          UPDATE public.blog_post_revisions
+          SET cover_image = NULL
+          WHERE post_id = $1::uuid AND cover_image = $2
+        `, [source_id, url]);
+      }
+
+      // 3. 관리자 감사 로그 기록
+      try {
+        await db.query(`
+          INSERT INTO public.user_audit_logs (admin_id, action_type, reason, created_at)
+          VALUES ($1, 'CONTENT_DELETE', $2, now())
+        `, [
+          authResult.adminData?.user_id || null,
+          `콘텐츠 파일 삭제: [${category || 'ASSET'}] ${extractFileName(url)} (${reason || '불필요한 파일 관리자 삭제'})`
+        ]);
+      } catch (auditErr) {
+        console.warn('Failed to insert audit log for content delete:', auditErr);
+      }
+    });
+
+    return blogJson({
+      success: true,
+      message: '파일이 성공적으로 삭제되었습니다.',
+      deleted_url: url
+    });
+  } catch (error) {
+    console.error('[/api/admin/contents] Error deleting content:', error);
     return blogJson({ success: false, error: error.message }, 500);
   }
 }

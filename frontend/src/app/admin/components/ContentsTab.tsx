@@ -2,6 +2,9 @@
  * 프로그램명 : OnriviAuthor
  * 파일명 : app/admin/components/ContentsTab.tsx
  * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-10-08** — [불필요한 콘텐츠 영구 삭제(DELETE) 기능 및 Cloudflare R2 스토리지 동기화 탑재]:
+ *             1. 불필요한 파일 선택/개별 삭제 확인 모달 및 Cloudflare R2 스토리지(onrivi-images) 실시간 객체 제거 연동
+ *             2. 고객 문의(support_inquiries) 첨부 목록에서 제거 및 관리자 감사 로그(CONTENT_DELETE) 자동 기록
  * 🚨 @PATCH : **2026-10-08** — [사용자 개인 에디터 첨부 제외 공식 콘텐츠 관리(ContentsTab) 신규 구축]:
  *             1. 사용자 개인 마크다운 에디터 첨부 미디어 철저 배제(프라이버시 보호)
  *             2. 서비스 운영 공식 에셋(고객 지원 문의 첨부파일, 기술 블로그 공식 에셋) 통합 관리 대시보드 제공
@@ -31,10 +34,10 @@ import {
   FileImage,
   FileArchive,
   FileText,
-  User,
-  Calendar,
   ShieldCheck,
-  Eye
+  Eye,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { adminFetch } from '@/lib/adminFetch';
 import { showToast } from '@/utils/toast';
@@ -95,8 +98,11 @@ export default function ContentsTab() {
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // 모달 및 복사 상태
+  // 모달 및 삭제 상태
   const [previewTarget, setPreviewTarget] = useState<ContentItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ContentItem | null>(null);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const fetchContents = useCallback(async () => {
@@ -159,6 +165,42 @@ export default function ContentsTab() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  // 삭제 확정 처리
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      setIsDeleting(true);
+      const res = await adminFetch('/api/admin/contents', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: deleteTarget.url,
+          source_id: deleteTarget.source_id,
+          category: deleteTarget.category,
+          reason: deleteReason.trim() || '관리자에 의한 불필요한 파일 삭제'
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || '파일 삭제에 실패했습니다.');
+      }
+
+      showToast('파일이 성공적으로 삭제되었습니다.', 'success');
+      setDeleteTarget(null);
+      setDeleteReason('');
+      if (previewTarget?.id === deleteTarget.id) {
+        setPreviewTarget(null);
+      }
+      setRefreshKey(k => k + 1);
+    } catch (err: any) {
+      console.error('Delete error:', err);
+      showToast(err.message || '파일 삭제 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
@@ -171,10 +213,10 @@ export default function ContentsTab() {
           </div>
           <div>
             <h4 className="text-xs font-bold text-blue-900 dark:text-blue-200">
-              사용자 개인정보 보호 및 에디터 문서 격리 정책
+              사용자 개인정보 보호 및 R2 클라우드 스토리지 안내
             </h4>
             <p className="text-[11px] text-blue-700/90 dark:text-blue-300/80 mt-0.5">
-              사용자가 마크다운 에디터 본문에 직접 첨부한 개인 문서는 일체 수집·노출되지 않으며, 고객 지원 문의 접수 첨부파일 및 공식 기술 블로그 에셋만 관리됩니다.
+              사용자의 사적 에디터 문서는 일체 노출되지 않으며, 고객 지원 문의 첨부파일 및 기술 블로그 공식 에셋을 R2 스토리지(<code>onrivi-images</code>)와 연동하여 관리/삭제할 수 있습니다.
             </p>
           </div>
         </div>
@@ -409,7 +451,7 @@ export default function ContentsTab() {
                   </div>
 
                   <div className="pt-2 border-t border-[var(--admin-border)] flex items-center justify-between text-[11px] text-zinc-500">
-                    <span className="truncate max-w-[120px]" title={item.author}>
+                    <span className="truncate max-w-[100px]" title={item.author}>
                       {item.author}
                     </span>
                     <div className="flex items-center gap-1 shrink-0">
@@ -429,6 +471,14 @@ export default function ContentsTab() {
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
+                      {/* 삭제 버튼 */}
+                      <button
+                        onClick={() => setDeleteTarget(item)}
+                        className="p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 text-zinc-400 hover:text-rose-600 transition-colors"
+                        title="콘텐츠 영구 삭제"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -534,6 +584,13 @@ export default function ContentsTab() {
                           >
                             <ExternalLink className="w-4 h-4" />
                           </a>
+                          <button
+                            onClick={() => setDeleteTarget(item)}
+                            className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                            title="파일 삭제"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -658,21 +715,109 @@ export default function ContentsTab() {
             </div>
 
             <div className="p-4 border-t border-[var(--admin-border)] bg-zinc-50/50 dark:bg-zinc-800/30 flex justify-between items-center shrink-0">
-              <a
-                href={previewTarget.url}
-                target="_blank"
-                rel="noreferrer"
-                className="admin-btn-secondary text-xs flex items-center gap-1.5"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span>새 창에서 원본 열기</span>
-              </a>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewTarget.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="admin-btn-secondary text-xs flex items-center gap-1.5"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>새 창에서 열기</span>
+                </a>
+                <button
+                  onClick={() => setDeleteTarget(previewTarget)}
+                  className="px-3 py-1.5 rounded-lg border border-rose-300 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>콘텐츠 삭제</span>
+                </button>
+              </div>
 
               <button
                 onClick={() => setPreviewTarget(null)}
                 className="admin-btn-primary px-4 py-2 text-xs font-bold"
               >
                 닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. 삭제 확인 다이얼로그 모달 */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="admin-glass-card max-w-md w-full shadow-2xl overflow-hidden border border-rose-500/40">
+            <div className="p-5 border-b border-[var(--admin-border)] flex items-center gap-3 bg-rose-50/50 dark:bg-rose-950/20">
+              <div className="p-2 rounded-xl bg-rose-500/20 text-rose-600">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                  콘텐츠 영구 삭제 확인
+                </h3>
+                <p className="text-[11px] text-zinc-500">
+                  R2 클라우드 스토리지 및 관련 데이터가 영구 삭제됩니다.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-3 text-xs">
+              <div className="p-3 rounded-lg bg-zinc-100 dark:bg-zinc-800/80 space-y-1">
+                <div className="text-zinc-500 font-medium">대상 파일명</div>
+                <div className="font-bold text-zinc-900 dark:text-zinc-100 break-all font-mono">
+                  {deleteTarget.file_name}
+                </div>
+                <div className="text-[11px] text-zinc-500">
+                  출처: {deleteTarget.source_title} ({deleteTarget.category_name})
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
+                  삭제 사유 (감사 로그에 기록됨)
+                </label>
+                <input
+                  type="text"
+                  value={deleteReason}
+                  onChange={e => setDeleteReason(e.target.value)}
+                  placeholder="예: 불필요한 테스트 파일, 부적절한 이미지 등"
+                  className="admin-input w-full text-xs"
+                />
+              </div>
+
+              <p className="text-[11px] text-rose-600 dark:text-rose-400 bg-rose-50/60 dark:bg-rose-950/30 p-2.5 rounded-lg border border-rose-200/60 dark:border-rose-900/40">
+                ⚠️ 삭제된 파일은 복구할 수 없으며, 고객 문의 첨부 목록 또는 블로그 글의 해당 미디어 링크가 비활성화됩니다.
+              </p>
+            </div>
+
+            <div className="p-4 border-t border-[var(--admin-border)] bg-zinc-50/50 dark:bg-zinc-800/30 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setDeleteTarget(null); setDeleteReason(''); }}
+                disabled={isDeleting}
+                className="admin-btn-secondary px-4 py-2 text-xs font-semibold disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors flex items-center gap-1.5 shadow-md disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>삭제 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>영구 삭제</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
