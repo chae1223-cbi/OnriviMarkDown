@@ -1580,6 +1580,10 @@ export function useMonacoSetup(deps: any) {
                   const editorDom = editor.getDomNode();
                   const handledPasteEvents = new WeakSet<ClipboardEvent>();
                   const onEditorPaste = (e: ClipboardEvent) => {
+                    // 전역 capture 리스너에서도 본문 편집기 내부의 이벤트만 처리한다.
+                    // 모달의 JSON·프롬프트 입력창은 브라우저의 기본 붙여넣기를 사용한다.
+                    const target = e.target;
+                    if (!(target instanceof Node) || !editorDom?.contains(target)) return;
                     if (handledPasteEvents.has(e)) return;
                     handledPasteEvents.add(e);
                     if (depsRef.current?.handleEditorPaste) {

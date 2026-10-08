@@ -1,6 +1,10 @@
 /**
  * 프로그램명 : OnriviAuthor
  * 파일명 : StyleManagerModal.tsx
+ * 🚨 @PATCH : **2026-10-09** — [서식 관리 목록 최신 서식 우선 정렬 및 모달 진입 시 자동 실시간 재동기화]:
+ *             1) 서식 관리 모달 오픈 시 onrivi:reload_profiles 자동 브로드캐스트로 userCssProfiles.json 최신 상태 즉각 하이드레이션
+ *             2) 서식 목록(전체)에서 사용자 정의 서식을 최신 등록순으로 상단에 우선 배치하여 최근 작업 서식 즉시 식별 보장
+ *             3) 로컬 vs 웹드라이브 서식 수 불일치 시 로컬 서식 원클릭 가져오기/병합 기능 및 수동 새로고침 지원
  * 🚨 @PATCH : **2026-10-07** — [구글 드라이브 내 서식 동기화 카드 및 원클릭 재연결 탑재]:
  *             1) '내 서식' 탭에서 서식이 비어있을 때 구글 드라이브 참조파일(userCssProfiles.json 70KB)과 즉시 연동할 수 있는 원클릭 재연결 카드 제공
  *             2) requestGoogleDriveAuth 및 saveDriveToken 호출로 새 토큰 발급 즉시 2개 사용자 서식(연습테스트, 소형책 출판 등) 실시간 자동 하이드레이션
@@ -93,6 +97,28 @@ export default function StyleManagerModal({
   const [selectedId, setSelectedId] = useState(activeProfileId);
   const [profileReadStatus, setProfileReadStatus] = useState(getProfileReadStatus);
   useEffect(() => subscribeProfileReadStatus(() => setProfileReadStatus(getProfileReadStatus())), []);
+  // 🌟 모달 열릴 때 userCssProfiles.json 최신 상태 자동 재동기화
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('onrivi:reload_profiles'));
+  }, []);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleRefreshProfiles = async () => {
+    setIsRefreshing(true);
+    try {
+      const success = await new Promise<boolean>(resolve => {
+        const timeout = setTimeout(() => resolve(false), 15000);
+        window.dispatchEvent(new CustomEvent('onrivi:reload_profiles', { detail: {
+          resolve: (result: boolean) => { clearTimeout(timeout); resolve(result); },
+        } }));
+      });
+      setToast(success ? '✅ 최신 서식 목록을 성공적으로 갱신했습니다.' : '⚠️ 서식 새로고침에 실패했습니다.');
+    } catch {
+      setToast('⚠️ 서식 새로고침 중 오류가 발생했습니다.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'system' | 'custom'>('all');
   const [toast, setToast] = useState<string | null>(null);
@@ -533,13 +559,18 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
   const textMuted = dk ? 'text-zinc-400' : 'text-slate-500';
 
   // 필터링된 프로필 목록
-  const filteredProfiles = profiles
-    .filter(p => {
-      if (filterType === 'system') return isSystemProfileId(p.id);
-      if (filterType === 'custom') return !isSystemProfileId(p.id);
-      return true;
-    })
-    .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  // 🌟 필터링 및 최신순 정렬 프로필 목록 (사용자 서식 최신순 우선 배치)
+  const userProfiles = profiles.filter(p => !isSystemProfileId(p.id));
+  const systemProfiles = profiles.filter(p => isSystemProfileId(p.id));
+  const reversedUserProfiles = [...userProfiles].reverse();
+
+  const filteredProfiles = (
+    filterType === 'system'
+      ? systemProfiles
+      : filterType === 'custom'
+      ? reversedUserProfiles
+      : [...reversedUserProfiles, ...systemProfiles]
+  ).filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   // 선택된 서식의 상세 정보 요약
   const currentTable = selectedProfile?.tableStructure || {
@@ -572,6 +603,20 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
 
         <div className="flex items-center gap-2.5">
           {/* 기본 서식으로 새로 만들기 상단 퀵 버튼 */}
+          {/* 최신 서식 수동 새로고침 버튼 */}
+          <button
+            type="button"
+            disabled={isRefreshing}
+            onClick={handleRefreshProfiles}
+            className={`flex items-center gap-1.5 px-3.5 py-2 text-[12px] font-bold rounded-xl transition-all border ${hairline} ${
+              dk ? 'bg-slate-900 hover:bg-slate-800 text-zinc-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+            } disabled:opacity-50`}
+            title="리소스 폴더(userCssProfiles.json)에서 최신 서식을 다시 읽어옵니다"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
+            <span>{isRefreshing ? '갱신 중...' : '서식 새로고침'}</span>
+          </button>
+
           <button
             onClick={handleAddNewProfile}
             className="flex items-center gap-1.5 px-3.5 py-2 text-[12px] font-bold text-white bg-[#1d4ed8] hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-all duration-150 hover:scale-[1.02] active:scale-[0.98]"
@@ -657,7 +702,18 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
               <p className="break-all">{profileReadStatus?.folder || '경로 확인 중'} / profiles / userCssProfiles.json</p>
               {profileReadStatus?.folderId && <p className="break-all">폴더 ID: {profileReadStatus.folderId}</p>}
               <p>{profileReadStatus?.state === 'loading' ? '서식 읽는 중' : profileReadStatus?.state === 'success' ? `읽기 완료 · 사용자 서식 ${profileReadStatus.userCount ?? 0}개` : profileReadStatus?.state === 'error' ? '읽기 실패' : '아직 조회되지 않음'}</p>
-              <p className="text-slate-400">저장소 진단 v2026.10.08</p>
+              <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-800 text-[11px]">
+                <button
+                  type="button"
+                  disabled={isRefreshing}
+                  onClick={handleRefreshProfiles}
+                  className="font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  <span>최신 서식 즉시 새로고침</span>
+                </button>
+                <span className="text-slate-400">v2026.10.09</span>
+              </div>
             </div>
             {profileReadStatus?.environment === 'local' && getResourceSettings('cloud')?.folderId && (
               <div className="p-3 rounded-xl bg-blue-50 text-blue-900 dark:bg-blue-950 dark:text-blue-200 text-xs space-y-2">
