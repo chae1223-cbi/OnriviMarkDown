@@ -1,7 +1,8 @@
+// 🚨 @PATCH : 2026-10-08 — UUID 정규표현식 5그룹(8-4-4-4-12) 누락 수정
 import { withBlogTransaction, blogJson } from '../../../blog/_db.js';
 import { checkAdminAuth } from '../../_shared.js';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function onRequestPost({ request, env, params }) {
   const auth = await checkAdminAuth(request, env, ['SUPER']);

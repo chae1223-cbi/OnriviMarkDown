@@ -12,7 +12,8 @@ import { htmlToImportMarkdown, importHtmlWithImages } from './importHtmlMarkdown
 import { importEpub } from './epubImporter';
 import { extractPdfPageText } from './pdfImportText';
 import { readDocxImageSizes } from './docxImageSizes';
-import { pdfTextBlocks, pdfImageBoxes, serializePdfBlocks } from './pdfImportLayout';
+import { pdfImageBoxes, serializePdfBlocks } from './pdfImportLayout';
+import { pdfRuledTableBlocks } from './pdfImportTables';
 import { readHwpCompression, decodeHwpBody, decodeHwpParagraph, isRawHwpImage } from './hwpStreams';
 import { convertFormCheckboxes } from './importCheckboxes';
 
@@ -121,7 +122,8 @@ async function importPdf(
           item.transform[5]>=box.y && item.transform[5]<box.y+box.height);
         return overlapping.reduce((count, item: any) => count+item.str.length,0)<40;
       });
-      const blocks = pdfTextBlocks(content.items, allBoxes.filter(box=>!boxes.includes(box)));
+      const blocks = pdfRuledTableBlocks(content.items, operators.fnArray, operators.argsArray, pdfjsLib.OPS,
+        allBoxes.filter(box=>!boxes.includes(box)));
       if (boxes.length && typeof document !== 'undefined') {
         // Render once, then crop individual embedded image regions. Never turn
         // the complete page or its editable text into a bitmap.
@@ -147,7 +149,7 @@ async function importPdf(
         }
         canvas.width=canvas.height=0;
       }
-      text += serializePdfBlocks(blocks.sort((a,b)=>b.y-a.y)) + '\n\n';
+      text += serializePdfBlocks(blocks.sort((a,b)=>b.y-a.y), true) + '\n';
 
 
     }

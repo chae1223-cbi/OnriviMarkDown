@@ -1,3 +1,4 @@
+/** 🚨 @PATCH : 2026-10-08 — 사용자 ID 방어 처리 강화 */
 /** 🚨 @PATCH : 2026-09-28 — SUPER 관리자 수동 변경에서 플랜·무료/유료·사용기간·필수 사유를 각각 지정 */
 'use client';
 
@@ -88,7 +89,7 @@ export default function UserPlanChangeModal({ user, onClose, onChanged }: {
       const response = await adminFetch('/api/admin/users/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, planCode, billingCycle, grantType,
+        body: JSON.stringify({ userId: user.id || (user as any).user_id, planCode, billingCycle, grantType,
           durationValue: selected.plan_code === 'READER' ? 0 : durationValue,
           durationUnit: selected.plan_code === 'READER' ? 'NONE' : durationUnit,
           reason: reason.trim() }),

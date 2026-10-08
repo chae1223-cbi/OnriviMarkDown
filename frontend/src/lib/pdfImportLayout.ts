@@ -3,6 +3,18 @@ import { extractPdfPageText } from './pdfImportText';
 type Run = { str: string; transform: number[]; width: number; height: number; fontName?: string };
 export type PdfImportBlock = { y: number; markdown: string };
 type Box = { x: number; y: number; width: number; height: number };
+/** Remove shadow/overprint runs at the same position, retaining genuine repetitions. */
+export function deduplicatePdfRuns(items: readonly unknown[]): Run[] {
+  const runs=(items as Run[]).filter(r=>typeof r.str==='string'&&r.str.trim()&&r.transform);
+  return runs.filter((run,index)=>!runs.some((other,j)=>{
+    if(j===index || Math.abs(run.transform[5]-other.transform[5])>2.5) return false;
+    if(run.str===other.str) return j<index && Math.abs(run.transform[4]-other.transform[4])<2.5 && Math.abs(run.width-other.width)<3;
+    const offset=other.str.indexOf(run.str);
+    if(offset<0 || other.str.length<=run.str.length) return false;
+    const expected=other.transform[4]+other.width*offset/other.str.length;
+    return Math.abs(run.transform[4]-expected)<3 && run.transform[4]+run.width<=other.transform[4]+other.width+3;
+  }));
+}
 function wrapSeparator(previous: string, next: string, remaining: number, fontSize: number): string {
   const word=previous.split(/\s+/).at(-1)||'';
   // Derivational suffixes remain attached even when their stem is a boundary noun.
@@ -15,19 +27,19 @@ function wrapSeparator(previous: string, next: string, remaining: number, fontSi
   return boundary || /[,.!?。]$/.test(previous) || remaining>fontSize*0.95 ? ' ' : '';
 }
 
-export function serializePdfBlocks(blocks: PdfImportBlock[]): string {
+export function serializePdfBlocks(blocks: PdfImportBlock[], compact = false): string {
   return blocks.map((block,index)=>{
     const current=block.markdown.match(/^(\d+)\. /), previous=blocks[index-1]?.markdown.match(/^(\d+)\. /);
-    const separator=current && previous && Number(current[1])===Number(previous[1])+1 ? '\n' : '\n\n';
+    const separator=compact || (current && previous && Number(current[1])===Number(previous[1])+1) ? '\n' : '\n\n';
     return (index?separator:'')+block.markdown;
   }).join('');
 }
 
-export function pdfTextBlocks(items: readonly unknown[], codeRegions: Box[] = []): PdfImportBlock[] {
-  const runs = (items as Run[]).filter(r => typeof r.str === 'string' && r.str.trim() && r.transform);
+export function pdfTextBlocks(items: readonly unknown[], codeRegions: Box[] = [], inferTables = true, pageBodySize?: number): PdfImportBlock[] {
+  const runs = deduplicatePdfRuns(items);
   const sizes = new Map<number, number>();
   for (const r of runs) { const h = Math.round(r.height); sizes.set(h, (sizes.get(h) || 0) + r.str.length); }
-  const bodySize = Array.from(sizes).sort((a, b) => b[1] - a[1])[0]?.[0] || 12;
+  const bodySize = pageBodySize || Array.from(sizes).sort((a, b) => b[1] - a[1])[0]?.[0] || 12;
   const lines: { y: number; runs: Run[]; text: string; h: number; x: number; end: number }[] = [];
   for (const r of runs) {
     let line = lines.find(l => Math.abs(l.y - r.transform[5]) < 2);
@@ -37,6 +49,11 @@ export function pdfTextBlocks(items: readonly unknown[], codeRegions: Box[] = []
   }
   for (const l of lines) { l.runs.sort((a,b) => a.transform[4] - b.transform[4]); l.text = extractPdfPageText(l.runs.map(r => ({ ...r, hasEOL: false }))); }
   lines.sort((a,b) => b.y - a.y);
+  // Printed folios are separate from the document's numbered clauses.
+  for (let i=lines.length-1;i>=0;i--) {
+    if (/^[-–—]\s*\d+\s*[-–—]$/.test(lines[i].text.trim()) && (i===0 || i===lines.length-1)) lines.splice(i,1);
+  }
+  if (!lines.length) return [];
   // Some PDFs place the list marker on the last physical line of an item.
   // Move only a geometrically detached marker back to its preceding full line.
   for (let i=1;i<lines.length;i++) {
@@ -80,7 +97,7 @@ export function pdfTextBlocks(items: readonly unknown[], codeRegions: Box[] = []
       const prev=line.runs[j-1], cur=line.runs[j];
       if (cur.transform[4] - prev.transform[4] - prev.width > line.h * 1.8) starts.push(cur.transform[4]);
     }
-    if (starts.length >= 3) {
+    if (inferTables && starts.length >= 3) {
       const tableLines = [line];
       let k = i+1;
       while (k<lines.length && lines[k].h <= line.h+1 && lines[k-1].y-lines[k].y < line.h*6 &&
@@ -101,11 +118,11 @@ export function pdfTextBlocks(items: readonly unknown[], codeRegions: Box[] = []
         }
       }
     }
-    if (line.h > bodySize*1.15 && !/^\(.+\)$/.test(line.text)) {
+    if (line.h > Math.max(14,bodySize*1.2) && !/^(?:\(.+\)$|[□☐ㅇ*※]|예\))/.test(line.text)) {
       blocks.push({y:line.y,markdown:`${line.h>=17?'##':'###'} ${line.text}`}); continue;
     }
     const prev=lines[i-1]; const last=blocks.at(-1);
-    const isNew = /^(?:\d+[.)]\s|[•●▪]\s|[QA]\d+[.:]|[📌💡👉]|(?:호기심 자극형|정보 전달형|찬반 논쟁 유발형):)/.test(line.text);
+    const isNew = /^(?:예\)|[□☐ㅇ※■☞]|\*\s|\d+[.)]\s|[•●▪]\s|[QA]\d+[.:]|[📌💡👉]|(?:호기심 자극형|정보 전달형|찬반 논쟁 유발형):)/.test(line.text);
     if (last && prev && !isNew && !/^#{1,6} |^\|/.test(last.markdown) && Math.abs(prev.h-line.h)<1 &&
       prev.y-line.y < bodySize*2.05 && Math.abs(prev.x-line.x)<4 && prev.end>rightEdge-bodySize*2) {
       // An actual trailing space in the PDF run distinguishes a word boundary

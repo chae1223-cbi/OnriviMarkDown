@@ -466,8 +466,12 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
 
       // 💡 리스트와 spacer 사이, 또는 spacer와 리스트 사이는 마크다운 독립 블록 분리를 위해 빈 줄 주입
       const isListToSpacer = (isListLine(curr) && isNextSpacer) || (isCurrSpacer && isListLine(next)) || (isCurrSpacer && isNextSpacer);
+      // A compact imported HTML table must terminate before subsequent Markdown.
+      // This separator exists only in preview text; the saved source stays compact.
+      const isHtmlTableBoundary = /<\/table>\s*$/i.test(curr) && !isNextEmpty;
+      const isQuoteEnd = curr.trim().startsWith('>') && !next.trim().startsWith('>') && !isNextEmpty;
 
-      if (isListToSpacer || (!isTableToTable && !isQuoteToQuote && !isListToList && !isCurrEmpty && !isNextEmpty && !isCurrListRow && !isNextListRow && (isCurrSpecial || isNextSpecial || isNextNewIndent || isCurrSpacer || isNextSpacer))) {
+      if (isQuoteEnd || isHtmlTableBoundary || isListToSpacer || (!isTableToTable && !isQuoteToQuote && !isListToList && !isCurrEmpty && !isNextEmpty && !isCurrListRow && !isNextListRow && (isCurrSpecial || isNextSpecial || isNextNewIndent || isCurrSpacer || isNextSpacer))) {
         finalLines.push("");
         finalLineMap.push(origLineNum); // 추가된 빈 줄도 직전 원본 라인 번호에 매핑
       }

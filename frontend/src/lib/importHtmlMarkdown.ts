@@ -54,7 +54,7 @@ export function htmlToImportMarkdown(html: string): string {
   // Word exports often use typed markers instead of native list paragraphs.
   for (const p of Array.from(doc.querySelectorAll('p'))) {
     const match=(p.textContent||'').match(/^\s*(?:([•●▪])\s+|(\d+)[.)]\s+)/);
-    if (!match || p.querySelector('img') || p.closest('li,td,th,pre')) continue;
+    if (!match || p.querySelector('img,a[href^="#_Toc"]') || p.closest('li,td,th,pre')) continue;
     const ordered=!!match[2];
     let remaining=match[0].length;
     const texts=doc.createTreeWalker(p,4);
@@ -92,8 +92,10 @@ export function htmlToImportMarkdown(html: string): string {
       if(!trimmed) return value;
       // A space after punctuation keeps emphasis valid before Korean suffixes.
       const next=el.nextSibling?.textContent||'';
+      const previous=el.previousSibling?.textContent||'';
+      const needsLeadingSpace=new RegExp('^[\\p{P}\\p{S}]','u').test(trimmed) && new RegExp('[\\p{L}\\p{N}]$','u').test(previous);
       const needsSpace=new RegExp('[\\p{P}\\p{S}]$','u').test(trimmed) && new RegExp('^[\\p{L}\\p{N}]','u').test(next);
-      return (value.match(/^\s+/)?.[0]||'')+`**${trimmed}**`+(value.match(/\s+$/)?.[0]||(needsSpace?' ':''));
+      return (value.match(/^\s+/)?.[0]||(needsLeadingSpace?' ':''))+`**${trimmed}**`+(value.match(/\s+$/)?.[0]||(needsSpace?' ':''));
     }
     if (tag === 'em' || tag === 'i') { const value=content(); return value.trim() ? (value.match(/^\s+/)?.[0]||'')+`*${value.trim()}*`+(value.match(/\s+$/)?.[0]||'') : value; }
     if (tag === 'del' || tag === 's') return `~~${content()}~~`;
@@ -133,7 +135,7 @@ export function htmlToImportMarkdown(html: string): string {
       }).join('\n') + '\n';
     }
     if (tag === 'table') {
-      if (el.querySelector('td[colspan], th[colspan], td[rowspan], th[rowspan]')) {
+      if (el.querySelector('td[colspan], th[colspan], td[rowspan], th[rowspan], table')) {
         // Pipe tables cannot represent merged cells. Keep the table structure
         // and inline formatting, without carrying source scripts or handlers.
         const table = el.cloneNode(true) as HTMLElement;

@@ -1,3 +1,4 @@
+/** 🚨 @PATCH : 2026-10-08 — 세션 해제(kill_session) UUID 정규표현식 5그룹(8-4-4-4-12) 누락 수정 */
 /** 🚨 @PATCH : 2026-09-28 — 사용자별 요금제 변경 화면에 현재 주기와 관리자 수동 무료/유료 구분을 제공 */
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -254,7 +255,7 @@ export async function PATCH(req: Request) {
 
     if (action === 'kill_single_session') {
       const deviceId = body.deviceId;
-      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (!uuid.test(userId) || !uuid.test(deviceId || '')) return NextResponse.json({ success: false, error: 'Invalid user or device ID' }, { status: 400 });
       const result = await sql.begin(async tx => {
         const found = await tx`SELECT a.id FROM public.license_activations a
@@ -272,7 +273,7 @@ export async function PATCH(req: Request) {
     }
 
     if (action === 'kill_session') {
-      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (!uuid.test(userId)) return NextResponse.json({ success: false, error: 'Invalid user ID' }, { status: 400 });
       const result = await sql.begin(async tx => {
         const found = await tx`SELECT id FROM public.users WHERE id = ${userId}::uuid FOR UPDATE`;

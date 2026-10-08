@@ -1,3 +1,4 @@
+// 🚨 @PATCH : 2026-10-08 — 세션 해제(kill_session) UUID 정규표현식 5그룹(8-4-4-4-12) 누락 수정
 // 🚨 @PATCH : 2026-09-28 — 사용자별 요금제 변경 화면에 현재 주기와 관리자 수동 무료/유료 구분을 제공
 import { corsHeaders, jsonResponse, handleOptions, getSupabaseConfig, executeDeleteActivations, insertAuditLog } from './_shared.js';
 import { withBlogTransaction } from '../blog/_db.js';
@@ -232,7 +233,7 @@ export async function onRequestPatch(context) {
     }
 
     if (action === 'kill_session') {
-      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (!uuid.test(userId)) return jsonResponse({ success: false, error: 'Invalid user ID' }, 400);
       const result = await withBlogTransaction(env, async db => {
         const found = await db.query('SELECT id FROM public.users WHERE id = $1 FOR UPDATE', [userId]);

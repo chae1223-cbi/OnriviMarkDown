@@ -1,3 +1,4 @@
+/** 🚨 @PATCH : 2026-10-08 — 파라미터 세부 검증 오류 메시지 분리 개선 */
 /** 🚨 @PATCH : 2026-09-28 — SUPER 관리자의 플랜·무료/유료·사용기간·필수 사유 수동 변경을 단일 DB 트랜잭션으로 처리 */
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
@@ -27,12 +28,21 @@ export async function POST(request: Request) {
       return failure('REASON_REQUIRED', '변경 사유를 3자 이상 500자 이하로 입력해 주세요.', 400);
     }
     const maxDuration = durationUnit === 'DAY' ? 3650 : durationUnit === 'MONTH' ? 120 : durationUnit === 'YEAR' ? 10 : 0;
-    if (!UUID.test(userId) || !PLAN_CODE.test(planCode) ||
-        !['TRIAL', 'MONTHLY', 'YEARLY', 'NONE'].includes(billingCycle) ||
-        !['FREE', 'PAID'].includes(grantType) ||
-        (planCode === 'READER' ? durationValue !== 0 || durationUnit !== 'NONE' :
-          !Number.isInteger(durationValue) || durationValue < 1 || durationValue > maxDuration)) {
-      return failure('INVALID_PARAMS', '사용자, 요금제, 기간 또는 변경 사유를 확인해 주세요.', 400);
+    if (!UUID.test(userId)) {
+      return failure('INVALID_USER_ID', '유효한 사용자 ID(UUID)가 아닙니다.', 400);
+    }
+    if (!PLAN_CODE.test(planCode)) {
+      return failure('INVALID_PLAN_CODE', '유효한 요금제 코드가 아닙니다.', 400);
+    }
+    if (!['TRIAL', 'MONTHLY', 'YEARLY', 'NONE'].includes(billingCycle)) {
+      return failure('INVALID_BILLING_CYCLE', '유효한 결제 주기 구분이 아닙니다.', 400);
+    }
+    if (!['FREE', 'PAID'].includes(grantType)) {
+      return failure('INVALID_GRANT_TYPE', '유효한 제공 구분이 아닙니다.', 400);
+    }
+    if (planCode === 'READER' ? (durationValue !== 0 || durationUnit !== 'NONE') :
+        (!Number.isInteger(durationValue) || durationValue < 1 || durationValue > maxDuration)) {
+      return failure('INVALID_DURATION', '사용 기간 설정이 올바르지 않습니다.', 400);
     }
 
     const result = await sql.begin(async tx => {
