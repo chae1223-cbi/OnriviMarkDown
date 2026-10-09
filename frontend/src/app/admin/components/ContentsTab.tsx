@@ -49,6 +49,7 @@ interface ContentItem {
   url: string;
   file_name: string;
   source_title: string;
+  source_status?: string;
   source_id: string;
   author: string;
   created_at: string;
@@ -78,10 +79,17 @@ const formatDate = (val?: string | null) => {
   }
 };
 
-const isImageUrl = (url: string) => {
-  const clean = url.toLowerCase().split('?')[0];
-  return clean.match(/\.(jpeg|jpg|png|gif|webp|svg)$/) !== null || url.includes('/api/image/');
-};
+const fileExtension = (item: ContentItem) => item.file_name.split('.').pop()?.toLowerCase() || 'file';
+const isImageUrl = (url: string, name = '') => /\.(jpeg|jpg|png|gif|webp|svg|avif|bmp)$/i.test((name || url).split('?')[0]);
+const statusLabel = (status?: string) => ({PENDING:'접수',IN_PROGRESS:'처리 중',RESOLVED:'완료',CLOSED:'종료'}[status || ''] || status || '상태 미확인');
+function MediaPreview({item, large = false}: {item: ContentItem; large?: boolean}) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [item.url]);
+  const image = isImageUrl(item.url, item.file_name);
+  if (image && !failed) return <img src={item.url} alt={item.file_name} loading="lazy" onError={() => setFailed(true)} className={large ? 'max-h-[60vh] max-w-full object-contain' : 'w-full h-full object-contain'} />;
+  const Icon = ['zip','7z','rar'].includes(fileExtension(item)) ? FileArchive : FileText;
+  return <div className="flex flex-col items-center justify-center gap-2 p-3 text-zinc-600 dark:text-zinc-300"><Icon className="w-10 h-10"/><span className="text-sm font-bold">{fileExtension(item).toUpperCase()}</span><span className="text-xs">{failed ? '이미지를 불러오지 못했습니다' : '원본 열기로 내용을 확인하세요'}</span></div>;
+}
 
 export default function ContentsTab() {
   const [items, setItems] = useState<ContentItem[]>([]);
@@ -215,7 +223,7 @@ export default function ContentsTab() {
             <h4 className="text-xs font-bold text-blue-900 dark:text-blue-200">
               사용자 개인정보 보호 및 R2 클라우드 스토리지 안내
             </h4>
-            <p className="text-[11px] text-blue-700/90 dark:text-blue-300/80 mt-0.5">
+            <p className="text-xs text-blue-700/90 dark:text-blue-300/80 mt-0.5">
               사용자의 사적 에디터 문서는 일체 노출되지 않으며, 고객 지원 문의 첨부파일 및 기술 블로그 공식 에셋을 R2 스토리지(<code>onrivi-images</code>)와 연동하여 관리/삭제할 수 있습니다.
             </p>
           </div>
@@ -232,7 +240,7 @@ export default function ContentsTab() {
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 tracking-wider">총 관리 콘텐츠</span>
+            <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 tracking-wider">전체 첨부파일·블로그 미디어</span>
             <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400">
               <Files className="w-4 h-4" />
             </div>
@@ -387,7 +395,7 @@ export default function ContentsTab() {
         </div>
       ) : viewMode === 'grid' ? (
         /* 카드 그리드 뷰 */
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
           {items.map(item => {
             const isImg = isImageUrl(item.url);
             return (
@@ -400,18 +408,7 @@ export default function ContentsTab() {
                   onClick={() => setPreviewTarget(item)}
                   className="relative aspect-video bg-zinc-100 dark:bg-zinc-900 border-b border-[var(--admin-border)] flex items-center justify-center cursor-pointer overflow-hidden"
                 >
-                  {isImg ? (
-                    <img
-                      src={item.url}
-                      alt={item.file_name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      loading="lazy"
-                    />
-                  ) : item.file_name.endsWith('.zip') ? (
-                    <FileArchive className="w-10 h-10 text-amber-500" />
-                  ) : (
-                    <FileText className="w-10 h-10 text-zinc-400" />
-                  )}
+                  <MediaPreview item={item} />
 
                   {/* 호버 시 오버레이 */}
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
@@ -422,7 +419,7 @@ export default function ContentsTab() {
 
                   {/* 분류 배지 */}
                   <span
-                    className={`absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold shadow-xs ${
+                    className={`absolute top-2 left-2 px-2 py-0.5 rounded text-xs font-bold shadow-xs ${
                       item.category === 'INQUIRY'
                         ? 'bg-teal-500/90 text-white'
                         : 'bg-indigo-600/90 text-white'
@@ -436,28 +433,30 @@ export default function ContentsTab() {
                 <div className="p-3.5 flex-1 flex flex-col justify-between space-y-2">
                   <div>
                     <h5
-                      className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate cursor-pointer hover:underline"
+                      className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate cursor-pointer hover:underline"
                       title={item.file_name}
                       onClick={() => setPreviewTarget(item)}
                     >
                       {item.file_name}
                     </h5>
                     <p
-                      className="text-[11px] text-zinc-500 truncate mt-0.5"
+                      className="text-sm text-zinc-600 line-clamp-2 mt-1"
                       title={item.source_title}
                     >
-                      출처: {item.source_title}
+                      {item.category === 'INQUIRY' ? '문의' : '블로그'}: {item.source_title}
                     </p>
+                    <p className="text-xs text-zinc-600 mt-2">{formatDate(item.created_at)}{item.category === 'INQUIRY' && ` · ${statusLabel(item.source_status)}`}</p>
+                    {item.category === 'INQUIRY' && <a className="inline-block text-sm font-bold text-blue-600 mt-2 hover:underline" href={`/admin?tab=support&inquiry=${encodeURIComponent(item.source_id)}`}>문의 보기 →</a>}
                   </div>
 
-                  <div className="pt-2 border-t border-[var(--admin-border)] flex items-center justify-between text-[11px] text-zinc-500">
+                  <div className="pt-2 border-t border-[var(--admin-border)] flex items-center justify-between text-xs text-zinc-500">
                     <span className="truncate max-w-[100px]" title={item.author}>
                       {item.author}
                     </span>
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => handleCopy(item.url, item.id)}
-                        className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-blue-600"
+                        className="p-2 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-blue-600"
                         title="URL 복사"
                       >
                         {copiedId === item.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
@@ -466,7 +465,7 @@ export default function ContentsTab() {
                         href={item.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-blue-600"
+                        className="p-2 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-blue-600"
                         title="새 창에서 열기"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
@@ -474,7 +473,7 @@ export default function ContentsTab() {
                       {/* 삭제 버튼 */}
                       <button
                         onClick={() => setDeleteTarget(item)}
-                        className="p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 text-zinc-400 hover:text-rose-600 transition-colors"
+                        className="p-2 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 text-zinc-400 hover:text-rose-600 transition-colors"
                         title="콘텐츠 영구 삭제"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -516,11 +515,7 @@ export default function ContentsTab() {
                           onClick={() => setPreviewTarget(item)}
                           className="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-[var(--admin-border)] overflow-hidden flex items-center justify-center cursor-pointer hover:opacity-80"
                         >
-                          {isImg ? (
-                            <img src={item.url} alt="" className="w-full h-full object-cover" loading="lazy" />
-                          ) : (
-                            <FileArchive className="w-5 h-5 text-zinc-400" />
-                          )}
+                          <MediaPreview item={item} />
                         </div>
                       </td>
 
@@ -638,7 +633,7 @@ export default function ContentsTab() {
       {/* 5. 대형 원본 미리보기 모달 */}
       {previewTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="admin-glass-card max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border-[var(--admin-border)]">
+          <div className="admin-glass-card max-w-5xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border-[var(--admin-border)]">
             <div className="p-4 border-b border-[var(--admin-border)] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <FileImage className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -656,25 +651,10 @@ export default function ContentsTab() {
 
             <div className="p-6 overflow-y-auto space-y-4 custom-scrollbar">
               {/* 이미지 대형 미리보기 */}
-              {isImageUrl(previewTarget.url) ? (
-                <div className="rounded-xl overflow-hidden border border-[var(--admin-border)] bg-zinc-900/50 flex items-center justify-center max-h-96">
-                  <img
-                    src={previewTarget.url}
-                    alt={previewTarget.file_name}
-                    className="max-h-96 w-auto object-contain"
-                  />
-                </div>
-              ) : (
-                <div className="p-12 rounded-xl border border-[var(--admin-border)] bg-zinc-100 dark:bg-zinc-900 flex flex-col items-center justify-center gap-2">
-                  <FileArchive className="w-12 h-12 text-amber-500" />
-                  <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                    미리보기를 지원하지 않는 바이너리/압축 파일입니다.
-                  </span>
-                </div>
-              )}
+              <div className="min-h-48 rounded-xl border bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center p-4"><MediaPreview item={previewTarget} large /></div>
 
               {/* 상세 메타 정보 */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border border-[var(--admin-border)] space-y-1">
                   <div className="text-zinc-500">콘텐츠 구분</div>
                   <div className="font-bold text-zinc-900 dark:text-zinc-100">
@@ -694,7 +674,8 @@ export default function ContentsTab() {
                   <div className="font-semibold text-zinc-900 dark:text-zinc-100">
                     {previewTarget.source_title}
                   </div>
-                  <div className="text-[11px] text-zinc-500">작성자: {previewTarget.author}</div>
+                  {previewTarget.category === 'INQUIRY' && <div className="text-sm mt-2">{statusLabel(previewTarget.source_status)} · <a className="text-blue-600 font-bold hover:underline" href={`/admin?tab=support&inquiry=${encodeURIComponent(previewTarget.source_id)}`}>문의 보기 →</a></div>}
+                  <div className="text-xs text-zinc-500">작성자: {previewTarget.author}</div>
                 </div>
 
                 <div className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border border-[var(--admin-border)] space-y-1.5 col-span-1 sm:col-span-2">
@@ -702,12 +683,12 @@ export default function ContentsTab() {
                     <span>원본 미디어 URL</span>
                     <button
                       onClick={() => handleCopy(previewTarget.url, 'modal_url')}
-                      className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 text-[11px]"
+                      className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 text-xs"
                     >
                       {copiedId === 'modal_url' ? '복사됨!' : 'URL 복사'}
                     </button>
                   </div>
-                  <div className="p-2 rounded bg-white dark:bg-zinc-900 font-mono text-[11px] text-zinc-700 dark:text-zinc-300 break-all select-all border border-[var(--admin-border)]">
+                  <div className="p-2 rounded bg-white dark:bg-zinc-900 font-mono text-xs text-zinc-700 dark:text-zinc-300 break-all select-all border border-[var(--admin-border)]">
                     {previewTarget.url}
                   </div>
                 </div>
@@ -757,7 +738,7 @@ export default function ContentsTab() {
                 <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
                   콘텐츠 영구 삭제 확인
                 </h3>
-                <p className="text-[11px] text-zinc-500">
+                <p className="text-xs text-zinc-500">
                   R2 클라우드 스토리지 및 관련 데이터가 영구 삭제됩니다.
                 </p>
               </div>
@@ -769,13 +750,13 @@ export default function ContentsTab() {
                 <div className="font-bold text-zinc-900 dark:text-zinc-100 break-all font-mono">
                   {deleteTarget.file_name}
                 </div>
-                <div className="text-[11px] text-zinc-500">
+                <div className="text-xs text-zinc-500">
                   출처: {deleteTarget.source_title} ({deleteTarget.category_name})
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
+                <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
                   삭제 사유 (감사 로그에 기록됨)
                 </label>
                 <input
@@ -787,7 +768,7 @@ export default function ContentsTab() {
                 />
               </div>
 
-              <p className="text-[11px] text-rose-600 dark:text-rose-400 bg-rose-50/60 dark:bg-rose-950/30 p-2.5 rounded-lg border border-rose-200/60 dark:border-rose-900/40">
+              <p className="text-xs text-rose-600 dark:text-rose-400 bg-rose-50/60 dark:bg-rose-950/30 p-2.5 rounded-lg border border-rose-200/60 dark:border-rose-900/40">
                 ⚠️ 삭제된 파일은 복구할 수 없으며, 고객 문의 첨부 목록 또는 블로그 글의 해당 미디어 링크가 비활성화됩니다.
               </p>
             </div>

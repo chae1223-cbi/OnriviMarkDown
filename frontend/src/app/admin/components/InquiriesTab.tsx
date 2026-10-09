@@ -106,6 +106,14 @@ export default function InquiriesTab() {
     }
   };
 
+  const [openedLinkedInquiry, setOpenedLinkedInquiry] = useState<string | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('inquiry');
+    if (!id || id === openedLinkedInquiry) return;
+    const linked = inquiries.find(item => String(item.id) === id);
+    if (linked) { openModal(linked); setOpenedLinkedInquiry(id); }
+  }, [inquiries, openedLinkedInquiry]);
+
   const fetchAdminRole = async (userId: string) => {
     const { data } = await supabase.from('admins').select('admin_role').eq('user_id', userId).single();
     if (data?.admin_role === 'SUPER') setIsAdminSuper(true);

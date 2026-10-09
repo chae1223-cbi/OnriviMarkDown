@@ -35,6 +35,7 @@ export async function GET(req: Request) {
       SELECT 
         i.id as source_id,
         i.title as source_title,
+          i.status as source_status,
         i.email as author,
         i.created_at,
         url as file_url
@@ -51,6 +52,7 @@ export async function GET(req: Request) {
       url: row.file_url,
       file_name: extractFileName(row.file_url),
       source_title: row.source_title || '고객 문의 첨부파일',
+        source_status: row.source_status,
       source_id: row.source_id,
       author: row.author || '익명/회원',
       created_at: row.created_at,

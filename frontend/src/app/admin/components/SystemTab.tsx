@@ -308,7 +308,7 @@ export default function SystemTab() {
         {/* 오늘 발생 이벤트 */}
         <div className="admin-glass-card p-5 group hover:border-indigo-500/50 transition-all border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 tracking-wide">오늘 시스템 이벤트</span>
+            <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 tracking-wide">오늘 관리자 감사 기록</span>
             <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
               <Clock className="w-4 h-4" />
             </div>
@@ -316,7 +316,7 @@ export default function SystemTab() {
           <div className="text-2xl font-black text-indigo-700 dark:text-indigo-400 font-mono">
             {stats.total_events_today.toLocaleString()}
           </div>
-          <div className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mt-1">오늘 00시 이후 누적 감사/작업</div>
+          <div className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mt-1">오늘 누적 관리자 감사 로그 · API·브라우저 로그 제외</div>
         </div>
 
         {/* 시스템 이상 징후 감지 */}
