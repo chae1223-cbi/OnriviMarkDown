@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { reportClientLog } from '@/lib/clientLogs';
 import { getResourceSettings, saveResourceSettings, activateDriveAccount } from '@/lib/resourceSettings';
 import { restoreLocalProfileFolder } from '@/lib/profileStorage';
 import { useEffect, useCallback, useRef } from 'react';
@@ -1646,6 +1647,7 @@ export const useFileExplorer = ({
 
       // 5. 사이드바 열기 및 토스트
       setIsSidebarOpen(true);
+      reportClientLog('구글 드라이브 연결 완료', 'INFO', 'DRIVE_CONNECT');
       showToast(`구글 드라이브에 연결되었습니다. (${wsInfo.userEmail || '연결 완료'})`, "success");
       console.log(`[connectGoogleDrive] ✅ 구글 드라이브 연결 완료! (${wsInfo.userEmail || '연결됨'}), 파일 수: ${driveNodes.length}`);
 
@@ -1653,6 +1655,7 @@ export const useFileExplorer = ({
       restoreEnvironment(previous?.root?.driveFolderId === wsInfo.workspaceFolderId ? previous : null);
       window.dispatchEvent(new CustomEvent('onrivi:reload_profiles'));
     } catch (err: any) {
+      reportClientLog(err.message || '구글 드라이브 연결 실패', 'ERROR', 'DRIVE_CONNECT');
       console.error('[connectGoogleDrive Error]', err);
       showToast("구글 드라이브 연결 실패: " + (err.message || '인증 오류'), "error");
     } finally {

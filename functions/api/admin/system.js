@@ -124,15 +124,16 @@ export async function onRequestGet(context) {
         const dates = [...new Set([new Date(start).toISOString().slice(0,10), new Date(start+86400000-1).toISOString().slice(0,10)])];
         const listings = await Promise.all(dates.map(date => env.R2_BUCKET.list({ prefix: `_system-logs/${date}/`, limit: 1000 })));
         const listing = { objects: listings.flatMap(l=>l.objects), truncated: listings.some(l=>l.truncated) };
-        const newest = listing.objects.filter(object => { const stamp = Date.parse(object.key.split('/').pop().split('_')[0]); return stamp >= start && stamp < start+86400000; }).sort((a,b)=>b.key.localeCompare(a.key)).slice(0,60);
+        const newest = listing.objects.filter(object => { const stamp = Date.parse(object.key.split('/').pop().split('_')[0]); return stamp >= start && stamp < start+86400000; }).sort((a,b)=>b.key.localeCompare(a.key)).slice(0,1000);
         serverLogs = (await Promise.all(newest.map(async object => {
           const stored = await env.R2_BUCKET.get(object.key);
           return stored ? await stored.json() : null;
         }))).filter(entry => entry && Date.parse(entry.timestamp) >= start && Date.parse(entry.timestamp) < start+86400000);
-        if (listing.truncated) logError = '오늘 기록 중 일부만 표시됩니다. 운영 로그 보관 정책을 설정해 주세요.';
+        if (listing.truncated) logError = '오늘 기록 중 일부만 표시됩니다. 조회 한도를 초과했습니다. 이 화면의 검색 결과에는 누락이 있을 수 있습니다.';
       } catch { logError = '서버 로그 저장소를 조회하지 못했습니다.'; }
     } else if (source === 'server') logError = '서버 로그 저장소가 연결되지 않았습니다.';
 
+    serverLogs = serverLogs.filter(entry => !(entry.status < 400 && ['/api/device/session-status','/api/license/check-session'].includes(entry.route)));
     // 필터링 적용
     let filteredLogs = source === 'server' ? serverLogs : logs;
     if (filterLevel !== 'ALL') {
@@ -185,11 +186,11 @@ export async function onRequestGet(context) {
     return blogJson({
       success: true,
       logError,
-      logScope: 'API 요청 상태 기록 · 오늘(한국 시간) 최근 60건 · 콘솔/시작 로그 제외',
+      logScope: 'API·브라우저 오류 기록 · 오늘(한국 시간) 조회 범위 내 조건별 최근 60건 · 콘솔/시작 로그 제외',
       health,
       stats,
-      logs: filteredLogs,
-      total_logs: filteredLogs.length,
+      logs: filteredLogs.slice(0,60),
+      total_logs: Math.min(filteredLogs.length, 60),
       asOf: new Date().toISOString()
     });
   } catch (error) {

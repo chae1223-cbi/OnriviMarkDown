@@ -8,6 +8,7 @@
 // ====================================================================
 "use client";
 
+import { reportClientLog } from '@/lib/clientLogs';
 import React, { useEffect, useState, useCallback, useRef } from 'react'; // 🔗 React 코어 — 상태관리(useState), 부수효과(useEffect), 콜백 메모이제이션(useCallback), DOM/타이머 참조(useRef)
 import { useRouter } from 'next/navigation'; // 🔗 Next.js 라우터 — 페이지 이동(router.push) 및 쿼리 파라미터 접근
 import { supabase } from '@/lib/supabaseClient'; // 🔗 Supabase 클라이언트 — Auth 세션 관리, DB 쿼리(from), RPC 호출
@@ -462,6 +463,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
   const handleSelectPlan = async (plan: any) => { // 🎯 요금제 선택
     if (!user) return; // 🛡️ 유저 정보가 없을 때
     if (['REGULAR', 'ELITEPRO'].includes(String(plan.plan_code).toUpperCase())) return;
+    reportClientLog('요금제 선택·활성화 요청', 'INFO', 'PLAN_SELECT');
     setActionLoading('plan_' + plan.id); // ⏳ 로딩 상태 설정
 
     try {
@@ -499,11 +501,13 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
       localStorage.setItem('onrivi_last_run_time', Date.now().toString()); // 🔒 마지막 실행 시간 저장
       // -------------------------------------------------------------------------------------------
 
+      reportClientLog('요금제 활성화 완료', 'INFO', 'PLAN_CHANGE');
       showToast(`${plan.name} 플랜이 성공적으로 활성화되었습니다!`, 'success'); // 📢 토스트 알림
       await loadDashboardData(); // 🔄 대시보드 데이터 로드
       router.refresh(); // 🔄 페이지 컴포넌트 리프레시
     } catch (err: any) {
       console.error("❌ [Onrivi Purchase Terminal Critical Error]:", err); // ❌ 에러 로깅
+      reportClientLog(err.message || '요금제 활성화 실패', 'ERROR', 'PLAN_CHANGE');
       showToast(`플랜 활성화 실패: ${err.message}`, 'error'); // 📢 에러 토스트
     } finally {
       setActionLoading(null); // ❌ 로딩 상태 해제

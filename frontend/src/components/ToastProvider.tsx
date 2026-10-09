@@ -1,6 +1,7 @@
 "use client";
 
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useEffect } from 'react';
+import { reportClientLog } from '@/lib/clientLogs';
 import { showToast } from '@/utils/toast';
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
@@ -32,6 +33,13 @@ export const useToast = () => {
 // 🔗 @CALLS : showToast (from utils)
 // ====================================================================
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  useEffect(() => {
+    const onError = (event: ErrorEvent) => reportClientLog(event.message || '브라우저 실행 오류', 'ERROR', 'BROWSER_ERROR');
+    const onRejection = (event: PromiseRejectionEvent) => reportClientLog(event.reason instanceof Error ? event.reason.message : '처리되지 않은 비동기 오류', 'ERROR', 'UNHANDLED_REJECTION');
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onRejection);
+    return () => { window.removeEventListener('error', onError); window.removeEventListener('unhandledrejection', onRejection); };
+  }, []);
   // 💡 [ ToastProvider 정밀 리팩토링 ]
   // 기존의 꼬이기 쉬운 리액트 상태 JSX 코드를 아예 모두 삭제하여 순도를 높이고,
   // 공통 전역 알림 유틸리티(showToast)를 콘텍스트를 통해 호환 연동합니다.

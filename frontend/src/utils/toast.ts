@@ -1,3 +1,4 @@
+import { reportClientLog } from '@/lib/clientLogs';
 // 💡 [ Onrivi Author - 공용 독립형 프리미엄 '토마토 테마' 알림 유틸리티 모듈 ]
 // 이 모듈은 일렉트론 Chromium 캐시나 컴파일러 한글 인코딩 변조에 100% 독립적으로
 // 한글 깨짐 현상을 원천 차단하고 보석 같은 글래스모피즘 알림창을 동적으로 꽂아 넣습니다.
@@ -47,6 +48,7 @@ function translateToKorean(msg: string): string {
  */
 export const showToast = (message: string, type: ToastType = 'info') => {
   if (typeof window === 'undefined') return;
+  if (type === 'error' || type === 'warning') reportClientLog(translateToKorean(message), type === 'error' ? 'ERROR' : 'WARN', location.pathname === '/login' ? 'LOGIN_NOTICE' : 'USER_NOTICE');
 
   // 1. 알림 컨테이너가 없으면 body 하단에 생성 및 고유 스타일 부여 (Flex 레이아웃 구조)
   let container = document.getElementById('premium-toast-container');

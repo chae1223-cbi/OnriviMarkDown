@@ -11,6 +11,7 @@
 // ====================================================================
 "use client";
 
+import { reportClientLog } from '@/lib/clientLogs';
 import React, { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -44,6 +45,7 @@ export default function LoginPage() {
       return;
     }
 
+    reportClientLog('이메일 로그인 시작', 'INFO', 'LOGIN');
     setLoading(true);
 
     try {
@@ -70,6 +72,7 @@ export default function LoginPage() {
         throw new Error(error.message);
       }
 
+      reportClientLog('이메일 인증 성공', 'INFO', 'LOGIN');
       // ==================================================================
       // 로그인 성공 시 라이선스 상태 확인 후 분기 및 로컬 스토리지/세션 동기화
       // ==================================================================
@@ -136,6 +139,7 @@ export default function LoginPage() {
         router.push(`/dashboard${window.location.search}`);
       }
     } catch (err: any) {
+      reportClientLog(err.message || '이메일 로그인 실패', 'ERROR', 'LOGIN');
       console.error("로그인 에러:", err);
       showToast(err.message || "로그인에 실패했습니다. 정보를 다시 확인해 주세요.", "error");
     } finally {
@@ -146,6 +150,7 @@ export default function LoginPage() {
   // 구글 로그인 처리
   const handleGoogleLogin = async () => {
     try {
+      reportClientLog('구글 로그인 요청', 'INFO', 'LOGIN');
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -161,6 +166,7 @@ export default function LoginPage() {
         throw new Error(error.message);
       }
     } catch (err: any) {
+      reportClientLog(err.message || '구글 로그인 요청 실패', 'ERROR', 'LOGIN');
       console.error("구글 로그인 에러:", err);
       showToast(err.message || "구글 로그인 요청 중 오류가 발생했습니다.", "error");
     }

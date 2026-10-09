@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { reportClientLog } from '@/lib/clientLogs';
 import { useCallback } from 'react';
 import { waitForExportContent } from '@/lib/exportPreparation';
 import { exportPDF, exportHTML, exportEPUB, exportPNG, exportDOCX, exportHWPX } from '@/lib/exportHandlers';
@@ -544,6 +545,7 @@ export const useEditorHandlers = ({
               await saveDriveFileContent(token, driveFileId, currentVal);
               lastSavedContentRef.current = currentVal;
               setSaveStatus('saved');
+              reportClientLog('문서 저장 완료', 'INFO', 'DOCUMENT_SAVE');
               setTimeout(() => {
                 setTabs(prev => prev.map(t => {
                   const tDriveId = (t as any).driveFileId || (t as any).driveId;
@@ -556,11 +558,13 @@ export const useEditorHandlers = ({
               return;
             } catch (driveErr: any) {
               setSaveStatus('unsaved');
+            reportClientLog('문서 저장 실패 또는 저장 권한·연결 확인 필요', 'ERROR', 'DOCUMENT_SAVE');
               showToast("구글 드라이브 저장 실패: " + (driveErr.message || driveErr), 'error');
               return;
             }
           } else {
             setSaveStatus('unsaved');
+            reportClientLog('문서 저장 실패 또는 저장 권한·연결 확인 필요', 'ERROR', 'DOCUMENT_SAVE');
             showToast("구글 드라이브 인증 토큰이 필요합니다. 다시 연결해 주세요.", 'error');
             return;
           }
@@ -586,6 +590,7 @@ export const useEditorHandlers = ({
             if (success) {
               lastSavedContentRef.current = currentVal;
               setSaveStatus('saved');
+              reportClientLog('문서 저장 완료', 'INFO', 'DOCUMENT_SAVE');
               setTimeout(() => {
                 setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
               }, 150);
@@ -595,6 +600,7 @@ export const useEditorHandlers = ({
             }
           } catch (e) {
             setSaveStatus('unsaved');
+            reportClientLog('문서 저장 실패 또는 저장 권한·연결 확인 필요', 'ERROR', 'DOCUMENT_SAVE');
             showToast("저장 실패: " + e, 'error');
             return;
           }
@@ -608,6 +614,7 @@ export const useEditorHandlers = ({
             if (res.ok) {
               lastSavedContentRef.current = currentVal;
               setSaveStatus('saved');
+              reportClientLog('문서 저장 완료', 'INFO', 'DOCUMENT_SAVE');
               setTimeout(() => {
                 setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
               }, 150);
@@ -617,6 +624,7 @@ export const useEditorHandlers = ({
             }
           } catch (e: any) {
             setSaveStatus('unsaved');
+            reportClientLog('문서 저장 실패 또는 저장 권한·연결 확인 필요', 'ERROR', 'DOCUMENT_SAVE');
             showToast("저장 실패: " + e.message, 'error');
             return;
           }
@@ -628,6 +636,7 @@ export const useEditorHandlers = ({
               await writable.close();
               lastSavedContentRef.current = currentVal;
               setSaveStatus('saved');
+              reportClientLog('문서 저장 완료', 'INFO', 'DOCUMENT_SAVE');
               setTimeout(() => {
                 setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
               }, 150);
@@ -636,6 +645,7 @@ export const useEditorHandlers = ({
               return;
             } catch (e: any) {
               setSaveStatus('unsaved');
+            reportClientLog('문서 저장 실패 또는 저장 권한·연결 확인 필요', 'ERROR', 'DOCUMENT_SAVE');
               showToast("저장 실패: " + e.message, 'error');
               return;
             }
@@ -643,6 +653,7 @@ export const useEditorHandlers = ({
             vfsWriteFile(fileNode.path, currentVal);
             lastSavedContentRef.current = currentVal;
             setSaveStatus('saved');
+              reportClientLog('문서 저장 완료', 'INFO', 'DOCUMENT_SAVE');
             setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
             showToast("현재 파일에 안전하게 저장되었습니다.", "success");
             triggerKnowledgeAutoSync(fileNode.path, currentVal);
@@ -670,6 +681,7 @@ export const useEditorHandlers = ({
             setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
             lastSavedContentRef.current = currentVal;
             setSaveStatus('saved');
+              reportClientLog('문서 저장 완료', 'INFO', 'DOCUMENT_SAVE');
             setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
             await refreshFileList();
             window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
@@ -679,6 +691,7 @@ export const useEditorHandlers = ({
           }
         } catch (e) {
           setSaveStatus('unsaved');
+            reportClientLog('문서 저장 실패 또는 저장 권한·연결 확인 필요', 'ERROR', 'DOCUMENT_SAVE');
           showToast("저장 실패: " + e, 'error');
         }
       } else if (typeof (window as any).showSaveFilePicker === 'function') {
@@ -715,6 +728,7 @@ export const useEditorHandlers = ({
           setCurrentFileNode({ name: fileHandle.name, kind: 'file', handle: fileHandle });
           lastSavedContentRef.current = currentVal;
           setSaveStatus('saved');
+              reportClientLog('문서 저장 완료', 'INFO', 'DOCUMENT_SAVE');
           setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
           await refreshFileList();
           window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
@@ -722,6 +736,7 @@ export const useEditorHandlers = ({
         } catch (e: any) {
           if (e.name !== 'AbortError') {
             setSaveStatus('unsaved');
+            reportClientLog('문서 저장 실패 또는 저장 권한·연결 확인 필요', 'ERROR', 'DOCUMENT_SAVE');
             showToast("저장 실패: " + e.message, 'error');
           } else {
             setSaveStatus('unsaved');
@@ -834,6 +849,7 @@ export const useEditorHandlers = ({
             setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
               lastSavedContentRef.current = currentVal;
               setSaveStatus('saved');
+              reportClientLog('문서 저장 완료', 'INFO', 'DOCUMENT_SAVE');
               setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
               await refreshFileList();
             window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
@@ -843,6 +859,7 @@ export const useEditorHandlers = ({
           }
         } catch (e) {
           setSaveStatus('unsaved');
+            reportClientLog('문서 저장 실패 또는 저장 권한·연결 확인 필요', 'ERROR', 'DOCUMENT_SAVE');
           showToast("저장 실패: " + e, 'error');
         }
       } else if (typeof (window as any).showSaveFilePicker === 'function') {
@@ -877,6 +894,7 @@ export const useEditorHandlers = ({
           setCurrentFileNode({ name: fileHandle.name, kind: 'file', handle: fileHandle });
             lastSavedContentRef.current = currentVal;
             setSaveStatus('saved');
+              reportClientLog('문서 저장 완료', 'INFO', 'DOCUMENT_SAVE');
             setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
             await refreshFileList();
           window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
@@ -884,6 +902,7 @@ export const useEditorHandlers = ({
         } catch (e: any) {
           if (e.name !== 'AbortError') {
             setSaveStatus('unsaved');
+            reportClientLog('문서 저장 실패 또는 저장 권한·연결 확인 필요', 'ERROR', 'DOCUMENT_SAVE');
             showToast("저장 실패: " + e.message, 'error');
           } else {
             setSaveStatus('unsaved');
@@ -909,6 +928,7 @@ export const useEditorHandlers = ({
         } catch (e: any) {
           if (e.name !== 'AbortError') {
             setSaveStatus('unsaved');
+            reportClientLog('문서 저장 실패 또는 저장 권한·연결 확인 필요', 'ERROR', 'DOCUMENT_SAVE');
             showToast("저장 실패: " + (e.message || e), 'error');
           } else {
             setSaveStatus('unsaved');
