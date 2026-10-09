@@ -5,10 +5,11 @@ import { verifyAdmin } from '@/lib/adminAuth';
 
 export async function GET(req: Request) {
   try {
-    const auth = await verifyAdmin(req);
+    const auth = await verifyAdmin(req, true);
     if (!auth.user) return NextResponse.json({ success: false, error: auth.error }, { status: 403 });
 
     const { searchParams } = new URL(req.url);
+    const serverSource = searchParams.get('source') === 'server';
     const filterLevel = searchParams.get('level') || 'ALL'; // ALL, INFO, WARN, ERROR
     const search = (searchParams.get('search') || '').trim().toLowerCase();
 
@@ -88,7 +89,7 @@ export async function GET(req: Request) {
       };
     });
 
-    let filteredLogs = logs;
+    let filteredLogs = serverSource ? [] : logs;
     if (filterLevel !== 'ALL') {
       filteredLogs = filteredLogs.filter(l => l.level === filterLevel);
     }
@@ -110,12 +111,12 @@ export async function GET(req: Request) {
         version: dbVersion
       },
       storage: {
-        status: 'ONLINE',
+        status: 'UNKNOWN',
         bucket: 'onrivi-images',
         binding: 'R2_BUCKET'
       },
       hyperdrive: {
-        status: 'ACTIVE'
+        status: 'UNKNOWN'
       },
       server: {
         runtime: 'Next.js App Server / Edge',
@@ -130,11 +131,12 @@ export async function GET(req: Request) {
       total_users: counts.user_count || 0,
       active_subscriptions: counts.active_sub_count || 0,
       db_latency_ms: dbLatencyMs,
-      error_count_24h: 0
+      error_count_24h: null
     };
 
     return NextResponse.json({
       success: true,
+      logError: serverSource ? '개발 서버의 API 로그 수집은 연결되지 않았습니다. 운영 Cloudflare 배포에서 제공됩니다.' : null,
       health,
       stats,
       logs: filteredLogs,

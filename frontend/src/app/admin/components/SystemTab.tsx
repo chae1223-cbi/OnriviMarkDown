@@ -41,7 +41,7 @@ interface SystemHealth {
     version: string;
   };
   storage: {
-    status: 'ONLINE' | 'OFFLINE';
+    status: 'ONLINE' | 'OFFLINE' | 'UNKNOWN';
     bucket: string;
     binding: string;
   };
@@ -61,7 +61,7 @@ interface SystemStats {
   total_users: number;
   active_subscriptions: number;
   db_latency_ms: number;
-  error_count_24h: number;
+  error_count_24h: number | null;
 }
 
 interface SystemLogItem {
@@ -118,6 +118,9 @@ export default function SystemTab() {
     error_count_24h: 0
   });
 
+  const [source, setSource] = useState('server');
+  const [connectionError, setConnectionError] = useState('');
+  const [logScope, setLogScope] = useState('');
   const [logs, setLogs] = useState<SystemLogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [levelFilter, setLevelFilter] = useState<'ALL' | 'INFO' | 'WARN' | 'ERROR'>('ALL');
@@ -131,6 +134,7 @@ export default function SystemTab() {
     try {
       if (!isSilent) setLoading(true);
       const params = new URLSearchParams({
+        source,
         level: levelFilter,
         search: search.trim()
       });
@@ -139,6 +143,8 @@ export default function SystemTab() {
       if (!res.ok) throw new Error(`시스템 정보 조회 실패 (HTTP ${res.status})`);
       const data = await res.json();
       if (data.success) {
+        setConnectionError(data.logError || '');
+        setLogScope(data.logScope || '개발 환경: 관리자 활동 기록만 제공');
         if (data.health) setHealth(data.health);
         if (data.stats) setStats(data.stats);
         if (data.logs) {
@@ -155,12 +161,13 @@ export default function SystemTab() {
         setLastFetchedAt(new Date().toLocaleTimeString());
       }
     } catch (err: any) {
+      setConnectionError('조회 실패: 최신 상태를 확인할 수 없습니다.');
       console.error('System fetch error:', err);
       if (!isSilent) showToast(err.message || '시스템 정보를 불러오지 못했습니다.', 'error');
     } finally {
       if (!isSilent) setLoading(false);
     }
-  }, [levelFilter, search]);
+  }, [levelFilter, search, source]);
 
   useEffect(() => {
     fetchSystemData(false);
@@ -170,7 +177,7 @@ export default function SystemTab() {
   useEffect(() => {
     if (!isAutoRefresh) return;
     const interval = setInterval(() => {
-      fetchSystemData(true);
+      if (document.visibilityState === 'visible') fetchSystemData(true);
     }, 3000);
     return () => clearInterval(interval);
   }, [isAutoRefresh, fetchSystemData]);
@@ -205,14 +212,14 @@ export default function SystemTab() {
           <div>
             <div className="flex items-center gap-2.5">
               <h3 className="text-base font-extrabold text-zinc-900 dark:text-zinc-50 tracking-tight">
-                시스템 상태 정상 (HEALTHY)
+                {loading ? '상태 확인 중' : connectionError ? '상태 확인 필요' : health.overall === 'HEALTHY' ? '시스템 상태 정상' : '시스템 상태 점검 필요'}
               </h3>
               <span className="px-2.5 py-0.5 rounded-md text-xs font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
-                정상 가동 중
+                {connectionError ? '확인 불가' : health.overall}
               </span>
             </div>
             <p className="text-xs font-mono font-semibold text-zinc-700 dark:text-zinc-300 mt-1">
-              Cloudflare Edge Functions • {health.server.region} • 마지막 갱신: {lastFetchedAt || '연결 중'}
+              {health.server.runtime} • {health.server.region} • 마지막 갱신: {lastFetchedAt || '연결 중'}
             </p>
           </div>
         </div>
@@ -268,7 +275,7 @@ export default function SystemTab() {
             <span className="text-xs font-bold text-zinc-600 dark:text-zinc-400">ms 지연</span>
           </div>
           <div className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mt-1 truncate" title={health.database.version}>
-            상태: <strong className="text-emerald-700 dark:text-emerald-400 font-extrabold">ONLINE</strong> ({health.database.version.split(' ')[0]})
+            상태: <strong className="text-emerald-700 dark:text-emerald-400 font-extrabold">{health.database.status}</strong> ({health.database.version.split(' ')[0]})
           </div>
         </div>
 
@@ -319,6 +326,13 @@ export default function SystemTab() {
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-3 items-center">
+        <select aria-label="로그 종류" value={source} onChange={e=>setSource(e.target.value)} className="border rounded-lg p-2">
+          <option value="server">서버 API 로그</option><option value="audit">관리자 활동 기록</option>
+        </select>
+        <span className="text-sm">{source === 'server' ? logScope : '관리자 조치 최근 60건'}</span>
+        {connectionError && <span role="alert" className="text-red-700">{connectionError}</span>}
+      </div>
       {/* 3. 실시간 시스템 로그 콘솔 뷰어 (글씨 크기 상향 & 고대비 가독성 극대화) */}
       <div className="admin-glass-card overflow-hidden flex flex-col border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-md">
         {/* 헤더 바 */}
@@ -331,7 +345,7 @@ export default function SystemTab() {
             </div>
             <Terminal className="w-4 h-4 text-blue-700 dark:text-blue-400" />
             <h4 className="text-sm font-extrabold text-zinc-950 dark:text-zinc-50 tracking-wider">
-              실시간 시스템 로그 ({logs.length}건)
+              {source === 'server' ? '서버 API 로그' : '관리자 활동 기록'} ({logs.length}건)
             </h4>
           </div>
 
@@ -442,7 +456,7 @@ export default function SystemTab() {
         <div className="px-5 py-3 bg-zinc-100/90 dark:bg-zinc-800/90 border-t border-zinc-200 dark:border-zinc-700 flex items-center justify-between text-xs font-bold font-mono text-zinc-700 dark:text-zinc-300">
           <span className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
-            연결 상태: 정상 (CONNECTED) • 수신된 로그: {logs.length}건
+            연결 상태: {connectionError ? '확인 불가' : lastFetchedAt ? '조회 완료' : '연결 중'} • 수신된 로그: {logs.length}건
           </span>
           <span>자동 갱신: {isAutoRefresh ? '활성화 (3초 주기)' : '일시정지됨'}</span>
         </div>

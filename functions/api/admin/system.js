@@ -8,7 +8,7 @@ export async function onRequestGet(context) {
   try {
     const { request, env } = context;
 
-    const authResult = await checkAdminAuth(request, env, ['SUPER', 'SUPPORT']);
+    const authResult = await checkAdminAuth(request, env, ['SUPER']);
     if (authResult.error) {
       return blogJson({ success: false, error: authResult.error }, authResult.status || 403);
     }
@@ -76,7 +76,7 @@ export async function onRequestGet(context) {
     let r2Status = 'OFFLINE';
     let r2Details = { binding: 'R2_BUCKET', bucket: 'onrivi-images' };
     if (env.R2_BUCKET) {
-      r2Status = 'ONLINE';
+      try { await env.R2_BUCKET.list({ prefix: '_system-logs/', limit: 1 }); r2Status = 'ONLINE'; } catch { r2Status = 'OFFLINE'; }
     }
 
     // 3. Hyperdrive 연결 풀러 상태
@@ -113,8 +113,24 @@ export async function onRequestGet(context) {
       };
     });
 
+    const source = url.searchParams.get('source') || 'server';
+    let serverLogs = [];
+    let logError = null;
+    if (source === 'server' && env.R2_BUCKET) {
+      try {
+        const date = new Date().toISOString().slice(0,10);
+        const listing = await env.R2_BUCKET.list({ prefix: `_system-logs/${date}/`, limit: 1000 });
+        const newest = listing.objects.sort((a,b)=>b.key.localeCompare(a.key)).slice(0,60);
+        serverLogs = (await Promise.all(newest.map(async object => {
+          const stored = await env.R2_BUCKET.get(object.key);
+          return stored ? await stored.json() : null;
+        }))).filter(Boolean);
+        if (listing.truncated) logError = '오늘 기록 중 일부만 표시됩니다. 운영 로그 보관 정책을 설정해 주세요.';
+      } catch { logError = '서버 로그 저장소를 조회하지 못했습니다.'; }
+    } else if (source === 'server') logError = '서버 로그 저장소가 연결되지 않았습니다.';
+
     // 필터링 적용
-    let filteredLogs = logs;
+    let filteredLogs = source === 'server' ? serverLogs : logs;
     if (filterLevel !== 'ALL') {
       filteredLogs = filteredLogs.filter(l => l.level === filterLevel);
     }
@@ -129,7 +145,7 @@ export async function onRequestGet(context) {
     }
 
     const health = {
-      overall: dbStatus === 'ONLINE' ? 'HEALTHY' : 'DEGRADED',
+      overall: dbStatus === 'ONLINE' && r2Status === 'ONLINE' ? 'HEALTHY' : 'DEGRADED',
       database: {
         status: dbStatus,
         latency_ms: dbLatencyMs,
@@ -156,11 +172,13 @@ export async function onRequestGet(context) {
       total_users: dbStats.total_users,
       active_subscriptions: dbStats.active_subscriptions,
       db_latency_ms: dbLatencyMs,
-      error_count_24h: 0 // 최근 발생한 시스템 크리티컬 오류
+      error_count_24h: null // HTTP log sample is not a complete 24-hour count
     };
 
     return blogJson({
       success: true,
+      logError,
+      logScope: 'API 요청 상태 기록 · 오늘(UTC) 최근 60건 · 콘솔/시작 로그 제외',
       health,
       stats,
       logs: filteredLogs,

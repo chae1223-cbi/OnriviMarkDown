@@ -2970,7 +2970,8 @@ ipcMain.handle('file:readFromPath', async (event, filePath) => {
       throw new Error(`파일을 찾을 수 없습니다: ${filePath}`);
     }
       
-    const content = fs.readFileSync(cleanPath, 'utf-8');
+    const rawContent = await fs.promises.readFile(cleanPath, 'utf-8');
+    const content = require('./desktopInlineImages').externalizeInlineImages(rawContent, cleanPath);
     return {
       name: path.basename(cleanPath),
       path: cleanPath,
