@@ -4,11 +4,11 @@
  * -----------------------------------------------------------------------
  * 🚨 @PATCH : **2026-10-08** — [불필요한 콘텐츠 영구 삭제(DELETE) 기능 및 Cloudflare R2 스토리지 동기화 탑재]:
  *             1. 불필요한 파일 선택/개별 삭제 확인 모달 및 Cloudflare R2 스토리지(onrivi-images) 실시간 객체 제거 연동
- *             2. 고객 문의(support_inquiries) 첨부 목록에서 제거 및 관리자 감사 로그(CONTENT_DELETE) 자동 기록
+ *             2. 랜딩페이지(support_inquiries) 첨부 목록에서 제거 및 관리자 감사 로그(CONTENT_DELETE) 자동 기록
  * 🚨 @PATCH : **2026-10-08** — [사용자 개인 에디터 첨부 제외 공식 콘텐츠 관리(ContentsTab) 신규 구축]:
  *             1. 사용자 개인 마크다운 에디터 첨부 미디어 철저 배제(프라이버시 보호)
  *             2. 서비스 운영 공식 에셋(고객 지원 문의 첨부파일, 기술 블로그 공식 에셋) 통합 관리 대시보드 제공
- *             3. 3대 핵심 통계 카드(총 관리 에셋, 고객 문의 첨부, 블로그 에셋) 탑재
+ *             3. 3대 핵심 통계 카드(총 관리 에셋, 랜딩페이지 파일, 블로그 에셋) 탑재
  *             4. 카드 그리드 뷰(Grid) / 목록 테이블 뷰(Table) 전환 지원
  *             5. 원본 미디어 대형 팝업 모달, URL 클립보드 복사, 원본 새 창 열기, 페이징 지원
  * -----------------------------------------------------------------------
@@ -44,27 +44,28 @@ import { showToast } from '@/utils/toast';
 
 interface ContentItem {
   id: string;
-  category: 'INQUIRY' | 'BLOG';
+  category: 'LANDING' | 'BLOG';
   category_name: string;
   url: string;
   file_name: string;
   source_title: string;
-  source_status?: string;
+  source_file?: string;
+  read_only?: boolean;
   source_id: string;
   author: string;
-  created_at: string;
-  source_type: 'support' | 'blog';
+  created_at: string | null;
+  source_type: 'landing' | 'blog';
 }
 
 interface ContentStats {
   total: number;
-  inquiry: number;
+  landing: number;
   blog: number;
 }
 
 const TYPE_OPTIONS = [
   { value: 'ALL', label: '전체 콘텐츠' },
-  { value: 'INQUIRY', label: '고객 문의 첨부파일' },
+  { value: 'LANDING', label: '랜딩페이지 파일' },
   { value: 'BLOG', label: '기술 블로그 에셋' }
 ];
 
@@ -81,11 +82,11 @@ const formatDate = (val?: string | null) => {
 
 const fileExtension = (item: ContentItem) => item.file_name.split('.').pop()?.toLowerCase() || 'file';
 const isImageUrl = (url: string, name = '') => /\.(jpeg|jpg|png|gif|webp|svg|avif|bmp)$/i.test((name || url).split('?')[0]);
-const statusLabel = (status?: string) => ({PENDING:'접수',IN_PROGRESS:'처리 중',RESOLVED:'완료',CLOSED:'종료'}[status || ''] || status || '상태 미확인');
 function MediaPreview({item, large = false}: {item: ContentItem; large?: boolean}) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [item.url]);
   const image = isImageUrl(item.url, item.file_name);
+  if (large && fileExtension(item) === 'mp4') return <video src={item.url} controls preload="metadata" className="max-h-[60vh] max-w-full" />;
   if (image && !failed) return <img src={item.url} alt={item.file_name} loading="lazy" onError={() => setFailed(true)} className={large ? 'max-h-[60vh] max-w-full object-contain' : 'w-full h-full object-contain'} />;
   const Icon = ['zip','7z','rar'].includes(fileExtension(item)) ? FileArchive : FileText;
   return <div className="flex flex-col items-center justify-center gap-2 p-3 text-zinc-600 dark:text-zinc-300"><Icon className="w-10 h-10"/><span className="text-sm font-bold">{fileExtension(item).toUpperCase()}</span><span className="text-xs">{failed ? '이미지를 불러오지 못했습니다' : '원본 열기로 내용을 확인하세요'}</span></div>;
@@ -93,7 +94,7 @@ function MediaPreview({item, large = false}: {item: ContentItem; large?: boolean
 
 export default function ContentsTab() {
   const [items, setItems] = useState<ContentItem[]>([]);
-  const [stats, setStats] = useState<ContentStats>({ total: 0, inquiry: 0, blog: 0 });
+  const [stats, setStats] = useState<ContentStats>({ total: 0, landing: 0, blog: 0 });
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const limit = 20;
@@ -134,7 +135,7 @@ export default function ContentsTab() {
         if (data.stats) {
           setStats({
             total: Number(data.stats.total || 0),
-            inquiry: Number(data.stats.inquiry || 0),
+            landing: Number(data.stats.landing || 0),
             blog: Number(data.stats.blog || 0)
           });
         }
@@ -169,7 +170,7 @@ export default function ContentsTab() {
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
-    showToast('미디어 URL이 복사되었습니다.', 'info');
+    showToast('파일 URL이 복사되었습니다.', 'info');
     setTimeout(() => setCopiedId(null), 2000);
   };
 
@@ -221,10 +222,10 @@ export default function ContentsTab() {
           </div>
           <div>
             <h4 className="text-xs font-bold text-blue-900 dark:text-blue-200">
-              사용자 개인정보 보호 및 R2 클라우드 스토리지 안내
+              공개 콘텐츠 관리 안내
             </h4>
             <p className="text-xs text-blue-700/90 dark:text-blue-300/80 mt-0.5">
-              사용자의 사적 에디터 문서는 일체 노출되지 않으며, 고객 지원 문의 첨부파일 및 기술 블로그 공식 에셋을 R2 스토리지(<code>onrivi-images</code>)와 연동하여 관리/삭제할 수 있습니다.
+              랜딩페이지 이미지·영상·로고와 기술 블로그 파일을 확인합니다. 랜딩페이지 파일은 소스에서 수정하며, 고객 문의 첨부파일과 개인 문서는 표시하지 않습니다.
             </p>
           </div>
         </div>
@@ -240,7 +241,7 @@ export default function ContentsTab() {
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 tracking-wider">전체 첨부파일·블로그 미디어</span>
+            <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 tracking-wider">전체 공개 콘텐츠</span>
             <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400">
               <Files className="w-4 h-4" />
             </div>
@@ -248,26 +249,26 @@ export default function ContentsTab() {
           <div className="text-2xl font-black text-zinc-900 dark:text-zinc-100 font-mono">
             {stats.total.toLocaleString()}
           </div>
-          <div className="text-xs text-zinc-500 mt-1">문의 첨부 및 공식 블로그 에셋 누적</div>
+          <div className="text-xs text-zinc-500 mt-1">랜딩페이지 및 기술 블로그 파일</div>
         </div>
 
-        {/* 고객 문의 첨부파일 */}
+        {/* 랜딩페이지 파일 */}
         <div
-          onClick={() => { setTypeFilter('INQUIRY'); setPage(1); }}
+          onClick={() => { setTypeFilter('LANDING'); setPage(1); }}
           className={`admin-glass-card p-5 cursor-pointer transition-all ${
-            typeFilter === 'INQUIRY' ? 'border-teal-500 shadow-md ring-1 ring-teal-500/30' : 'hover:border-teal-500/40'
+            typeFilter === 'LANDING' ? 'border-teal-500 shadow-md ring-1 ring-teal-500/30' : 'hover:border-teal-500/40'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 tracking-wider">고객 문의 첨부</span>
+            <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 tracking-wider">랜딩페이지 파일</span>
             <div className="w-8 h-8 rounded-lg bg-teal-500/10 flex items-center justify-center text-teal-600 dark:text-teal-400">
               <LifeBuoy className="w-4 h-4" />
             </div>
           </div>
           <div className="text-2xl font-black text-teal-600 dark:text-teal-400 font-mono">
-            {stats.inquiry.toLocaleString()}
+            {stats.landing.toLocaleString()}
           </div>
-          <div className="text-xs text-zinc-500 mt-1">1:1 고객 문의 오류 캡처/파일</div>
+          <div className="text-xs text-zinc-500 mt-1">서비스 소개 이미지·영상·로고</div>
         </div>
 
         {/* 기술 블로그 에셋 */}
@@ -300,7 +301,7 @@ export default function ContentsTab() {
               type="text"
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
-              placeholder="파일명, 문의 제목, 블로그 글 제목, 작성자 검색..."
+              placeholder="파일명, 랜딩페이지 사용 위치, 블로그 제목 검색..."
               className="admin-input pl-9 pr-20 w-full text-sm font-medium text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
             />
             <button
@@ -420,7 +421,7 @@ export default function ContentsTab() {
                   {/* 분류 배지 */}
                   <span
                     className={`absolute top-2 left-2 px-2 py-0.5 rounded text-xs font-bold shadow-xs ${
-                      item.category === 'INQUIRY'
+                      item.category === 'LANDING'
                         ? 'bg-teal-500/90 text-white'
                         : 'bg-indigo-600/90 text-white'
                     }`}
@@ -443,10 +444,9 @@ export default function ContentsTab() {
                       className="text-sm text-zinc-600 line-clamp-2 mt-1"
                       title={item.source_title}
                     >
-                      {item.category === 'INQUIRY' ? '문의' : '블로그'}: {item.source_title}
+                      {item.category === 'LANDING' ? '랜딩페이지' : '블로그'}: {item.source_title}
                     </p>
-                    <p className="text-xs text-zinc-600 mt-2">{formatDate(item.created_at)}{item.category === 'INQUIRY' && ` · ${statusLabel(item.source_status)}`}</p>
-                    {item.category === 'INQUIRY' && <a className="inline-block text-sm font-bold text-blue-600 mt-2 hover:underline" href={`/admin?tab=support&inquiry=${encodeURIComponent(item.source_id)}`}>문의 보기 →</a>}
+                    <p className="text-xs text-zinc-600 mt-2">{item.created_at ? formatDate(item.created_at) : '소스에 포함된 정적 파일'}</p>
                   </div>
 
                   <div className="pt-2 border-t border-[var(--admin-border)] flex items-center justify-between text-xs text-zinc-500">
@@ -472,9 +472,10 @@ export default function ContentsTab() {
                       </a>
                       {/* 삭제 버튼 */}
                       <button
+                        disabled={item.read_only}
                         onClick={() => setDeleteTarget(item)}
                         className="p-2 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 text-zinc-400 hover:text-rose-600 transition-colors"
-                        title="콘텐츠 영구 삭제"
+                        title={item.read_only ? "소스에서 관리하는 파일입니다" : "콘텐츠 영구 삭제"}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -534,7 +535,7 @@ export default function ContentsTab() {
                       <td className="p-3.5 whitespace-nowrap">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold border ${
-                            item.category === 'INQUIRY'
+                            item.category === 'LANDING'
                               ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/30'
                               : 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30'
                           }`}
@@ -580,9 +581,10 @@ export default function ContentsTab() {
                             <ExternalLink className="w-4 h-4" />
                           </a>
                           <button
-                            onClick={() => setDeleteTarget(item)}
+                            disabled={item.read_only}
+                        onClick={() => setDeleteTarget(item)}
                             className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                            title="파일 삭제"
+                            title={item.read_only ? "소스에서 관리하는 파일입니다" : "파일 삭제"}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -653,6 +655,7 @@ export default function ContentsTab() {
               {/* 이미지 대형 미리보기 */}
               <div className="min-h-48 rounded-xl border bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center p-4"><MediaPreview item={previewTarget} large /></div>
 
+              {previewTarget.source_file && <div className="p-3 rounded-lg border text-sm"><strong>사용 위치</strong><p className="font-mono break-all mt-1">{previewTarget.source_file}</p><p className="mt-2 text-zinc-600">랜딩페이지 파일 교체·삭제는 소스에서 진행합니다.</p></div>}
               {/* 상세 메타 정보 */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border border-[var(--admin-border)] space-y-1">
@@ -665,7 +668,7 @@ export default function ContentsTab() {
                 <div className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border border-[var(--admin-border)] space-y-1">
                   <div className="text-zinc-500">등록 일시</div>
                   <div className="font-mono font-bold text-zinc-900 dark:text-zinc-100">
-                    {formatDate(previewTarget.created_at)}
+                    {previewTarget.created_at ? formatDate(previewTarget.created_at) : '소스에 포함된 정적 파일'}
                   </div>
                 </div>
 
@@ -674,13 +677,12 @@ export default function ContentsTab() {
                   <div className="font-semibold text-zinc-900 dark:text-zinc-100">
                     {previewTarget.source_title}
                   </div>
-                  {previewTarget.category === 'INQUIRY' && <div className="text-sm mt-2">{statusLabel(previewTarget.source_status)} · <a className="text-blue-600 font-bold hover:underline" href={`/admin?tab=support&inquiry=${encodeURIComponent(previewTarget.source_id)}`}>문의 보기 →</a></div>}
                   <div className="text-xs text-zinc-500">작성자: {previewTarget.author}</div>
                 </div>
 
                 <div className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border border-[var(--admin-border)] space-y-1.5 col-span-1 sm:col-span-2">
                   <div className="text-zinc-500 flex items-center justify-between">
-                    <span>원본 미디어 URL</span>
+                    <span>원본 파일 URL</span>
                     <button
                       onClick={() => handleCopy(previewTarget.url, 'modal_url')}
                       className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 text-xs"
@@ -707,6 +709,7 @@ export default function ContentsTab() {
                   <span>새 창에서 열기</span>
                 </a>
                 <button
+                  disabled={previewTarget.read_only}
                   onClick={() => setDeleteTarget(previewTarget)}
                   className="px-3 py-1.5 rounded-lg border border-rose-300 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 text-xs font-bold flex items-center gap-1.5 transition-colors"
                 >
@@ -769,7 +772,7 @@ export default function ContentsTab() {
               </div>
 
               <p className="text-xs text-rose-600 dark:text-rose-400 bg-rose-50/60 dark:bg-rose-950/30 p-2.5 rounded-lg border border-rose-200/60 dark:border-rose-900/40">
-                ⚠️ 삭제된 파일은 복구할 수 없으며, 고객 문의 첨부 목록 또는 블로그 글의 해당 미디어 링크가 비활성화됩니다.
+                ⚠️ 삭제된 파일은 복구할 수 없으며, 랜딩페이지 파일 목록 또는 블로그 글의 해당 미디어 링크가 비활성화됩니다.
               </p>
             </div>
 

@@ -1,3 +1,4 @@
+import { landingItems } from './_landingAssets.js';
 // 🚨 @PATCH : 2026-10-08 — R2 스토리지 및 DB 연계 불필요한 콘텐츠 영구 삭제(DELETE) 기능 추가
 // 🚨 @PATCH : 2026-10-08 — 사용자 개인 에디터 첨부 제외 공식 콘텐츠(고객 문의 첨부, 기술 블로그 에셋) 통합 관리 API 신규 구축
 import { handleOptions, checkAdminAuth } from './_shared.js';
@@ -53,35 +54,6 @@ export async function onRequestGet(context) {
     const typeFilter = url.searchParams.get('type') || 'ALL'; // ALL, INQUIRY, BLOG
 
     const result = await withBlogTransaction(env, async db => {
-      // 1. 고객 문의 첨부파일 수집 (사용자 개인 에디터 문서는 철저히 제외, 문의 접수 첨부만)
-      const inquiryRes = await db.query(`
-        SELECT 
-          i.id as source_id,
-          i.title as source_title,
-          i.status as source_status,
-          i.email as author,
-          i.created_at,
-          url as file_url
-        FROM public.support_inquiries i,
-        LATERAL unnest(i.attachment_urls) as url
-        WHERE url IS NOT NULL AND url != ''
-        ORDER BY i.created_at DESC
-      `);
-
-      const inquiryItems = inquiryRes.rows.map((row, idx) => ({
-        id: `inquiry_${row.source_id}_${idx}`,
-        category: 'INQUIRY',
-        category_name: '고객 문의 첨부',
-        url: row.file_url,
-        file_name: extractFileName(row.file_url),
-        source_title: row.source_title || '고객 문의 첨부파일',
-        source_status: row.source_status,
-        source_id: row.source_id,
-        author: row.author || '익명/회원',
-        created_at: row.created_at,
-        source_type: 'support'
-      }));
-
       // 2. 기술 블로그 공식 에셋 수집 (커버 이미지 및 본문 미디어 에셋)
       const blogRevRes = await db.query(`
         SELECT 
@@ -144,19 +116,19 @@ export async function onRequestGet(context) {
 
       // 3. 통계 집계
       const stats = {
-        total: inquiryItems.length + blogItems.length,
-        inquiry: inquiryItems.length,
+        total: landingItems.length + blogItems.length,
+        landing: landingItems.length,
         blog: blogItems.length
       };
 
       // 4. 통합 및 필터링
       let allItems = [];
-      if (typeFilter === 'INQUIRY') {
-        allItems = inquiryItems;
+      if (typeFilter === 'LANDING') {
+        allItems = landingItems;
       } else if (typeFilter === 'BLOG') {
         allItems = blogItems;
       } else {
-        allItems = [...inquiryItems, ...blogItems];
+        allItems = [...landingItems, ...blogItems];
       }
 
       // 최신순 정렬
@@ -214,6 +186,8 @@ export async function onRequestDelete(context) {
     if (!url) {
       return blogJson({ success: false, error: '삭제할 파일 URL이 누락되었습니다.' }, 400);
     }
+
+    if (category !== 'BLOG') return blogJson({success:false,error:'랜딩페이지 파일은 소스에서 관리합니다.'},400);
 
     // 1. R2 버킷에서 파일 실제 삭제
     const r2Key = extractR2Key(url);
