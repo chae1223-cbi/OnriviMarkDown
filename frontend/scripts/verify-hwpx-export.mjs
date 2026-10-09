@@ -24,6 +24,13 @@ for(const [name,entry] of Object.entries(zip.files)) if(/\.(xml|hpf|rdf)$/.test(
   assert(!doc.querySelector('parsererror'),name+' malformed XML');parsed.set(name,doc);
 }
 const section=parsed.get('Contents/section0.xml');const header=parsed.get('Contents/header.xml');
+const imageParagraphStyle=Array.from(header.querySelectorAll('paraPr')).find(p=>p.getAttribute('id')==='21');
+assert(Array.from(imageParagraphStyle.querySelectorAll('lineSpacing')).every(s=>s.getAttribute('value')==='100'));
+const dividerStyle=Array.from(header.querySelectorAll('paraPr')).find(p=>p.getAttribute('id')==='25');
+assert(Array.from(dividerStyle.querySelectorAll('margin')).every(m=>m.querySelector('next').getAttribute('value')==='600'));
+for (const tag of ['paraPr','charPr']) {
+  assert.deepEqual(Array.from(header.querySelectorAll(tag)).map(el=>Number(el.getAttribute('id'))),Array.from({length:header.querySelectorAll(tag).length},(_,i)=>i));
+}
 const charIds=new Set(Array.from(header.querySelectorAll('charPr')).map(el=>el.getAttribute('id')));
 const paraIds=new Set(Array.from(header.querySelectorAll('paraPr')).map(el=>el.getAttribute('id')));
 const styleIds=new Set(Array.from(header.querySelectorAll('style')).map(el=>el.getAttribute('id')));
@@ -33,7 +40,36 @@ for(const run of section.querySelectorAll('run')) assert(charIds.has(run.getAttr
 for(const item of parsed.get('Contents/content.hpf').querySelectorAll('item')) assert(zip.file(item.getAttribute('href')),'missing manifest entry');
 for(const image of section.querySelectorAll('img')) assert(zip.file('BinData/'+image.getAttribute('binaryItemIDRef')+'.png'));
 assert(section.querySelector('tbl'));assert.equal(section.querySelector('cellSpan').getAttribute('colSpan'),'2');assert(section.querySelector('lineBreak'));assert(section.querySelector('pic'));
+const picture=section.querySelector('pic');
+assert.equal(picture.querySelector('pos').getAttribute('treatAsChar'),'1');
+assert.equal(picture.querySelector('pos').getAttribute('affectLSpacing'),'1');
+assert.deepEqual(Array.from(picture.children).map(el=>el.localName),['offset','orgSz','curSz','flip','rotationInfo','renderingInfo','img','imgRect','imgClip','inMargin','imgDim','effects','sz','pos','outMargin']);
+assert.equal(picture.querySelector('imgDim').getAttribute('dimwidth'),picture.querySelector('imgClip').getAttribute('right'));
+assert.equal(picture.querySelector('imgDim').getAttribute('dimheight'),picture.querySelector('imgClip').getAttribute('bottom'));
+const separatorRoot=container.cloneNode(false);separatorRoot.innerHTML='<hr>';
+const separatorZip=await JSZip.loadAsync(await (await generateHwpx(separatorRoot)).arrayBuffer());
+const separatorXml=await separatorZip.file('Contents/section0.xml').async('string');
+assert(!separatorXml.includes('─'));
+assert(separatorXml.includes('paraPrIDRef="25"'));
 const preview=await zip.file('Preview/PrvText.txt').async('string');assert(preview.includes('3. 목록'));assert(preview.includes('let a = 1;\n  a++;'));assert(preview.includes('그림 설명'));assert(!preview.includes('복사'));
 const broken=container.cloneNode(true);broken.innerHTML='<img src="missing.png">';await assert.rejects(()=>generateHwpx(broken),/이미지/);
+const quote=container.cloneNode(false);
+quote.innerHTML='<blockquote><p>Tip heading</p><ul><li>Photo tip</li><li>Walking tip</li></ul></blockquote>';
+const quoteZip=await JSZip.loadAsync(await (await generateHwpx(quote)).arrayBuffer());
+const quoteSection=new DOMParser().parseFromString(await quoteZip.file('Contents/section0.xml').async('string'),'application/xml');
+const quoteHeader=new DOMParser().parseFromString(await quoteZip.file('Contents/header.xml').async('string'),'application/xml');
+const quoteStyle=Array.from(quoteHeader.querySelectorAll('paraPr')).find(p=>p.getAttribute('id')==='20');
+assert(Array.from(quoteStyle.querySelectorAll('margin')).every(m=>m.querySelector('left').getAttribute('value')==='1700'));
+const quoteBorderRef=quoteStyle.querySelector('border').getAttribute('borderFillIDRef');
+const quoteBorder=Array.from(quoteHeader.querySelectorAll('borderFill')).find(b=>b.getAttribute('id')===quoteBorderRef);
+assert.equal(quoteBorder.querySelector('leftBorder').getAttribute('type'),'SOLID');
+assert.equal(quoteBorder.querySelector('leftBorder').getAttribute('color'),'#1D4ED8');
+assert.equal(quoteBorder.querySelector('winBrush').getAttribute('faceColor'),'#EFF6FF');
+assert.equal(quoteStyle.querySelector('border').getAttribute('connect'),'1');
+for(const text of ['Tip heading','Photo tip','Walking tip']) {
+  const paragraph=Array.from(quoteSection.querySelectorAll('p')).find(p=>p.textContent.includes(text));
+  assert(paragraph,'missing quoted content: '+text);
+  assert.equal(paragraph.getAttribute('paraPrIDRef'),'20');
+}
 fs.mkdirSync(new URL('../.tmp/',import.meta.url),{recursive:true});fs.writeFileSync(new URL('../.tmp/hwpx-export-smoke.hwpx',import.meta.url),Buffer.from(buffer));
 console.log('PASS: HWPX ZIP/XML, style references, unique paragraph IDs, editable table/merged cells/code, image embedding, missing image error');

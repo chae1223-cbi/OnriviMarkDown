@@ -518,38 +518,25 @@ function buildDocumentXml(
 
     // 3. 인용구 (BLOCKQUOTE)
     if (tag === 'blockquote') {
-      const pElements = el.querySelectorAll('p');
-      if (pElements.length > 0) {
-        pElements.forEach((p) => {
-          const inlines = parseInlines(p);
-          bodyXmls.push(`
-            <w:p>
-              <w:pPr>
-                <w:pBdr>
-                  <w:left w:val="single" w:sz="24" w:space="12" w:color="1D4ED8"/>
-                </w:pBdr>
-                <w:ind w:left="400"/>
-                <w:spacing w:after="120"/>
-              </w:pPr>
-              <w:r><w:rPr><w:color w:val="475569"/><w:i/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>
-              ${inlines}
-            </w:p>
-          `);
+      const startIndex = bodyXmls.length;
+      const hasBlocks = Array.from(el.children).some(child => /^(p|div|ul|ol|table|figure|pre|blockquote|h[1-6])$/i.test(child.tagName));
+      if (hasBlocks) {
+        Array.from(el.childNodes).forEach(child => {
+          if (child.nodeType === Node.TEXT_NODE && child.textContent?.trim()) {
+            bodyXmls.push(`<w:p><w:pPr/>${parseInlines({ childNodes: [child] } as unknown as Node)}</w:p>`);
+          } else if (child.nodeType === Node.ELEMENT_NODE) {
+            const element = child as HTMLElement;
+            if (/^(p|div|ul|ol|table|figure|pre|blockquote|h[1-6])$/i.test(element.tagName)) processBlockNode(child, listLevel);
+            else bodyXmls.push(`<w:p><w:pPr/>${parseInlines({ childNodes: [child] } as unknown as Node)}</w:p>`);
+          }
         });
-      } else {
-        const inlines = parseInlines(el);
-        bodyXmls.push(`
-          <w:p>
-            <w:pPr>
-              <w:pBdr>
-                <w:left w:val="single" w:sz="24" w:space="12" w:color="1D4ED8"/>
-              </w:pBdr>
-              <w:ind w:left="400"/>
-              <w:spacing w:after="120"/>
-            </w:pPr>
-            ${inlines}
-          </w:p>
-        `);
+      } else bodyXmls.push(`<w:p><w:pPr/>${parseInlines(el)}</w:p>`);
+      // 목록 번호 스타일의 hanging 들여쓰기가 인용문 테두리까지 이동하지 않게 한다.
+      const quoteProps = '<w:pBdr><w:left w:val="single" w:sz="24" w:space="12" w:color="1D4ED8"/></w:pBdr><w:ind w:left="400" w:right="0" w:hanging="0"/>';
+      for (let index = startIndex; index < bodyXmls.length; index++) {
+        if (bodyXmls[index].trimStart().startsWith('<w:p>') && !bodyXmls[index].includes('<w:pBdr>')) {
+          bodyXmls[index] = bodyXmls[index].replace(/<w:pPr\/>|<w:pPr>/, match => match === '<w:pPr/>' ? `<w:pPr>${quoteProps}</w:pPr>` : `<w:pPr>${quoteProps}`);
+        }
       }
       return;
     }
@@ -575,6 +562,19 @@ function buildDocumentXml(
             else processBlockNode(child, listLevel);
           });
         } else bodyXmls.push(`<w:p><w:pPr/>${parseInlines(own)}</w:p>`);
+        const listRule: CssRuleSet = { 'margin-top': '0px', 'margin-bottom': '2px', 'line-height': '1.6', ...context.styleRule('li'),
+          ...Object.fromEntries(Array.from((item as HTMLElement).style).map(key => [key, (item as HTMLElement).style.getPropertyValue(key)])) };
+        const paragraphIndexes = Array.from({length: bodyXmls.length - startIndex}, (_, offset) => startIndex + offset)
+          .filter(index => bodyXmls[index].trimStart().startsWith('<w:p>'));
+        paragraphIndexes.forEach((index, offset) => {
+          const rule = { ...listRule, 'margin-top': offset === 0 ? listRule['margin-top'] : '0px',
+            'margin-bottom': offset === paragraphIndexes.length - 1 ? listRule['margin-bottom'] : '0px' };
+          bodyXmls[index] = bodyXmls[index].replace(/<w:pPr\/>|<w:pPr>[\s\S]*?<\/w:pPr>/, properties => {
+            const inner = properties === '<w:pPr/>' ? '' : properties.slice(7, -8)
+              .replace(/<w:spacing\b[^>]*\/>|<w:snapToGrid\b[^>]*\/>/g, '');
+            return `<w:pPr>${inner}${wordParagraphProperties(rule, context.baseSize)}</w:pPr>`;
+          });
+        });
         if (!hasCheckbox) {
           const props = `<w:numPr><w:ilvl w:val="${level}"/><w:numId w:val="${numId}"/></w:numPr>`;
           if (bodyXmls[startIndex] && !bodyXmls[startIndex].trimStart().startsWith('<w:p>')) bodyXmls.splice(startIndex, 0, '<w:p><w:pPr/></w:p>');
@@ -676,9 +676,25 @@ function buildDocumentXml(
           const rowSpan = cell.getAttribute('rowspan') === '0' ? rows.length - rows.indexOf(row) : Math.max(1, Number(cell.getAttribute('rowspan')) || 1);
           if (rowSpan > 1) occupied.set(column, { remaining: rowSpan - 1, span });
           const offset = bodyXmls.length;
+          // Cell text must not inherit Normal's body paragraph spacing.
+          const tableRule = { ...context.styleRule('table'), ...Object.fromEntries(Array.from(el.style).map(key => [key, el.style.getPropertyValue(key)])) };
+          const cellElement = cell as HTMLElement;
+          const cellRule: CssRuleSet = {
+            'font-size': tableRule['font-size'] || `${context.baseSize}px`,
+            'line-height': tableRule['line-height'] || '1.6',
+            'margin-top': '0px', 'margin-bottom': '0px',
+            ...context.styleRule(cell.tagName.toLowerCase()),
+            ...Object.fromEntries(Array.from(cellElement.style).map(key => [key, cellElement.style.getPropertyValue(key)]))
+          };
+          for (const descendant of [cellElement, ...Array.from(cell.querySelectorAll('p, div, li, span')) as HTMLElement[]]) {
+            if (descendant.closest('table') !== el) continue;
+            for (const property of ['font-size', 'line-height', 'margin-top', 'margin-bottom']) {
+              if (!descendant.style.getPropertyValue(property)) descendant.style.setProperty(property, cellRule[property]);
+            }
+          }
           if (Array.from(cell.children).some(child => /^(p|div|ul|ol|table|figure|pre|blockquote|h[1-6])$/i.test(child.tagName))) {
             cell.childNodes.forEach(child => processBlockNode(child));
-          } else bodyXmls.push(`<w:p><w:pPr>${wordParagraphProperties(context.styleRule(cell.tagName.toLowerCase()), context.baseSize)}</w:pPr>${parseInlines(cell)}</w:p>`);
+          } else bodyXmls.push(`<w:p><w:pPr>${wordParagraphProperties(cellRule, context.baseSize)}</w:pPr>${parseInlines(cell)}</w:p>`);
           let content = bodyXmls.splice(offset).join('');
           if (!content.trimEnd().endsWith('</w:p>')) content += '<w:p/>';
           const fill = wordColor((cell as HTMLElement).style.backgroundColor || context.styleRule(cell.tagName.toLowerCase())['background-color']);
@@ -719,7 +735,7 @@ function buildDocumentXml(
 
     // 8. 일반 래퍼 컨테이너 (DIV, SECTION, ARTICLE 등)
     if (tag === 'div' || tag === 'section' || tag === 'article') {
-      const hasBlockChildren = el.querySelector('p, h1, h2, h3, h4, h5, h6, table, ul, ol, pre, blockquote, hr, figure') !== null;
+      const hasBlockChildren = el.querySelector('p, h1, h2, h3, h4, h5, h6, table, ul, ol, pre, blockquote, hr, figure, img, [data-export-img-id]') !== null;
       if (!hasBlockChildren) {
         const inlines = parseInlines(el);
         if (inlines.trim()) {

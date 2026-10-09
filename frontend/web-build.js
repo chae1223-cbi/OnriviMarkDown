@@ -21,6 +21,7 @@
  */
 const { execSync } = require('child_process');
 const fs = require('fs');
+require('./build-preflight')();
 const path = require('path');
 
 const APP_DIR = path.join(__dirname, 'src', 'app');

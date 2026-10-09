@@ -16,6 +16,7 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+require('./build-preflight')();
 
 const APP_DIR = path.join(__dirname, 'src', 'app');
 const API_DIR = path.join(APP_DIR, 'api');
@@ -61,12 +62,12 @@ for (const item of DEV_ONLY_ROUTES) {
 // 2. Next.js 빌드 실행
 let buildSuccess = false;
 try {
-  const nextCacheDir = path.join(__dirname, '.next');
+  const nextCacheDir = path.join(__dirname, '.next-desktop');
   if (fs.existsSync(nextCacheDir)) {
     fs.rmSync(nextCacheDir, { recursive: true, force: true });
   }
   console.log('[desktop-build] next build 시작...');
-  execSync('npx next build', { stdio: 'inherit', env: { ...process.env, ASSET_PREFIX: './', NEXT_BUILD_TARGET: 'desktop' } });
+  execSync('npx next build', { stdio: 'inherit', env: { ...process.env, ASSET_PREFIX: './', NEXT_BUILD_TARGET: 'desktop', NEXT_BUILD_DIR: '.next-desktop' } });
   buildSuccess = true;
 } catch (err) {
   console.error('[desktop-build] 빌드 실패:', err.message);

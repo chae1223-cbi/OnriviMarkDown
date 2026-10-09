@@ -30,9 +30,13 @@ export function wordRunProperties(rule: CssRuleSet = {}, base = 16): string {
 export function wordParagraphProperties(rule: CssRuleSet = {}, base = 16): string {
   const alignment = rule['text-align'];
   const line = rule['line-height'];
-  const lineXml = line ? (/^[\d.]+$/.test(line) ? `w:line="${Math.round(+line * 240)}" w:lineRule="auto"` : `w:line="${Math.round(cssPx(line, base) * 15)}" w:lineRule="atLeast"`) : '';
+  const fontSize = cssPx(rule['font-size'], base) || base;
+  // CSS 배율은 글자 크기가 기준이며 Word auto 배율은 글꼴의 줄 높이가 기준이다.
+  // 실제 길이로 환산하고 최소 간격을 사용해 큰 인라인 글자의 잘림을 방지한다.
+  const linePx = line ? (/^[\d.]+$/.test(line) ? +line * fontSize : line.endsWith('%') ? parseFloat(line) / 100 * fontSize : cssPx(line, fontSize)) : 0;
+  const lineXml = linePx > 0 ? `w:line="${Math.round(linePx * 15)}" w:lineRule="atLeast"` : '';
   const spacing = rule['margin-top'] || rule['margin-bottom'] || line;
-  return `${['left', 'right', 'center', 'justify'].includes(alignment) ? `<w:jc w:val="${alignment === 'justify' ? 'both' : alignment}"/>` : ''}${spacing ? `<w:spacing w:before="${Math.max(0, Math.round(cssPx(rule['margin-top'], base) * 15))}" w:after="${Math.max(0, Math.round(cssPx(rule['margin-bottom'], base) * 15))}" ${lineXml}/>` : ''}`;
+  return `${['left', 'right', 'center', 'justify'].includes(alignment) ? `<w:jc w:val="${alignment === 'justify' ? 'both' : alignment}"/>` : ''}${lineXml ? '<w:snapToGrid w:val="0"/>' : ''}${spacing ? `<w:spacing w:before="${Math.max(0, Math.round(cssPx(rule['margin-top'], base) * 15))}" w:after="${Math.max(0, Math.round(cssPx(rule['margin-bottom'], base) * 15))}" ${lineXml}/>` : ''}`;
 }
 export function wordSectionProperties(profile?: CssProfile): { xml: string; widthEmu: number; heightEmu: number } {
   const page = profile?.pageStyle;

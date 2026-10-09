@@ -246,34 +246,35 @@ function buildSectionXml(containerEl: HTMLElement, images: ExtractedImage[]): { 
         const scale = Math.min(1, maxW_hwp / origW_hwp, maxH_hwp / origH_hwp);
         const w_hwp = Math.round(origW_hwp * scale);
         const h_hwp = Math.round(origH_hwp * scale);
-        const w_px = Math.round(w_hwp / 75);
-        const h_px = Math.round(h_hwp / 75);
+        
 
         const currentPicId = picCounter++;
 
         pListXml.push(`
           <hp:p id="${pCounter++}" paraPrIDRef="21" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
             <hp:run charPrIDRef="0">
-              <hp:pic id="${currentPicId}" zOrder="0" numberingType="PICTURE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" reverse="0">
-                <hp:sz width="${w_hwp}" widthRelTo="ABSOLUTE" height="${h_hwp}" heightRelTo="ABSOLUTE" protect="0"/>
-                <hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="CENTER" vertOffset="0" horzOffset="0"/>
-                <hp:outMargin left="0" right="0" top="0" bottom="0"/>
+              <hp:pic id="${currentPicId}" instid="${currentPicId}" href="" groupLevel="0" zOrder="0" numberingType="PICTURE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" reverse="0">
                 <hp:offset x="0" y="0"/>
                 <hp:orgSz width="${w_hwp}" height="${h_hwp}"/>
                 <hp:curSz width="${w_hwp}" height="${h_hwp}"/>
-                <hp:flip x="0" y="0"/>
-                <hp:rotationInfo angle="0" centerX="${Math.round(w_hwp / 2)}" centerY="${Math.round(h_hwp / 2)}"/>
+                <hp:flip horizontal="0" vertical="0"/>
+                <hp:rotationInfo rotateimage="1" angle="0" centerX="${Math.round(w_hwp / 2)}" centerY="${Math.round(h_hwp / 2)}"/>
                 <hp:renderingInfo>
                   <hc:transMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/>
                   <hc:scaMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/>
                   <hc:rotMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/>
                 </hp:renderingInfo>
+                <hc:img binaryItemIDRef="BIN${imgId}" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/>
                 <hp:imgRect><hc:pt0 x="0" y="0"/><hc:pt1 x="${w_hwp}" y="0"/><hc:pt2 x="${w_hwp}" y="${h_hwp}"/><hc:pt3 x="0" y="${h_hwp}"/></hp:imgRect>
                 <hp:imgClip left="0" right="${w_hwp}" top="0" bottom="${h_hwp}"/>
                 <hp:inMargin left="0" right="0" top="0" bottom="0"/>
-                <hp:imgDim dimwidth="${w_px}" dimheight="${h_px}"/>
-                <hc:img binaryItemIDRef="BIN${imgId}" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/>
+                <hp:imgDim dimwidth="${w_hwp}" dimheight="${h_hwp}"/>
+                <hp:effects/>
+                <hp:sz width="${w_hwp}" widthRelTo="ABSOLUTE" height="${h_hwp}" heightRelTo="ABSOLUTE" protect="0"/>
+                <hp:pos treatAsChar="1" affectLSpacing="1" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="CENTER" vertOffset="0" horzOffset="0"/>
+                <hp:outMargin left="0" right="0" top="0" bottom="0"/>
               </hp:pic>
+              <hp:t/>
             </hp:run>
           </hp:p>
         `);
@@ -341,27 +342,18 @@ function buildSectionXml(containerEl: HTMLElement, images: ExtractedImage[]): { 
 
     // 3. 인용구 (BLOCKQUOTE)
     if (tag === 'blockquote') {
-      const pElements = el.querySelectorAll('p');
-      if (pElements.length > 0) {
-        pElements.forEach((p) => {
-          const inlines = parseInlines(p, 11);
-          textLines.push(p.textContent || '');
-          pListXml.push(`
-            <hp:p id="${pCounter++}" paraPrIDRef="20" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
-              <hp:run charPrIDRef="14"><hp:t>▎ </hp:t></hp:run>
-              ${inlines}
-            </hp:p>
-          `);
-        });
-      } else {
-        const inlines = parseInlines(el, 11);
-        textLines.push(el.textContent || '');
-        pListXml.push(`
-          <hp:p id="${pCounter++}" paraPrIDRef="20" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
-            <hp:run charPrIDRef="14"><hp:t>▎ </hp:t></hp:run>
-            ${inlines}
-          </hp:p>
-        `);
+      const start = pListXml.length;
+      for (const child of Array.from(el.childNodes)) {
+        if (child.nodeType === Node.ELEMENT_NODE) processBlockNode(child);
+        else if (child.textContent?.trim()) {
+          const paragraph = containerEl.ownerDocument.createElement('p');
+          paragraph.textContent = child.textContent;
+          processBlockNode(paragraph);
+        }
+      }
+      for (let index = start; index < pListXml.length; index++) {
+        // Apply quote layout only to outer paragraphs; embedded tables retain their styles.
+        pListXml[index] = pListXml[index].replace(/^(\s*<hp:p\b[^>]*paraPrIDRef=")[^"]*/, '$120');
       }
       return;
     }
@@ -426,8 +418,8 @@ function buildSectionXml(containerEl: HTMLElement, images: ExtractedImage[]): { 
     // 6. 구분선 (HR)
     if (tag === 'hr') {
       pListXml.push(`
-        <hp:p id="${pCounter++}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
-          <hp:run charPrIDRef="0"><hp:t>────────────────────────────────────────────</hp:t></hp:run>
+        <hp:p id="${pCounter++}" paraPrIDRef="25" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+          <hp:run charPrIDRef="0"><hp:t/></hp:run>
         </hp:p>
       `);
       return;

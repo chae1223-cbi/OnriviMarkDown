@@ -3241,6 +3241,26 @@ export async function exportDOCX({ previewEl, currentFileName, showToast, active
     await prepareExportPreview(previewEl);
     const targetEl = (previewEl.querySelector('.markdown-viewer-root') as HTMLElement) || previewEl;
     const clone = clonePreview(targetEl, true);
+    const tableSelector = 'table, th, td, th p, td p, th li, td li, th span, td span';
+    const liveTableElements = Array.from(targetEl.querySelectorAll(tableSelector));
+    Array.from(clone.querySelectorAll(tableSelector)).forEach((element, index) => {
+      const live = liveTableElements[index];
+      if (!live) return;
+      const style = window.getComputedStyle(live);
+      for (const property of ['font-size', 'line-height', 'margin-top', 'margin-bottom', 'text-align']) {
+        (element as HTMLElement).style.setProperty(property, style.getPropertyValue(property));
+      }
+    });
+    // 목록마다 실제 미리보기 간격을 저장한다. 일반 문단 여백을 상속하지 않는다.
+    const liveListItems = Array.from(targetEl.querySelectorAll('li'));
+    Array.from(clone.querySelectorAll('li')).forEach((item, index) => {
+      const live = liveListItems[index];
+      if (!live) return;
+      const style = window.getComputedStyle(live);
+      for (const property of ['font-size', 'line-height', 'margin-top', 'margin-bottom']) {
+        (item as HTMLElement).style.setProperty(property, style.getPropertyValue(property));
+      }
+    });
     await inlineLocalImages(clone);
 
     // 🖼️ 라이브 DOM과 클론 DOM으로부터 이미지 및 Mermaid 다이어그램 추출 및 래스터라이즈
