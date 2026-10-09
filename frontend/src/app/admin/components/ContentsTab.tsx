@@ -39,12 +39,13 @@ import {
   Trash2,
   AlertTriangle
 } from 'lucide-react';
+import HelpManager from './HelpManager';
 import { adminFetch } from '@/lib/adminFetch';
 import { showToast } from '@/utils/toast';
 
 interface ContentItem {
   id: string;
-  category: 'LANDING' | 'BLOG';
+  category: 'LANDING' | 'BLOG' | 'HELP';
   category_name: string;
   url: string;
   file_name: string;
@@ -54,18 +55,20 @@ interface ContentItem {
   source_id: string;
   author: string;
   created_at: string | null;
-  source_type: 'landing' | 'blog';
+  source_type: 'landing' | 'blog' | 'help';
 }
 
 interface ContentStats {
   total: number;
   landing: number;
+  help: number;
   blog: number;
 }
 
 const TYPE_OPTIONS = [
   { value: 'ALL', label: '전체 콘텐츠' },
   { value: 'LANDING', label: '랜딩페이지 파일' },
+  { value: 'HELP', label: '도움말 문서·이미지' },
   { value: 'BLOG', label: '기술 블로그 에셋' }
 ];
 
@@ -84,7 +87,16 @@ const fileExtension = (item: ContentItem) => item.file_name.split('.').pop()?.to
 const isImageUrl = (url: string, name = '') => /\.(jpeg|jpg|png|gif|webp|svg|avif|bmp)$/i.test((name || url).split('?')[0]);
 function MediaPreview({item, large = false}: {item: ContentItem; large?: boolean}) {
   const [failed, setFailed] = useState(false);
+  const [documentText, setDocumentText] = useState<string>('불러오는 중…');
+  useEffect(() => {
+    if (!large || item.category !== 'HELP' || fileExtension(item) !== 'md') return;
+    const controller = new AbortController();
+    setDocumentText('불러오는 중…');
+    void fetch(item.url, {signal:controller.signal}).then(response => { if (!response.ok) throw new Error(); return response.text(); }).then(setDocumentText).catch(() => { if (!controller.signal.aborted) setDocumentText('도움말을 불러오지 못했습니다. 원본 열기를 이용하세요.'); });
+    return () => controller.abort();
+  }, [large, item.url, item.category]);
   useEffect(() => setFailed(false), [item.url]);
+  if (large && item.category === 'HELP' && fileExtension(item) === 'md') return <pre className="w-full whitespace-pre-wrap break-words text-sm leading-7 text-zinc-800 dark:text-zinc-200">{documentText}</pre>;
   const image = isImageUrl(item.url, item.file_name);
   if (large && fileExtension(item) === 'mp4') return <video src={item.url} controls preload="metadata" className="max-h-[60vh] max-w-full" />;
   if (image && !failed) return <img src={item.url} alt={item.file_name} loading="lazy" onError={() => setFailed(true)} className={large ? 'max-h-[60vh] max-w-full object-contain' : 'w-full h-full object-contain'} />;
@@ -94,7 +106,7 @@ function MediaPreview({item, large = false}: {item: ContentItem; large?: boolean
 
 export default function ContentsTab() {
   const [items, setItems] = useState<ContentItem[]>([]);
-  const [stats, setStats] = useState<ContentStats>({ total: 0, landing: 0, blog: 0 });
+  const [stats, setStats] = useState<ContentStats>({ total: 0, landing: 0, help: 0, blog: 0 });
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const limit = 20;
@@ -136,6 +148,7 @@ export default function ContentsTab() {
           setStats({
             total: Number(data.stats.total || 0),
             landing: Number(data.stats.landing || 0),
+            help: Number(data.stats.help || 0),
             blog: Number(data.stats.blog || 0)
           });
         }
@@ -225,14 +238,14 @@ export default function ContentsTab() {
               공개 콘텐츠 관리 안내
             </h4>
             <p className="text-xs text-blue-700/90 dark:text-blue-300/80 mt-0.5">
-              랜딩페이지 이미지·영상·로고와 기술 블로그 파일을 확인합니다. 랜딩페이지 파일은 소스에서 수정하며, 고객 문의 첨부파일과 개인 문서는 표시하지 않습니다.
+              랜딩페이지 이미지·영상·로고, 도움말 문서·이미지와 기술 블로그 파일을 확인합니다. 랜딩페이지와 도움말 파일은 소스에서 수정하며, 고객 문의 첨부파일과 개인 문서는 표시하지 않습니다.
             </p>
           </div>
         </div>
       </div>
 
       {/* 1. 상단 통계 카드 3종 */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {/* 전체 관리 콘텐츠 */}
         <div
           onClick={() => { setTypeFilter('ALL'); setPage(1); }}
@@ -271,6 +284,11 @@ export default function ContentsTab() {
           <div className="text-xs text-zinc-500 mt-1">서비스 소개 이미지·영상·로고</div>
         </div>
 
+        <button type="button" onClick={() => { setTypeFilter('HELP'); setPage(1); }} className={`admin-glass-card p-5 text-left ${typeFilter === 'HELP' ? 'border-blue-500 ring-1 ring-blue-500/30' : ''}`}>
+          <div className="text-sm font-semibold text-zinc-600">도움말 문서·이미지</div>
+          <div className="text-2xl font-bold text-blue-600 mt-2">{stats.help.toLocaleString()}</div>
+          <div className="text-xs text-zinc-500 mt-1">사용 가이드와 안내 이미지</div>
+        </button>
         {/* 기술 블로그 에셋 */}
         <div
           onClick={() => { setTypeFilter('BLOG'); setPage(1); }}
@@ -384,6 +402,7 @@ export default function ContentsTab() {
         </div>
       </div>
 
+      {typeFilter === 'HELP' && <HelpManager />}
       {/* 3. 콘텐츠 뷰 (그리드 or 테이블) */}
       {loading && items.length === 0 ? (
         <div className="admin-glass-card p-16 text-center text-zinc-600 dark:text-zinc-400">
@@ -444,7 +463,7 @@ export default function ContentsTab() {
                       className="text-sm text-zinc-600 line-clamp-2 mt-1"
                       title={item.source_title}
                     >
-                      {item.category === 'LANDING' ? '랜딩페이지' : '블로그'}: {item.source_title}
+                      {item.category === 'LANDING' ? '랜딩페이지' : item.category === 'HELP' ? '도움말' : '블로그'}: {item.source_title}
                     </p>
                     <p className="text-xs text-zinc-600 mt-2">{item.created_at ? formatDate(item.created_at) : '소스에 포함된 정적 파일'}</p>
                   </div>
@@ -655,7 +674,7 @@ export default function ContentsTab() {
               {/* 이미지 대형 미리보기 */}
               <div className="min-h-48 rounded-xl border bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center p-4"><MediaPreview item={previewTarget} large /></div>
 
-              {previewTarget.source_file && <div className="p-3 rounded-lg border text-sm"><strong>사용 위치</strong><p className="font-mono break-all mt-1">{previewTarget.source_file}</p><p className="mt-2 text-zinc-600">랜딩페이지 파일 교체·삭제는 소스에서 진행합니다.</p></div>}
+              {previewTarget.source_file && <div className="p-3 rounded-lg border text-sm"><strong>사용 위치</strong><p className="font-mono break-all mt-1">{previewTarget.source_file}</p><p className="mt-2 text-zinc-600">랜딩페이지와 도움말 파일 교체·삭제는 소스에서 진행합니다.</p></div>}
               {/* 상세 메타 정보 */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border border-[var(--admin-border)] space-y-1">

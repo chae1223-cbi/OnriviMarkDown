@@ -1,3 +1,4 @@
+import { helpItems } from './_helpAssets.js';
 import { landingItems } from './_landingAssets.js';
 // 🚨 @PATCH : 2026-10-08 — R2 스토리지 및 DB 연계 불필요한 콘텐츠 영구 삭제(DELETE) 기능 추가
 // 🚨 @PATCH : 2026-10-08 — 사용자 개인 에디터 첨부 제외 공식 콘텐츠(고객 문의 첨부, 기술 블로그 에셋) 통합 관리 API 신규 구축
@@ -116,19 +117,22 @@ export async function onRequestGet(context) {
 
       // 3. 통계 집계
       const stats = {
-        total: landingItems.length + blogItems.length,
+        total: landingItems.length + blogItems.length + helpItems.length,
         landing: landingItems.length,
+        help: helpItems.length,
         blog: blogItems.length
       };
 
       // 4. 통합 및 필터링
       let allItems = [];
-      if (typeFilter === 'LANDING') {
+      if (typeFilter === 'HELP') {
+        allItems = helpItems;
+      } else if (typeFilter === 'LANDING') {
         allItems = landingItems;
       } else if (typeFilter === 'BLOG') {
         allItems = blogItems;
       } else {
-        allItems = [...landingItems, ...blogItems];
+        allItems = [...landingItems, ...helpItems, ...blogItems];
       }
 
       // 최신순 정렬
@@ -187,7 +191,7 @@ export async function onRequestDelete(context) {
       return blogJson({ success: false, error: '삭제할 파일 URL이 누락되었습니다.' }, 400);
     }
 
-    if (category !== 'BLOG') return blogJson({success:false,error:'랜딩페이지 파일은 소스에서 관리합니다.'},400);
+    if (category !== 'BLOG') return blogJson({success:false,error:'랜딩페이지와 도움말 파일은 소스에서 관리합니다.'},400);
 
     // 1. R2 버킷에서 파일 실제 삭제
     const r2Key = extractR2Key(url);

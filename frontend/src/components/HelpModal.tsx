@@ -39,6 +39,8 @@ interface HelpModalProps {
 
 export default function HelpModal({ isOpen, onClose, title = "도움말 센터", isDarkMode }: HelpModalProps) {
   const [mounted, setMounted] = useState(false);
+  const [publishedDocs, setPublishedDocs] = useState<Array<{id:string;title:string;content:string}>>([]);
+  useEffect(() => { if (!isOpen) return; let active=true; void fetch((window as any).electronAPI ? 'https://onrivi.com/api/help' : '/api/help').then(r=>{if(!r.ok)throw Error();return r.json();}).then(data=>{if(active && data.documents?.length){setPublishedDocs(data.documents);setCurrentDoc(data.documents[0].id);}}).catch(()=>{}); return ()=>{active=false;}; }, [isOpen]);
   const [currentDoc, setCurrentDoc] = useState<string>(HELP_DOCS_LIST[0]);
   const [docContent, setDocContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -67,7 +69,8 @@ export default function HelpModal({ isOpen, onClose, title = "도움말 센터",
       let rawMd = '';
       
       try {
-        if (api?.readFromPath) {
+        const published = publishedDocs.find(doc => doc.id === currentDoc);
+        if (published) { rawMd = published.content; } else if (api?.readFromPath) {
           const file = await api.readFromPath(`help/${currentDoc}`);
           rawMd = file.content;
         } else {
@@ -87,7 +90,7 @@ export default function HelpModal({ isOpen, onClose, title = "도움말 센터",
 
     fetchDoc();
     return () => { isMounted = false; };
-  }, [currentDoc, isOpen]);
+  }, [currentDoc, isOpen, publishedDocs]);
 
   // 내부 링크 클릭 인터셉트
   const handleLinkClick = (e: MouseEvent<HTMLDivElement>) => {
@@ -148,7 +151,7 @@ export default function HelpModal({ isOpen, onClose, title = "도움말 센터",
         <div className="flex flex-1 overflow-hidden">
           {/* 좌측 네비게이션 메뉴 */}
           <div className="w-64 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/30 overflow-y-auto shrink-0 py-4 px-3 flex flex-col gap-1">
-            {HELP_DOCS_LIST.map((doc) => {
+            {(publishedDocs.length ? publishedDocs.map(doc => doc.id) : HELP_DOCS_LIST).map((doc) => {
               const isSelected = currentDoc === doc;
               return (
                 <button
@@ -160,7 +163,7 @@ export default function HelpModal({ isOpen, onClose, title = "도움말 센터",
                       : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 hover:text-zinc-900 dark:hover:text-zinc-200'
                   }`}
                 >
-                  <span className="truncate">{formatDocTitle(doc)}</span>
+                  <span className="truncate">{publishedDocs.find(item => item.id === doc)?.title || formatDocTitle(doc)}</span>
                   {isSelected && <ChevronRight size={16} className="text-blue-500 opacity-70 shrink-0" />}
                 </button>
               );

@@ -7,6 +7,7 @@
 // ====================================================================
 "use client";
 
+import ReactMarkdown from 'react-markdown';
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ChevronRight, Loader2, Book } from "lucide-react";
@@ -71,17 +72,21 @@ interface Props {
 
 export function HelpCenterModal({ open, onClose }: Props) {
   const [selected, setSelected] = useState(articles[0]);
+  const [publishedDocs, setPublishedDocs] = useState<Array<{id:string;title:string;content:string}>>([]);
+  useEffect(() => {if(!open)return;let active=true;void fetch('/api/help').then(r=>{if(!r.ok)throw Error();return r.json();}).then(data=>{if(active && data.documents?.length){setPublishedDocs(data.documents);setSelected({id:data.documents[0].id,file:data.documents[0].id,title:data.documents[0].title});}}).catch(()=>{});return ()=>{active=false;};},[open]);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     loadArticle(selected);
-  }, [selected, open]);
+  }, [selected, open, publishedDocs]);
 
   async function loadArticle(article: typeof articles[0]) {
     setLoading(true);
     try {
+      const published = publishedDocs.find(doc=>doc.id===article.id);
+      if(published){setContent(stripFrontmatter(published.content));setLoading(false);return;}
       const res = await fetch(`/help/${article.file}`);
       const text = await res.text();
       setContent(stripFrontmatter(text));
@@ -115,7 +120,7 @@ export function HelpCenterModal({ open, onClose }: Props) {
                 <span className="font-bold text-gray-900 dark:text-white">도움말</span>
               </div>
               <nav className="space-y-1">
-                {articles.map((a) => (
+                {(publishedDocs.length ? publishedDocs.map(doc=>({id:doc.id,file:doc.id,title:doc.title})) : articles).map((a) => (
                   <button
                     key={a.id}
                     onClick={() => setSelected(a)}
@@ -149,8 +154,7 @@ export function HelpCenterModal({ open, onClose }: Props) {
                 ) : (
                   <div
                     className="prose prose-gray dark:prose-invert max-w-none text-sm leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: mdToHtml(content) }}
-                  />
+                  ><ReactMarkdown>{content}</ReactMarkdown></div>
                 )}
               </div>
             </div>

@@ -1,3 +1,4 @@
+import helpItems from '@/lib/helpAssets.json';
 import landingItems from '@/lib/landingAssets.json';
 /** 🚨 @PATCH : 2026-10-08 — R2 스토리지 및 DB 연계 불필요한 콘텐츠 영구 삭제(DELETE) 기능 추가 */
 /** 🚨 @PATCH : 2026-10-08 — 사용자 개인 에디터 첨부 제외 공식 콘텐츠(고객 문의 첨부, 기술 블로그 에셋) 통합 관리 API 신규 구축 */
@@ -91,19 +92,22 @@ export async function GET(req: Request) {
 
     // 3. 통계 집계
     const stats = {
-      total: landingItems.length + blogItems.length,
+      total: landingItems.length + blogItems.length + helpItems.length,
       landing: landingItems.length,
+        help: helpItems.length,
       blog: blogItems.length
     };
 
     // 4. 통합 및 필터링
     let allItems: any[] = [];
-    if (typeFilter === 'LANDING') {
+    if (typeFilter === 'HELP') {
+        allItems = helpItems;
+      } else if (typeFilter === 'LANDING') {
       allItems = landingItems;
     } else if (typeFilter === 'BLOG') {
       allItems = blogItems;
     } else {
-      allItems = [...landingItems, ...blogItems];
+      allItems = [...landingItems, ...helpItems, ...blogItems];
     }
 
     allItems.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -143,7 +147,7 @@ export async function DELETE(req: Request) {
 
     const body = await req.json();
     const { url, source_id, category, reason } = body;
-    if (category !== 'BLOG') return NextResponse.json({success:false,error:'랜딩페이지 파일은 소스에서 관리합니다.'},{status:400});
+    if (category !== 'BLOG') return NextResponse.json({success:false,error:'랜딩페이지와 도움말 파일은 소스에서 관리합니다.'},{status:400});
 
     if (!url) {
       return NextResponse.json({ success: false, error: '삭제할 파일 URL이 누락되었습니다.' }, { status: 400 });
