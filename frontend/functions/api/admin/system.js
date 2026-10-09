@@ -144,6 +144,8 @@ export async function onRequestGet(context) {
         (l.route || '').toLowerCase().includes(search) ||
         (l.request_id || l.id || '').toLowerCase().includes(search) ||
         (l.operation || '').toLowerCase().includes(search) ||
+        (l.event_code || '').toLowerCase().includes(search) ||
+        (l.source_file || '').toLowerCase().includes(search) ||
         l.message.toLowerCase().includes(search) ||
         l.action.toLowerCase().includes(search) ||
         l.module.toLowerCase().includes(search) ||

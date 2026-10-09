@@ -65,6 +65,9 @@ interface SystemStats {
 }
 
 interface SystemLogItem {
+  source_file?: string;
+  source_function?: string;
+  event_code?: string;
   operation?: string;
   route?: string;
   status?: number;
@@ -534,6 +537,18 @@ export default function SystemTab() {
                   {detailLog.message}
                 </div>
               </div>
+              {(detailLog.module === 'CLIENT' || detailLog.source_file) && (
+                <div className="rounded-xl border p-4 space-y-3 text-sm">
+                  <h5 className="font-bold">소스 찾기</h5>
+                  <dl className="space-y-2">
+                    <div><dt className="font-bold">이벤트 코드</dt><dd className="font-mono break-all">{detailLog.event_code || `CLIENT_${detailLog.action}_${detailLog.level}`}</dd></div>
+                    <div><dt className="font-bold">기록 지점</dt><dd className="font-mono break-all">{detailLog.source_file || '기존 로그 — 소스 위치 미수집'}</dd></div>
+                    <div><dt className="font-bold">함수</dt><dd className="font-mono break-all">{detailLog.source_function || '미수집'}</dd></div>
+                  </dl>
+                  <p className="text-xs text-zinc-500">VS Code에서 해당 파일을 열고 함수 이름 또는 로그의 액션 코드로 검색하세요. 기록 지점이며 실제 오류 발생 위치와 다를 수 있습니다.</p>
+                  <button className="admin-btn-secondary px-3 py-2" onClick={() => handleCopy([detailLog.source_file, detailLog.source_function, detailLog.event_code || detailLog.action].filter(Boolean).join('\n'), 'source_location')}>{copiedId === 'source_location' ? '복사됨' : '소스 위치 복사'}</button>
+                </div>
+              )}
               {detailLog.module === 'HTTP' && (
                 <div className="space-y-3 text-sm">
                   <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border p-4">
