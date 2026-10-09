@@ -55,6 +55,8 @@ scratch/
 **/scratch/
 tmp/
 **/tmp/
+.tmp/
+**/.tmp/
 tests/
 **/tests/
 __tests__/

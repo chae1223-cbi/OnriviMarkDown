@@ -6,7 +6,9 @@ export async function onRequest(context) {
   let response;
   try { response = await context.next(); }
   catch { response = new Response('Internal server error', { status: 500 }); }
-  if (response.status >= 400 && context.env.R2_BUCKET && !url.pathname.startsWith('/api/admin/system')) {
+  // Temporary diagnostic window ends at 2026-10-10 00:00 KST.
+  const captureAllToday = Date.now() < Date.parse('2026-10-10T00:00:00+09:00');
+  if ((captureAllToday || response.status >= 400) && context.env.R2_BUCKET && !url.pathname.startsWith('/api/admin/system')) {
     const entry = { id: requestId, timestamp: new Date().toISOString(), level: response.status >= 500 ? 'ERROR' : response.status >= 400 ? 'WARN' : 'INFO', module: 'HTTP', action: context.request.method, message: `HTTP ${response.status} · ${Date.now() - started}ms`, actor: 'SERVER', target: '-', status: response.status };
     const date = entry.timestamp.slice(0,10);
     context.waitUntil(context.env.R2_BUCKET.put(`_system-logs/${date}/${entry.timestamp}_${requestId}.json`, JSON.stringify(entry)).catch(() => console.error('[ServerLog] Storage write failed')));
