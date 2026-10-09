@@ -136,6 +136,7 @@ export async function onRequestGet(context) {
     serverLogs = serverLogs.filter(entry => !(entry.status < 400 && ['/api/device/session-status','/api/license/check-session'].includes(entry.route)));
     // 필터링 적용
     let filteredLogs = source === 'server' ? serverLogs : logs;
+    filteredLogs = filteredLogs.filter(l => l.level === 'WARN' || l.level === 'ERROR');
     if (filterLevel !== 'ALL') {
       filteredLogs = filteredLogs.filter(l => l.level === filterLevel);
     }

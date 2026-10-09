@@ -90,6 +90,7 @@ export async function GET(req: Request) {
     });
 
     let filteredLogs = serverSource ? [] : logs;
+    filteredLogs = filteredLogs.filter(l => l.level === 'WARN' || l.level === 'ERROR');
     if (filterLevel !== 'ALL') {
       filteredLogs = filteredLogs.filter(l => l.level === filterLevel);
     }

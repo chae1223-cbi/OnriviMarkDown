@@ -133,7 +133,7 @@ export default function SystemTab() {
   const [logScope, setLogScope] = useState('');
   const [logs, setLogs] = useState<SystemLogItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [levelFilter, setLevelFilter] = useState<'ALL' | 'INFO' | 'WARN' | 'ERROR'>('ALL');
+  const [levelFilter, setLevelFilter] = useState<'ALL' | 'WARN' | 'ERROR'>('ALL');
   const [search, setSearch] = useState('');
   const [isAutoRefresh, setIsAutoRefresh] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -166,7 +166,7 @@ export default function SystemTab() {
             actor: safeText(l.actor),
             target: safeText(l.target)
           }));
-          setLogs(normalized);
+          setLogs(normalized.filter((log: SystemLogItem) => log.level === 'WARN' || log.level === 'ERROR'));
         }
         setLastFetchedAt(new Date().toLocaleTimeString());
       }
@@ -363,7 +363,7 @@ export default function SystemTab() {
           <div className="flex flex-wrap items-center gap-2.5">
             {/* 레벨 필터 */}
             <div className="flex items-center p-0.5 rounded-lg bg-zinc-200 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 text-xs font-bold">
-              {(['ALL', 'INFO', 'WARN', 'ERROR'] as const).map(lvl => (
+              {(['ALL', 'WARN', 'ERROR'] as const).map(lvl => (
                 <button
                   key={lvl}
                   onClick={() => setLevelFilter(lvl)}
@@ -373,7 +373,7 @@ export default function SystemTab() {
                       : 'text-zinc-700 dark:text-zinc-300 hover:text-zinc-950'
                   }`}
                 >
-                  {lvl}
+                  {lvl === 'ALL' ? '오류·경고' : lvl === 'WARN' ? '경고' : '오류'}
                 </button>
               ))}
             </div>
