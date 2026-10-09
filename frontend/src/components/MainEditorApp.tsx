@@ -324,7 +324,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
 import UnifiedTabBar, { EditorTab } from '@/components/UnifiedTabBar';
 import * as utilsPasteHandlers from '@/utils/pasteHandlers';
-import { htmlToImportMarkdown } from '@/lib/importHtmlMarkdown';
+import { htmlToImportMarkdown, importHtmlWithImages } from '@/lib/importHtmlMarkdown';
 import * as utilsEditorActions from '@/utils/editorActions';
 import { useEditorTabs } from '@/hooks/useEditorTabs';
 import { useEditorSettings } from '@/hooks/useEditorSettings';
@@ -5539,6 +5539,46 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 우리가 처리할 대상이면 e.preventDefault()를 즉시 호출해야 합니다.
 
     const htmlData = hasHtml ? e.clipboardData.getData('text/html') : '';
+    if (htmlData && /<img\b[^>]*src=["']data:image\//i.test(htmlData) && (e.clipboardData.getData('text/plain') || '').trim()) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      try {
+        showToast('붙여넣은 문서의 이미지를 리소스 폴더에 저장하는 중입니다.', 'info');
+        const markdown = await importHtmlWithImages(htmlData, async (base64, mime) => {
+          const settings = requireResourceSettings();
+          const extension = mime.split('/')[1].replace('jpeg', 'jpg').replace('svg+xml', 'svg');
+          const fileName = `paste_${crypto.randomUUID()}.${extension}`;
+          const blob = dataUrlToBlob(`data:${mime};base64,${base64}`);
+          if (getResourceSettings()?.kind === 'drive') {
+            const token = getSavedDriveToken();
+            const mediaFolderId = getResourceSettings('cloud')?.mediaFolderId || getSavedWorkspaceInfo()?.mediaFolderId;
+            if (!token || !mediaFolderId) throw new Error('드라이브 리소스 폴더 연결을 확인해 주세요.');
+            const uploaded = await uploadDriveImage(token, mediaFolderId, blob, fileName);
+            if (!uploaded?.id) throw new Error('이미지 저장에 실패했습니다.');
+            return `media/${encodeURIComponent(uploaded.name)}?driveId=${encodeURIComponent(uploaded.id)}`;
+          }
+          const api = (window as any).electronAPI;
+          if (api) {
+            const result = await api.saveImage(`${settings.path}${settings.path.includes('\\') ? '\\' : '/'}media`, base64, fileName);
+            if (!result?.success) throw new Error('이미지 저장에 실패했습니다.');
+            return result.mediaPath || `media://local/serve?url=${encodeURIComponent(result.absolutePath)}`;
+          }
+          if (!resourceFolderHandle) throw new Error('리소스 폴더 접근 권한을 확인해 주세요.');
+          const media = await resourceFolderHandle.getDirectoryHandle('media', { create: true });
+          const file = await media.getFileHandle(fileName, { create: true });
+          const writable = await file.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          return `/media/${fileName}`;
+        });
+        if (!insertAtCursor(markdown)) throw new Error('편집영역에 내용을 삽입하지 못했습니다.');
+        if (editorRef.current) updateContent(editorRef.current.getValue(), true);
+        showToast('문서와 이미지를 붙여넣었습니다.', 'success');
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : '문서 붙여넣기에 실패했습니다.', 'error');
+      }
+      return;
+    }
     const hasTable = !!htmlData && htmlData.includes('<table');
     const textData = hasText ? e.clipboardData.getData('text/plain') : '';
     const htmlImgMatch = htmlData ? htmlData.match(/<img[^>]+src=["']([^"']+)["']/i) : null;
