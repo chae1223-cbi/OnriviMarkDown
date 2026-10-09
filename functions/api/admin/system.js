@@ -140,6 +140,9 @@ export async function onRequestGet(context) {
     }
     if (search) {
       filteredLogs = filteredLogs.filter(l =>
+        (l.route || '').toLowerCase().includes(search) ||
+        (l.request_id || l.id || '').toLowerCase().includes(search) ||
+        (l.operation || '').toLowerCase().includes(search) ||
         l.message.toLowerCase().includes(search) ||
         l.action.toLowerCase().includes(search) ||
         l.module.toLowerCase().includes(search) ||

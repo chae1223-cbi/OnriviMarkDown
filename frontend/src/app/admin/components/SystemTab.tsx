@@ -65,6 +65,13 @@ interface SystemStats {
 }
 
 interface SystemLogItem {
+  operation?: string;
+  route?: string;
+  status?: number;
+  duration_ms?: number;
+  request_id?: string;
+  outcome?: string;
+  region?: string;
   id: string;
   timestamp: string;
   level: 'INFO' | 'WARN' | 'ERROR';
@@ -375,7 +382,7 @@ export default function SystemTab() {
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="로그 내용, 작업자 검색..."
+                placeholder="작업 이름, API 경로, 요청 ID 검색..."
                 className="pl-9 pr-3 py-1.5 rounded-lg admin-input text-xs font-medium w-44 sm:w-60 border-zinc-300 dark:border-zinc-600"
               />
             </div>
@@ -430,6 +437,8 @@ export default function SystemTab() {
                     className="text-sm font-bold text-zinc-950 dark:text-zinc-50 truncate max-w-xl group-hover:text-blue-700 dark:group-hover:text-blue-300 tracking-tight"
                     title={log.message}
                   >
+                    {log.operation && <span className="block">{log.operation}</span>}
+                    {log.route && <span className="block font-mono text-xs font-normal">{log.route}</span>}
                     {log.message}
                   </span>
                 </div>
@@ -465,7 +474,7 @@ export default function SystemTab() {
       {/* 4. 로그 상세 정보 모달 (선명한 팝업) */}
       {detailLog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="admin-glass-card max-w-lg w-full shadow-2xl overflow-hidden border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+          <div className="admin-glass-card max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900">
             <div className="p-5 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <Terminal className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -481,7 +490,7 @@ export default function SystemTab() {
               </button>
             </div>
 
-            <div className="p-6 space-y-4 text-xs">
+            <div className="p-6 space-y-4 text-xs overflow-y-auto min-h-0">
               <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-zinc-600 dark:text-zinc-400 font-bold">발생 일시:</span>
@@ -525,6 +534,20 @@ export default function SystemTab() {
                   {detailLog.message}
                 </div>
               </div>
+              {detailLog.module === 'HTTP' && (
+                <div className="space-y-3 text-sm">
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border p-4">
+                    <div className="sm:col-span-2"><dt className="font-bold">작업 이름</dt><dd>{detailLog.operation || "미수집 — API 경로를 확인하세요"}</dd></div>
+                    <div><dt className="font-bold">API 경로</dt><dd className="break-all font-mono">{detailLog.route || '미수집 — 새 배포 이후 기록부터 표시'}</dd></div>
+                    <div><dt className="font-bold">응답 상태</dt><dd>{detailLog.status ?? detailLog.message.match(/HTTP (\d+)/)?.[1] ?? '미수집'}</dd></div>
+                    <div><dt className="font-bold">처리 시간</dt><dd>{detailLog.duration_ms ?? detailLog.message.match(/(\d+)ms/)?.[1] ?? '미수집'} ms</dd></div>
+                    <div><dt className="font-bold">실행 위치</dt><dd>{detailLog.region || '미수집'}</dd></div>
+                    <div className="sm:col-span-2"><dt className="font-bold">요청 ID</dt><dd className="break-all font-mono">{detailLog.request_id || detailLog.id}</dd></div>
+                  </dl>
+                  <p>{detailLog.outcome === 'UNHANDLED_EXCEPTION' ? '처리되지 않은 서버 예외가 발생했습니다. 요청 ID로 운영 콘솔의 기록을 확인하세요.' : (detailLog.status ?? Number(detailLog.message.match(/HTTP (\d+)/)?.[1])) >= 500 ? '서버 오류 응답입니다. 이 기록만으로 구체적인 오류 원인을 확정할 수 없습니다.' : (detailLog.status ?? Number(detailLog.message.match(/HTTP (\d+)/)?.[1])) >= 400 ? '요청이 거절되거나 처리되지 않았습니다. 인증·권한·요청 경로를 확인하세요.' : '정상 응답입니다. 처리 시간은 서버에서 응답을 생성하기까지의 시간입니다.'}</p>
+                  <p className="text-xs text-zinc-500">개인정보 보호를 위해 쿼리, 본문, 인증 정보는 저장하지 않으며 동적 경로는 :value로 표시합니다.</p>
+                </div>
+              )}
             </div>
 
             <div className="p-4 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 flex justify-between items-center">
