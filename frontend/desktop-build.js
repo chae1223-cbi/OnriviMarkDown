@@ -7,6 +7,8 @@
  * 2. next build 실행
  * 3. 임시 이동한 폴더 원위치 복원
  * 
+ * 🚨 @PATCH : **2026-10-11** — [.next-desktop 산출물 out 복사 및 최신화 누락 버그 해결]: NEXT_BUILD_DIR(.next-desktop)로 export된 정적 번들을 out 디렉터리로 복사하는 단계가 누락되어 데스크톱 Electron(NO_SERVER=true)이 과거 빌드를 바라보던 결함 완전 수정
+ * 🚨 @PATCH : **2026-10-11** — [타 빌드 잔여 캐시(.next-dev, .next-web-build) 선행 소탕 추가]: Next.js 타입 검사 시 이전 개발/웹 빌드 캐시의 types 참조로 인한 라우트 격리 컴파일 실패 원천 차단
  * 🚨 @PATCH : **2026-10-02** — [빌드 산출물 자동 소탕(Purge) 탑재]: out 디렉터리 내 잔여 소스맵(.map), 테스트 파일, 임시/더미 에셋 자동 소탕 추가
  * 🚨 @PATCH : **2026-09-30** — [데스크톱 정적 빌드 안정화] Next.js 14 정적 내보내기(export) 워커 간 manifest 탐색 불일치(PageNotFoundError: /)를 유발하던 NEXT_BUILD_DIR 분리를 걷어내고 기본 .next 단일 빌드로 정상 복원
  * 🚨 @PATCH : **2026-09-26** — [데스크톱 빌드 캐시 자동 정리] .next 빌드 캐시 선행 삭제 로직 추가로 청크 불일치 오류 방지
@@ -62,9 +64,17 @@ for (const item of DEV_ONLY_ROUTES) {
 // 2. Next.js 빌드 실행
 let buildSuccess = false;
 try {
-  const nextCacheDir = path.join(__dirname, '.next-desktop');
-  if (fs.existsSync(nextCacheDir)) {
-    fs.rmSync(nextCacheDir, { recursive: true, force: true });
+  const cacheDirsToClean = [
+    path.join(__dirname, '.next-desktop'),
+    path.join(__dirname, '.next-dev'),
+    path.join(__dirname, '.next-web-build')
+  ];
+  for (const cDir of cacheDirsToClean) {
+    if (fs.existsSync(cDir)) {
+      try {
+        fs.rmSync(cDir, { recursive: true, force: true });
+      } catch (_) {}
+    }
   }
   console.log('[desktop-build] next build 시작...');
   execSync('npx next build', { stdio: 'inherit', env: { ...process.env, ASSET_PREFIX: './', NEXT_BUILD_TARGET: 'desktop', NEXT_BUILD_DIR: '.next-desktop' } });
@@ -93,6 +103,21 @@ try {
 }
 
 if (buildSuccess) {
+  // 🛡️ [데스크톱 정적 번들 최신화] NEXT_BUILD_DIR(.next-desktop) 정적 결과를 out 디렉터리로 복사
+  try {
+    const exportedDir = path.join(__dirname, '.next-desktop');
+    const outputDir = path.join(__dirname, 'out');
+    if (fs.existsSync(exportedDir)) {
+      if (fs.existsSync(outputDir)) {
+        fs.rmSync(outputDir, { recursive: true, force: true });
+      }
+      fs.cpSync(exportedDir, outputDir, { recursive: true });
+      console.log('[desktop-build] .next-desktop -> out 정적 번들 복사 및 최신화 완료');
+    }
+  } catch (copyOutErr) {
+    console.error('[desktop-build] out 디렉터리 복사 오류:', copyOutErr.message);
+  }
+
   try {
     const publicIconsDir = path.join(__dirname, 'public', 'icons');
     const outIconsDir = path.join(__dirname, 'out', 'icons');

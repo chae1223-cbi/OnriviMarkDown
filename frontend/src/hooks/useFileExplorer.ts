@@ -2,7 +2,7 @@
 import { reportClientLog } from '@/lib/clientLogs';
 import { getResourceSettings, saveResourceSettings, activateDriveAccount } from '@/lib/resourceSettings';
 import { restoreLocalProfileFolder } from '@/lib/profileStorage';
-import { useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { FileNode, scanDirectory, idb } from '@/lib/indexedDbHelper';
 import { getVfsFiles, vfsReadFile, vfsWriteFile } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
@@ -23,6 +23,8 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
+// 🚨 @PATCH : **2026-10-11** — [구글 드라이브 인증 만료 상태 관리 useState import 누락 복구]:
+//             useFileExplorer 내 isDriveAuthExpired 상태 선언에 필요한 useState가 react import 목록에서 누락되어 발생하던 ReferenceError: useState is not defined 런타임 크래시 완전 해결
 // 🚨 @PATCH : **2026-10-07** — [구글 드라이브 연결 시 만료 토큰(401) 자동 감지 및 즉시 재인증 팝업 트리거]:
 //             기존 저장된 토큰이 401 만료 상태인 경우 onrivi_gdrive_token_expires_at 키 소거 후 requestGoogleDriveAuth 팝업을 즉시 띄워 새 토큰을 획득하도록 보강
 // 🚨 @PATCH : **2026-10-07** — [구글 드라이브 연결 및 해제 시 로컬 리소스 폴더 격리 보존]:
