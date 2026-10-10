@@ -504,10 +504,13 @@ export const useEditorHandlers = ({
       const api = (window as any).electronAPI;
       setSaveStatus('saving');
 
-      const fileNode = currentFileNodeRef.current;
-      const fileName = currentFileNameRef.current;
+      const activeTab = tabsRef?.current?.find((t: any) => t.id === activeTabIdRef?.current);
+      const fileNode = currentFileNodeRef.current || activeTab?.node || (activeTab?.path ? { name: activeTab.name || currentFileNameRef.current, path: activeTab.path, kind: 'file' } : null);
+      const fileName = currentFileNameRef.current || activeTab?.name || '새 파일.md';
       const wType = workspaceTypeRef.current;
-      let currentVal = contentRef.current;
+      // 💡 [치명적 데이터 유실 방어] React 상태 디바운스로 인한 타이핑 직후 저장 시 최신 본문 누락 완전 방지
+      let currentVal = editorRef?.current ? editorRef.current.getValue() : contentRef.current;
+      contentRef.current = currentVal;
 
       // [서식 자동 주입 패치] 커스텀 서식 프로필이 활성화된 경우에만 Frontmatter에 정보 자동 갱신
       if (activeProfileId && activeProfileId !== 'default') {
@@ -530,7 +533,7 @@ export const useEditorHandlers = ({
       }
 
       // ☁️ [Google Drive 클라우드 저장 분기]
-      const activeTab = tabsRef?.current?.find((t: any) => t.id === activeTabIdRef?.current);
+      // activeTab은 상단 L507에서 이미 취득됨
       const driveFileId = fileNode?.driveFileId || 
         fileNode?.driveId || 
         (activeTab as any)?.driveFileId || 
@@ -598,8 +601,8 @@ export const useEditorHandlers = ({
               setTimeout(() => {
                 setTabs(prev => {
                   const target = prev.find(t => t.id === activeTabIdRef.current);
-                  if (target && !target.isModified) return prev;
-                  return prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t);
+                  if (target && !target.isModified && target.content === currentVal) return prev;
+                  return prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false, content: currentVal } : t);
                 });
               }, 150);
               showToast("현재 파일에 안전하게 저장되었습니다.", "success");
@@ -626,8 +629,8 @@ export const useEditorHandlers = ({
               setTimeout(() => {
                 setTabs(prev => {
                   const target = prev.find(t => t.id === activeTabIdRef.current);
-                  if (target && !target.isModified) return prev;
-                  return prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t);
+                  if (target && !target.isModified && target.content === currentVal) return prev;
+                  return prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false, content: currentVal } : t);
                 });
               }, 150);
               showToast("현재 파일에 안전하게 저장되었습니다.", "success");
@@ -652,8 +655,8 @@ export const useEditorHandlers = ({
               setTimeout(() => {
                 setTabs(prev => {
                   const target = prev.find(t => t.id === activeTabIdRef.current);
-                  if (target && !target.isModified) return prev;
-                  return prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t);
+                  if (target && !target.isModified && target.content === currentVal) return prev;
+                  return prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false, content: currentVal } : t);
                 });
               }, 150);
               showToast("현재 파일에 안전하게 저장되었습니다.", "success");
