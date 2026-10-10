@@ -2,6 +2,7 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-10-10** — [file:readFromPath 도움말(/help/, HELP-*.md) 지능형 폴백 탐색 엔진 탑재]: 데스크톱 앱에서 워크스페이스 경로 결합(D:\...\help\HELP-01_...md) 또는 /help/ 경로로 유입 시 파일이 없을 때, frontend/public/help, frontend/out/help, docs/help를 자동 탐색하여 100% 정상 로드하고 '파일을 찾을 수 없습니다' 에러 완전 해결
 // 🚨 @PATCH : **2026-10-04** — [로컬 파일 읽기(file:readFromPath) 상대경로/파일명 단독 유입 시 활성 워크스페이스 지능형 재귀 탐색]: 상대경로(예: '여기는 연습1.md') 전달 시 현재 활성 워크스페이스(currentActiveWorkspacePath) 직접 결합 및 하위 재귀 탐색(findFileRecursive)을 선행하여 파일을 100% 정상 로드하고 '파일을 찾을 수 없습니다' 크래시 완전 해결
 // 🚨 @PATCH : **2026-10-04** — [데스크톱 Google OAuth 400 invalid_request 해결 & 시스템 브라우저 웹 Handoff 및 루프백 브리지 엔진 신설]: Google의 임베디드 웹뷰 및 비표준 redirect_uri 차단 정책을 준수하기 위해 gdrive:request-auth IPC 핸들러 및 임시 루프백 서버(http://127.0.0.1:port)를 가동하고, 시스템 기본 브라우저(https://onrivi.com/auth/google-drive-desktop)를 통해 GIS 인증 후 토큰을 데스크톱으로 즉각 수신하는 이중 브리지(루프백 fetch + onriviauthor:// 딥링크) 탑재
 // 🚨 @PATCH : **2026-10-03** — [구글 드라이브 GIS 연동을 위한 CSP 정책 확장]: cspDirectives 내 script-src, frame-src에 https://accounts.google.com 추가 및 connect-src에 https://accounts.google.com, https://www.googleapis.com 추가하여 구글 로그인 및 드라이브 API 통신 허용
@@ -2959,6 +2960,29 @@ ipcMain.handle('file:readFromPath', async (event, filePath) => {
           const normalizedP = p.normalize('NFC');
           if (fs.existsSync(normalizedP)) {
             cleanPath = normalizedP;
+            break;
+          }
+        }
+      }
+    }
+
+    // 🛡️ [도움말 문서 및 정적 마크다운 지능형 폴백 탐색]:
+    // cleanPath가 파일 시스템에 존재하지 않고, 경로에 'help'가 포함되어 있거나 마크다운(.md) 문서인 경우 앱 내장 도움말 저장소 순회
+    if (!fs.existsSync(cleanPath)) {
+      const targetFileName = path.basename(cleanPath);
+      const isHelpOrMd = cleanPath.includes('help') || targetFileName.startsWith('HELP-') || targetFileName.endsWith('.md');
+      if (isHelpOrMd) {
+        const helpPathsToTry = [
+          path.join(app.getAppPath(), 'frontend/public/help', targetFileName),
+          path.join(app.getAppPath(), 'frontend/out/help', targetFileName),
+          path.join(process.resourcesPath, 'frontend/public/help', targetFileName),
+          path.join(process.resourcesPath, 'frontend/out/help', targetFileName),
+          path.join(app.getAppPath(), 'docs/help', targetFileName)
+        ];
+        for (const hp of helpPathsToTry) {
+          const normHp = hp.normalize('NFC');
+          if (fs.existsSync(normHp)) {
+            cleanPath = normHp;
             break;
           }
         }

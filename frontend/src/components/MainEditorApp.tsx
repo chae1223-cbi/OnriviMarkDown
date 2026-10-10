@@ -564,7 +564,12 @@ const fetchAllMdFiles = async (
                 addToFileMap(item);
               }
             } else if (item.kind === 'directory' && item.path) {
-              await scan(item.path);
+              const dirName = (item.name || '').toLowerCase();
+              const isIgnored = dirName.startsWith('.') || 
+                ['node_modules', 'out', 'dist', 'build', '_dev_api_backup', '.wrangler', '.next-web-build', '.next', '.vscode', '.idea'].includes(dirName);
+              if (!isIgnored) {
+                await scan(item.path);
+              }
             }
           }
         } catch (e: any) {
@@ -9709,14 +9714,34 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                     return (a.name || '').localeCompare(b.name || '');
                                   });
 
-                                  if (filtered.length === 0) {
+                                  const deduplicated = (() => {
+                                    const map = new Map<string, FileNode>();
+                                    for (const f of filtered) {
+                                      const key = (f.name || '').normalize('NFC').toLowerCase();
+                                      if (!map.has(key)) {
+                                        map.set(key, f);
+                                      } else {
+                                        const prev = map.get(key)!;
+                                        const prevPath = (prev.path || '').replace(/\\/g, '/').toLowerCase();
+                                        const currPath = (f.path || '').replace(/\\/g, '/').toLowerCase();
+                                        const isPrevBuild = prevPath.includes('/out/') || prevPath.includes('/.next') || prevPath.includes('/.next-web-build/');
+                                        const isCurrBuild = currPath.includes('/out/') || currPath.includes('/.next') || currPath.includes('/.next-web-build/');
+                                        if (isPrevBuild && !isCurrBuild) {
+                                          map.set(key, f);
+                                        }
+                                      }
+                                    }
+                                    return Array.from(map.values());
+                                  })();
+
+                                  if (deduplicated.length === 0) {
                                     return (
                                       <div className="px-2 py-3 text-center text-[12px] text-slate-400 dark:text-zinc-500">
                                         검색 결과가 없습니다.
                                       </div>
                                     );
                                   }
-                                  return filtered.map((node) => {
+                                  return deduplicated.map((node) => {
                                     const isKnowledge = (node as any).isKnowledge || registeredDocs.includes(node.path) || registeredDocs.includes(node.name);
                                     const displayTitle = (node as any).title && (node as any).title !== node.name
                                       ? `${(node as any).title} (${node.name})`

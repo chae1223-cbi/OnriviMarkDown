@@ -11,6 +11,13 @@
 
 import blogSnapshot from '@/generated/blogSnapshot.json';
 
+export interface BlogAttachment {
+  name: string;         // 표시 파일명 (예: "수원_1박2일_도보여행_원고.md")
+  url: string;          // 다운로드 링크 (예: "/help/assets/suwon_travel_sample.md")
+  size?: string;        // 파일 크기 (예: "15 KB")
+  description?: string; // 파일 설명 (예: "실습용 마크다운 본문 원고")
+}
+
 export interface BlogPost {
   id: string;
   slug: string;
@@ -27,6 +34,7 @@ export interface BlogPost {
   isFeatured?: boolean;
   status?: "published" | "draft"; // 게시 상태
   deploymentStatus?: "draft" | "pending" | "live" | "failed";
+  attachments?: BlogAttachment[]; // 첨부파일 다운로드 목록
 }
 
 export type BlogCategory = string;

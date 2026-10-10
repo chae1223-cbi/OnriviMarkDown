@@ -1,6 +1,7 @@
 import { remarkCodeBlockMetadata } from '../lib/codeBlockMetadata';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { exportContentFingerprint } from '@/lib/exportPreparation';
+// 🚨 @PATCH : **2026-10-10** — [한글 CJK 볼드(**) 닫힘 태그 바로 뒤 조사 렌더링 방어]: CommonMark 파서가 **온리비**는 과 같이 닫는 태그 바로 뒤에 한글 조사가 붙었을 때 강조를 풀지 못하고 리터럴 문자로 깨져 노출되는 결함을 방어하기 위해 cleanContent 전처리 단계에서 닫힘 태그 뒤 공백 자동 보정 연동
 // 🚨 @PATCH : **2026-10-07** — [환경설정 리소스 폴더(참조파일 등) 미디어 렌더링 폴더 ID 직결]: AsyncImage 및 AsyncVideo 렌더링 시 getResourceSettings('cloud')?.mediaFolderId를 최우선으로 사용하여 구글 드라이브 리소스 폴더 미디어 100% 정상 표시
 // 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 전역 미디어 실시간 연동 강화]: 구글 드라이브(OnriviAuthor/참조파일/media) 및 로컬/웹 리소스 폴더 변경 시 AsyncImage 실시간 감지 및 캐싱 Blob URL 렌더링 지원
 // 🚨 @PATCH : **2026-10-01** — [본문 우측/중앙 정렬(align, text-align, table 등) 100% 실시간 렌더링 지원]: [align="right"], [style*="text-align: right"], [align="center"] 등의 CSS 규칙을 탑재하고 div/p 컴포넌트의 align 속성을 inline style로 정밀 바인딩하며, th text-align center 강제를 해제하여 사용자 정렬 완벽 보장
@@ -1907,6 +1908,10 @@ function MarkdownViewer({
       }
 
       let proseText = seg.text;
+
+      // 💡 [한글 CJK 볼드 닫힘 렌더링 방어]
+      // CommonMark 파서가 **온리비**는 처럼 닫는 태그 바로 뒤에 한글 조사가 붙었을 때 강조를 풀지 못하고 리터럴 문자로 노출하는 버그를 원천 해결
+      proseText = proseText.replace(/(?<!\*)\*\*([^\s*\n](?:[^*\n]*?[^\s*\n])?)\*\*([가-힣a-zA-Z0-9])/g, '**$1** $2');
       // Markdown blank lines separate blocks. Do not turn structural blank
       // lines around list wrappers into visible paragraphs with their own margins.
       // Leaving them intact also preserves the source-line mapping.

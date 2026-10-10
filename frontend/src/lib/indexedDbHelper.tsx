@@ -142,7 +142,8 @@ export async function scanDirectoryDeep(dirHandle: any, parentPath: string = "",
 
   try {
     for await (const [name, handle] of dirHandle.entries()) {
-      if (name.startsWith('.') || name === 'node_modules') continue;
+      const nameLower = name.toLowerCase();
+      if (name.startsWith('.') || ['node_modules', 'out', 'dist', 'build', '_dev_api_backup', '.wrangler', '.next-web-build'].includes(nameLower)) continue;
 
       const currentPath = parentPath ? `${parentPath}/${name}` : name;
       if (handle.kind === 'file') {
