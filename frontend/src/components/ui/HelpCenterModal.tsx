@@ -8,7 +8,7 @@
 "use client";
 
 import ReactMarkdown from 'react-markdown';
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ChevronRight, Loader2, Book } from "lucide-react";
 
@@ -77,16 +77,15 @@ export function HelpCenterModal({ open, onClose }: Props) {
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
-    loadArticle(selected);
-  }, [selected, open, publishedDocs]);
-
-  async function loadArticle(article: typeof articles[0]) {
+  const loadArticle = useCallback(async (article: typeof articles[0]) => {
     setLoading(true);
     try {
-      const published = publishedDocs.find(doc=>doc.id===article.id);
-      if(published){setContent(stripFrontmatter(published.content));setLoading(false);return;}
+      const published = publishedDocs.find(doc => doc.id === article.id);
+      if (published) {
+        setContent(stripFrontmatter(published.content));
+        setLoading(false);
+        return;
+      }
       const res = await fetch(`/help/${article.file}`);
       const text = await res.text();
       setContent(stripFrontmatter(text));
@@ -94,7 +93,12 @@ export function HelpCenterModal({ open, onClose }: Props) {
       setContent("내용을 불러올 수 없습니다.");
     }
     setLoading(false);
-  }
+  }, [publishedDocs]);
+
+  useEffect(() => {
+    if (!open) return;
+    loadArticle(selected);
+  }, [selected, open, loadArticle]);
 
   return (
     <AnimatePresence>

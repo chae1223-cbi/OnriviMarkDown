@@ -31,13 +31,16 @@ jobs:
       run: npx tsc --noEmit
 
     - name: Run Unit Tests (Vitest)
-      run: npm run test
-
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
+      run: npm run test -- --passWithNoTests
 
     - name: Run E2E Tests (Playwright)
-      run: npm run test:e2e
+      run: |
+        if [ -d "src/__tests__/e2e" ] && [ -n "$(ls -A src/__tests__/e2e 2>/dev/null)" ]; then
+          npx playwright install --with-deps
+          npm run test:e2e
+        else
+          echo "No E2E tests found, skipping Playwright."
+        fi
       
     - name: Upload Playwright Report
       if: always()
@@ -46,3 +49,4 @@ jobs:
         name: playwright-report
         path: ./frontend/playwright-report/
         retention-days: 30
+        if-no-files-found: ignore

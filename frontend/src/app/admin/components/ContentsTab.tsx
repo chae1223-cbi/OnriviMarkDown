@@ -89,12 +89,13 @@ function MediaPreview({item, large = false}: {item: ContentItem; large?: boolean
   const [failed, setFailed] = useState(false);
   const [documentText, setDocumentText] = useState<string>('불러오는 중…');
   useEffect(() => {
-    if (!large || item.category !== 'HELP' || fileExtension(item) !== 'md') return;
+    const ext = item.file_name.split('.').pop()?.toLowerCase() || 'file';
+    if (!large || item.category !== 'HELP' || ext !== 'md') return;
     const controller = new AbortController();
     setDocumentText('불러오는 중…');
     void fetch(item.url, {signal:controller.signal}).then(response => { if (!response.ok) throw new Error(); return response.text(); }).then(setDocumentText).catch(() => { if (!controller.signal.aborted) setDocumentText('도움말을 불러오지 못했습니다. 원본 열기를 이용하세요.'); });
     return () => controller.abort();
-  }, [large, item.url, item.category]);
+  }, [large, item.url, item.category, item.file_name]);
   useEffect(() => setFailed(false), [item.url]);
   if (large && item.category === 'HELP' && fileExtension(item) === 'md') return <pre className="w-full whitespace-pre-wrap break-words text-sm leading-7 text-zinc-800 dark:text-zinc-200">{documentText}</pre>;
   const image = isImageUrl(item.url, item.file_name);
