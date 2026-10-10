@@ -509,8 +509,8 @@ export const useEditorHandlers = ({
       const wType = workspaceTypeRef.current;
       let currentVal = contentRef.current;
 
-      // [서식 자동 주입 패치] 현재 활성화된 프로필 정보를 Frontmatter에 자동 갱신
-      if (activeProfileId) {
+      // [서식 자동 주입 패치] 커스텀 서식 프로필이 활성화된 경우에만 Frontmatter에 정보 자동 갱신
+      if (activeProfileId && activeProfileId !== 'default') {
         const profile = profiles?.find((p: any) => p.id === activeProfileId);
         const nextVal = updateCssProfileInFrontmatter(currentVal, activeProfileId, profile?.name);
         if (nextVal !== currentVal) {
@@ -547,11 +547,15 @@ export const useEditorHandlers = ({
               setSaveStatus('saved');
               reportClientLog('문서 저장 완료', 'INFO', 'DOCUMENT_SAVE');
               setTimeout(() => {
-                setTabs(prev => prev.map(t => {
-                  const tDriveId = (t as any).driveFileId || (t as any).driveId;
-                  const isMatch = (tDriveId && String(tDriveId) === String(driveFileId)) || t.id === activeTabIdRef.current;
-                  return isMatch ? { ...t, isModified: false, content: currentVal } : t;
-                }));
+                setTabs(prev => {
+                  const activeT = prev.find(t => t.id === activeTabIdRef.current);
+                  if (activeT && !activeT.isModified && activeT.content === currentVal) return prev;
+                  return prev.map(t => {
+                    const tDriveId = (t as any).driveFileId || (t as any).driveId;
+                    const isMatch = (tDriveId && String(tDriveId) === String(driveFileId)) || t.id === activeTabIdRef.current;
+                    return isMatch ? { ...t, isModified: false, content: currentVal } : t;
+                  });
+                });
               }, 150);
               showToast("구글 드라이브에 안전하게 저장되었습니다.", "success");
               triggerKnowledgeAutoSync(fileNode?.path || fileName, currentVal);
@@ -592,7 +596,11 @@ export const useEditorHandlers = ({
               setSaveStatus('saved');
               reportClientLog('문서 저장 완료', 'INFO', 'DOCUMENT_SAVE');
               setTimeout(() => {
-                setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
+                setTabs(prev => {
+                  const target = prev.find(t => t.id === activeTabIdRef.current);
+                  if (target && !target.isModified) return prev;
+                  return prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t);
+                });
               }, 150);
               showToast("현재 파일에 안전하게 저장되었습니다.", "success");
               triggerKnowledgeAutoSync(fileNode.path, currentVal);
@@ -616,7 +624,11 @@ export const useEditorHandlers = ({
               setSaveStatus('saved');
               reportClientLog('문서 저장 완료', 'INFO', 'DOCUMENT_SAVE');
               setTimeout(() => {
-                setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
+                setTabs(prev => {
+                  const target = prev.find(t => t.id === activeTabIdRef.current);
+                  if (target && !target.isModified) return prev;
+                  return prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t);
+                });
               }, 150);
               showToast("현재 파일에 안전하게 저장되었습니다.", "success");
               triggerKnowledgeAutoSync(fileNode.path, currentVal);
@@ -638,7 +650,11 @@ export const useEditorHandlers = ({
               setSaveStatus('saved');
               reportClientLog('문서 저장 완료', 'INFO', 'DOCUMENT_SAVE');
               setTimeout(() => {
-                setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
+                setTabs(prev => {
+                  const target = prev.find(t => t.id === activeTabIdRef.current);
+                  if (target && !target.isModified) return prev;
+                  return prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t);
+                });
               }, 150);
               showToast("현재 파일에 안전하게 저장되었습니다.", "success");
               triggerKnowledgeAutoSync(fileNode.path || fileName, currentVal);

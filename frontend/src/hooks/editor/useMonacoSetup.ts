@@ -105,13 +105,6 @@ export function useMonacoSetup(deps: any) {
                       persistentCaret.style.display = 'none';
                       return;
                     }
-                    const cursorDom = editorDomNode.querySelector('.cursors-layer .cursor') as HTMLElement | null;
-                    if (cursorDom && cursorDom.offsetParent) {
-                      persistentCaret.style.display = 'block';
-                      persistentCaret.style.height = `${cursorDom.offsetHeight || 16}px`;
-                      persistentCaret.style.transform = `translate(${cursorDom.offsetLeft}px, ${cursorDom.offsetTop}px)`;
-                      return;
-                    }
                     const position = editor.getPosition();
                     const visiblePosition = position && editor.getScrolledVisiblePosition(position);
                     if (!visiblePosition) {
@@ -430,7 +423,7 @@ export function useMonacoSetup(deps: any) {
                     lineNumbersMinChars: 4,
                     automaticLayout: true,
                     wordWrap: 'on',
-                    wrappingStrategy: 'advanced',
+                    wrappingStrategy: 'simple',
                     wordWrapBreakAfterCharacters: ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々ㇻｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
                     wordWrapBreakBeforeCharacters: '([{\'"“‘«‹〈《「『【〔（［｛｢',
 
@@ -557,6 +550,7 @@ export function useMonacoSetup(deps: any) {
                     });
                   };
 
+                  let decorationsTimeout: any = null;
                   editor.onDidChangeModelContent(() => {
                     isTyping = true;
                     if (typingTimeout) clearTimeout(typingTimeout);
@@ -567,12 +561,17 @@ export function useMonacoSetup(deps: any) {
                     // 미리보기 DOM 갱신 전의 스크롤 보정은 렌더 후 보정과 충돌한다.
                     // 입력에 따른 위치 조정은 MainEditorApp의 processedContent 레이아웃 효과가 전담한다.
 
-                    requestAnimationFrame(() => {
-                      const hadTextFocus = editor.hasTextFocus?.();
-                      updateDecorations(editor);
-                      if (hadTextFocus && !editor.hasTextFocus?.()) editor.focus();
-                      updatePersistentCaret();
-                    });
+                    // 💡 [타이핑 랙 제거] 키 입력마다 전체 문서를 정규식 스캔하던 무거운 구문 강조 데코레이션을 120ms 디바운스 처리
+                    if (decorationsTimeout) clearTimeout(decorationsTimeout);
+                    decorationsTimeout = setTimeout(() => {
+                      requestAnimationFrame(() => {
+                        const hadTextFocus = editor.hasTextFocus?.();
+                        updateDecorations(editor);
+                        if (hadTextFocus && !editor.hasTextFocus?.()) editor.focus();
+                      });
+                    }, 120);
+
+                    requestAnimationFrame(updatePersistentCaret);
                   });
 
                   if (!(monaco.editor as any)._customActionCommandRegistered) {
@@ -1877,7 +1876,6 @@ export function useMonacoSetup(deps: any) {
                     if (e && e.changes && e.changes.some(c => c.text === '1. ' || c.text === '1.')) {
                       setTimeout(() => editor.getAction('autoRenumberList')?.run(), 150);
                     }
-                    requestAnimationFrame(updatePersistentCaret);
                   });
 
                   editor.onDidChangeCursorPosition((e) => {

@@ -3971,11 +3971,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         fontFamily: "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Noto Sans KR', 'Malgun Gothic', sans-serif",
         padding: { top: 20, bottom: 24, left: 16, right: 32 },
         wordWrap: wordWrap,
-        wrappingStrategy: 'advanced',
+        wrappingStrategy: 'simple',
         wordWrapBreakAfterCharacters: ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々ㇻｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
         wordWrapBreakBeforeCharacters: '([{\'"“‘«‹〈《「『【〔（［｛｢',
         readOnly: tabs.length === 0 || isRestrictedUser,
         domReadOnly: tabs.length === 0 || isRestrictedUser,
+        cursorSmoothCaretAnimation: 'off',
         scrollbar: { verticalScrollbarSize: 16 },
       });
       // 3. 레이아웃 리플로우 강제 트리거 및 비동기 웹폰트 로딩 후 글자 폭 재계산 (핵심 버그 수정)
@@ -9188,12 +9189,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           letterSpacing: 0,
                           // 🎯 커서 항상 가시성 보장 (단독/분할 모드 공통)
                           cursorBlinking: 'blink',
-                          cursorSmoothCaretAnimation: 'on',
+                          cursorSmoothCaretAnimation: 'off',
                           cursorStyle: 'line',
                           cursorWidth: 4,
                           'semanticHighlighting.enabled': true,
                           wordWrap: wordWrap || 'on',
-                          wrappingStrategy: 'advanced',
+                          wrappingStrategy: 'simple',
                           wordWrapBreakAfterCharacters: ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々ㇻｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
                           wordWrapBreakBeforeCharacters: '([{\'"“‘«‹〈《「『【〔（［｛｢',
                           lineNumbers: 'on',
@@ -10194,14 +10195,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                    * 모든 값에 !important가 붙어 prose 클래스 스타일을 오버라이드합니다.
                    */}
                         {dynamicCssString && (
-                          <style dangerouslySetInnerHTML={{ __html: dynamicCssString }} />
+                          <style id="onrivi-dynamic-css" key="onrivi-dynamic-css" dangerouslySetInnerHTML={{ __html: dynamicCssString }} />
                         )}
                         {/* 미리보기 전용 모드이거나 A4 조판 가드가 켜져 있을 때 스킨의 배경색과 외부 감싸기용 회색 배경 분리 지정 */}
                         {(() => {
                           const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
                           const paperBg = activeProfile.pageStyle.backgroundColor || '#ffffff';
                           return (
-                            <style dangerouslySetInnerHTML={{
+                            <style id="onrivi-preview-page-css" key="onrivi-preview-page-css" dangerouslySetInnerHTML={{
                               __html: `
                         ${(previewMode === 'preview' || isA4GuardEnabled) ? `
                         .custom-preview-container {

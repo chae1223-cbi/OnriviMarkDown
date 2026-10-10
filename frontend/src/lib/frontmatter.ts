@@ -46,6 +46,20 @@ export function extractFrontmatter(content: string): { content: string; data: Fr
 export function updateCssProfileInFrontmatter(content: string, profileId: string, profileName?: string): string {
   const { data, content: restContent } = extractFrontmatter(content);
   
+  const currentProfile = data['css_profile']?.replace(/^["']|["']$/g, '');
+  const currentName = data['css_profile_name']?.replace(/^["']|["']$/g, '');
+
+  // 💡 이미 동일한 profileId와 name이 설정되어 있다면 불필요한 모델 치환 방지를 위해 원본 content 그대로 반환
+  if (currentProfile === profileId && (!profileName || currentName === profileName)) {
+    return content;
+  }
+
+  // 💡 기본 프로필('default')이고 문서에 원래 css_profile이 지정되어 있지 않은 경우,
+  //    순수 마크다운 문서에 불필요하게 YAML 메타데이터를 강제 주입하지 않고 원본 유지
+  if ((!profileId || profileId === 'default') && !currentProfile) {
+    return content;
+  }
+  
   // Update or set the profile ID
   data['css_profile'] = profileId;
   if (profileName) {
