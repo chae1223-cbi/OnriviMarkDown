@@ -4,9 +4,12 @@
 // 📊 [OMD-CORE-docs-page-0001] page ➔ HelpCenterPage
 // 🎯 @KICK  : 공식 도움말 웹 센터 (https://onrivi.com/docs)
 // 🛡️ @GUARD : 30개 공식 챕터(HELP-01~29 + 00_시작하기) 전면 현행화 및 내부 링크 100% 무결점 점프
+// 🚨 @PATCH : **2026-10-11** — [관리자 페이지 R2 게시본 실시간 무인 동기화 파이프라인 탑재]:
+//             1) /api/help를 통해 R2 클라우드에 게시(Publish)된 최신 문서를 실시간 취득하여 정적 파일보다 1순위로 즉시 렌더링
+//             2) 관리자 페이지에서 도움말 수정/게시 시 코드 재배포 없이 웹(/docs)에 0초 즉각 자동 반영 확립
 // 🚨 @PATCH : **2026-10-11** — [공식 도움말 센터 전면 현행화 및 마크다운 내부 링크 점프 인터셉트 결함 완벽 해결]:
 //             1) HELP_DOCS_LIST를 신규 29개 챕터(HELP-01~HELP-29) 및 00_시작하기 30종 체계로 전면 현행화
-//             2) 8대 파트(PART 1~8) 카테고리 그룹핑 및 목차 실시간 실시간 검색 필터 추가
+//             2) 8대 파트(PART 1~8) 카테고리 그룹핑 및 목차 실시간 검색 필터 추가
 //             3) decodeURIComponent 및 지능형 챕터 번호 매칭을 적용하여 본문 내 링크(/help/HELP-XX...md) 클릭 시 100% 정상 점프 확립
 //             4) 문서 전환 시 뷰어 상단 스크롤 리셋 및 URL 쿼리 파라미터(?doc=...) 양방향 동기화 탑재
 // 🚨 @PATCH : **2026-07-06** — 도움말 센터를 HelpModal과 동일한 마크다운 동적 렌더링 2-Pane 구조로 전면 개편 패치
@@ -18,6 +21,7 @@ import { Footer } from "@/components/layout/Footer";
 import { BookOpen, ChevronRight, Search, FileText } from "lucide-react";
 import MarkdownViewer from '@/components/MarkdownViewer';
 import { stripFrontmatter } from "@/lib/editorUtils";
+import initialHelpAssets from '@/lib/helpAssets.json';
 
 interface HelpCategory {
   title: string;
@@ -118,6 +122,7 @@ const formatDocTitle = (filename: string) => {
 export default function HelpCenterPage() {
   const [mounted, setMounted] = useState(false);
   const [currentDoc, setCurrentDoc] = useState<string>(HELP_DOCS_LIST[0]);
+  const [publishedDocs, setPublishedDocs] = useState<Array<{ id: string; title: string; content: string; order?: number }>>([]);
   const [docContent, setDocContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -125,6 +130,20 @@ export default function HelpCenterPage() {
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  // R2 클라우드에 게시(Publish)된 최신 도움말 목록 실시간 취득
+  useEffect(() => {
+    let active = true;
+    void fetch('/api/help')
+      .then(r => { if (!r.ok) throw Error(); return r.json(); })
+      .then(data => {
+        if (active && Array.isArray(data.documents) && data.documents.length > 0) {
+          setPublishedDocs(data.documents);
+        }
+      })
+      .catch(() => {});
+    return () => { active = false; };
   }, []);
 
   // 초기 URL 쿼리 파라미터(?doc=...) 반영
@@ -149,25 +168,43 @@ export default function HelpCenterPage() {
     }
   }, []);
 
-  // 문서 로딩
+  // 문서 로딩 (1순위: 관리자 R2 게시본 -> 2순위: 정적 마크다운 파일)
   useEffect(() => {
     let isMounted = true;
     const fetchDoc = async () => {
       setIsLoading(true);
       let rawMd = '';
       
-      try {
-        const res = await fetch(`/help/${encodeURIComponent(currentDoc)}`);
-        if (!res.ok) {
-          // 인코딩 없는 원본 경로 폴백 시도
-          const fallbackRes = await fetch(`/help/${currentDoc}`);
-          if (!fallbackRes.ok) throw new Error('Not found');
-          rawMd = await fallbackRes.text();
-        } else {
-          rawMd = await res.text();
+      // 1순위: 관리자가 관리자 페이지에서 게시(Publish)한 R2 문서 우선 매칭
+      const targetNum = currentDoc.match(/^HELP-(\d+)/i)?.[1];
+      const published = publishedDocs.find(doc => {
+        if (doc.id === currentDoc || doc.id === currentDoc.replace(/\.md$/, '')) return true;
+        const asset = initialHelpAssets.find(a => a.file_name === currentDoc);
+        if (asset && doc.id === asset.id) return true;
+        if (targetNum) {
+          const docNum = doc.id.match(/^HELP-(\d+)/i)?.[1] || doc.title.match(/^HELP-(\d+)/i)?.[1];
+          if (docNum && parseInt(docNum, 10) === parseInt(targetNum, 10)) return true;
         }
-      } catch (e) {
-        rawMd = '## 문서를 불러올 수 없습니다.\n\n해당 도움말 파일을 찾을 수 없습니다.';
+        return false;
+      });
+
+      if (published && published.content) {
+        rawMd = published.content;
+      } else {
+        // 2순위: R2 게시본이 없는 경우 정적 파일 로드
+        try {
+          const res = await fetch(`/help/${encodeURIComponent(currentDoc)}`);
+          if (!res.ok) {
+            // 인코딩 없는 원본 경로 폴백 시도
+            const fallbackRes = await fetch(`/help/${currentDoc}`);
+            if (!fallbackRes.ok) throw new Error('Not found');
+            rawMd = await fallbackRes.text();
+          } else {
+            rawMd = await res.text();
+          }
+        } catch (e) {
+          rawMd = '## 문서를 불러올 수 없습니다.\n\n해당 도움말 파일을 찾을 수 없습니다.';
+        }
       }
 
       if (isMounted) {
@@ -178,7 +215,7 @@ export default function HelpCenterPage() {
 
     fetchDoc();
     return () => { isMounted = false; };
-  }, [currentDoc]);
+  }, [currentDoc, publishedDocs]);
 
   // 문서 변경 핸들러
   const handleSelectDoc = (doc: string) => {

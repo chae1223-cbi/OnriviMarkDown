@@ -1,3 +1,12 @@
+// ====================================================================
+// 📊 [OMD-ADMIN-HelpManager-0001] HelpManager.tsx ➔ 관리자 도움말 관리
+// 🎯 @KICK  : 공식 도움말 30개 문서 편집 및 R2 클라우드 실시간 게시(Publish)
+// 🛡️ @GUARD : 공식 asset ID(help_X) 일치 매핑으로 웹(/docs) 및 앱 모달 100% 자동 반영 확립
+// 🚨 @PATCH : **2026-10-11** — [공식 문서 asset ID(help_X) 직결 매핑 및 게시 상태 뱃지 연동]:
+//             1) importFile 시 randomUUID 대신 asset.id(help_X)를 유지하여 게시 시 사용자 화면(/docs 및 HelpModal)과 100% 일치 자동 반영 보장
+//             2) 공식 문서 목록에서 R2 게시 여부([게시 중]/[초안]) 상태 뱃지 표시
+// 🚨 @PATCH : **2026-10-10** — 공식 문서 목록 30종 기본 노출 탭 분리 개편
+// ====================================================================
 "use client";
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -53,7 +62,7 @@ export default function HelpManager() {
       if (!response.ok) throw Error(data.error);
       if (action !== 'unpublish') setDirty(false);
       await load();
-      showToast(action === 'publish' ? '도움말이 게시되었습니다.' : action === 'unpublish' ? '게시가 내려갔습니다.' : '초안이 저장되었습니다.', 'success');
+      showToast(action === 'publish' ? '도움말이 게시되었습니다. 웹(/docs) 및 앱에 즉시 자동 반영됩니다.' : action === 'unpublish' ? '게시가 내려갔습니다.' : '초안이 저장되었습니다.', 'success');
     } catch (e) {
       showToast(e instanceof Error ? e.message : '저장 실패', 'error');
     } finally {
@@ -64,12 +73,27 @@ export default function HelpManager() {
   async function importFile(url: string, index: number) {
     setBusy(true);
     try {
+      const asset = initialFiles.find(x => x.url === url);
+      const targetId = asset?.id || `help_${index}`;
+
+      // 이미 R2 drafts 또는 published에 저장된 데이터가 있으면 그것을 최우선 로드
+      const existingDraft = drafts.find(d => d.id === targetId);
+      const existingPub = published.find(p => p.id === targetId);
+      if (existingPub && !existingDraft) {
+        select(existingPub);
+        return;
+      }
+      if (existingDraft) {
+        select(existingDraft);
+        return;
+      }
+
       const response = await fetch(url);
       if (!response.ok) throw Error('기존 파일을 불러오지 못했습니다.');
       const content = await response.text();
       select({
-        id: crypto.randomUUID(),
-        title: initialFiles.find(x => x.url === url)?.source_title || '도움말',
+        id: targetId,
+        title: asset?.source_title || '도움말',
         content: content.replace(/\]\((?:\.\/)?assets\//g, '](https://onrivi.com/help/assets/'),
         order: index
       });
@@ -143,7 +167,10 @@ export default function HelpManager() {
                 최신 공식 마스터 목차
               </div>
               {officialDocs.map((item, index) => {
-                const isCurrent = doc?.title === item.source_title;
+                const isCurrent = doc?.id === item.id || doc?.title === item.source_title;
+                const isPub = published.some(p => p.id === item.id);
+                const isDraft = drafts.some(d => d.id === item.id);
+
                 return (
                   <button
                     disabled={busy}
@@ -155,7 +182,18 @@ export default function HelpManager() {
                         : 'bg-zinc-50 dark:bg-zinc-900/40 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-zinc-700 dark:text-zinc-300 border border-[var(--admin-border)]'
                     }`}
                   >
-                    <div className="truncate">{item.source_title}</div>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="truncate">{item.source_title}</span>
+                      {isPub ? (
+                        <span className={`text-[9px] px-1 py-0.5 rounded font-bold shrink-0 ${isCurrent ? 'bg-white/20 text-white' : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'}`}>
+                          게시 중
+                        </span>
+                      ) : isDraft ? (
+                        <span className={`text-[9px] px-1 py-0.5 rounded font-bold shrink-0 ${isCurrent ? 'bg-white/20 text-white' : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'}`}>
+                          초안
+                        </span>
+                      ) : null}
+                    </div>
                     <div className={`text-[10px] mt-0.5 truncate ${isCurrent ? 'text-blue-100' : 'text-zinc-400'}`}>
                       {item.file_name}
                     </div>
