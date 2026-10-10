@@ -423,7 +423,7 @@ export function useMonacoSetup(deps: any) {
                     lineNumbersMinChars: 4,
                     automaticLayout: true,
                     wordWrap: 'on',
-                    wrappingStrategy: 'simple',
+                    wrappingStrategy: 'advanced',
                     wordWrapBreakAfterCharacters: ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々ㇻｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
                     wordWrapBreakBeforeCharacters: '([{\'"“‘«‹〈《「『【〔（［｛｢',
 
