@@ -1,7 +1,9 @@
 // ====================================================================
 // 📊 [OMD-UI-LeftSidebar-0001] LeftSidebar.tsx ➔ 에디터 좌측 탐색기 사이드바
 // 🎯 @KICK  : 파일 트리 탐색기, TOC, 북마크, 전역 검색 탭 제공. 폴더 CRUD/드래그앤드롭/컨텍스트메뉴 지원
-// 🛡️ @GUARD : FSA API(웹), IPC(데스크톱) 이중 운영, 드래그 덜렁거림(anti-rattle) 방지 적용
+// 🚨 @PATCH : **2026-10-11** — [탐색기 스크롤 조작 최우선권 보장 및 리사이저 바 경계선 외곽 격리]:
+//             1) 사이드바 내부 12px 스크롤바를 덮고 마우스 이벤트를 가로채던 right-0 리사이저 바를 left-[calc(100%-1px)] 외곽으로 완전 격리하여 스크롤 조작 100% 보장
+//             2) 호버 시 번쩍이던 두꺼운 파란색 띠를 경계선 전용 2px 코발트 인디케이터로 슬림화하여 시각적 간섭 및 혼선 완전 해결
 // 🚨 @PATCH : **2026-10-10** — [탐색기 및 사이드바 스크롤바 폭 100% 확대 (6px -> 12px) 및 시인성 강화]: 기존 6px 규격의 얇은 스크롤바로 인한 조작 불편을 해소하기 위해 explorer-scrollbar를 적용하고 폭을 12px(100% 확대)로 확장, 호버 반응 및 다크모드 대비 최적화
 // 🚨 @PATCH : **2026-10-07** — [환경설정 리소스 폴더(참조파일 등) media 하위폴더 직결 바인딩]: 타문서 변환 이미지 저장 시 cloudSettings.mediaFolderId 우선 참조 및 부모 리소스 폴더 하위 탐색으로 안전 업로드
 // 🚨 @PATCH : **2026-10-04** — [구글 드라이브 파일/폴더 복사·잘라내기·붙여넣기·루트 이동 전면 지원]: handlePasteNode 및 handleDropRoot에 GDRIVE/cloud 분기 신설 — moveDriveItem(이동), copyDriveFile(파일 복사), copyDriveFolderRecursive(폴더 재귀 복사) 연동
@@ -3281,10 +3283,12 @@ export default function LeftSidebar() {
         </div>
       </div>
       
-      {/* 크기 조절 드래그 바 */}
+      {/* 크기 조절 드래그 바 (스크롤바 100% 최우선 보장: 사이드바 내부 12px 스크롤바 침범 방지 및 경계선 외곽 배치) */}
       <div 
-        className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-blue-500/60 active:bg-blue-600 transition-colors z-20"
+        className="absolute top-0 left-[calc(100%-1px)] w-2.5 h-full cursor-col-resize z-20 group flex items-stretch justify-start"
+        title="사이드바 너비 조절"
         onMouseDown={(e) => {
+          e.preventDefault();
           const startX = e.clientX;
           const startWidth = sidebarWidth;
           const doDrag = (moveEvent: MouseEvent) => {
@@ -3297,7 +3301,10 @@ export default function LeftSidebar() {
           document.addEventListener('mousemove', doDrag);
           document.addEventListener('mouseup', stopDrag);
         }}
-      />
+      >
+        {/* 호버/드래그 시 경계선 위에만 단정하게 표시되는 2px 코발트 인디케이터 라인 */}
+        <div className="w-[2px] h-full bg-transparent group-hover:bg-[#1d4ed8] group-active:bg-[#1d4ed8] transition-colors duration-150" />
+      </div>
       <PromptModal 
         isOpen={promptConfig.isOpen}
         title={promptConfig.title}
