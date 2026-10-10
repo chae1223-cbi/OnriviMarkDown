@@ -108,9 +108,21 @@ export default function SignupPage() {
         throw new Error("가입 처리 중 사용자 ID를 발급받지 못했습니다.");
       }
 
-      // 2. users 동기화
+      // 2. 세션 확보 및 users/구독 동기화
       const { data: { session } } = await supabase.auth.getSession();
-      const activeSession = session || data.session;
+      let activeSession = session || data.session;
+      if (!activeSession) {
+        try {
+          const { data: signData } = await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password: password,
+          });
+          activeSession = signData?.session || null;
+        } catch (signErr) {
+          console.warn("[SIGNUP] auto signInWithPassword note:", signErr);
+        }
+      }
+
       if (activeSession) {
         const regRes = await fetch("/api/user/upsert", {
           method: "POST",
@@ -126,9 +138,57 @@ export default function SignupPage() {
         if (!regRes.ok) throw new Error(`[API 호출 실패] 서버 상태: ${regRes.status}`);
         const regResult = await regRes.json();
         if (!regResult.success) throw new Error(regResult.message);
+
+        // 3. 14일 무료 체험(APPRENTICE) 구독 확인 및 세션 즉시 활성화
+        let subData: any = null;
+        try {
+          const subRes = await fetch("/api/subscription/get", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: userId })
+          });
+          if (subRes.ok) {
+            const subJson = await subRes.json();
+            if (subJson?.success && subJson.subscription) {
+              subData = subJson.subscription;
+            }
+          }
+        } catch (subErr) {
+          console.warn("[SIGNUP] /api/subscription/get error:", subErr);
+        }
+
+        if (subData) {
+          let sessionId = sessionStorage.getItem("onrivi_tab_session_id");
+          if (!sessionId) {
+            sessionId = (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+              ? crypto.randomUUID()
+              : "session-" + Date.now() + "-" + Math.random().toString(36).substring(2, 15);
+          }
+          sessionStorage.setItem("onrivi_tab_session_id", sessionId);
+          localStorage.setItem("onrivi_session_id", sessionId);
+          localStorage.setItem("onrivi_user_id", email.trim() || userId);
+          localStorage.setItem("onrivi_payment_no", subData.payment_no || "");
+          localStorage.setItem("onrivi_license_key", subData.license_key || "");
+
+          try {
+            await fetch("/api/license/activate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${activeSession.access_token}` },
+              body: JSON.stringify({ p_license_id: subData.id, p_device_uuid: sessionId, p_device_name: "Web SaaS", p_user_id: userId }),
+            });
+          } catch (actErr) {
+            console.warn("[SIGNUP] activate error:", actErr);
+          }
+
+          showToast("회원가입 완료! 14일 무료 체험(Apprentice)이 시작되었습니다.", "success");
+          setTimeout(() => {
+            router.push(`/editor${window.location.search}`);
+          }, 1000);
+          return;
+        }
       }
 
-      showToast("회원가입이 완료되었습니다! 로그인 후 시작해 주세요.", "success");
+      showToast("회원가입이 완료되었습니다! 로그인 후 14일 무료 체험을 시작해 주세요.", "success");
 
       setName("");
       setEmail("");
@@ -144,7 +204,7 @@ export default function SignupPage() {
         } else {
           router.push("/login");
         }
-      }, 2000);
+      }, 1500);
     } catch (err: any) {
       console.error("회원가입 에러:", err);
       showToast(err.message || "가입에 실패했습니다. 형식 오류를 확인해 주세요.", "error");

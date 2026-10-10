@@ -117,7 +117,7 @@ export default function UserDetailModal({ user, onClose, onKillSession, onKillSi
                       </div>
                       <div>
                         <p className="text-[var(--admin-text)] text-sm font-medium">{device.device_name || '알 수 없는 기기'}</p>
-                        <p className="text-[var(--admin-text-muted)] text-xs">활성화: {new Date(device.activated_at).toLocaleString('ko-KR')}</p>
+                        <p className="text-[var(--admin-text-muted)] text-xs">활성화: {new Date(device.activated_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">

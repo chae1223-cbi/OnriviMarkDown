@@ -35,7 +35,97 @@ export async function POST(request: Request) {
       supabaseAdmin.from('common_codes').select('group_code, code_value, code_name')
     ]);
 
-    let allSubs = (subs || []).map((s: any) => {
+    let rawSubs: any[] = subs || [];
+
+    // 2. 신규 유저(구독 없음) 자동 14일 무료 체험(APPRENTICE) 발급
+    if (!rawSubs || rawSubs.length === 0) {
+      const trialPaymentNo = 'TRIAL-' + Date.now();
+      const trialLicenseKey = 'TRIAL-' + Math.random().toString(36).substring(2, 15).toUpperCase();
+      const trialVerifyKey = Math.random().toString(36).substring(2, 15).toUpperCase();
+      const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+
+      const { data: newTrial } = await supabaseAdmin.from('subscriptions').insert({
+        user_id: userId,
+        plan_name: 'APPRENTICE',
+        plan_status: 'ACTIVE',
+        billing_cycle: 'TRIAL',
+        is_active: true,
+        max_devices: 1,
+        price_amount: 0,
+        current_period_start: nowIso,
+        current_period_end: trialEnd,
+        payment_no: trialPaymentNo,
+        license_key: trialLicenseKey,
+        verify_key: trialVerifyKey
+      }).select();
+
+      if (newTrial && newTrial.length > 0) {
+        rawSubs = [newTrial[0]];
+      }
+    } else {
+      const hasApprenticeHistory = rawSubs.some((s: any) => (s.plan_name || '').toUpperCase() === 'APPRENTICE');
+      const hasActiveSub = rawSubs.some((s: any) => s.is_active && ((s.plan_status || '').toUpperCase() === 'ACTIVE' || (s.plan_status || '').toUpperCase() === 'FREE'));
+
+      // 기존 단독 READER 계정 중 Apprentice 미경험자는 14일 체험 승급
+      if (!hasApprenticeHistory && rawSubs.length === 1 && rawSubs[0].plan_name === 'READER') {
+        const trialPaymentNo = 'TRIAL-' + Date.now();
+        const trialLicenseKey = 'TRIAL-' + Math.random().toString(36).substring(2, 15).toUpperCase();
+        const trialVerifyKey = Math.random().toString(36).substring(2, 15).toUpperCase();
+        const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+
+        const { data: updatedTrial } = await supabaseAdmin.from('subscriptions').update({
+          plan_name: 'APPRENTICE',
+          plan_status: 'ACTIVE',
+          billing_cycle: 'TRIAL',
+          is_active: true,
+          price_amount: 0,
+          current_period_start: nowIso,
+          current_period_end: trialEnd,
+          payment_no: trialPaymentNo,
+          license_key: trialLicenseKey,
+          verify_key: trialVerifyKey,
+          updated_at: nowIso
+        }).eq('id', rawSubs[0].id).select();
+
+        if (updatedTrial && updatedTrial.length > 0) {
+          rawSubs[0] = updatedTrial[0];
+        }
+      } else if (!hasActiveSub) {
+        // 14일 무료 체험(Apprentice) 또는 유료 구독 만료 후 활성 구독이 없는 경우 DB에 자동으로 READER 등급 발급
+        const readerPaymentNo = 'READER-' + Date.now();
+        const readerLicenseKey = 'READER-' + Math.random().toString(36).substring(2, 15).toUpperCase();
+        const readerVerifyKey = Math.random().toString(36).substring(2, 15).toUpperCase();
+
+        const { data: newReader } = await supabaseAdmin.from('subscriptions').insert({
+          user_id: userId,
+          plan_name: 'READER',
+          plan_status: 'ACTIVE',
+          billing_cycle: 'FREE',
+          is_active: true,
+          max_devices: 1,
+          price_amount: 0,
+          current_period_start: nowIso,
+          current_period_end: '9999-12-31T23:59:59.000Z',
+          payment_no: readerPaymentNo,
+          license_key: readerLicenseKey,
+          verify_key: readerVerifyKey
+        }).select();
+
+        if (newReader && newReader.length > 0) {
+          rawSubs.unshift(newReader[0]);
+        }
+
+        const expiredSubIds = rawSubs.filter((s: any) => s.plan_status === 'EXPIRED').map((s: any) => s.id);
+        if (expiredSubIds.length > 0) {
+          await supabaseAdmin.from('license_activations')
+            .update({ is_active: false, updated_at: nowIso })
+            .in('subscription_id', expiredSubIds)
+            .eq('is_active', true);
+        }
+      }
+    }
+
+    let allSubs = rawSubs.map((s: any) => {
       const planCode = codes?.find((c: any) => c.group_code === 'PLAN_NAME' && c.code_value.toUpperCase() === s.plan_name?.toUpperCase());
       const cycleCode = codes?.find((c: any) => c.group_code === 'BILLING_CYCLE' && c.code_value.toUpperCase() === s.billing_cycle?.toUpperCase());
       const statusCode = codes?.find((c: any) => c.group_code === 'PLAN_STATUS' && c.code_value.toUpperCase() === s.plan_status?.toUpperCase());
@@ -47,33 +137,6 @@ export async function POST(request: Request) {
         plan_status_kr: statusCode ? statusCode.code_name : s.plan_status
       };
     });
-
-    // 2. 과거 결제 내역(구독)이 아예 없는 신규 유저라면 즉시 READER 요금제 자동 발급
-    if (!allSubs || allSubs.length === 0) {
-      const readerPaymentNo = 'READER-' + Date.now();
-      const readerLicenseKey = 'READER-' + Math.random().toString(36).substring(2, 15);
-      const newStartDateStr = new Date().toISOString();
-
-      const { data: newReader } = await supabaseAdmin.from('subscriptions').insert({
-        user_id: userId,
-        plan_name: 'READER',
-        plan_status: 'ACTIVE',
-        is_active: true,
-        max_devices: 1,
-        current_period_start: newStartDateStr,
-        current_period_end: '9999-12-31T23:59:59.000Z',
-        payment_no: readerPaymentNo,
-        license_key: readerLicenseKey
-      }).select();
-
-      if (newReader && newReader.length > 0) {
-        allSubs = [{
-          ...newReader[0],
-          plan_name_kr: '제한 사용자 (읽기 전용)',
-          plan_status_kr: '활성'
-        }] as any;
-      }
-    }
 
     // 2. 현재 활성 구독(is_active = true 및 ACTIVE 또는 FREE) 탐색, 없으면 최신 레코드 반환
     const activeSub = allSubs.find((s: any) => (s.is_active && s.plan_status?.toUpperCase() === 'ACTIVE') || s.plan_status?.toUpperCase() === 'FREE');

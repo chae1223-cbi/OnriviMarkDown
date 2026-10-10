@@ -114,10 +114,10 @@ export async function onRequestGet(context) {
           admin_grant_type: String(sub?.payment_no || '').startsWith('ADMIN-FREE-') ? 'FREE' :
             String(sub?.payment_no || '').startsWith('ADMIN-PAID-') ? 'PAID' : null,
           status: currentStatus,
-          date: u.created_at ? new Date(u.created_at).toISOString().split('T')[0] : '-',
-          last_login: authUser?.last_sign_in_at ? new Date(authUser.last_sign_in_at).toLocaleString('ko-KR') : '-',
-          start_date: sub?.current_period_start ? new Date(sub.current_period_start).toISOString().split('T')[0] : '-',
-          end_date: sub?.current_period_end ? new Date(sub.current_period_end).toISOString().split('T')[0] : '-',
+          date: u.created_at ? new Date(u.created_at).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }) : '-',
+          last_login: authUser?.last_sign_in_at ? new Date(authUser.last_sign_in_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-',
+          start_date: sub?.current_period_start ? new Date(sub.current_period_start).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }) : '-',
+          end_date: sub?.current_period_end ? (sub.current_period_end.startsWith('9999') ? '무제한' : new Date(sub.current_period_end).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })) : '-',
           devices: activationsMap[u.id] || []
         };
       });
@@ -161,8 +161,8 @@ export async function onRequestGet(context) {
           nick_name: '-', 
           plan: a.role === 'SUPER_ADMIN' ? 'Super Admin' : (a.role || 'Support Admin'),
           status: a.is_active === false ? 'SUSPENDED' : 'ACTIVE',
-          date: a.created_at ? new Date(a.created_at).toISOString().split('T')[0] : '-',
-          last_login: authUser?.last_sign_in_at ? new Date(authUser.last_sign_in_at).toLocaleString('ko-KR') : '-',
+          date: a.created_at ? new Date(a.created_at).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }) : '-',
+          last_login: authUser?.last_sign_in_at ? new Date(authUser.last_sign_in_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-',
           end_date: '-'
         };
       });

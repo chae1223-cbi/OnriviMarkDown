@@ -59,17 +59,18 @@ export async function POST(request: Request) {
 
       // 4. 새로운 READER 구독 발급 (시작일은 만료일+1일, 종료일은 9999-12-31 23:59:59)
       const readerPaymentNo = 'READER-' + Date.now();
-      const readerLicenseKey = 'READER-' + Math.random().toString(36).substring(2, 15);
+      const readerLicenseKey = 'READER-' + Math.random().toString(36).substring(2, 15).toUpperCase();
+      const readerVerifyKey = Math.random().toString(36).substring(2, 15).toUpperCase();
       
       const newReader = await tx`
         INSERT INTO subscriptions (
-          user_id, plan_name, plan_status, is_active, max_devices, 
+          user_id, plan_name, plan_status, billing_cycle, is_active, max_devices, price_amount,
           current_period_start, current_period_end, created_at, updated_at,
-          payment_no, license_key
+          payment_no, license_key, verify_key
         ) VALUES (
-          ${p_user_id}, 'READER', 'ACTIVE', true, 1,
+          ${p_user_id}, 'READER', 'ACTIVE', 'FREE', true, 1, 0,
           ${newStartDateStr}, '9999-12-31T23:59:59.000Z', now(), now(),
-          ${readerPaymentNo}, ${readerLicenseKey}
+          ${readerPaymentNo}, ${readerLicenseKey}, ${readerVerifyKey}
         )
         RETURNING id, payment_no
       `;

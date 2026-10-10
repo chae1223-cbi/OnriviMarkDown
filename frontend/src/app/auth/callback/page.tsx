@@ -102,16 +102,36 @@ export default function AuthCallbackPage() {
           }
         }
 
-        // 현재사용자: 라이선스 유효성 확인 후 분기 (subscriptions 단일 조회)
-        const { data: subData } = await supabase
-          .from('subscriptions')
-          .select('id, current_period_end, payment_no, license_key')
-          .eq('user_id', userId)
-          .eq('is_active', true)
-          .in('plan_status', ['ACTIVE', 'FREE'])
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        // 현재사용자: 라이선스 유효성 확인 후 분기 (RLS 우회를 위해 /api/subscription/get 우선 호출)
+        let subData: any = null;
+        try {
+          const subRes = await fetch('/api/subscription/get', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: userId })
+          });
+          if (subRes.ok) {
+            const subJson = await subRes.json();
+            if (subJson?.success && subJson.subscription) {
+              subData = subJson.subscription;
+            }
+          }
+        } catch (e) {
+          console.warn('[AUTH_CALLBACK] /api/subscription/get error:', e);
+        }
+
+        if (!subData) {
+          const { data: directSub } = await supabase
+            .from('subscriptions')
+            .select('id, plan_name, current_period_end, payment_no, license_key')
+            .eq('user_id', userId)
+            .eq('is_active', true)
+            .in('plan_status', ['ACTIVE', 'FREE'])
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          subData = directSub;
+        }
 
         if (subData) {
           const targetDate = subData.current_period_end;

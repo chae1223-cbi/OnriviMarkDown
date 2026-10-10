@@ -65,32 +65,120 @@ export async function onRequestPost(context) {
     let rawSubs = await subRes.json();
     const codes = await codeRes.json();
     
-    // 3. 신규 유저(구독 없음) 자동 READER 발급
+    // 3. 신규 유저(구독 없음) 자동 14일 무료 체험(APPRENTICE) 발급
     if (!subRes.ok || !rawSubs || rawSubs.length === 0) {
-      const readerPaymentNo = 'READER-' + Date.now();
-      const readerLicenseKey = 'READER-' + Math.random().toString(36).substring(2, 15);
+      const trialPaymentNo = 'TRIAL-' + Date.now();
+      const trialLicenseKey = 'TRIAL-' + Math.random().toString(36).substring(2, 15).toUpperCase();
+      const trialVerifyKey = Math.random().toString(36).substring(2, 15).toUpperCase();
+      const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
       
       const insertRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
           user_id: userId,
-          plan_name: 'READER',
+          plan_name: 'APPRENTICE',
           plan_status: 'ACTIVE',
+          billing_cycle: 'TRIAL',
           is_active: true,
           max_devices: 1,
+          price_amount: 0,
           current_period_start: nowIso,
-          current_period_end: '9999-12-31T23:59:59.000Z',
-          payment_no: readerPaymentNo,
-          license_key: readerLicenseKey
+          current_period_end: trialEnd,
+          payment_no: trialPaymentNo,
+          license_key: trialLicenseKey,
+          verify_key: trialVerifyKey
         })
       });
       
-      const newReader = await insertRes.json();
-      if (insertRes.ok && newReader && newReader.length > 0) {
-        rawSubs = [newReader[0]];
+      const newTrial = await insertRes.json();
+      if (insertRes.ok && newTrial && newTrial.length > 0) {
+        rawSubs = [newTrial[0]];
       } else {
-        return new Response(JSON.stringify({ success: false, message: 'READER 요금제 자동 발급에 실패했습니다.' }), { status: 500, headers: corsHeaders });
+        return new Response(JSON.stringify({ success: false, message: '무료 체험(Apprentice) 자동 발급에 실패했습니다.' }), { status: 500, headers: corsHeaders });
+      }
+    } else {
+      const hasApprenticeHistory = rawSubs.some(s => (s.plan_name || '').toUpperCase() === 'APPRENTICE');
+      const hasActiveSub = rawSubs.some(s => s.is_active && ((s.plan_status || '').toUpperCase() === 'ACTIVE' || (s.plan_status || '').toUpperCase() === 'FREE'));
+
+      // 4. 기존 단독 READER 계정 중 Apprentice 미경험자는 14일 체험 승급
+      if (!hasApprenticeHistory && rawSubs.length === 1 && rawSubs[0].plan_name === 'READER') {
+        const trialPaymentNo = 'TRIAL-' + Date.now();
+        const trialLicenseKey = 'TRIAL-' + Math.random().toString(36).substring(2, 15).toUpperCase();
+        const trialVerifyKey = Math.random().toString(36).substring(2, 15).toUpperCase();
+        const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+        
+        const updateRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?id=eq.${rawSubs[0].id}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({
+            plan_name: 'APPRENTICE',
+            plan_status: 'ACTIVE',
+            billing_cycle: 'TRIAL',
+            is_active: true,
+            price_amount: 0,
+            current_period_start: nowIso,
+            current_period_end: trialEnd,
+            payment_no: trialPaymentNo,
+            license_key: trialLicenseKey,
+            verify_key: trialVerifyKey,
+            updated_at: nowIso
+          })
+        });
+        if (updateRes.ok) {
+          rawSubs[0] = {
+            ...rawSubs[0],
+            plan_name: 'APPRENTICE',
+            plan_status: 'ACTIVE',
+            billing_cycle: 'TRIAL',
+            is_active: true,
+            price_amount: 0,
+            current_period_start: nowIso,
+            current_period_end: trialEnd,
+            payment_no: trialPaymentNo,
+            license_key: trialLicenseKey,
+            verify_key: trialVerifyKey
+          };
+        }
+      } else if (!hasActiveSub) {
+        // 5. 14일 무료 체험(Apprentice) 또는 유료 구독 만료 후 활성 구독이 없는 경우 DB에 자동으로 READER 등급 발급
+        const readerPaymentNo = 'READER-' + Date.now();
+        const readerLicenseKey = 'READER-' + Math.random().toString(36).substring(2, 15).toUpperCase();
+        const readerVerifyKey = Math.random().toString(36).substring(2, 15).toUpperCase();
+
+        const insertReaderRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            user_id: userId,
+            plan_name: 'READER',
+            plan_status: 'ACTIVE',
+            billing_cycle: 'FREE',
+            is_active: true,
+            max_devices: 1,
+            price_amount: 0,
+            current_period_start: nowIso,
+            current_period_end: '9999-12-31T23:59:59.000Z',
+            payment_no: readerPaymentNo,
+            license_key: readerLicenseKey,
+            verify_key: readerVerifyKey
+          })
+        });
+
+        const newReader = await insertReaderRes.json();
+        if (insertReaderRes.ok && newReader && newReader.length > 0) {
+          rawSubs.unshift(newReader[0]);
+        }
+
+        // 만료된 구독들의 활성 기기 세션 비활성화 정리
+        const expiredSubIds = rawSubs.filter(s => s.plan_status === 'EXPIRED').map(s => s.id);
+        if (expiredSubIds.length > 0) {
+          await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=in.(${expiredSubIds.join(',')})&is_active=eq.true`, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({ is_active: false, updated_at: nowIso })
+          });
+        }
       }
     }
 
@@ -107,11 +195,11 @@ export async function onRequestPost(context) {
       plan_status_kr: getCodeName('PLAN_STATUS', s.plan_status, s.plan_status)
     }));
 
-    // 4. Find active sub
+    // 6. Find active sub
     const activeSub = allSubs.find(s => (s.is_active && (s.plan_status || '').toUpperCase() === 'ACTIVE') || (s.plan_status || '').toUpperCase() === 'FREE');
     const latestSub = activeSub || allSubs[0];
 
-    // 5. Fetch license_activations
+    // 7. Fetch license_activations
     const activeSubIds = allSubs
       .filter(s => (s.plan_status || '').toUpperCase() === 'ACTIVE' || (s.plan_status || '').toUpperCase() === 'FREE')
       .map(s => s.id);
@@ -142,7 +230,6 @@ export async function onRequestPost(context) {
       success: true,
       subscription: latestSub ? {
         ...latestSub,
-        // 사용자에게 반환한 모든 활성 구독의 웹 편집 세션만 집계한다.
         active_device_count: mappedDevices.filter(device => device.is_active === true && ['web saas', 'web browser'].includes((device.device_name || '').trim().toLowerCase()) && Date.now() - new Date(device.updated_at || device.activated_at).getTime() < 2 * 60 * 1000).length
       } : null,
       historyList: allSubs,

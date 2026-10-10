@@ -8,6 +8,7 @@ const headers = {
   'Cache-Control': 'no-store',
 };
 const reply = (body, status = 200) => new Response(JSON.stringify(body), { status, headers });
+const randomHex = size => Array.from(crypto.getRandomValues(new Uint8Array(size)), byte => byte.toString(16).padStart(2, '0')).join('').toUpperCase();
 
 export async function onRequestOptions() {
   return new Response(null, { headers });
@@ -39,6 +40,28 @@ export async function onRequestPost({ request, env }) {
           is_deleted = false, deleted_at = null,
           nick_name = COALESCE(EXCLUDED.nick_name, users.nick_name)`,
         [user.id, email, provider, nickName]);
+
+      // 신규 가입자 14일 무료 체험(APPRENTICE) 자동 발급: 기존 구독 이력이 없는 경우에만 원자적 생성
+      const subExists = await db.query(
+        'SELECT id FROM public.subscriptions WHERE user_id = $1 LIMIT 1',
+        [user.id]
+      );
+      if (!subExists.rows.length) {
+        const subId = crypto.randomUUID();
+        const licenseKey = randomHex(8);
+        const verifyKey = randomHex(8);
+        const paymentNo = `TRIAL-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${randomHex(4)}`;
+        await db.query(`
+          INSERT INTO public.subscriptions
+            (id, user_id, created_by, updated_by, plan_name, plan_status, billing_cycle,
+             license_key, verify_key, payment_no, max_devices, price_amount,
+             current_period_start, current_period_end, is_active, created_at, updated_at)
+          VALUES ($1, $2, $2, $2, 'APPRENTICE', 'ACTIVE', 'TRIAL',
+                  $3, $4, $5, 1, 0,
+                  now(), now() + interval '14 days', true, now(), now())`,
+          [subId, user.id, licenseKey, verifyKey, paymentNo]
+        );
+      }
     });
     // Auth 프로필은 DB 밖의 서비스다. 실패해도 저장된 사용자 원장은 유지한다.
     if (nickName !== null && env.SUPABASE_SERVICE_ROLE_KEY && env.NEXT_PUBLIC_SUPABASE_URL) {

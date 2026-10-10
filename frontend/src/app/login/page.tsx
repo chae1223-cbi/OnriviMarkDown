@@ -92,16 +92,55 @@ export default function LoginPage() {
           return;
         }
 
-        // 1. 활성 구독 및 라이선스 정보 조회
-        const { data: subData } = await supabase
-          .from("subscriptions")
-          .select("id, plan_name, plan_status, current_period_end, payment_no, license_key")
-          .eq("user_id", loggedInUser.id)
-          .eq("is_active", true)
-          .in("plan_status", ["ACTIVE", "FREE"])
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        // 1. users 동기화 및 14일 무료 체험(APPRENTICE) 자동 발급 보장
+        const sessionToken = (await supabase.auth.getSession()).data.session?.access_token;
+        if (sessionToken) {
+          try {
+            await fetch("/api/user/upsert", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionToken}` },
+              body: JSON.stringify({
+                p_id: loggedInUser.id,
+                p_email: loggedInUser.email,
+                p_provider: "EMAIL",
+                p_nick_name: loggedInUser.user_metadata?.nick_name || loggedInUser.user_metadata?.name || null,
+              }),
+            });
+          } catch (upsertErr) {
+            console.warn("[LOGIN] /api/user/upsert sync warning:", upsertErr);
+          }
+        }
+
+        // 2. 활성 구독 및 라이선스 정보 조회 (RLS 우회를 위해 /api/subscription/get 우선 호출)
+        let subData: any = null;
+        try {
+          const subRes = await fetch("/api/subscription/get", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: loggedInUser.id })
+          });
+          if (subRes.ok) {
+            const subJson = await subRes.json();
+            if (subJson?.success && subJson.subscription) {
+              subData = subJson.subscription;
+            }
+          }
+        } catch (e) {
+          console.warn("[LOGIN] /api/subscription/get error:", e);
+        }
+
+        if (!subData) {
+          const { data: directSub } = await supabase
+            .from("subscriptions")
+            .select("id, plan_name, plan_status, current_period_end, payment_no, license_key")
+            .eq("user_id", loggedInUser.id)
+            .eq("is_active", true)
+            .in("plan_status", ["ACTIVE", "FREE"])
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          subData = directSub;
+        }
 
         const targetDate = subData?.current_period_end;
         const isValid = targetDate ? Date.now() < new Date(targetDate).getTime() : false;

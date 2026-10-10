@@ -2260,8 +2260,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             }
 
             const remainingDays = expiryMs === 0 ? 0 : Math.max(0, Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000)));
-            const isFreeTrial = sub?.plan_name === 'FREE' || currentPaymentNo.startsWith('FREE_TRIAL_');
-            let planName = isFreeTrial ? '무료 체험판 플랜' : (sub?.plan_name === 'READER' ? '기간 만료 (제한 사용자)' : `${sub?.plan_name || 'PRO'} 프리미엄 플랜`);
+            const isFreeTrial = sub?.plan_name === 'FREE' || sub?.plan_name === 'APPRENTICE' || currentPaymentNo.startsWith('FREE_TRIAL_') || currentPaymentNo.startsWith('TRIAL-');
+            let planName = isFreeTrial ? '무료 체험판 플랜 (Apprentice)' : (sub?.plan_name === 'READER' ? '기간 만료 (제한 사용자)' : `${sub?.plan_name || 'PRO'} 프리미엄 플랜`);
 
             let activationFailed = false;
             let activationError = '';
