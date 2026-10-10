@@ -1,6 +1,6 @@
 // ====================================================================
 // 📊 [OMD-AUTH-signup-page-0001] page ➔ SignupPage
-// 🎯 @KICK  : Supabase Auth 기반 이메일/구글 소셜 가입 및 7일 무료 1대 라이선스 자동 발급 병합 회원가입 화면
+// 🎯 @KICK  : Supabase Auth 기반 이메일/구글 소셜 가입 및 14일 무료 1대 라이선스 자동 발급 병합 회원가입 화면
 // 🛡️ @GUARD : 비밀번호 영문소문자/숫자/특수문자 조합 8~20자 유효성, 비밀번호 확인 일치성 검증 및 소셜 가입 유입 가드
 // 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-03** — LDSG v5.0 디자인 시스템 및 웜 페이퍼 크림(#F9F8F6) 팔레트 전면 적용: 구형 인디고 룩/Material Symbols 제거, LINE Green(#1d4ed8) 버튼, 실시간 유효성 체크 뱃지 및 Lucide React 아이콘 교체
@@ -110,10 +110,11 @@ export default function SignupPage() {
 
       // 2. users 동기화
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
+      const activeSession = session || data.session;
+      if (activeSession) {
         const regRes = await fetch("/api/user/upsert", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${activeSession.access_token}` },
           body: JSON.stringify({
             p_id: userId,
             p_email: email.trim(),
@@ -204,13 +205,13 @@ export default function SignupPage() {
             <div className="text-center space-y-2">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F0EFEA] dark:bg-zinc-800 text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 uppercase tracking-wider">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#1d4ed8]" />
-                GET STARTED FREE
+                14 DAYS FREE TRIAL
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-[#111413] dark:text-white tracking-tight">
                 회원가입
               </h1>
               <p className="text-xs sm:text-sm text-[#68716D] dark:text-zinc-400">
-                AI는 마크다운으로, 사람은 문서로 완성하는 첫걸음.
+                신규 가입 즉시 14일간 모든 편집 기능을 무료로 체험하실 수 있습니다.
               </p>
             </div>
 
@@ -412,7 +413,7 @@ export default function SignupPage() {
                   disabled={loading || !isFormValid}
                   className="w-full bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-bold text-[15px] py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(29, 78, 216,0.25)] hover:shadow-[0_6px_24px_rgba(29, 78, 216,0.35)] active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer"
                 >
-                  <span>{loading ? "가입 처리 중..." : "무료로 계정 만들기"}</span>
+                  <span>{loading ? "가입 처리 중..." : "14일 무료 체험 시작하기"}</span>
                   <ArrowRight size={16} />
                 </button>
               </div>

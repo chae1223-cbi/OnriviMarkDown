@@ -3116,7 +3116,9 @@ ipcMain.handle('file:listDirectory', async (event, dirPath) => {
     const entries = fs.readdirSync(cleanPath, { withFileTypes: true });
     const nodes = entries
       .filter(entry => {
-        if (['node_modules', '.git', '.next', '.vscode'].includes(entry.name)) return false;
+        const ignoredDirs = ['node_modules', '.git', '.next', '.vscode', 'out', 'dist', 'build', '.next-web-build', '.wrangler', '_dev_api_backup', 'release', '.idea'];
+        if (ignoredDirs.includes(entry.name.toLowerCase())) return false;
+        if (entry.isDirectory() && entry.name.toLowerCase() === 'help' && (cleanPath.replace(/\\/g, '/').toLowerCase().endsWith('/docs') || cleanPath.replace(/\\/g, '/').toLowerCase().endsWith('docs'))) return false;
         if (entry.isFile()) {
           const nameLower = entry.name.toLowerCase();
           return nameLower.endsWith('.md') || nameLower.endsWith('.markdown') || nameLower.endsWith('.bib');

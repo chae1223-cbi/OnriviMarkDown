@@ -18,6 +18,7 @@
 }
 
 /* ===================================================================
+ * 🚨 @PATCH : **2026-10-10** — [탐색기(LeftSidebar) 스크롤바 폭 100% 확대(6px->12px) 및 시인성 강화]: 기존 6px 규격의 얇은 스크롤바 폭을 12px(100% 확대)로 확장하고, 은은한 트랙과 고대비 썸(Thumb) 및 호버 반응을 탑재한 .explorer-scrollbar 유틸리티 신설
  * 🚨 @PATCH : **2026-10-02** — [이미지 드래그 앤 드롭 실시간 위치 가이드라인 및 드롭 타겟 라인 하이라이트 스타일 탑재]: 드래그 중인 이미지가 삽입될 행과 위치를 사용자가 마우스를 놓기 전에 100% 식별할 수 있도록 .onrivi-drop-line-highlight 스타일 추가
  * 🚨 @PATCH : **2026-10-02** — [학교안심 폰트 WOFF2 포맷 일원화 및 구형 중복 파일 정리]: Hakgyoansim 폰트의 중복 TTF/OTF/WOFF를 제거하고 고압축 WOFF2로 일원화하여 시각적 품위를 100% 동일하게 유지하면서 패키징 용량 대폭 경량화
  * 🚨 @PATCH : **2026-10-01** — [PDF 3·4·5페이지 섹션 시작 조판 최적화 및 제목+소개+미디어 원자적 결속]: H1~H6 바로 뒤의 소개 문단/목록이 이미지나 다이어그램으로 이어질 때 break-after: avoid를 연동하여 제목+소개+이미지가 다음 페이지 첫머리에서 온전히 함께 시작되도록 출판형 조판 완성
@@ -1238,6 +1239,42 @@ div.monaco-table-line {
 }
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
+}
+
+/* 📂 [OMD-STYLE-EXPLORER-SCROLLBAR] 탐색기(LeftSidebar) 전용 스크롤바 폭 100% 확대 (6px -> 12px) 및 시인성 강화 */
+.explorer-scrollbar {
+  scrollbar-width: auto;
+  scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
+}
+.dark .explorer-scrollbar {
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+.explorer-scrollbar::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+.explorer-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 6px;
+}
+.dark .explorer-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+}
+.explorer-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.45);
+  border-radius: 6px;
+  transition: background-color 0.15s ease;
+}
+.explorer-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.75);
+}
+.dark .explorer-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.45);
+  border-radius: 6px;
+}
+.dark .explorer-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(203, 213, 225, 0.75);
 }
 
 /* Monaco 폰트 렌더링 — D2CodingLigature 리가처 지원 및 자간 오차 방지 */

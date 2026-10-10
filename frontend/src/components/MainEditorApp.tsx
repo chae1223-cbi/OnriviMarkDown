@@ -506,6 +506,11 @@ const fetchAllMdFiles = async (
     } else {
       return;
     }
+    const normPath = (node.path || '').replace(/\\/g, '/').toLowerCase();
+    const pathSegments = normPath.split('/');
+    const excludedDirs = ['out', '.next', '.next-web-build', 'dist', 'build', 'release', 'node_modules', '_dev_api_backup', '.vscode', '.idea'];
+    if (pathSegments.some(seg => excludedDirs.includes(seg))) return;
+    if (normPath.startsWith('docs/help/') || normPath.includes('/docs/help/')) return;
     const rawKey = (node.path || node.name).replace(/\\/g, '/').toLowerCase().normalize('NFC');
     if (!fileMap.has(rawKey)) {
       fileMap.set(rawKey, { ...node, ...extra });
@@ -599,7 +604,7 @@ const fetchAllMdFiles = async (
   // 3. 현재 열려 있는 탭(tabs) 병합 (현재 작업 중인 파일 및 미저장 탭 포함)
   if (tabs && Array.isArray(tabs)) {
     tabs.forEach(t => {
-      if (t && t.name && (t.name.endsWith('.md') || t.name.endsWith('.markdown'))) {
+      if (t && t.name && (t.name.endsWith('.md') || t.name.endsWith('.markdown')) && (t.path || !Array.from(fileMap.values()).some(f => f.name.toLowerCase().normalize('NFC') === t.name.toLowerCase().normalize('NFC')))) {
         addToFileMap({
           name: t.name,
           path: t.path || t.name,
@@ -2222,7 +2227,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               
               if (sub.plan_status === 'FREE' && sub.created_at) {
                 if (expiryMs === 0 || expiryMs === Number.MAX_SAFE_INTEGER) {
-                  expiryMs = new Date(sub.created_at).getTime() + 7 * 24 * 60 * 60 * 1000;
+                  expiryMs = new Date(sub.created_at).getTime() + 14 * 24 * 60 * 60 * 1000;
                 }
               }
             }
@@ -9718,16 +9723,27 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                   const deduplicated = (() => {
                                     const map = new Map<string, FileNode>();
                                     for (const f of filtered) {
+                                      const currPath = (f.path || '').replace(/\\/g, '/').toLowerCase();
+                                      const segments = currPath.split('/');
+                                      const excludedDirs = ['out', '.next', '.next-web-build', 'dist', 'build', 'release', 'node_modules', '_dev_api_backup', '.vscode', '.idea'];
+                                      if (segments.some(seg => excludedDirs.includes(seg))) {
+                                        continue;
+                                      }
+                                      if (currPath.startsWith('docs/help/') || currPath.includes('/docs/help/')) {
+                                        continue;
+                                      }
+
                                       const key = (f.name || '').normalize('NFC').toLowerCase();
                                       if (!map.has(key)) {
                                         map.set(key, f);
                                       } else {
                                         const prev = map.get(key)!;
                                         const prevPath = (prev.path || '').replace(/\\/g, '/').toLowerCase();
-                                        const currPath = (f.path || '').replace(/\\/g, '/').toLowerCase();
-                                        const isPrevBuild = prevPath.includes('/out/') || prevPath.includes('/.next') || prevPath.includes('/.next-web-build/');
-                                        const isCurrBuild = currPath.includes('/out/') || currPath.includes('/.next') || currPath.includes('/.next-web-build/');
-                                        if (isPrevBuild && !isCurrBuild) {
+                                        const prevHasFullPath = prevPath.includes('/') && prevPath !== key;
+                                        const currHasFullPath = currPath.includes('/') && currPath !== key;
+                                        if (!prevHasFullPath && currHasFullPath) {
+                                          map.set(key, f);
+                                        } else if (currPath.includes('/public/help/') && !prevPath.includes('/public/help/')) {
                                           map.set(key, f);
                                         }
                                       }

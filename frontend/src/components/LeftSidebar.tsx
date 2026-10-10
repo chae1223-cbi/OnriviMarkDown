@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-LeftSidebar-0001] LeftSidebar.tsx ➔ 에디터 좌측 탐색기 사이드바
 // 🎯 @KICK  : 파일 트리 탐색기, TOC, 북마크, 전역 검색 탭 제공. 폴더 CRUD/드래그앤드롭/컨텍스트메뉴 지원
 // 🛡️ @GUARD : FSA API(웹), IPC(데스크톱) 이중 운영, 드래그 덜렁거림(anti-rattle) 방지 적용
+// 🚨 @PATCH : **2026-10-10** — [탐색기 및 사이드바 스크롤바 폭 100% 확대 (6px -> 12px) 및 시인성 강화]: 기존 6px 규격의 얇은 스크롤바로 인한 조작 불편을 해소하기 위해 explorer-scrollbar를 적용하고 폭을 12px(100% 확대)로 확장, 호버 반응 및 다크모드 대비 최적화
 // 🚨 @PATCH : **2026-10-07** — [환경설정 리소스 폴더(참조파일 등) media 하위폴더 직결 바인딩]: 타문서 변환 이미지 저장 시 cloudSettings.mediaFolderId 우선 참조 및 부모 리소스 폴더 하위 탐색으로 안전 업로드
 // 🚨 @PATCH : **2026-10-04** — [구글 드라이브 파일/폴더 복사·잘라내기·붙여넣기·루트 이동 전면 지원]: handlePasteNode 및 handleDropRoot에 GDRIVE/cloud 분기 신설 — moveDriveItem(이동), copyDriveFile(파일 복사), copyDriveFolderRecursive(폴더 재귀 복사) 연동
 // 🚨 @PATCH : **2026-10-03** — [AI 타문서 변환 Google 503 High Demand 오류 명확한 안내 및 기본 모델 최신화]: 구글 일시적 과부하(503) 시 정확한 원인 안내 토스트 표출 및 기본 모델 gemini-3.8-flash 일원화
@@ -2478,7 +2479,7 @@ export default function LeftSidebar() {
       {/* 탭 바디 — 항상 마운트, hidden으로 표시/숨김 제어 */}
       <div className="flex-1 min-h-0 relative flex flex-col">
         <div 
-          className={`flex-1 overflow-y-auto [scrollbar-gutter:stable] p-2 ${sidebarTab !== 'explorer' ? 'hidden' : ''}`}
+          className={`flex-1 overflow-y-auto [scrollbar-gutter:stable] explorer-scrollbar p-2 ${sidebarTab !== 'explorer' ? 'hidden' : ''}`}
           onContextMenu={(e) => {
             const target = e.target as HTMLElement;
             if (!target.closest('[role="treeitem"]')) {
@@ -2892,7 +2893,7 @@ export default function LeftSidebar() {
         </div>
         <div 
           ref={tocContainerRef}
-          className={`flex-1 overflow-y-auto p-2 ${sidebarTab !== 'toc' ? 'hidden' : ''}`}
+          className={`flex-1 overflow-y-auto [scrollbar-gutter:stable] explorer-scrollbar p-2 ${sidebarTab !== 'toc' ? 'hidden' : ''}`}
         >
           <div className="space-y-0 text-[12px] font-bold">
             {!toc || toc.length === 0 ? (

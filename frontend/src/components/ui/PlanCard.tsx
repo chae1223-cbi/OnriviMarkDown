@@ -65,7 +65,7 @@ export function PlanCard({ plan, isAnnual }: PlanCardProps) {
         <div className="mb-6">
           <div className={`text-4xl font-extrabold ${textColor}`}>0원</div>
           <p className={`text-sm mt-2 leading-relaxed ${mutedText}`}>
-            가입 즉시 1주일(7일) 동안<br />최대 접속 1회로 무료로 체험하세요.
+            가입 즉시 2주일(14일) 동안<br />최대 접속 1회로 무료로 체험하세요.
           </p>
         </div>
       )}

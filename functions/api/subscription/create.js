@@ -71,7 +71,7 @@ export async function onRequestPost({ request, env }) {
       const verifyKey = randomHex(8);
       // TODO(payment): 결제 승인과 금액 검증이 연결되면 유료 신청 경로를 별도로 개방한다.
       const paymentNo = `SUB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${randomHex(4)}`;
-      const period = isFree ? '7 days' : cycle === 'YEARLY' ? '1 year' : '1 month';
+      const period = isFree ? '14 days' : cycle === 'YEARLY' ? '1 year' : '1 month';
 
       await db.query(`
         UPDATE public.subscriptions SET plan_status = 'EXPIRED', is_active = false, updated_at = now(), updated_by = $1

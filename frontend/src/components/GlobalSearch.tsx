@@ -287,7 +287,7 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
       </div>
 
       {/* 3. 검색 결과 리스트 */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2.5">
+      <div className="flex-1 overflow-y-auto [scrollbar-gutter:stable] explorer-scrollbar p-2 space-y-2.5">
         {results.map((result, idx) => (
           <div 
             key={idx} 

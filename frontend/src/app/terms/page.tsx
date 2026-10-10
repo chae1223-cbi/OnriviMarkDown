@@ -79,7 +79,7 @@ export default function TermsPage() {
               <h2 className="text-sm md:text-base font-bold text-gray-900 dark:text-white">제6조 (동시접속 및 라이선스 세션 제어 규정)</h2>
               <p>서비스는 부정한 복제 및 라이선스 유출을 방지하기 위해 요금제 등급별로 최대 동시 접속 기기(세션)의 개수를 엄격히 제한합니다.</p>
               <ul className="list-disc pl-5 space-y-1">
-                <li>무료 체험: 최대 동시 접속 기기 1대 (체험 기간 7일 제공)</li>
+                <li>무료 체험: 최대 동시 접속 기기 1대 (체험 기간 14일 제공)</li>
                 <li>웹 월간 요금제: 최대 동시 접속 기기 3대</li>
                 <li>웹 연간 요금제: 최대 동시 접속 기기 3대</li>
                 <li>데스크탑 연간 요금제: 윈도우 데스크탑 1카피 (1 PC 오프라인 전용)</li>
