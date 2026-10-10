@@ -80,6 +80,7 @@ import {
 import { isAbsolutePath } from '@/lib/knowledge/pathResolver';
 import {
   getSavedDriveToken,
+  hasValidDriveToken,
   getSavedWorkspaceInfo,
   requestGoogleDriveAuth,
   setupOnriviDriveWorkspace,
@@ -161,6 +162,31 @@ export const useFileExplorer = ({
   useEffect(() => { rootFolderRef.current = rootFolder; }, [rootFolder]);
 
   // 🛡️ [중복 새로고침 방어] 파일 변동 시 2중/3중 중복 새로고침 차단용 타임스탬프 및 락 ref
+  const [isDriveAuthExpired, setIsDriveAuthExpired] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const savedRoot = localStorage.getItem('rootFolder');
+    try {
+      if (savedRoot) {
+        const parsed = JSON.parse(savedRoot);
+        if (parsed?.type === 'GDRIVE') {
+          return !hasValidDriveToken();
+        }
+      }
+    } catch {}
+    return false;
+  });
+
+  useEffect(() => {
+    const handleAuthExpired = () => setIsDriveAuthExpired(true);
+    const handleTokenUpdated = () => setIsDriveAuthExpired(false);
+    window.addEventListener('onrivi:drive_auth_expired', handleAuthExpired);
+    window.addEventListener('onrivi:drive_token_updated', handleTokenUpdated);
+    return () => {
+      window.removeEventListener('onrivi:drive_auth_expired', handleAuthExpired);
+      window.removeEventListener('onrivi:drive_token_updated', handleTokenUpdated);
+    };
+  }, []);
+
   const lastRefreshTimeRef = useRef<number>(0);
   const isRefreshingRef = useRef<boolean>(false);
 
@@ -185,19 +211,25 @@ export const useFileExplorer = ({
       if (rootFolderRef.current?.type === 'GDRIVE') {
         let token = getSavedDriveToken();
         const wsInfo = getSavedWorkspaceInfo();
-        if (!token) {
+        if (!hasValidDriveToken()) {
           try {
             const { refreshDriveTokenSilently } = await import('@/lib/gdrive/googleDriveClient');
             token = await refreshDriveTokenSilently();
           } catch (_) {}
         }
-        if (token && wsInfo?.workspaceFolderId) {
+        if (!token || !hasValidDriveToken()) {
+          setIsDriveAuthExpired(true);
+          return;
+        }
+        if (wsInfo?.workspaceFolderId) {
           try {
             const driveNodes = await fetchDriveFileNodes(token, wsInfo.workspaceFolderId);
             setFileList(driveNodes);
+            setIsDriveAuthExpired(false);
             console.log(`[refreshFileList] ✅ 구글 드라이브 파일 목록 갱신 완료 (${driveNodes.length}개 노드)`);
           } catch (err) {
             console.error('[refreshFileList GDRIVE Error]', err);
+            setIsDriveAuthExpired(true);
           }
         }
         return;
@@ -1544,7 +1576,7 @@ export const useFileExplorer = ({
     try {
       const isLocal = rootFolderRef.current?.type !== 'GDRIVE';
       const localResourceBeforeConnect = getResourceSettings('local');
-      if (!isLocal && (tabsRef.current.some(t => t.isModified) ||
+      if (chooseFolder && !isLocal && (tabsRef.current.some(t => t.isModified) ||
           (activeTabIdRef?.current && contentRef.current !== lastSavedContentRef.current))) {
         showToast('작업장을 변경하기 전에 작성 중인 글을 저장해 주세요.', 'warning');
         return;
@@ -1644,6 +1676,7 @@ export const useFileExplorer = ({
 
       // 4. 탐색기 목록 0초 즉각 렌더링
       setFileList(driveNodes);
+      setIsDriveAuthExpired(false);
 
       // 5. 사이드바 열기 및 토스트
       setIsSidebarOpen(true);
@@ -1651,8 +1684,10 @@ export const useFileExplorer = ({
       showToast(`구글 드라이브에 연결되었습니다. (${wsInfo.userEmail || '연결 완료'})`, "success");
       console.log(`[connectGoogleDrive] ✅ 구글 드라이브 연결 완료! (${wsInfo.userEmail || '연결됨'}), 파일 수: ${driveNodes.length}`);
 
-      const previous = driveEnvironmentRef.current;
-      restoreEnvironment(previous?.root?.driveFolderId === wsInfo.workspaceFolderId ? previous : null);
+      if (isLocal) {
+        const previous = driveEnvironmentRef.current;
+        restoreEnvironment(previous?.root?.driveFolderId === wsInfo.workspaceFolderId ? previous : null);
+      }
       window.dispatchEvent(new CustomEvent('onrivi:reload_profiles'));
     } catch (err: any) {
       reportClientLog(err.message || '구글 드라이브 연결 실패', 'ERROR', 'DRIVE_CONNECT');
@@ -2013,6 +2048,7 @@ export const useFileExplorer = ({
     handleFileClick,
     saveFile,
     connectGoogleDrive,
-    disconnectGoogleDrive
+    disconnectGoogleDrive,
+    isDriveAuthExpired
   };
 };

@@ -3249,7 +3249,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     restoreFolderPermission,
     handleFileOpenByPath,
     connectGoogleDrive,
-    disconnectGoogleDrive
+    disconnectGoogleDrive,
+    isDriveAuthExpired
   } = useFileExplorerResult;
 
   // 🧠 [ONRIVI-KNOWLEDGE-ENGINE-003] 지식 베이스 / 출처 링크 에디터 파일 열기 및 라인 점프 리스너
@@ -8466,7 +8467,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     setIsAiButtonVisible,
     isRestrictedUser,
     connectGoogleDrive,
-    disconnectGoogleDrive
+    disconnectGoogleDrive,
+    isDriveAuthExpired
   };
 
   const { handleMount } = useMonacoSetup({

@@ -41,7 +41,7 @@ import { useEditorContext } from '@/context/EditorContext';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { knowledgeClient, canAccessKnowledgeDb } from '@/lib/knowledge/knowledgeClient';
 import { loadSecureData } from '@/lib/secureStorage';
-import { uploadDriveImage, getSavedDriveToken, getSavedWorkspaceInfo, moveDriveItem, copyDriveFile, copyDriveFolderRecursive } from '@/lib/gdrive/googleDriveClient';
+import { uploadDriveImage, getSavedDriveToken, hasValidDriveToken, getSavedWorkspaceInfo, moveDriveItem, copyDriveFile, copyDriveFolderRecursive } from '@/lib/gdrive/googleDriveClient';
 
 // ====================================================================
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
@@ -170,8 +170,27 @@ export default function LeftSidebar() {
     tabs = [], activeTabId, switchTab, licenseStatus,
     setIsMergeMode, setSelectedMergeNodes,
     geminiApiKey, aiModelName,
-    connectGoogleDrive, disconnectGoogleDrive
+    connectGoogleDrive, disconnectGoogleDrive,
+    isDriveAuthExpired
   } = useEditorContext();
+
+  const [isReconnectingDrive, setIsReconnectingDrive] = useState(false);
+  const isGdriveAuthNeeded = rootFolder?.type === 'GDRIVE' && (isDriveAuthExpired || !hasValidDriveToken());
+
+  const handleReconnectDrive = async () => {
+    if (isReconnectingDrive) return;
+    setIsReconnectingDrive(true);
+    try {
+      if (connectGoogleDrive) {
+        await connectGoogleDrive(false);
+      }
+    } catch (err: any) {
+      console.error('[handleReconnectDrive Error]', err);
+      showToast?.(err?.message || '구글 드라이브 재접속에 실패했습니다.', 'error');
+    } finally {
+      setIsReconnectingDrive(false);
+    }
+  };
 
   const searchHighlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -2460,6 +2479,11 @@ export default function LeftSidebar() {
             <span className="truncate font-bold">
               {rootFolderDisplayName || '폴더를 선택하세요'}
             </span>
+            {isGdriveAuthNeeded && (
+              <span className="ml-1 px-1.5 py-0.5 text-[9px] font-extrabold bg-amber-500 text-white rounded-full shrink-0 shadow-2xs animate-pulse">
+                재연결
+              </span>
+            )}
           </button>
           {rootFolder?.type === 'GDRIVE' && (
             <button
@@ -2808,14 +2832,86 @@ export default function LeftSidebar() {
                 </div>
               )}
 
-              {fileList.length === 0 ? (
-                <div className="text-zinc-400 dark:text-zinc-500 text-[12px] text-center py-5">
+              {isGdriveAuthNeeded && fileList.length === 0 ? (
+                // ☁️ 구글 드라이브 세션 만료 및 재접속 안내 패널
+                <div className="flex flex-col items-center justify-center p-4 my-2 text-center bg-gradient-to-b from-blue-50/70 to-indigo-50/40 dark:from-blue-950/20 dark:to-indigo-950/10 border border-blue-200/80 dark:border-blue-800/40 rounded-2xl shadow-xs space-y-3 mx-0.5">
+                  <div className="w-12 h-12 rounded-2xl bg-white dark:bg-zinc-800/90 shadow-sm border border-blue-100 dark:border-zinc-700/60 flex items-center justify-center text-2xl">
+                    <span role="img" aria-label="cloud">☁️</span>
+                  </div>
+                  <div className="space-y-1 px-1">
+                    <h4 className="font-extrabold text-[13px] text-zinc-900 dark:text-zinc-100">
+                      구글 드라이브 재접속 필요
+                    </h4>
+                    <p className="text-[11px] text-zinc-600 dark:text-zinc-400 leading-relaxed break-keep">
+                      보안을 위해 1시간 후 구글 인증 세션이 만료되었습니다. 작성하신 문서와 폴더는 안전하게 보관되어 있습니다.
+                    </p>
+                  </div>
+                  <div className="w-full space-y-1.5 pt-1">
+                    <button
+                      type="button"
+                      disabled={isReconnectingDrive}
+                      onClick={handleReconnectDrive}
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 bg-[#1d4ed8] hover:bg-[#1e40af] disabled:bg-blue-400 text-white rounded-xl text-[12px] font-extrabold shadow-md shadow-blue-500/20 hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer"
+                    >
+                      {isReconnectingDrive ? (
+                        <>
+                          <svg className="animate-spin h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                          </svg>
+                          <span>구글 연결 중...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Icon name="RotateCw" size={13} strokeWidth={2.2} />
+                          <span>구글 드라이브 다시 연결</span>
+                        </>
+                      )}
+                    </button>
+                    {disconnectGoogleDrive && (
+                      <button
+                        type="button"
+                        onClick={() => disconnectGoogleDrive()}
+                        className="w-full px-2 py-1.5 text-[11px] font-semibold text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
+                      >
+                        연결 해제하고 로컬로 돌아가기
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : fileList.length === 0 ? (
+                <div className="text-zinc-400 dark:text-zinc-500 text-[12px] text-center py-5 space-y-1">
                   <p>연결된 폴더에 파일이 없습니다.</p>
+                  {rootFolder?.type === 'GDRIVE' && (
+                    <button
+                      type="button"
+                      onClick={() => triggerCreateRootFile()}
+                      className="text-[#1d4ed8] hover:underline text-[11px] font-medium"
+                    >
+                      + 새 문서 만들기
+                    </button>
+                  )}
                 </div>
               ) : (
-                fileList
-                  .filter((node: any) => node.kind === 'directory' || node.name.toLowerCase().endsWith('.md') || node.name.toLowerCase().endsWith('.markdown') || node.name.toLowerCase().endsWith('.bib'))
-                  .map((node: any, i: number) => (
+                <>
+                  {isGdriveAuthNeeded && (
+                    <div className="mb-2 p-2 bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/30 rounded-lg flex items-center justify-between gap-2 text-[11px]">
+                      <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-semibold min-w-0">
+                        <span>⚠️</span>
+                        <span className="truncate">인증 만료 (저장/동기화 위해 재연결)</span>
+                      </div>
+                      <button
+                        onClick={handleReconnectDrive}
+                        disabled={isReconnectingDrive}
+                        className="shrink-0 px-2.5 py-1 bg-[#1d4ed8] hover:bg-[#1e40af] text-white rounded text-[11px] font-bold cursor-pointer"
+                      >
+                        다시 연결
+                      </button>
+                    </div>
+                  )}
+                  {fileList
+                    .filter((node: any) => node.kind === 'directory' || node.name.toLowerCase().endsWith('.md') || node.name.toLowerCase().endsWith('.markdown') || node.name.toLowerCase().endsWith('.bib'))
+                    .map((node: any, i: number) => (
                   <FileTreeItem
                     key={node.path || node.name + i}
                     node={node}
@@ -2843,7 +2939,9 @@ export default function LeftSidebar() {
                     toggleMergeNodeSelect={toggleMergeNodeSelect}
                     onLazyLoad={handleLazyLoad}
                   />
-                )))}
+                ))}
+                </>
+              )}
               </div>
           ) : (
             // 폴더 미연결 상태 — 무설정 구글 드라이브 자동 연동 카드

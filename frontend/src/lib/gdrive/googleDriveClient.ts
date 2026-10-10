@@ -287,6 +287,21 @@ export function getSavedDriveToken(): string | null {
 }
 
 /**
+ * 현재 구글 드라이브 Access Token이 유효한지(존재하고 만료시간이 지나지 않았는지) 동기적으로 확인
+ */
+export function hasValidDriveToken(): boolean {
+  if (typeof window === 'undefined') return false;
+  const token = localStorage.getItem(STORAGE_KEY_TOKEN) || sessionStorage.getItem(STORAGE_KEY_TOKEN);
+  if (!token) return false;
+
+  const expiry = Number(localStorage.getItem(STORAGE_KEY_EXPIRY));
+  if (expiry && Date.now() >= expiry) {
+    return false;
+  }
+  return true;
+}
+
+/**
  * Access Token 로컬 저장 및 자동 갱신 스케줄링
  */
 export function saveDriveToken(token: string, expiresIn: number = 3600): void {
@@ -367,6 +382,9 @@ export function disconnectGoogleDrive(): void {
   localStorage.removeItem(STORAGE_KEY_EXPIRY);
   // Keep the last workspace (no credentials) so a future connection can resume it.
   sessionStorage.removeItem(STORAGE_KEY_TOKEN);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('onrivi:drive_auth_expired'));
+  }
 }
 
 /**
@@ -524,6 +542,9 @@ async function parseDriveError(res: Response, defaultAction: string): Promise<Er
   if (res.status === 401) {
     localStorage.removeItem(STORAGE_KEY_TOKEN);
     sessionStorage.removeItem(STORAGE_KEY_TOKEN);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('onrivi:drive_auth_expired'));
+    }
     return new Error('구글 드라이브 인증이 만료되었습니다. 연결을 갱신한 뒤 다시 시도해 주세요.');
   }
   let detailMsg = '';
