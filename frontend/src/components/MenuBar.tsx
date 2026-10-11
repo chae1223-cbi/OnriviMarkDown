@@ -255,7 +255,6 @@ export default function MenuBar() {
     { label: t('saveFile'), icon: <Icon name="Save" size={15} />, shortcut: 'Ctrl+S', disabled: isRestrictedUser, onClick: () => dispatch('SAVE') },
     { label: t('saveFileAs'), icon: <Icon name="Export" size={15} />, shortcut: 'Ctrl+Shift+S', disabled: isRestrictedUser, onClick: () => dispatch('SAVE_AS') },
     { divider: true },
-    { label: "타문서 변환", icon: <Icon name="Import" size={15} />, shortcut: 'Ctrl+Alt+O', disabled: isRestrictedUser, onClick: () => window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT')) },
     { 
       label: t('export') + (previewMode !== 'preview' ? " (미리보기 모드 전용)" : ""), 
       icon: <Icon name="Export" size={15} />,

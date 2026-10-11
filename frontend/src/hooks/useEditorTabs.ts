@@ -254,7 +254,7 @@ export const useEditorTabs = (
 
     setContent(contentVal);
     setCurrentFileName(tabName);
-    setCurrentFileNode(null);
+    setCurrentFileNode(node || null);
 
     if (editorRef.current && model) {
       editorRef.current.setModel(model);

@@ -1810,7 +1810,7 @@ const FileTreeItem = ({
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Icon name="Document" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
-                      <span className="truncate">타문서 변환</span>
+                      <span className="truncate">파일 열기</span>
                     </div>
                     <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌥⌘O' : 'Ctrl+Alt+O'}</kbd>
                   </button>

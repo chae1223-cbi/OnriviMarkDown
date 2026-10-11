@@ -22,7 +22,8 @@
 "use client";
 
 
-import { IMPORT_ACCEPT, isSupportedImportFile } from '@/lib/importFormats';
+import NewDocumentModal from '@/components/NewDocumentModal';
+import { IMPORT_ACCEPT, IMPORT_PICKER_OPTIONS, isSupportedImportFile } from '@/lib/importFormats';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { getEffectiveResourceFolder } from '@/lib/profileStorage';
 import { useDragHighlight } from '@/hooks/useDragHighlight';
@@ -1474,8 +1475,8 @@ export default function LeftSidebar() {
     setContextMenu(null);
     targetImportNodeRef.current = null;
     targetImportParentHandleRef.current = null;
-    importFileInputRef.current?.click();
-  }, []);
+    void openImportPicker();
+  }, [isRestrictedUser, isImporting]);
 
   const triggerRevealRoot = useCallback(async () => {
     setContextMenu(null);
@@ -1891,19 +1892,39 @@ export default function LeftSidebar() {
   }>({ isOpen: false, title: "", defaultValue: "", type: null, error: "" });
 
   const importFileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
+  const importNameRef = useRef<string | null>(null);
+  const chooseImportDestination = (file: File) => {
+    if (!isSupportedImportFile(file.name)) { showToast('지원하지 않는 파일 형식입니다.', 'warning'); return; }
+    setPendingImportFile(file);
+  };
+
   const targetImportNodeRef = useRef<FileNode | null>(null);
   const targetImportParentHandleRef = useRef<any>(null);
+  const openImportPicker = async () => {
+    if (isRestrictedUser || isImporting) return;
+    const picker = (window as any).showOpenFilePicker;
+    if (typeof picker !== 'function') { importFileInputRef.current?.click(); return; }
+    try {
+      const [handle] = await picker.call(window, IMPORT_PICKER_OPTIONS);
+      const file = await handle.getFile();
+      chooseImportDestination(file);
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') showToast(error?.message || '파일 선택창을 열지 못했습니다.', 'error');
+    }
+  };
+
 
   useEffect(() => {
     const handleTriggerImport = (e?: any) => {
       if (isRestrictedUser) return;
       targetImportNodeRef.current = e?.detail?.node || null;
       targetImportParentHandleRef.current = e?.detail?.parentHandle || null;
-      importFileInputRef.current?.click();
+      void openImportPicker();
     };
     window.addEventListener('TRIGGER_IMPORT', handleTriggerImport);
     return () => window.removeEventListener('TRIGGER_IMPORT', handleTriggerImport);
-  }, [isRestrictedUser]);
+  }, [isRestrictedUser, isImporting]);
 
 // ====================================================================
 // 📊 [OMD-FILE-LeftSidebar-0006] LeftSidebar ➔ onPromptConfirm
@@ -1931,7 +1952,7 @@ export default function LeftSidebar() {
       try {
         setPromptConfig(prev => ({ ...prev, isOpen: false, error: '' }));
         if (rootFolder?.type === 'GDRIVE') {
-          const { getSavedDriveToken, getSavedWorkspaceInfo, createDriveMarkdownFile } = await import('@/lib/gdrive/googleDriveClient');
+          const { getSavedDriveToken, getSavedWorkspaceInfo, createDriveMarkdownFile, listDriveChildren } = await import('@/lib/gdrive/googleDriveClient');
           const token = getSavedDriveToken();
           const wsInfo = getSavedWorkspaceInfo();
           const targetFolderId = rootFolder?.id || wsInfo?.workspaceFolderId;
@@ -2138,10 +2159,11 @@ export default function LeftSidebar() {
       targetImportNodeRef.current = null;
       targetImportParentHandleRef.current = null;
 
-      const originalName = file.name.split('.').slice(0, -1).join('.') || file.name;
+      const requestedName = importNameRef.current; importNameRef.current = null;
+      const originalName = requestedName ? requestedName.replace(/\.md$/i, '') : file.name.split('.').slice(0, -1).join('.') || file.name;
       let finalName = `${originalName}.md`;
 
-      const targetPath = targetNode ? (targetNode.path || targetNode.name || "") : (rootFolder?.name || rootFolder?.path || "");
+      const targetPath = targetNode ? (targetNode.path || targetNode.name || "") : (rootFolder?.path || rootFolder?.name || "");
 
       let counter = 1;
       while (fileList.some((c: any) => c.name.toLowerCase() === finalName.toLowerCase())) {
@@ -2189,11 +2211,13 @@ export default function LeftSidebar() {
 
       // ☁️ [Google Drive 작업장 시 구글 드라이브 문서 생성]
       if (rootFolder?.type === 'GDRIVE') {
-        const { getSavedDriveToken, getSavedWorkspaceInfo, createDriveMarkdownFile } = await import('@/lib/gdrive/googleDriveClient');
+        const { getSavedDriveToken, getSavedWorkspaceInfo, createDriveMarkdownFile, listDriveChildren } = await import('@/lib/gdrive/googleDriveClient');
         const token = getSavedDriveToken();
         const wsInfo = getSavedWorkspaceInfo();
         const targetFolderId = targetNode?.driveId || targetNode?.driveFileId || targetNode?.id || rootFolder?.driveFolderId || wsInfo?.workspaceFolderId;
         if (token && targetFolderId) {
+          const existing = await listDriveChildren(token, targetFolderId);
+          while (existing.some(item => item.name.toLowerCase() === finalName.toLowerCase())) finalName = `${originalName}_${counter++}.md`;
           const newDoc = await createDriveMarkdownFile(token, targetFolderId, finalName, markdown);
           const createdPath = `${targetNode?.path || rootFolder?.path || 'GoogleDrive'}/${finalName}`;
           await triggerExplorerRefresh(createdPath);
@@ -2213,6 +2237,9 @@ export default function LeftSidebar() {
       if (workspaceType === 'browser') {
         const destDirHandle = targetNode?.handle || (targetNode ? targetParentHandle : rootFolder?.handle);
         if (destDirHandle && typeof destDirHandle.getFileHandle === 'function') {
+          const existingNames: string[] = [];
+          for await (const [name] of destDirHandle.entries()) existingNames.push(name.toLowerCase());
+          while (existingNames.includes(finalName.toLowerCase())) finalName = `${originalName}_${counter++}.md`;
           const handle = await destDirHandle.getFileHandle(finalName, { create: true });
           const writable = await handle.createWritable();
           await writable.write(markdown);
@@ -2408,11 +2435,23 @@ export default function LeftSidebar() {
     }
   };
 
-  if (!isSidebarOpen) return <input type="file" ref={importFileInputRef} style={{ display: 'none' }} accept={IMPORT_ACCEPT} onChange={handleImportFile} />;
+  const importControls = <>
+    <input type="file" ref={importFileInputRef} style={{display:'none'}} accept={IMPORT_ACCEPT} onChange={event => {const file=event.target.files?.[0];event.target.value='';if(file)chooseImportDestination(file);}} />
+    <NewDocumentModal isOpen={!!pendingImportFile} onClose={() => setPendingImportFile(null)} fileList={fileList} rootFolder={rootFolder} workspaceType={workspaceType} initialName={pendingImportFile?.name.replace(/\.[^.]+$/, '') || '문서'} dialogTitle="파일 가져올 폴더와 이름" initialFolderNode={targetImportNodeRef.current} onConfirm={async (name,node) => {
+      if (!pendingImportFile) return;
+      const file=pendingImportFile;
+      targetImportNodeRef.current=node;
+      targetImportParentHandleRef.current=node?.handle || rootFolder?.handle || null;
+      importNameRef.current=name;
+      await handleImportFile({target:{files:[file],value:''}} as unknown as React.ChangeEvent<HTMLInputElement>);
+      setPendingImportFile(null);
+    }} />
+  </>;
+  if (!isSidebarOpen) return importControls;
 
   return (
     <>
-      <input type="file" ref={importFileInputRef} style={{ display: 'none' }} accept={IMPORT_ACCEPT} onChange={handleImportFile} />
+      {importControls}
       <aside 
         style={{ 
           width: sidebarWidth,
@@ -2784,7 +2823,7 @@ export default function LeftSidebar() {
                             >
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <Icon name="FolderInput" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
-                                <span className="truncate">타문서 변환</span>
+                                <span className="truncate">파일 열기</span>
                               </div>
                               <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌥⌘O' : 'Ctrl+Alt+O'}</kbd>
                             </button>

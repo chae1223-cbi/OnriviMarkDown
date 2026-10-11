@@ -29,6 +29,9 @@ interface NewDocumentModalProps {
   workspaceType: string;
   onConfirm: (fileName: string, targetFolderNode: FileNode | null) => Promise<void>;
   isDarkMode?: boolean;
+  initialName?: string;
+  dialogTitle?: string;
+  initialFolderNode?: FileNode | null;
 }
 
 export default function NewDocumentModal({
@@ -38,7 +41,10 @@ export default function NewDocumentModal({
   rootFolder,
   workspaceType,
   onConfirm,
-  isDarkMode = false
+  isDarkMode = false,
+  initialName = '새 문서',
+  dialogTitle,
+  initialFolderNode
 }: NewDocumentModalProps) {
   const [fileName, setFileName] = useState<string>('새 문서');
   const [selectedFolderId, setSelectedFolderId] = useState<string>('ROOT');
@@ -89,8 +95,8 @@ export default function NewDocumentModal({
   // 모달이 열릴 때 기본값 리셋 및 인풋 포커스
   useEffect(() => {
     if (isOpen) {
-      setFileName('새 문서');
-      setSelectedFolderId('ROOT');
+      setFileName(initialName);
+      setSelectedFolderId(initialFolderNode?.path || initialFolderNode?.id || initialFolderNode?.driveId || 'ROOT');
       setErrorMessage('');
       setIsSubmitting(false);
 
@@ -102,7 +108,7 @@ export default function NewDocumentModal({
         }
       }, 50);
     }
-  }, [isOpen]);
+  }, [isOpen, initialName, initialFolderNode]);
 
   if (!isOpen) return null;
 
@@ -191,7 +197,7 @@ export default function NewDocumentModal({
             </div>
             <div>
               <h3 id="new-doc-title" className="text-base font-bold tracking-tight">
-                새 문서 만들기
+                {dialogTitle || '새 문서 만들기'}
               </h3>
               <p className="text-[12px] text-slate-500 dark:text-zinc-400">
                 원하는 저장 위치와 파일 이름을 지정하세요.
@@ -313,7 +319,7 @@ export default function NewDocumentModal({
               ) : (
                 <>
                   <Icon name="Plus" size={15} />
-                  <span>새 문서 만들기</span>
+                  <span>{dialogTitle ? '가져오기' : '새 문서 만들기'}</span>
                 </>
               )}
             </button>

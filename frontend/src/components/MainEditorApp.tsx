@@ -1105,7 +1105,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🌟 [전체사용자 공통 리소스 폴더 필수 안내 모달 상태]
   const [isResourceGuideModalOpen, setIsResourceGuideModalOpen] = useState(false);
   const [isNewDocumentModalOpen, setIsNewDocumentModalOpen] = useState(false);
-  const quickOpenInputRef = useRef<HTMLInputElement>(null);
   const [isDismissedGuide, setIsDismissedGuide] = useState(false);
 
   // ====================================================================
@@ -7409,6 +7408,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       node = {name:finalName,kind:'file',path:parent ? `${parent}/${finalName}` : finalName};
     }
     createNewTab('',finalName,false,node.path || null,node);
+    setCurrentFileNode(node);
+    setCurrentFileName(finalName);
+    lastSavedContentRef.current = '';
+    setSaveStatus('saved');
     setPreviewModeRaw('both');
     setIsNewDocumentModalOpen(false);
     await refreshFileList();
@@ -7435,37 +7438,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     switch (type) {
       // 파일 관련
       case 'NEW_FILE': {
-        createNewTab('', '새 문서.md');
-        setPreviewModeRaw('both');
-        setTimeout(() => editorRef.current?.focus(), 100);
+        setIsNewDocumentModalOpen(true);
         return;
       }
-      case 'OPEN_FILE': (async () => {
-        if (typeof (window as any).showOpenFilePicker !== 'function') {
-          quickOpenInputRef.current?.click();
-          return;
-        }
-        try {
-          const [fileHandle] = await (window as any).showOpenFilePicker({
-            multiple: false,
-            types: [{
-              description: 'Markdown 문서',
-              accept: { 'text/markdown': ['.md', '.markdown'], 'text/plain': ['.md'] }
-            }]
-          });
-          const file = await fileHandle.getFile();
-          const text = await file.text();
-          await saveExternalFileHandle(file.name, fileHandle);
-          createNewTab(text, file.name, false, null, { name: file.name, kind: 'file', handle: fileHandle });
-          setPreviewModeRaw('both');
-          lastSavedContentRef.current = text;
-          setSaveStatus('saved');
-          refreshFileList();
-          showToast(`'${file.name}' 파일을 열었습니다.`, 'success');
-        } catch (e: any) {
-          if (e.name !== 'AbortError') showToast(`파일 열기 실패: ${e.message}`, 'error');
-        }
-      })(); return;
+      case 'OPEN_FILE':
+        window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT'));
+        return;
       case 'OPEN_WORKSPACE': selectRootFolder('local', null); return;
       case 'SAVE': handlers.save(); return;
       case 'SAVE_AS': handlers.saveAs(); return;
@@ -8843,14 +8821,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
           <div className={activeMainView === 'knowledge' ? 'hidden' : 'contents'}>
             <MenuBar />
-            <QuickStartBar disabled={isRestrictedUser || isDuplicateInstance || isLicenseChecking} onNew={() => dispatchCommand('NEW_FILE')} onOpen={() => dispatchCommand('OPEN_FILE')} onImport={() => window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT'))} onImage={() => dispatchCommand('IMAGE')} onSave={() => dispatchCommand('SAVE')} onFolderNew={() => setIsNewDocumentModalOpen(true)} />
-            <input ref={quickOpenInputRef} type="file" accept=".md,.markdown" className="hidden" onChange={async event => {
-              const file = event.target.files?.[0]; event.target.value = '';
-              if (!file) return;
-              if (!/\.(md|markdown)$/i.test(file.name)) { showToast('TXT 등 다른 문서는 문서 변환으로 가져와 주세요.', 'warning'); return; }
-              try { const text = await file.text(); createNewTab(text, file.name); setPreviewModeRaw('both'); showToast('문서를 열었습니다. 수정 후 문서 저장으로 파일을 저장하세요.', 'info'); }
-              catch { showToast('파일을 읽지 못했습니다.', 'error'); }
-            }} />
+            <QuickStartBar disabled={isRestrictedUser || isDuplicateInstance || isLicenseChecking} onNew={() => dispatchCommand('NEW_FILE')} onOpen={() => dispatchCommand('OPEN_FILE')} onImage={() => dispatchCommand('IMAGE')} onSave={() => dispatchCommand('SAVE')} />
+
           </div>
 
 
