@@ -254,6 +254,8 @@ export default function MenuBar() {
     { divider: true },
     { label: t('saveFile'), icon: <Icon name="Save" size={15} />, shortcut: 'Ctrl+S', disabled: isRestrictedUser, onClick: () => dispatch('SAVE') },
     { label: t('saveFileAs'), icon: <Icon name="Export" size={15} />, shortcut: 'Ctrl+Shift+S', disabled: isRestrictedUser, onClick: () => dispatch('SAVE_AS') },
+    { label: 'MD와 참조 자료를 내 컴퓨터로 복사', icon: <Icon name="Export" size={15} />, disabled: isRestrictedUser || rootFolder?.type !== 'GDRIVE', onClick: () => window.dispatchEvent(new CustomEvent('onrivi:transfer-document', {detail:'download'})) },
+    { label: 'MD와 참조 자료를 Google Drive로 복사', icon: <Icon name="FolderSync" size={15} />, disabled: isRestrictedUser || rootFolder?.type === 'GDRIVE', onClick: () => window.dispatchEvent(new CustomEvent('onrivi:transfer-document', {detail:'upload'})) },
     { divider: true },
     { 
       label: t('export') + (previewMode !== 'preview' ? " (미리보기 모드 전용)" : ""), 

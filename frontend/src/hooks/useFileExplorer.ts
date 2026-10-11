@@ -97,7 +97,11 @@ import {
   readDriveFileContent,
   saveDriveFileContent,
   createDriveMarkdownFile,
-  createDriveFolder
+  createDriveFolder,
+  saveEmergencyDriveDrafts,
+  getEmergencyDriveDrafts,
+  clearEmergencyDriveDrafts,
+  type EmergencyDriveSnapshot
 } from '@/lib/gdrive/googleDriveClient';
 export const useFileExplorer = ({
   editorRef,

@@ -2871,6 +2871,33 @@ ipcMain.handle('file:saveBinary', async (event, filePath, bytes) => {
   return { name: path.basename(filePath), path: filePath };
 });
 
+// 문서 전송은 원본·동명 파일을 덮어쓰지 않고 선택한 폴더 내부에 복사한다.
+ipcMain.handle('file:readTransferFile', async (_event, filePath) => {
+  if (typeof filePath !== 'string' || !path.isAbsolute(filePath)) throw new Error('절대 파일 경로가 필요합니다.');
+  return new Uint8Array(await fs.promises.readFile(filePath));
+});
+ipcMain.handle('file:writeTransferCopy', async (_event, folderPath, relativePath, bytes) => {
+  if (typeof folderPath !== 'string' || !path.isAbsolute(folderPath) || typeof relativePath !== 'string' || !(bytes instanceof Uint8Array)) throw new Error('전송 경로나 데이터가 올바르지 않습니다.');
+  const root = path.resolve(folderPath);
+  const destination = path.resolve(root, relativePath);
+  const relative = path.relative(root, destination);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('선택한 폴더 밖으로 저장할 수 없습니다.');
+  await fs.promises.mkdir(path.dirname(destination), { recursive: true });
+  const parsed = path.parse(destination);
+  for (let index = 0; index < 10000; index++) {
+    const candidate = index ? path.join(parsed.dir, `${parsed.name}_${index}${parsed.ext}`) : destination;
+    try {
+      await fs.promises.writeFile(candidate, bytes, { flag: 'wx' });
+      return { path: candidate, relativePath: path.relative(root, candidate).replace(/\\/g, '/'), reused: false };
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      const existing = await fs.promises.readFile(candidate);
+      if (existing.equals(Buffer.from(bytes))) return { path: candidate, relativePath: path.relative(root, candidate).replace(/\\/g, '/'), reused: true };
+    }
+  }
+  throw new Error('동일 이름 파일이 너무 많습니다.');
+});
+
 // 4. 프론트엔드에서 폴더 선택 다이얼로그 호출 시 OS 표준 창 띄우기
 //    기본 경로는 사용자 Documents 폴더 혹은 전달받은 defaultPath
 ipcMain.handle('dialog:selectFolder', async (event, defaultPath) => {

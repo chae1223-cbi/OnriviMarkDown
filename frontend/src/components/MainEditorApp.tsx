@@ -349,6 +349,7 @@ import { useEditorModals } from '@/hooks/editor/useEditorModals';
 import ModalManager from '@/components/editor/modals/ModalManager';
 import QuickStartBar from '@/components/QuickStartBar';
 import NewDocumentModal from '@/components/NewDocumentModal';
+import { transferDocument } from '@/lib/documentTransfer';
 import { extractFrontmatter, updateCssProfileInFrontmatter } from '@/lib/frontmatter';
 import { KnowledgeHubView } from '@/components/knowledge/KnowledgeHubView';
 import { useSingleTabGuard } from '@/lib/singleTabGuard';
@@ -7371,6 +7372,30 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🚨 @PATCH : **2026-06-19** — 내보내기 모드 가드 패치: previewMode가 'preview'(미리보기 전용) 모드가 아닐 때 내보내기 명령(PRINT, EXPORT_*)이 트리거되는 경우 경고 토스트를 띄우고 명령 실행을 차단하도록 보정; 문자 겹침 수정을 위한 50ms setTimeout 토큰화 + 레이아웃 (WBS SYNC-02)
   // 🔗 @CALLS : handlers.newFile/save/saveAs/exit/print/exportHTML/exportEPUB/exportPNG/openExport, handlers.zoomIn/zoomOut/undo/redo/find/replace/globalSearch/settings/about/help/license, handlers.toggleFloatingToolbar/cleanDoc/copyAll, handlers.bold/italic/inlineCode/underline/strikethrough/h1-h6/hr/orderedList/list/quote/check/removePrefix, handlers.link/doclink/image/video/now/map/table/quickTable/insertTableRow/deleteTableRow/code/chart/math, handlers.quickWrap, selectRootFolder, setPreviewMode, setIsToolbarOpen, setIsSidebarOpen, setThemePalette, setIsDarkMode
   // ====================================================================
+  const transferBusyRef = useRef(false);
+  const [transferProgress, setTransferProgress] = useState('');
+  useEffect(() => {
+    const transfer = async (event: Event) => {
+      const direction = (event as CustomEvent).detail;
+      if (direction !== 'download' && direction !== 'upload') return;
+      if (transferBusyRef.current || isRestrictedUser || isDuplicateInstance || isLicenseChecking) return;
+      const name = currentFileName;
+      const markdown = editorRef.current?.getValue() ?? contentRef.current;
+      if (!name || !/\.md$/i.test(name)) { showToast('먼저 Markdown 문서를 열어 주세요.', 'warning'); return; }
+      transferBusyRef.current = true;
+      setTransferProgress('저장할 위치를 선택해 주세요.');
+      try {
+        const result = await transferDocument({direction, name, markdown, onProgress:setTransferProgress});
+        showToast(`복사 완료: ${result}`, 'success');
+        await refreshFileList();
+      } catch (error: any) {
+        if (error.name !== 'AbortError') showToast(error.message || '문서 전송에 실패했습니다. 다시 실행해 주세요.', 'error');
+      } finally { transferBusyRef.current = false; setTransferProgress(''); }
+    };
+    window.addEventListener('onrivi:transfer-document',transfer);
+    return () => window.removeEventListener('onrivi:transfer-document',transfer);
+  }, [currentFileName, isRestrictedUser, isDuplicateInstance, isLicenseChecking, refreshFileList, showToast]);
+
   const handleCreateNewDocument = async (fileName: string, targetFolderNode: FileNode | null) => {
     if (isRestrictedUser || isDuplicateInstance || isLicenseChecking) throw new Error('현재 문서를 생성할 수 없습니다. 로그인·사용 권한을 확인해 주세요.');
     const name = fileName.trim();
@@ -10379,6 +10404,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             }}
           />
 
+          {transferProgress && <div role="status" aria-live="polite" className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[999999] rounded-xl border bg-white dark:bg-zinc-900 px-5 py-3 shadow-xl text-sm">{transferProgress}</div>}
           {/* 📄 [새 문서 생성 대화상자] 폴더 선택 및 파일명 지정 모달 */}
           <NewDocumentModal
             isOpen={isNewDocumentModalOpen}
