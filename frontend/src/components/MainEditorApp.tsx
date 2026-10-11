@@ -3,6 +3,9 @@
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
+// 🚨 @PATCH : **2026-10-11** — [구글 드라이브 토큰 만료 전 자동 저장 & 만료/해제 시 비상 로컬 백업 안전망 연동]:
+//             1) onrivi:drive_token_about_to_expire 및 onrivi:drive_token_expired / onrivi:drive_auth_expired 이벤트 전사 수신 연계
+//             2) 구글 드라이브 토큰 라이프사이클 및 만료 전 자동 사전 플러시, 비상 로컬 스냅샷을 useFileExplorer와 함께 유기적 동기화
 // 🚨 @PATCH : **2026-10-07** — [구글 드라이브 토큰 만료(401) 감지 시 안내 토스트 연동 및 서식 필터 정규화]:
 //             1) onrivi:drive_token_expired 리스너 탑재로 토큰 만료 시 재인증 안내 토스트 자동 발송
 //             2) 서식 필터 시 사용자 서식 이름 보존 및 다이렉트 렌더링 보장
@@ -1372,9 +1375,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (typeof window !== 'undefined') {
       window.addEventListener('onrivi:drive_token_updated', handleDriveTokenUpdate);
       window.addEventListener('onrivi:drive_token_expired', handleDriveTokenExpired);
+      window.addEventListener('onrivi:drive_auth_expired', handleDriveTokenExpired);
       return () => {
         window.removeEventListener('onrivi:drive_token_updated', handleDriveTokenUpdate);
         window.removeEventListener('onrivi:drive_token_expired', handleDriveTokenExpired);
+        window.removeEventListener('onrivi:drive_auth_expired', handleDriveTokenExpired);
       };
     }
   }, [showToast]);

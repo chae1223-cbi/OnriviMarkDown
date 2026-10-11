@@ -23,6 +23,11 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
+// 🚨 @PATCH : **2026-10-11** — [구글 드라이브 토큰 만료 전 자동 저장 플러시 & 만료/해제 시 로컬 비상 백업 안전망 구축]:
+//             1) onrivi:drive_token_about_to_expire 수신 시 만료 2분 전 작업 중인 모든 활성 및 수정된 탭 문서를 구글 드라이브에 안전하게 사전 자동 저장(플러시)
+//             2) onrivi:drive_auth_expired / onrivi:drive_token_expired 수신 시 현재 열린 모든 탭과 에디터 버퍼를 onrivi_emergency_gdrive_drafts 로컬 스냅샷으로 100% 비상 보존하고 탭 유지
+//             3) onrivi:drive_token_updated 수신 시 비상 로컬 보존된 초안을 감지하여 구글 드라이브로 자동 복구 동기화
+//             4) disconnectGoogleDrive 시에도 연결 해제 직전 긴급 로컬 스냅샷을 100% 확보하여 작성 내용 유실 원천 차단
 // 🚨 @PATCH : **2026-10-11** — [구글 드라이브 인증 만료 상태 관리 useState import 누락 복구]:
 //             useFileExplorer 내 isDriveAuthExpired 상태 선언에 필요한 useState가 react import 목록에서 누락되어 발생하던 ReferenceError: useState is not defined 런타임 크래시 완전 해결
 // 🚨 @PATCH : **2026-10-07** — [구글 드라이브 연결 시 만료 토큰(401) 자동 감지 및 즉시 재인증 팝업 트리거]:
@@ -178,16 +183,128 @@ export const useFileExplorer = ({
     return false;
   });
 
+  // ☁️ [구글 드라이브 라이프사이클 & 데이터 보존 안전망 리스너]
   useEffect(() => {
-    const handleAuthExpired = () => setIsDriveAuthExpired(true);
-    const handleTokenUpdated = () => setIsDriveAuthExpired(false);
+    // 1. 토큰 만료 2분 전: 작업 중인 문서를 구글 드라이브에 안전하게 사전 자동 저장(플러시)
+    const handleTokenAboutToExpire = async (e: any) => {
+      try {
+        const remaining = e?.detail?.remainingSeconds ?? 120;
+        console.log(`[useFileExplorer] ⏱️ 구글 드라이브 토큰 만료 임박 (${remaining}초 남음) 감지: 미저장 문서를 자동 저장합니다.`);
+        const token = getSavedDriveToken();
+        const activeId = activeTabIdRef?.current;
+        const currentVal = contentRef.current;
+        const isCurrentModified = activeId && (currentVal !== lastSavedContentRef.current);
+        let savedCount = 0;
+        if (token) {
+          for (const tab of tabsRef.current) {
+            const isTabModified = tab.isModified || (tab.id === activeId && isCurrentModified);
+            const driveId = (tab as any).driveFileId || (tab as any).driveId || (tab.node as any)?.driveFileId || (tab.node as any)?.driveId;
+            if (isTabModified && driveId) {
+              const tabContent = tab.id === activeId ? currentVal : tab.content;
+              try {
+                await saveDriveFileContent(token, driveId, tabContent);
+                savedCount++;
+                console.log(`[useFileExplorer] ✅ 만료 직전 문서 자동 플러시 완료: ${tab.name} (${driveId})`);
+              } catch (driveErr) {
+                console.warn(`[useFileExplorer] 만료 직전 문서 자동 플러시 실패: ${tab.name}`, driveErr);
+              }
+            }
+          }
+          if (savedCount > 0) {
+            lastSavedContentRef.current = currentVal;
+            setTabs(prev => prev.map(t => ({ ...t, isModified: false })));
+            setSaveStatus('saved');
+            showToast(`☁️ 구글 드라이브 토큰 만료 직전으로 작업 중인 문서(${savedCount}건)가 안전하게 자동 저장되었습니다.`, 'info');
+          }
+        }
+        // 만일에 대비하여 로컬에도 100% 비상 스냅샷 생성
+        const snapshot: EmergencyDriveSnapshot = {
+          timestamp: Date.now(),
+          activeTabId: activeId,
+          drafts: tabsRef.current.map(t => ({
+            tabId: t.id,
+            driveFileId: (t as any).driveFileId || (t as any).driveId || (t.node as any)?.driveFileId || (t.node as any)?.driveId,
+            name: t.name,
+            path: t.path,
+            content: t.id === activeId ? currentVal : t.content,
+            isModified: false,
+            savedAt: new Date().toISOString()
+          }))
+        };
+        saveEmergencyDriveDrafts(snapshot);
+      } catch (err) {
+        console.error('[useFileExplorer] 토큰 만료 직전 자동 저장 중 예외:', err);
+      }
+    };
+
+    // 2. 토큰 만료 또는 401 오류 발생 시: 현재 작업 중이던 모든 탭과 에디터 버퍼를 로컬에 긴급 백업 (탭 유지)
+    const handleAuthExpired = () => {
+      setIsDriveAuthExpired(true);
+      try {
+        const activeId = activeTabIdRef?.current;
+        const currentVal = contentRef.current;
+        const snapshot: EmergencyDriveSnapshot = {
+          timestamp: Date.now(),
+          activeTabId: activeId,
+          drafts: tabsRef.current.map(t => ({
+            tabId: t.id,
+            driveFileId: (t as any).driveFileId || (t as any).driveId || (t.node as any)?.driveFileId || (t.node as any)?.driveId,
+            name: t.name,
+            path: t.path,
+            content: t.id === activeId ? currentVal : t.content,
+            isModified: t.isModified || (t.id === activeId && currentVal !== lastSavedContentRef.current),
+            savedAt: new Date().toISOString()
+          }))
+        };
+        saveEmergencyDriveDrafts(snapshot);
+        console.warn(`[useFileExplorer] 🛡️ 구글 드라이브 인증 만료: ${snapshot.drafts.length}개 탭 비상 로컬 보존 완료`);
+        showToast('☁️ 구글 드라이브 인증이 만료되었지만 작성 중인 내용은 안전하게 로컬에 보존되었습니다. 재인증 시 클라우드로 자동 동기화됩니다.', 'warning');
+      } catch (e) {
+        console.error('[useFileExplorer] 비상 초안 보존 실패:', e);
+      }
+    };
+
+    // 3. 토큰 갱신 또는 재연결 시: 보존된 비상 초안이 있으면 클라우드로 자동 복구 동기화
+    const handleTokenUpdated = async () => {
+      setIsDriveAuthExpired(false);
+      try {
+        const emergencySnapshot = getEmergencyDriveDrafts();
+        const token = getSavedDriveToken();
+        if (emergencySnapshot && token && emergencySnapshot.drafts?.length > 0) {
+          let syncedCount = 0;
+          for (const draft of emergencySnapshot.drafts) {
+            if (draft.isModified && draft.driveFileId && draft.content) {
+              try {
+                await saveDriveFileContent(token, draft.driveFileId, draft.content);
+                syncedCount++;
+                console.log(`[useFileExplorer] ✅ 재연결 후 비상 초안 자동 동기화 완료: ${draft.name} (${draft.driveFileId})`);
+              } catch (sErr) {
+                console.warn(`[useFileExplorer] 재연결 후 초안 동기화 실패: ${draft.name}`, sErr);
+              }
+            }
+          }
+          if (syncedCount > 0) {
+            clearEmergencyDriveDrafts();
+            setTabs(prev => prev.map(t => ({ ...t, isModified: false })));
+            showToast(`☁️ 구글 드라이브가 다시 연결되어 보존 중이던 작성 문서(${syncedCount}건)가 클라우드에 자동 동기화되었습니다.`, 'success');
+          }
+        }
+      } catch (syncErr) {
+        console.error('[useFileExplorer] 재연결 후 초안 동기화 중 예외:', syncErr);
+      }
+    };
+
+    window.addEventListener('onrivi:drive_token_about_to_expire', handleTokenAboutToExpire);
     window.addEventListener('onrivi:drive_auth_expired', handleAuthExpired);
+    window.addEventListener('onrivi:drive_token_expired', handleAuthExpired);
     window.addEventListener('onrivi:drive_token_updated', handleTokenUpdated);
     return () => {
+      window.removeEventListener('onrivi:drive_token_about_to_expire', handleTokenAboutToExpire);
       window.removeEventListener('onrivi:drive_auth_expired', handleAuthExpired);
+      window.removeEventListener('onrivi:drive_token_expired', handleAuthExpired);
       window.removeEventListener('onrivi:drive_token_updated', handleTokenUpdated);
     };
-  }, []);
+  }, [setTabs, setSaveStatus, showToast, activeTabIdRef, contentRef, lastSavedContentRef, tabsRef]);
 
   const lastRefreshTimeRef = useRef<number>(0);
   const isRefreshingRef = useRef<boolean>(false);
@@ -1712,6 +1829,21 @@ export const useFileExplorer = ({
     storageSwitchRef.current = true;
     try {
       const activeId = activeTabIdRef?.current;
+      // 🛡️ [데이터 보존 안전망] 연결 해제 직전 현재 열려있는 모든 탭과 에디터 최신 내용을 비상 로컬 백업
+      const snapshot: EmergencyDriveSnapshot = {
+        timestamp: Date.now(),
+        activeTabId: activeId,
+        drafts: tabsRef.current.map(t => ({
+          tabId: t.id,
+          driveFileId: (t as any).driveFileId || (t as any).driveId || (t.node as any)?.driveFileId || (t.node as any)?.driveId,
+          name: t.name,
+          path: t.path,
+          content: t.id === activeId ? contentRef.current : t.content,
+          isModified: t.isModified || (t.id === activeId && contentRef.current !== lastSavedContentRef.current),
+          savedAt: new Date().toISOString()
+        }))
+      };
+      saveEmergencyDriveDrafts(snapshot);
       const hasUnsaved = tabsRef.current.some(t => t.isModified) ||
         (activeId && contentRef.current !== lastSavedContentRef.current);
       if (hasUnsaved) {

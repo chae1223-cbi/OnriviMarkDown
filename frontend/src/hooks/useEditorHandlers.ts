@@ -18,6 +18,7 @@ import { openAndFocusFindWidget } from '@/utils/findWidgetHelper';
 import {
   getSavedDriveToken,
   saveDriveFileContent,
+  saveEmergencyDriveDrafts,
   getSavedWorkspaceInfo
 } from '@/lib/gdrive/googleDriveClient';
 
@@ -28,6 +29,8 @@ import {
 // ====================================================================
 // 📊 [OMD-EDIT-USEEDITORHANDLERS-0014] useEditorHandlers.ts ➔ useEditorHandlers
 // 🎯 @KICK  : 에디터 주요 액션 핸들러(저장, 내보내기, 서식 삽입 등)를 통합 관리
+// 🚨 @PATCH : **2026-10-11** — [구글 드라이브 토큰 만료 시 비상 로컬 백업 연동 및 작성 글 100% 보존]:
+//             구글 드라이브 저장 시 토큰 만료(401)나 네트워크 실패 시에도 작성 중이던 최신 에디터 본문을 onrivi_emergency_gdrive_drafts 로컬 스냅샷으로 즉시 대피 백업하여 데이터 유실 원천 방어
 // 🚨 @PATCH : **2026-10-03** — [구글 드라이브 저장 시 브라우저 showSaveFilePicker 다이얼로그 오작동 차단 & 클라우드 직결 무음 저장 지원]: driveFileId/driveId 또는 workspaceType === 'cloud' 환경에서 브라우저 파일 다이얼로그로 누락 떨어지던 결함을 차단하고 saveDriveFileContent 직결 무음 저장 및 새 문서 프롬프트 연동
 // 🚨 @PATCH : **2026-10-01** — [서명/발신인 붉은색 인감도장 태그 적용]: 기본 템플릿의 도장 표식을 붉은색 원형 인감도장 태그(<span style="color:#dc2626; border:1.5px solid #dc2626; border-radius:50%; padding:0 3px; font-size:0.85em; font-weight:bold;">인</span>)로 업그레이드
 // 🚨 @PATCH : **2026-10-01** — [서명/발신인 핸들러 추가]: 선택 영역 우측 정렬 감싸기/토글 및 미선택 시 오늘 날짜 기반 기본 서명 템플릿 삽입(작성자명 자동 선택) 구현 (handlers.signature)
@@ -566,12 +569,39 @@ export const useEditorHandlers = ({
             } catch (driveErr: any) {
               setSaveStatus('unsaved');
             reportClientLog('문서 저장 실패 또는 저장 권한·연결 확인 필요', 'ERROR', 'DOCUMENT_SAVE');
+              // 🛡️ [데이터 보존 안전망] 저장 실패 시 최신 에디터 버퍼를 로컬에 긴급 백업
+              saveEmergencyDriveDrafts({
+                timestamp: Date.now(),
+                activeTabId: activeTabIdRef?.current,
+                drafts: (tabsRef?.current || []).map((t: any) => ({
+                  tabId: t.id,
+                  driveFileId: (t as any).driveFileId || (t as any).driveId || (t.node as any)?.driveFileId || (t.node as any)?.driveId,
+                  name: t.name,
+                  path: t.path,
+                  content: t.id === activeTabIdRef?.current ? currentVal : t.content,
+                  isModified: true,
+                  savedAt: new Date().toISOString()
+                }))
+              });
               showToast("구글 드라이브 저장 실패: " + (driveErr.message || driveErr), 'error');
               return;
             }
           } else {
             setSaveStatus('unsaved');
             reportClientLog('문서 저장 실패 또는 저장 권한·연결 확인 필요', 'ERROR', 'DOCUMENT_SAVE');
+            saveEmergencyDriveDrafts({
+              timestamp: Date.now(),
+              activeTabId: activeTabIdRef?.current,
+              drafts: (tabsRef?.current || []).map((t: any) => ({
+                tabId: t.id,
+                driveFileId: (t as any).driveFileId || (t as any).driveId || (t.node as any)?.driveFileId || (t.node as any)?.driveId,
+                name: t.name,
+                path: t.path,
+                content: t.id === activeTabIdRef?.current ? currentVal : t.content,
+                isModified: true,
+                savedAt: new Date().toISOString()
+              }))
+            });
             showToast("구글 드라이브 인증 토큰이 필요합니다. 다시 연결해 주세요.", 'error');
             return;
           }

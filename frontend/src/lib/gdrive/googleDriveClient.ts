@@ -2,6 +2,11 @@
 // 📊 [OMD-LIB-googleDriveClient-0001] src/lib/gdrive/googleDriveClient.ts
 // 🎯 @KICK  : 누구나 쉽게 사용하는 구글 드라이브 무설정(Zero-Config) 자동 연동 및 클라우드 작업장 클라이언트 모듈
 // 🛡️ @GUARD : Rule 1, Rule 2(대문자 코드값 GDRIVE), 최소 권한 원칙(drive.file 스코프 한정)
+// 🚨 @PATCH : **2026-10-11** — [구글 드라이브 토큰 만료 전 자동 저장 & 만료/해제 시 비상 로컬 백업 안전망 구축]:
+//             1) 토큰 만료 2분(120초) 전 onrivi:drive_token_about_to_expire 이벤트 발송 및 작업 중 문서 클라우드 자동 사전 플러시 연동
+//             2) 토큰 만료(0초) 또는 401 오류 시 onrivi:drive_auth_expired / onrivi:drive_token_expired와 연계하여 현재 열린 모든 탭과 최신 작성 버퍼를 onrivi_emergency_gdrive_drafts 로컬 스냅샷으로 100% 비상 보존
+//             3) saveEmergencyDriveDrafts, getEmergencyDriveDrafts, clearEmergencyDriveDrafts, getDriveTokenRemainingSeconds 헬퍼 함수 신설
+//             4) clearAllDriveTimers를 도입하여 토큰 갱신/만료/해제 시 3중 타이머(갱신/사전플러시/만료) 완벽 라이프사이클 관리
 // 🚨 @PATCH : **2026-10-07** — [토큰 갱신 이벤트 발송 및 사용자 서식 파일 직결 탐색 강화]:
 //             1) saveDriveToken 시 onrivi:drive_token_updated 이벤트 발송하여 로그인/토큰 획득 즉시 에디터 서식 로드 훅 재실행 보장
 //             2) resolveDriveResourceFolderByName 시 userCssProfiles.json을 직접 전역 탐색하여 2개 사용자 서식이 보존된 참조 폴더 100% 직결
@@ -88,6 +93,68 @@ export interface GoogleDriveFileItem {
 const STORAGE_KEY_TOKEN = 'onrivi_gdrive_access_token';
 const STORAGE_KEY_EXPIRY = 'onrivi_gdrive_token_expires_at';
 const STORAGE_KEY_WORKSPACE = 'onrivi_gdrive_workspace_info';
+export const STORAGE_KEY_EMERGENCY_DRAFTS = 'onrivi_emergency_gdrive_drafts';
+
+export interface EmergencyDriveDraft {
+  tabId: string;
+  driveFileId?: string;
+  name: string;
+  path?: string;
+  content: string;
+  isModified: boolean;
+  savedAt: string;
+}
+
+export interface EmergencyDriveSnapshot {
+  timestamp: number;
+  activeTabId: string | null;
+  drafts: EmergencyDriveDraft[];
+}
+
+/**
+ * 🛡️ [데이터 보존 안전망] 토큰 만료 또는 연결 해제 시 열려있는 탭 및 에디터 본문을 로컬에 비상 백업
+ */
+export function saveEmergencyDriveDrafts(snapshot: EmergencyDriveSnapshot): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY_EMERGENCY_DRAFTS, JSON.stringify(snapshot));
+    console.log(`[GDrive Emergency] 🛡️ 비상 초안 스냅샷 로컬 백업 완료 (${snapshot.drafts.length}개 탭)`);
+  } catch (e) {
+    console.error('[GDrive Emergency] 비상 초안 로컬 백업 실패:', e);
+  }
+}
+
+/**
+ * 🛡️ [데이터 보존 안전망] 로컬에 비상 백업된 구글 드라이브 초안 스냅샷 조회
+ */
+export function getEmergencyDriveDrafts(): EmergencyDriveSnapshot | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_EMERGENCY_DRAFTS);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    console.error('[GDrive Emergency] 비상 초안 로드 오류:', e);
+    return null;
+  }
+}
+
+/**
+ * 🛡️ [데이터 보존 안전망] 구글 드라이브로 동기화 완료 후 비상 백업 초안 정리
+ */
+export function clearEmergencyDriveDrafts(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(STORAGE_KEY_EMERGENCY_DRAFTS);
+}
+
+/**
+ * ⏱️ 구글 드라이브 토큰의 만료까지 남은 잔여 시간(초 단위) 계산
+ */
+export function getDriveTokenRemainingSeconds(): number {
+  if (typeof window === 'undefined') return 0;
+  const expiry = Number(localStorage.getItem(STORAGE_KEY_EXPIRY));
+  if (!expiry) return 0;
+  return Math.max(0, Math.round((expiry - Date.now()) / 1000));
+}
 
 let gapiInited = false;
 let gisTokenClient: any = null;
@@ -145,21 +212,38 @@ export async function loadGoogleIdentityScript(): Promise<void> {
 }
 
 let refreshTimerId: any = null;
-let isRefreshingToken = false;
+let preExpiryFlushTimerId: any = null;
+let expiryTimerId: any = null;
 
 /**
- * 만료 5분(300초) 전 백그라운드 자동 갱신 스케줄러
+ * 모든 구글 드라이브 토큰 관련 타이머 일괄 해제
  */
-export function scheduleDriveTokenRefresh(expiresIn: number): void {
-  if (typeof window === 'undefined') return;
+export function clearAllDriveTimers(): void {
   if (refreshTimerId) {
     clearTimeout(refreshTimerId);
     refreshTimerId = null;
   }
+  if (preExpiryFlushTimerId) {
+    clearTimeout(preExpiryFlushTimerId);
+    preExpiryFlushTimerId = null;
+  }
+  if (expiryTimerId) {
+    clearTimeout(expiryTimerId);
+    expiryTimerId = null;
+  }
+}
+let isRefreshingToken = false;
 
-  // 만료 5분(300초) 전에 갱신 시도, 최소 15초 후
-  const delayMs = Math.max(15000, (expiresIn - 300) * 1000);
-  console.log(`[GDrive Auto-Refresh] ⏱️ 다음 토큰 자동 갱신 예약: ${Math.round(delayMs / 1000 / 60)}분 후`);
+/**
+ * ⏱️ 만료 5분(300초) 전 백그라운드 자동 갱신 & 만료 2분(120초) 전 사전 자동 저장(플러시) & 만료(0초) 종합 스케줄러
+ */
+export function scheduleDriveTokenRefresh(expiresIn: number): void {
+  if (typeof window === 'undefined') return;
+  clearAllDriveTimers();
+
+  // 1. 만료 5분(300초) 전 무음 갱신 시도 (최소 15초 후)
+  const refreshDelayMs = Math.max(15000, (expiresIn - 300) * 1000);
+  console.log(`[GDrive Auto-Refresh] ⏱️ 다음 토큰 자동 갱신 예약: ${Math.round(refreshDelayMs / 1000 / 60)}분 후 (총 유효시간: ${Math.round(expiresIn / 60)}분)`);
 
   refreshTimerId = setTimeout(async () => {
     try {
@@ -168,12 +252,39 @@ export function scheduleDriveTokenRefresh(expiresIn: number): void {
       if (newToken) {
         console.log('[GDrive Auto-Refresh] ✅ 토큰 자동 갱신 성공! 무중단 연결이 유지됩니다.');
       } else {
-        console.warn('[GDrive Auto-Refresh] ⚠️ 백그라운드 갱신 응답 없음. 다음 API 요청 시 즉시 갱신을 시도합니다.');
+        console.warn('[GDrive Auto-Refresh] ⚠️ 백그라운드 갱신 응답 없음. 만료 2분 전 작업 문서 자동 저장이 대기 중입니다.');
       }
     } catch (err) {
       console.warn('[GDrive Auto-Refresh] 갱신 중 예외 발생:', err);
     }
-  }, delayMs);
+  }, refreshDelayMs);
+
+  // 2. 만료 2분(120초) 전 작업 중인 문서 클라우드 사전 자동 저장(플러시) 이벤트
+  //    토큰이 살아있는 마지막 2분 골든 타임에 활성/수정된 탭을 구글 드라이브에 확정 저장합니다.
+  if (expiresIn > 120) {
+    const preFlushDelayMs = Math.max(5000, (expiresIn - 120) * 1000);
+    console.log(`[GDrive Auto-Save] ⏱️ 토큰 만료 2분 전 자동 플러시 예약: ${Math.round(preFlushDelayMs / 1000 / 60)}분 후`);
+
+    preExpiryFlushTimerId = setTimeout(() => {
+      const remaining = getDriveTokenRemainingSeconds();
+      console.log(`[GDrive Auto-Save] ⏱️ 구글 드라이브 토큰 만료 임박 (${remaining}초 남음): 작성 중인 문서 자동 저장 플러시 이벤트를 발송합니다.`);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('onrivi:drive_token_about_to_expire', {
+          detail: { remainingSeconds: remaining }
+        }));
+      }
+    }, preFlushDelayMs);
+  }
+
+  // 3. 토큰 만료 시점(0초) 만료 알림 및 비상 로컬 스냅샷 백업 확정 이벤트 발송
+  const expiryDelayMs = Math.max(1000, expiresIn * 1000);
+  expiryTimerId = setTimeout(() => {
+    console.warn('[GDrive Guard] ⚠️ 구글 드라이브 토큰 수명 만료 도달: 비상 로컬 백업 및 만료 이벤트를 발송합니다.');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('onrivi:drive_token_expired'));
+      window.dispatchEvent(new CustomEvent('onrivi:drive_auth_expired'));
+    }
+  }, expiryDelayMs);
 }
 
 /**
@@ -243,7 +354,7 @@ export async function refreshDriveTokenSilently(): Promise<string | null> {
 }
 
 /**
- * 앱 시작 시 기존 저장된 토큰이 있으면 잔여 유효시간에 맞추어 자동 갱신 타이머 복원
+ * 앱 시작 시 기존 저장된 토큰이 있으면 잔여 유효시간에 맞추어 자동 갱신 및 플러시 타이머 복원
  */
 export function initDriveTokenAutoRefresh(): void {
   if (typeof window === 'undefined') return;
@@ -252,10 +363,17 @@ export function initDriveTokenAutoRefresh(): void {
   if (!token || !expiry) return;
 
   const remainingSeconds = Math.round((expiry - Date.now()) / 1000);
-  if (remainingSeconds > 60) {
+  if (remainingSeconds > 120) {
     scheduleDriveTokenRefresh(remainingSeconds);
+  } else if (remainingSeconds > 0) {
+    // 만료 2분 이내: 즉시 사전 자동 저장 이벤트 발송 후 갱신 시도
+    window.dispatchEvent(new CustomEvent('onrivi:drive_token_about_to_expire', {
+      detail: { remainingSeconds }
+    }));
+    scheduleDriveTokenRefresh(remainingSeconds);
+    void refreshDriveTokenSilently();
   } else {
-    // 만료 직전이거나 만료됨: 즉시 조용히 갱신 시도
+    // 이미 만료됨: 즉시 조용히 갱신 시도
     void refreshDriveTokenSilently();
   }
 }
@@ -360,14 +478,11 @@ export function saveWorkspaceInfo(info: GoogleDriveWorkspaceInfo): void {
 }
 
 /**
- * 구글 드라이브 연결 해제 및 토큰 파기
+ * 구글 드라이브 연결 해제 및 토큰 파기 (모든 타이머 해제 및 비상 백업 이벤트 연계)
  */
 export function disconnectGoogleDrive(): void {
   if (typeof window === 'undefined') return;
-  if (refreshTimerId) {
-    clearTimeout(refreshTimerId);
-    refreshTimerId = null;
-  }
+  clearAllDriveTimers();
   const token = getSavedDriveToken();
   if (token && (window as any).google?.accounts?.oauth2?.revoke) {
     try {
@@ -383,6 +498,7 @@ export function disconnectGoogleDrive(): void {
   // Keep the last workspace (no credentials) so a future connection can resume it.
   sessionStorage.removeItem(STORAGE_KEY_TOKEN);
   if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('onrivi:drive_token_expired'));
     window.dispatchEvent(new CustomEvent('onrivi:drive_auth_expired'));
   }
 }
