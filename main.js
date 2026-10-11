@@ -3391,7 +3391,7 @@ ipcMain.handle('file:createFile', async (event, parentPath, name) => {
     const cleanParent = parentPath.normalize('NFC');
     const cleanName = name.normalize('NFC');
     const fullPath = path.join(cleanParent, cleanName);
-    fs.writeFileSync(fullPath, '', 'utf-8');
+    fs.writeFileSync(fullPath, '', { encoding: 'utf-8', flag: 'wx' });
     return { success: true, path: fullPath };
   } catch (e) {
     console.error('파일 생성 실패:', e);

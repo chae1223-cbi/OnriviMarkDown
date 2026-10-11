@@ -22,6 +22,7 @@
 "use client";
 
 
+import { IMPORT_ACCEPT, isSupportedImportFile } from '@/lib/importFormats';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { getEffectiveResourceFolder } from '@/lib/profileStorage';
 import { useDragHighlight } from '@/hooks/useDragHighlight';
@@ -2035,6 +2036,12 @@ export default function LeftSidebar() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!isSupportedImportFile(file.name)) {
+      e.target.value = '';
+      showToast('지원하지 않는 형식입니다. DOCX, HWP, PDF, EPUB, TXT, MD, HTML 파일을 선택해 주세요.', 'warning');
+      return;
+    }
+
     setIsImporting(true);
     try {
       showToast('파일에서 텍스트를 추출 중입니다...', 'info');
@@ -2401,11 +2408,11 @@ export default function LeftSidebar() {
     }
   };
 
-  if (!isSidebarOpen) return <input type="file" ref={importFileInputRef} style={{ display: 'none' }} accept=".docx,.hwp,.pdf,.epub,.txt,.md,.markdown,.html" onChange={handleImportFile} />;
+  if (!isSidebarOpen) return <input type="file" ref={importFileInputRef} style={{ display: 'none' }} accept={IMPORT_ACCEPT} onChange={handleImportFile} />;
 
   return (
     <>
-      <input type="file" ref={importFileInputRef} style={{ display: 'none' }} accept=".docx,.hwp,.pdf,.epub,.txt,.md,.markdown,.html" onChange={handleImportFile} />
+      <input type="file" ref={importFileInputRef} style={{ display: 'none' }} accept={IMPORT_ACCEPT} onChange={handleImportFile} />
       <aside 
         style={{ 
           width: sidebarWidth,

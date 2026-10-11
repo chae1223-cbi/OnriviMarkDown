@@ -347,6 +347,7 @@ import { useEditorModals } from '@/hooks/editor/useEditorModals';
 // import EditorLayout from '@/components/editor/layout/EditorLayout';
 // import EditorCore from '@/components/editor/core/EditorCore';
 import ModalManager from '@/components/editor/modals/ModalManager';
+import QuickStartBar from '@/components/QuickStartBar';
 import NewDocumentModal from '@/components/NewDocumentModal';
 import { extractFrontmatter, updateCssProfileInFrontmatter } from '@/lib/frontmatter';
 import { KnowledgeHubView } from '@/components/knowledge/KnowledgeHubView';
@@ -1104,6 +1105,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🌟 [전체사용자 공통 리소스 폴더 필수 안내 모달 상태]
   const [isResourceGuideModalOpen, setIsResourceGuideModalOpen] = useState(false);
   const [isNewDocumentModalOpen, setIsNewDocumentModalOpen] = useState(false);
+  const quickOpenInputRef = useRef<HTMLInputElement>(null);
   const [isDismissedGuide, setIsDismissedGuide] = useState(false);
 
   // ====================================================================
@@ -7370,6 +7372,49 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🚨 @PATCH : **2026-06-19** — 내보내기 모드 가드 패치: previewMode가 'preview'(미리보기 전용) 모드가 아닐 때 내보내기 명령(PRINT, EXPORT_*)이 트리거되는 경우 경고 토스트를 띄우고 명령 실행을 차단하도록 보정; 문자 겹침 수정을 위한 50ms setTimeout 토큰화 + 레이아웃 (WBS SYNC-02)
   // 🔗 @CALLS : handlers.newFile/save/saveAs/exit/print/exportHTML/exportEPUB/exportPNG/openExport, handlers.zoomIn/zoomOut/undo/redo/find/replace/globalSearch/settings/about/help/license, handlers.toggleFloatingToolbar/cleanDoc/copyAll, handlers.bold/italic/inlineCode/underline/strikethrough/h1-h6/hr/orderedList/list/quote/check/removePrefix, handlers.link/doclink/image/video/now/map/table/quickTable/insertTableRow/deleteTableRow/code/chart/math, handlers.quickWrap, selectRootFolder, setPreviewMode, setIsToolbarOpen, setIsSidebarOpen, setThemePalette, setIsDarkMode
   // ====================================================================
+  const handleCreateNewDocument = async (fileName: string, targetFolderNode: FileNode | null) => {
+    if (isRestrictedUser || isDuplicateInstance || isLicenseChecking) throw new Error('현재 문서를 생성할 수 없습니다. 로그인·사용 권한을 확인해 주세요.');
+    const name = fileName.trim();
+    if (!name || /[\\/:*?"<>|]/.test(name) || name === '.' || name === '..') throw new Error('올바른 파일명을 입력해 주세요.');
+    const finalName = /\.md$/i.test(name) ? name : `${name}.md`;
+    const folder = targetFolderNode || rootFolder;
+    let node: FileNode;
+    if (rootFolder?.type === 'GDRIVE' || rootFolder?.driveFolderId) {
+      const {getSavedDriveToken,getSavedWorkspaceInfo,listDriveChildren,createDriveMarkdownFile} = await import('@/lib/gdrive/googleDriveClient');
+      const token = getSavedDriveToken();
+      const folderId = targetFolderNode?.driveId || targetFolderNode?.id || rootFolder?.driveFolderId || rootFolder?.id || getSavedWorkspaceInfo()?.workspaceFolderId;
+      if (!token || !folderId) throw new Error('구글 드라이브 연결을 확인해 주세요.');
+      const children = await listDriveChildren(token, folderId);
+      if (children.some(child => child.name.toLowerCase() === finalName.toLowerCase())) throw new Error('같은 이름의 파일이 있습니다.');
+      const created = await createDriveMarkdownFile(token, folderId, finalName, '');
+      node = {name:finalName,kind:'file',driveId:created.id,id:created.id,path:`${folder?.path || 'GoogleDrive'}/${finalName}`};
+    } else if (folder?.handle) {
+      for await (const [existing] of folder.handle.entries()) if (existing.toLowerCase() === finalName.toLowerCase()) throw new Error('같은 이름의 파일이 있습니다.');
+      const handle = await folder.handle.getFileHandle(finalName, {create:true});
+      node = {name:finalName,kind:'file',handle,path:`${folder?.path || folder?.name || ''}/${finalName}`};
+    } else if ((window as any).electronAPI?.createFile) {
+      const parent = folder?.path || rootFolder?.path;
+      if (!parent) throw new Error('먼저 작업장 폴더를 선택해 주세요.');
+      const created = await (window as any).electronAPI.createFile(parent,finalName);
+      if (!created?.success) throw new Error('파일을 생성하지 못했습니다.');
+      node = {name:finalName,kind:'file',path:created.path};
+    } else {
+      const {vfsCreateFile,getVfsFiles} = await import('@/lib/virtualFileSystem');
+      const parent = targetFolderNode?.path || '';
+      const allFiles = getVfsFiles();
+      const findFolder = (nodes: FileNode[]): FileNode | undefined => { for (const item of nodes) { if (item.path === parent) return item; const found = item.children && findFolder(item.children); if (found) return found; } };
+      const siblings = parent ? findFolder(allFiles)?.children || [] : allFiles;
+      if (siblings.some(item => item.name.toLowerCase() === finalName.toLowerCase())) throw new Error('같은 이름의 파일이 있습니다.');
+      vfsCreateFile(parent,finalName);
+      node = {name:finalName,kind:'file',path:parent ? `${parent}/${finalName}` : finalName};
+    }
+    createNewTab('',finalName,false,node.path || null,node);
+    setPreviewModeRaw('both');
+    setIsNewDocumentModalOpen(false);
+    await refreshFileList();
+    showToast('새 문서를 만들었습니다.', 'success');
+  };
+
   const dispatchCommand = useCallback((type: EditorCommandType, payload?: any) => {
     const restrictedCommands = [
       'OPEN_FILE', 'OPEN_WORKSPACE', 'EXIT', 'GLOBAL_SEARCH', 'COPY_ALL',
@@ -7390,28 +7435,29 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     switch (type) {
       // 파일 관련
       case 'NEW_FILE': {
-        setIsNewDocumentModalOpen(true);
+        createNewTab('', '새 문서.md');
+        setPreviewModeRaw('both');
+        setTimeout(() => editorRef.current?.focus(), 100);
         return;
       }
       case 'OPEN_FILE': (async () => {
         if (typeof (window as any).showOpenFilePicker !== 'function') {
-          showToast('이 브라우저는 로컬 파일 열기를 지원하지 않습니다.', 'error');
+          quickOpenInputRef.current?.click();
           return;
         }
         try {
           const [fileHandle] = await (window as any).showOpenFilePicker({
             multiple: false,
             types: [{
-              description: 'Markdown Files',
+              description: 'Markdown 문서',
               accept: { 'text/markdown': ['.md', '.markdown'], 'text/plain': ['.md'] }
             }]
           });
           const file = await fileHandle.getFile();
           const text = await file.text();
           await saveExternalFileHandle(file.name, fileHandle);
-          updateContent(text);
-          setCurrentFileName(file.name);
-          setCurrentFileNode({ name: file.name, kind: 'file', handle: fileHandle });
+          createNewTab(text, file.name, false, null, { name: file.name, kind: 'file', handle: fileHandle });
+          setPreviewModeRaw('both');
           lastSavedContentRef.current = text;
           setSaveStatus('saved');
           refreshFileList();
@@ -8797,6 +8843,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
           <div className={activeMainView === 'knowledge' ? 'hidden' : 'contents'}>
             <MenuBar />
+            <QuickStartBar disabled={isRestrictedUser || isDuplicateInstance || isLicenseChecking} onNew={() => dispatchCommand('NEW_FILE')} onOpen={() => dispatchCommand('OPEN_FILE')} onImport={() => window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT'))} onImage={() => dispatchCommand('IMAGE')} onSave={() => dispatchCommand('SAVE')} onFolderNew={() => setIsNewDocumentModalOpen(true)} />
+            <input ref={quickOpenInputRef} type="file" accept=".md,.markdown" className="hidden" onChange={async event => {
+              const file = event.target.files?.[0]; event.target.value = '';
+              if (!file) return;
+              if (!/\.(md|markdown)$/i.test(file.name)) { showToast('TXT 등 다른 문서는 문서 변환으로 가져와 주세요.', 'warning'); return; }
+              try { const text = await file.text(); createNewTab(text, file.name); setPreviewModeRaw('both'); showToast('문서를 열었습니다. 수정 후 문서 저장으로 파일을 저장하세요.', 'info'); }
+              catch { showToast('파일을 읽지 못했습니다.', 'error'); }
+            }} />
           </div>
 
 

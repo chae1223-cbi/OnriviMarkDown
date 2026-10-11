@@ -6,6 +6,7 @@
 // 📝 @KICK : 외부 파일(HWP, DOCX, PDF 등) 텍스트/이미지 추출 모듈
 // 🚨 @PATCH : **2026-08-20** HWP 추출 시 표 데이터 뭉침 방지를 위해 hwp.js 배열 순회 시 탭(Tab) 공백 삽입. BMP/GIF 등 HWP 내장 이미지의 MIME 타입을 정확히 매핑하여 엑스박스 출력 해결. 이미지 위치 유지를 위해 hwp.js 파싱 중 그림 컨트롤 검출 시 ::HWP_IMAGE_PLACEHOLDER:: 꼬리표 삽입 로직 추가.
 // ====================================================================
+import { isSupportedImportFile } from './importFormats';
 import * as mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as hwpLib from 'hwp.js';
@@ -85,6 +86,7 @@ export async function convertFileToMarkdown(
   file: File,
   imageSaveCallback?: (base64Data: string, contentType: string) => Promise<string>
 ): Promise<string> {
+  if (!isSupportedImportFile(file.name)) throw new Error('지원하지 않는 문서 형식입니다.');
   const extension = file.name.split('.').pop()?.toLowerCase();
   if (extension === 'html' || extension === 'htm') return importHtmlWithImages(await file.text(), imageSaveCallback);
   if (extension === 'txt') return importPlainTextToMarkdown(await file.text());
