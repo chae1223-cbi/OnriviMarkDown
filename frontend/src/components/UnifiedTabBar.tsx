@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Plus, Copy, ArrowRightToLine, ArrowLeftRight, XSquare } from 'lucide-react';
+import { X, Plus, Copy, ArrowRightToLine, ArrowLeftRight, XSquare, Pencil } from 'lucide-react';
+import PromptModal from '@/components/PromptModal';
 import { FileNode } from '@/lib/indexedDbHelper';
 import { useEditorContext } from '@/context/EditorContext';
 
@@ -7,6 +8,8 @@ import { useEditorContext } from '@/context/EditorContext';
 // 📊 [OMD-EDIT-UnifiedTabBar-0002] UnifiedTabBar ➔ EditorTab
 // 🎯 @KICK  : 에디터 탭 인터페이스 - id, name, path, content, isModified 등 탭 상태 정의
 // 🛡️ @GUARD : 없음
+// 🚨 @PATCH : **2026-10-11** — [열린 탭 우클릭 이름 바꾸기 및 더블클릭 이름 변경 지원]:
+//             탭 우클릭 컨텍스트 메뉴(Pencil) 및 더블클릭을 통해 열려 있는 문서의 이름을 즉각 변경하고, 파일 시스템 및 탭 메타데이터(file:tab-renamed) 실시간 동기화
 // 🚨 @PATCH : **2026-10-11** — [상단 탭 바 브라우저 표준 새 문서(+) 버튼 신설]:
 //             탭 목록 바로 우측에 원클릭 새 문서(+) 추가 버튼을 배치하여 누구나 직관적으로 새 원고 탭을 생성하고 작업할 수 있도록 개선
 // 🚨 @PATCH : **2026-09-26** — [상단 탭 바 중복 탭 렌더링 원천 차단 가드]: visibleTabs에서 seenTabIds 필터링을 도입하여 동일한 탭 ID/경로가 2개 이상 렌더링되어 파란색 활성 탭이 중복 노출되던 결함 완전 방어
@@ -30,10 +33,100 @@ export interface EditorTab {
 }
 
 export default function UnifiedTabBar() {
-  const { tabs, activeTabId, switchTab: onSwitchTab, closeTab: onCloseTab, isDarkMode, setTabs, dispatchCommand } = useEditorContext();
+  const { tabs, activeTabId, switchTab: onSwitchTab, closeTab: onCloseTab, isDarkMode, setTabs, dispatchCommand, workspaceType, rootFolder, showToast, refreshFileList } = useEditorContext();
   
   // 📌 드래그 앤 드롭 탭 순서 제어 상태
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
+  // 🏷️ 탭 이름 바꾸기 프롬프트 상태
+  const [renamePrompt, setRenamePrompt] = useState<{ isOpen: boolean; tabId: string; currentName: string; error?: string }>({ isOpen: false, tabId: '', currentName: '' });
+
+  const handleRenameConfirm = async (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setRenamePrompt(prev => ({ ...prev, error: '파일 이름을 입력해 주세요.' }));
+      return;
+    }
+    const sanitized = trimmed.replace(/[\\/:*?"<>|]/g, '').trim();
+    if (!sanitized) {
+      setRenamePrompt(prev => ({ ...prev, error: '올바른 파일 이름을 입력해 주세요.' }));
+      return;
+    }
+    const finalName = sanitized.toLowerCase().endsWith('.md') ? sanitized : `${sanitized}.md`;
+    const targetTab = tabs.find((t: EditorTab) => t.id === renamePrompt.tabId);
+    if (!targetTab) return;
+
+    if (targetTab.name === finalName) {
+      setRenamePrompt({ isOpen: false, tabId: '', currentName: '' });
+      return;
+    }
+
+    try {
+      const oldPath = targetTab.path || '';
+      const oldName = targetTab.name;
+
+      // 1. 구글 드라이브 파일 이름 변경
+      if (workspaceType === 'cloud' || rootFolder?.type === 'GDRIVE') {
+        const driveFileId = targetTab.node?.driveId || targetTab.node?.driveFileId || (targetTab as any).driveId;
+        if (driveFileId) {
+          const { getSavedDriveToken, renameDriveItem } = await import('@/lib/gdrive/googleDriveClient');
+          const token = getSavedDriveToken();
+          if (token) {
+            await renameDriveItem(token, driveFileId, finalName);
+          }
+        }
+      }
+
+      // 2. 데스크톱 파일 이름 변경
+      const api = (window as any).electronAPI;
+      if (api?.renameFile && oldPath) {
+        const normalizedOld = oldPath.replace(/\\/g, '/');
+        const lastSlash = normalizedOld.lastIndexOf('/');
+        const parentDir = lastSlash !== -1 ? normalizedOld.substring(0, lastSlash) : '';
+        const newPath = parentDir ? `${parentDir}/${finalName}` : finalName;
+        await api.renameFile(oldPath, newPath.replace(/\//g, '\\'));
+      }
+
+      // 3. 브라우저 FSA 파일 이름 변경
+      if (workspaceType === 'browser' && targetTab.node?.handle) {
+        const parentHandle = rootFolder?.handle;
+        if (parentHandle) {
+          const file = await targetTab.node.handle.getFile();
+          const text = await file.text();
+          const newHandle = await parentHandle.getFileHandle(finalName, { create: true });
+          const writable = await newHandle.createWritable();
+          await writable.write(text);
+          await writable.close();
+          await parentHandle.removeEntry(oldName);
+        }
+      }
+
+      // 4. 전역 탭 동기화 이벤트 발송 및 탭 업데이트
+      const normalizedOld = oldPath.replace(/\\/g, '/');
+      const lastSlash = normalizedOld.lastIndexOf('/');
+      const parentDir = lastSlash !== -1 ? normalizedOld.substring(0, lastSlash) : '';
+      const newPath = parentDir ? `${parentDir}/${finalName}` : finalName;
+
+      setTabs((prev: EditorTab[]) => prev.map(t => {
+        if (t.id === targetTab.id) {
+          return { ...t, name: finalName, path: newPath };
+        }
+        return t;
+      }));
+
+      window.dispatchEvent(new CustomEvent('file:tab-renamed', {
+        detail: { oldPath, newPath, newName: finalName }
+      }));
+      window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+      if (refreshFileList) await refreshFileList();
+
+      setRenamePrompt({ isOpen: false, tabId: '', currentName: '' });
+      showToast?.(`'${finalName}'(으)로 이름이 변경되었습니다.`, 'success');
+    } catch (err: any) {
+      console.error('[handleRenameConfirm error]', err);
+      setRenamePrompt(prev => ({ ...prev, error: err?.message || '이름 변경에 실패했습니다.' }));
+    }
+  };
+
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedTabId(id);
@@ -145,6 +238,7 @@ export default function UnifiedTabBar() {
                 onDrop={(e) => handleDrop(e, tab.id)}
                 onClick={() => { if (!isActive) onSwitchTab(tab.id); }}
                 onContextMenu={(e) => handleContextMenu(e, tab.id)}
+                onDoubleClick={(e) => { e.stopPropagation(); setRenamePrompt({ isOpen: true, tabId: tab.id, currentName: tab.name.replace(/\.md$/i, '') }); }}
                 className={`group relative flex items-center gap-2 px-3 py-1 rounded-md text-[12px] font-bold cursor-pointer transition-all duration-150 ${
                   isActive
                     ? 'bg-gradient-to-r from-[#1d4ed8] to-[#1e40af] text-white shadow-sm shadow-[#1d4ed8]/30'
@@ -209,6 +303,23 @@ export default function UnifiedTabBar() {
         >
           <div className="py-1 flex flex-col">
             <button
+              onClick={() => {
+                const targetTab = tabs.find((t: EditorTab) => t.id === contextMenu.tabId);
+                setContextMenu(null);
+                if (targetTab) {
+                  setRenamePrompt({
+                    isOpen: true,
+                    tabId: targetTab.id,
+                    currentName: targetTab.name.replace(/\.md$/i, '')
+                  });
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-left w-full hover:bg-[#1d4ed8]/10 hover:text-[#1d4ed8] transition-colors font-medium border-b border-black/5 dark:border-white/5"
+            >
+              <Pencil className="w-4 h-4 text-zinc-400" />
+              이름 바꾸기
+            </button>
+            <button
               onClick={handleCloseOtherTabs}
               className={`flex items-center gap-2 px-4 py-2 text-sm text-left w-full hover:bg-[#1d4ed8]/10 hover:text-[#1d4ed8] transition-colors`}
             >
@@ -232,6 +343,16 @@ export default function UnifiedTabBar() {
           </div>
         </div>
       )}
+
+      {/* 🏷️ 탭 문서 이름 바꾸기 프롬프트 */}
+      <PromptModal
+        isOpen={renamePrompt.isOpen}
+        title="문서 이름 변경"
+        defaultValue={renamePrompt.currentName}
+        error={renamePrompt.error}
+        onConfirm={handleRenameConfirm}
+        onCancel={() => setRenamePrompt({ isOpen: false, tabId: '', currentName: '' })}
+      />
     </>
   );
 }

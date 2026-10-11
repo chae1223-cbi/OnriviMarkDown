@@ -3,6 +3,8 @@
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
+// 🚨 @PATCH : **2026-10-11** — [새 문서 생성 대화상자(NewDocumentModal) 연동 및 폴더/파일명 지정]:
+//             상단 탭(+) 및 메뉴바(새 문서 Ctrl+N) 호출 시 단순 고정 탭 대신 폴더 선택과 파일명을 지정할 수 있는 NewDocumentModal을 띄우고, 실제 작업장 폴더에 파일을 생성하여 새 탭으로 오픈
 // 🚨 @PATCH : **2026-10-11** — [새 문서(Ctrl+N) 커맨드 핸들러 연동]:
 //             dispatchCommand('NEW_FILE') 호출 시 빈 캔버스의 새 탭('새 문서.md')을 즉시 생성하여 복사한 글이나 AI 답변을 원클릭으로 붙여넣고 집필할 수 있도록 처리
 // 🚨 @PATCH : **2026-10-11** — [구글 드라이브 토큰 만료 전 자동 저장 & 만료/해제 시 비상 로컬 백업 안전망 연동]:
@@ -345,6 +347,7 @@ import { useEditorModals } from '@/hooks/editor/useEditorModals';
 // import EditorLayout from '@/components/editor/layout/EditorLayout';
 // import EditorCore from '@/components/editor/core/EditorCore';
 import ModalManager from '@/components/editor/modals/ModalManager';
+import NewDocumentModal from '@/components/NewDocumentModal';
 import { extractFrontmatter, updateCssProfileInFrontmatter } from '@/lib/frontmatter';
 import { KnowledgeHubView } from '@/components/knowledge/KnowledgeHubView';
 import { useSingleTabGuard } from '@/lib/singleTabGuard';
@@ -1100,6 +1103,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // 🌟 [전체사용자 공통 리소스 폴더 필수 안내 모달 상태]
   const [isResourceGuideModalOpen, setIsResourceGuideModalOpen] = useState(false);
+  const [isNewDocumentModalOpen, setIsNewDocumentModalOpen] = useState(false);
   const [isDismissedGuide, setIsDismissedGuide] = useState(false);
 
   // ====================================================================
@@ -7386,8 +7390,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     switch (type) {
       // 파일 관련
       case 'NEW_FILE': {
-        createNewTab("", "새 문서.md");
-        showToast("새 문서가 열렸습니다. 글을 바로 작성하거나 붙여넣으세요.", "info");
+        setIsNewDocumentModalOpen(true);
         return;
       }
       case 'OPEN_FILE': (async () => {
