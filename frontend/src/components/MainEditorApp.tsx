@@ -3,6 +3,8 @@
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
+// 🚨 @PATCH : **2026-10-11** — [새 문서(Ctrl+N) 커맨드 핸들러 연동]:
+//             dispatchCommand('NEW_FILE') 호출 시 빈 캔버스의 새 탭('새 문서.md')을 즉시 생성하여 복사한 글이나 AI 답변을 원클릭으로 붙여넣고 집필할 수 있도록 처리
 // 🚨 @PATCH : **2026-10-11** — [구글 드라이브 토큰 만료 전 자동 저장 & 만료/해제 시 비상 로컬 백업 안전망 연동]:
 //             1) onrivi:drive_token_about_to_expire 및 onrivi:drive_token_expired / onrivi:drive_auth_expired 이벤트 전사 수신 연계
 //             2) 구글 드라이브 토큰 라이프사이클 및 만료 전 자동 사전 플러시, 비상 로컬 스냅샷을 useFileExplorer와 함께 유기적 동기화
@@ -7383,7 +7385,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 1. 에디터 텍스트 비조작 명령어 (상태 제어 및 파일 입출력 위임)
     switch (type) {
       // 파일 관련
-      case 'NEW_FILE': return;
+      case 'NEW_FILE': {
+        createNewTab("", "새 문서.md");
+        showToast("새 문서가 열렸습니다. 글을 바로 작성하거나 붙여넣으세요.", "info");
+        return;
+      }
       case 'OPEN_FILE': (async () => {
         if (typeof (window as any).showOpenFilePicker !== 'function') {
           showToast('이 브라우저는 로컬 파일 열기를 지원하지 않습니다.', 'error');

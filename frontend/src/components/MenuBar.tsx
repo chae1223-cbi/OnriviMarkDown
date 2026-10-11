@@ -2,6 +2,8 @@
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
 // 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
+// 🚨 @PATCH : **2026-10-11** — [파일 메뉴 최상단 '새 문서(Ctrl+N)' 항목 추가]:
+//             파일 메뉴 열기 시 맨 첫 번째 항목으로 '새 문서 (Ctrl+N)'를 배치하여 언제든 원클릭으로 새 집필 탭을 생성할 수 있도록 확장
 // 🚨 @PATCH : **2026-10-03** — [파일 메뉴 내 구글 드라이브 연결 및 해제 항목 추가]: 상단 파일(File) 메뉴에 '내 구글 드라이브 연결' 및 '구글 드라이브 해제' 항목을 추가하여 워크스페이스 상태와 관계없이 언제든 원클릭으로 클라우드 서재를 바인딩/전환할 수 있도록 접근성 극대화
 // 🚨 @PATCH : **2026-10-02** — [편집 메뉴 이모지 보관함(Ctrl+Shift+E) 연동]: 상단 편집(Edit) 메뉴에 '이모지 보관함' 항목 및 단축키(Ctrl+Shift+E)를 신설하여 데스크톱 및 웹 환경 어디서나 상단 메뉴를 통해 손쉽게 이모지 보관함을 토글할 수 있도록 확장
 // 🚨 @PATCH : **2026-10-01** — [한글(.hwpx) 내보내기 메뉴 삭제]: 상단 파일 > 내보내기 서브메뉴에서 한글 문서(.hwpx) 항목 및 번역 키 완전 제거
@@ -243,6 +245,7 @@ export default function MenuBar() {
   }, []);
 
   const fileItems = [
+    { label: t('newFile'), icon: <Icon name="Plus" size={15} />, shortcut: 'Ctrl+N', onClick: () => dispatch('NEW_FILE') },
     { label: t('openFolder'), icon: <Icon name="FolderOpen" size={15} />, shortcut: 'Ctrl+O', onClick: () => dispatch('OPEN_FILE') },
     { label: t('openWorkspace'), icon: <Icon name="Folder" size={15} />, shortcut: 'Ctrl+Shift+O', onClick: () => dispatch('OPEN_WORKSPACE') },
     rootFolder?.type === 'GDRIVE'

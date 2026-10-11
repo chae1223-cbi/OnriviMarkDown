@@ -7,6 +7,8 @@ import { useEditorContext } from '@/context/EditorContext';
 // 📊 [OMD-EDIT-UnifiedTabBar-0002] UnifiedTabBar ➔ EditorTab
 // 🎯 @KICK  : 에디터 탭 인터페이스 - id, name, path, content, isModified 등 탭 상태 정의
 // 🛡️ @GUARD : 없음
+// 🚨 @PATCH : **2026-10-11** — [상단 탭 바 브라우저 표준 새 문서(+) 버튼 신설]:
+//             탭 목록 바로 우측에 원클릭 새 문서(+) 추가 버튼을 배치하여 누구나 직관적으로 새 원고 탭을 생성하고 작업할 수 있도록 개선
 // 🚨 @PATCH : **2026-09-26** — [상단 탭 바 중복 탭 렌더링 원천 차단 가드]: visibleTabs에서 seenTabIds 필터링을 도입하여 동일한 탭 ID/경로가 2개 이상 렌더링되어 파란색 활성 탭이 중복 노출되던 결함 완전 방어
 // 🚨 @PATCH : **2026-09-11** — 에디터 문서 탭바 폰트를 Pretendard 최우선으로 일원화 적용
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
@@ -28,7 +30,7 @@ export interface EditorTab {
 }
 
 export default function UnifiedTabBar() {
-  const { tabs, activeTabId, switchTab: onSwitchTab, closeTab: onCloseTab, isDarkMode, setTabs } = useEditorContext();
+  const { tabs, activeTabId, switchTab: onSwitchTab, closeTab: onCloseTab, isDarkMode, setTabs, dispatchCommand } = useEditorContext();
   
   // 📌 드래그 앤 드롭 탭 순서 제어 상태
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
@@ -178,6 +180,19 @@ export default function UnifiedTabBar() {
             );
           });
         })()}
+          {/* ➕ 새 문서 추가 버튼 (브라우저 탭 표준) */}
+          <button
+            onMouseDown={(e) => {
+              e.preventDefault();
+              if (dispatchCommand) {
+                dispatchCommand('NEW_FILE');
+              }
+            }}
+            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-black/10 dark:hover:bg-white/10 text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white transition-all shrink-0 active:scale-95 ml-0.5"
+            title="새 문서 열기 (Ctrl+N)"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
         </div>
       </div>
 

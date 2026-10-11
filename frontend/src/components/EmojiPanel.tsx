@@ -1,6 +1,13 @@
 // ====================================================================
 // 📊 [OMD-EDIT-EmojiPanel-0001] EmojiPanel.tsx ➔ EmojiPanel
 // 🎯 @KICK  : 에디터 우측 전용 이모지 보관함 패널 — 카테고리별 탐색, 한글/영문 검색, 원클릭 본문 삽입 및 최근 사용 자동 관리
+// 🚨 @PATCH : **2026-10-11** — [전자책·블로그 출판 특화 특수문자 및 기호 6대 카테고리 대폭 확충]:
+//             1) 장식/특수기호(✦ ✧ ★ ☆ ✤ ☞ ➔ ▶ ▷ ◈ ◆ ◇ ❖ ✿ ❀ ❦ ❧ ※ § № ℡ ㈜ ㈀)
+//             2) 번호/원문자(①~⑩ ❶~❿ ⑴~⑸ Ⅰ~Ⅴ)
+//             3) 괄호/문장부호(『』 「」 【】 《》 〈〉 “” ‘’)
+//             4) 단위/수학/화폐(℃ ℉ ㎡ ㎥ ㎞ ㎎ ㎏ ㎾ ㎧ ± × ÷ ≠ ≤ ≥ ∞ ‰ ₩ ＄ € ￡)
+//             5) 화살표/방향(← → ↑ ↓ ↔ ↕ ↖ ↗ ↘ ↙ ⇄ ⇅ ↺ ↻ ⇒ ⇔)
+//             6) 출판/블로그 감성 아이템(📖 📚 📕 📗 📘 📙 🔖 🖋️ ✍️ 📜 📄 📑 💡 📌 🍯 📢 🚨 ☕ 🌿 🌸 🍂 🍃 🕯️ 💌 ✨)
 // 🚨 @PATCH : **2026-10-02** — [이모지 패널 오버레이 플로팅(Absolute) 전환 및 에디터·미리보기 화면 불변 고정]: 패널을 flex 인라인 배치에서 absolute 우측 오버레이(툴바 좌측 밀착)로 전환하여 이모지 패널 토글 시 에디터와 미리보기 레이아웃(너비·스크롤)이 1px도 움직이지 않도록 완전 고정
 // 🚨 @PATCH : **2026-10-02** — [이모지 패널 클릭 시 에디터 포커스 및 커서 위치 완벽 보존]: 모든 버튼 및 탭의 onMouseDown(e.preventDefault) 적용으로 브라우저 포커스 강탈 방어, 에디터 커서 깜빡임과 위치가 100% 온전히 유지되도록 개선
 // 🚨 @PATCH : **2026-10-02** — [우측 이모지 보관함 패널 신규 구축] 마크다운 문서 작성 특화 6대 카테고리, 실시간 키워드 검색, 최근 사용 이모지 저장 및 원클릭 커서 삽입 기능 탑재
@@ -19,6 +26,185 @@ interface EmojiItem {
 
 // 🏷️ 실전 마크다운 문서 작성에 최적화된 카테고리별 이모지 데이터베이스
 const EMOJI_CATEGORIES: { id: string; label: string; icon: string; items: EmojiItem[] }[] = [
+  {
+    id: 'blog',
+    label: '출판/블로그',
+    icon: '📚',
+    items: [
+      { char: '📖', keywords: ['책', '펼친책', '원고', '독서', 'book', 'read'] },
+      { char: '📚', keywords: ['책들', '도서', '서재', '출판', 'books', 'library'] },
+      { char: '📕', keywords: ['빨간책', '책', 'redbook'] },
+      { char: '📗', keywords: ['초록책', 'greenbook'] },
+      { char: '📘', keywords: ['파란책', 'bluebook'] },
+      { char: '📙', keywords: ['주황책', 'orangebook'] },
+      { char: '🔖', keywords: ['책갈피', '북마크', 'bookmark'] },
+      { char: '🖋️', keywords: ['만년필', '집필', '서명', 'fountainpen'] },
+      { char: '✍️', keywords: ['글쓰기', '작성', '펜', 'writing'] },
+      { char: '📜', keywords: ['두루마리', '역사', '고문서', 'scroll'] },
+      { char: '📄', keywords: ['문서', '페이지', '종이', 'page', 'document'] },
+      { char: '📑', keywords: ['탭문서', '목차', '책갈피', 'bookmarktabs'] },
+      { char: '💡', keywords: ['팁', '꿀팁', '아이디어', '생각', 'tip', 'idea'] },
+      { char: '📌', keywords: ['핀', '고정', '필독', '중요', 'pin', 'notice'] },
+      { char: '🍯', keywords: ['꿀', '꿀팁', '정보', 'honey'] },
+      { char: '📢', keywords: ['확성기', '공지', '알림', 'notice', 'announcement'] },
+      { char: '🚨', keywords: ['사이렌', '경고', '긴급', '주의', 'siren', 'alert'] },
+      { char: '☕', keywords: ['커피', '카페', '여유', '에세이', 'coffee'] },
+      { char: '🌿', keywords: ['허브', '풀잎', '감성', 'plant', 'nature'] },
+      { char: '🌸', keywords: ['벚꽃', '꽃', '감성', 'flower'] },
+      { char: '🍂', keywords: ['낙엽', '가을', '감성', 'leaf'] },
+      { char: '🍃', keywords: ['바람잎', '자연', 'wind'] },
+      { char: '🕯️', keywords: ['촛불', '밤', '사색', 'candle'] },
+      { char: '💌', keywords: ['편지', '러브레터', '메시지', 'letter'] },
+      { char: '✨', keywords: ['반짝', '하이라이트', '핵심', 'sparkle'] },
+    ]
+  },
+  {
+    id: 'symbols',
+    label: '장식/기호',
+    icon: '✦',
+    items: [
+      { char: '✦', keywords: ['별장식', '소제목', '다이아', 'star', 'symbol'] },
+      { char: '✧', keywords: ['빈별장식', '소제목', 'star'] },
+      { char: '★', keywords: ['검은별', '별', '소제목', 'star'] },
+      { char: '☆', keywords: ['흰별', '별', 'star'] },
+      { char: '✤', keywords: ['꽃기호', '문양', '장식', 'flower'] },
+      { char: '✥', keywords: ['십자기호', '문양', 'cross'] },
+      { char: '☞', keywords: ['손가락', '참조', '지목', 'pointing', 'hand'] },
+      { char: '➜', keywords: ['화살표', '오른쪽화살표', 'arrow'] },
+      { char: '➔', keywords: ['굵은화살표', 'arrow'] },
+      { char: '▶', keywords: ['검은삼각', '재생', '플레이', 'play'] },
+      { char: '▷', keywords: ['흰삼각', 'triangle'] },
+      { char: '◈', keywords: ['이중다이아', '소제목', 'diamond'] },
+      { char: '◆', keywords: ['검은다이아', '소제목', 'diamond'] },
+      { char: '◇', keywords: ['흰다이아', '소제목', 'diamond'] },
+      { char: '❖', keywords: ['다이아꽃', '문양', 'symbol'] },
+      { char: '✿', keywords: ['꽃문양', '벚꽃기호', 'flower'] },
+      { char: '❀', keywords: ['꽃', '문양', 'flower'] },
+      { char: '❦', keywords: ['하트잎', '장식', 'heart'] },
+      { char: '❧', keywords: ['나뭇잎장식', 'leaf'] },
+      { char: '※', keywords: ['참고기호', '당구장표시', '참조', 'reference', 'note'] },
+      { char: '§', keywords: ['섹션', '절기호', '조항', 'section'] },
+      { char: '№', keywords: ['넘버', '번호기호', 'number'] },
+      { char: '℡', keywords: ['전화', '전화번호', 'tel'] },
+      { char: '㈜', keywords: ['주식회사', '법인', 'corp'] },
+      { char: '㈀', keywords: ['괄호ㄱ', '한글기호'] },
+    ]
+  },
+  {
+    id: 'numbers',
+    label: '번호/원문자',
+    icon: '①',
+    items: [
+      { char: '①', keywords: ['1', '원문자1', '일', 'one'] },
+      { char: '②', keywords: ['2', '원문자2', '이', 'two'] },
+      { char: '③', keywords: ['3', '원문자3', '삼', 'three'] },
+      { char: '④', keywords: ['4', '원문자4', '사', 'four'] },
+      { char: '⑤', keywords: ['5', '원문자5', '오', 'five'] },
+      { char: '⑥', keywords: ['6', '원문자6', '육', 'six'] },
+      { char: '⑦', keywords: ['7', '원문자7', '칠', 'seven'] },
+      { char: '⑧', keywords: ['8', '원문자8', '팔', 'eight'] },
+      { char: '⑨', keywords: ['9', '원문자9', '구', 'nine'] },
+      { char: '⑩', keywords: ['10', '원문자10', '십', 'ten'] },
+      { char: '❶', keywords: ['검은원문자1', '1', 'blackone'] },
+      { char: '❷', keywords: ['검은원문자2', '2', 'blacktwo'] },
+      { char: '❸', keywords: ['검은원문자3', '3', 'blackthree'] },
+      { char: '❹', keywords: ['검은원문자4', '4', 'blackfour'] },
+      { char: '❺', keywords: ['검은원문자5', '5', 'blackfive'] },
+      { char: '❻', keywords: ['검은원문자6', '6', 'blacksix'] },
+      { char: '❼', keywords: ['검은원문자7', '7', 'blackseven'] },
+      { char: '❽', keywords: ['검은원문자8', '8', 'blackeight'] },
+      { char: '❾', keywords: ['검은원문자9', '9', 'blacknine'] },
+      { char: '❿', keywords: ['검은원문자10', '10', 'blackten'] },
+      { char: '⑴', keywords: ['괄호숫자1', '1'] },
+      { char: '⑵', keywords: ['괄호숫자2', '2'] },
+      { char: '⑶', keywords: ['괄호숫자3', '3'] },
+      { char: '⑷', keywords: ['괄호숫자4', '4'] },
+      { char: '⑸', keywords: ['괄호숫자5', '5'] },
+      { char: 'Ⅰ', keywords: ['로마숫자1', '1', 'roman1'] },
+      { char: 'Ⅱ', keywords: ['로마숫자2', '2', 'roman2'] },
+      { char: 'Ⅲ', keywords: ['로마숫자3', '3', 'roman3'] },
+      { char: 'Ⅳ', keywords: ['로마숫자4', '4', 'roman4'] },
+      { char: 'Ⅴ', keywords: ['로마숫자5', '5', 'roman5'] },
+    ]
+  },
+  {
+    id: 'brackets',
+    label: '문장부호/괄호',
+    icon: '『』',
+    items: [
+      { char: '『', keywords: ['겹낫표열기', '책제목', 'bracket'] },
+      { char: '』', keywords: ['겹낫표닫기', '책제목', 'bracket'] },
+      { char: '「', keywords: ['낫표열기', '강조', 'bracket'] },
+      { char: '」', keywords: ['낫표닫기', '강조', 'bracket'] },
+      { char: '【', keywords: ['두꺼운괄호열기', '블로그제목', 'bracket'] },
+      { char: '】', keywords: ['두꺼운괄호닫기', '블로그제목', 'bracket'] },
+      { char: '《', keywords: ['이중화살괄호열기', 'bracket'] },
+      { char: '》', keywords: ['이중화살괄호닫기', 'bracket'] },
+      { char: '〈', keywords: ['화살괄호열기', 'bracket'] },
+      { char: '〉', keywords: ['화살괄호닫기', 'bracket'] },
+      { char: '“', keywords: ['큰따옴표열기', '인용', 'quote'] },
+      { char: '”', keywords: ['큰따옴표닫기', '인용', 'quote'] },
+      { char: '‘', keywords: ['작은따옴표열기', '인용', 'quote'] },
+      { char: '’', keywords: ['작은따옴표닫기', '인용', 'quote'] },
+      { char: '〔', keywords: ['거북등괄호열기', 'bracket'] },
+      { char: '〕', keywords: ['거북등괄호닫기', 'bracket'] },
+      { char: '〘', keywords: ['이중거북등열기', 'bracket'] },
+      { char: '〙', keywords: ['이중거북등닫기', 'bracket'] },
+    ]
+  },
+  {
+    id: 'units',
+    label: '단위/수학/화폐',
+    icon: '℃',
+    items: [
+      { char: '℃', keywords: ['섭씨', '온도', 'degree', 'celsius'] },
+      { char: '℉', keywords: ['화씨', '온도', 'fahrenheit'] },
+      { char: '㎡', keywords: ['제곱미터', '면적', '평수', 'square'] },
+      { char: '㎥', keywords: ['세제곱미터', '부피', 'volume'] },
+      { char: '㎞', keywords: ['킬로미터', '거리', 'km'] },
+      { char: '㎎', keywords: ['밀리그램', 'mg'] },
+      { char: '㎏', keywords: ['킬로그램', 'kg'] },
+      { char: '㎾', keywords: ['킬로와트', '전력', 'kw'] },
+      { char: '㎧', keywords: ['초속', '풍속', '속도'] },
+      { char: '±', keywords: ['플러스마이너스', '오차', 'plusminus'] },
+      { char: '×', keywords: ['곱하기', '곱셈', 'multiply'] },
+      { char: '÷', keywords: ['나누기', '나눗셈', 'divide'] },
+      { char: '≠', keywords: ['같지않다', '부등호', 'notequal'] },
+      { char: '≤', keywords: ['작거나같다', '부등호'] },
+      { char: '≥', keywords: ['크거나같다', '부등호'] },
+      { char: '∞', keywords: ['무한대', '인피니티', 'infinity'] },
+      { char: '‰', keywords: ['퍼밀', '천분율'] },
+      { char: 'Å', keywords: ['옹스트롬', '길이'] },
+      { char: '₩', keywords: ['원화', '원', '원화기호', 'won', 'krw'] },
+      { char: '＄', keywords: ['달러', '달러기호', 'dollar', 'usd'] },
+      { char: '€', keywords: ['유로', '유로화', 'euro'] },
+      { char: '￡', keywords: ['파운드', 'pound'] },
+      { char: '￥', keywords: ['엔화', '엔', '위안', 'yen'] },
+    ]
+  },
+  {
+    id: 'arrows',
+    label: '화살표/방향',
+    icon: '➔',
+    items: [
+      { char: '←', keywords: ['왼쪽화살표', '이전', 'left'] },
+      { char: '→', keywords: ['오른쪽화살표', '다음', 'right'] },
+      { char: '↑', keywords: ['위쪽화살표', '상승', 'up'] },
+      { char: '↓', keywords: ['아래쪽화살표', '하강', 'down'] },
+      { char: '↔', keywords: ['양방향화살표', 'leftright'] },
+      { char: '↕', keywords: ['상하화살표', 'updown'] },
+      { char: '↖', keywords: ['대각선왼쪽위'] },
+      { char: '↗', keywords: ['대각선오른쪽위', '상승'] },
+      { char: '↘', keywords: ['대각선오른쪽아래'] },
+      { char: '↙', keywords: ['대각선왼쪽아래'] },
+      { char: '⇄', keywords: ['교차화살표', '스왑'] },
+      { char: '⇅', keywords: ['상하교차'] },
+      { char: '↺', keywords: ['반시계회전', '되돌림'] },
+      { char: '↻', keywords: ['시계회전', '새로고침'] },
+      { char: '⇒', keywords: ['이중오른쪽화살표', '결과'] },
+      { char: '⇔', keywords: ['이중양방향화살표', '동치'] },
+    ]
+  },
   {
     id: 'work',
     label: '기호/업무',
@@ -336,7 +522,7 @@ export default function EmojiPanel({ onClose, onInsert, isToolbarOpen: propIsToo
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="이모지 검색 (예: 체크, 불, 별, check)..."
+            placeholder="이모지·특수문자 검색 (예: 별, 체크, 화살표, 꿀팁, ①)..."
             className="w-full pl-8 pr-7 py-1.5 text-xs bg-zinc-100/80 dark:bg-zinc-800/80 border border-transparent focus:border-blue-500 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-lg outline-none transition-all placeholder:text-zinc-400"
           />
           {searchQuery && (

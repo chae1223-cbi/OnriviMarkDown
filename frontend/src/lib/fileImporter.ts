@@ -1,4 +1,6 @@
 // ====================================================================
+// 🚨 @PATCH : **2026-10-11** — [일반 텍스트(.txt) 파일 스마트 마크다운 변환 엔진(importPlainTextToMarkdown) 탑재]:
+//             메모장 등에서 작성된 .txt 파일을 타문서 변환으로 가져올 때 대제목(제N장/PART/Chapter), 소제목([소제목]/■/★), 번호 목록, 글머리 기호(•/·/-) 및 문단 줄바꿈을 자동으로 분석하여 규격화된 마크다운(.md) 문서로 정돈 변환
 // 🚨 @PATCH : **2026-08-20** (2차) HWP 이미지 추출 시 순차 치환으로 인해 이미지가 뒤섞이는 현상을 완벽 해결하기 위해, hwp.js의 Picture 객체의 binID를 추출하여 정확한 플레이스홀더를 삽입하고 OLE/DocInfo와 매핑. 또한 표(Table) 객체를 감지하여 뭉친 텍스트 대신 완전한 마크다운 표 구조를 생성하도록 extractText를 재귀적으로 리팩토링함.
 // 🚀 [OMD-LIB-FileImporter-0001] fileImporter
 // 📝 @KICK : 외부 파일(HWP, DOCX, PDF 등) 텍스트/이미지 추출 모듈
@@ -27,13 +29,66 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dis
 /**
  * 외부 파일을 마크다운 평문으로 변환합니다.
  */
+/**
+ * 📄 일반 텍스트(.txt) 파일을 구조화된 출판 마크다운 문서로 지능형 변환
+ */
+export function importPlainTextToMarkdown(rawText: string): string {
+  if (!rawText || !rawText.trim()) return '';
+
+  const srcLines = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const convertedLines: string[] = [];
+
+  for (let i = 0; i < srcLines.length; i++) {
+    const line = srcLines[i];
+    const trimmed = line.trim();
+
+    // 빈 행 유지
+    if (!trimmed) {
+      convertedLines.push('');
+      continue;
+    }
+
+    // 1. 대제목 감지: 제 N 장, 제 N 편, PART N, Chapter N 등
+    if (/^(제\s*\d+\s*[장편부화]|chapter\s*\d+|part\s*\d+)/i.test(trimmed)) {
+      convertedLines.push(`## ${trimmed}`);
+      continue;
+    }
+
+    // 2. 소제목 감지: [소제목], <소제목>, 【소제목】, ■ 소제목, ◆ 소제목, ★ 소제목 등
+    if (/^[■◆★▶▷●▼▲【\[<][^】\]>]+[】\]>]?$/.test(trimmed)) {
+      const cleanTitle = trimmed.replace(/^[■◆★▶▷●▼▲【\[<]\s*/, '').replace(/[】\]>]\s*$/, '').trim();
+      convertedLines.push(`### ${cleanTitle || trimmed}`);
+      continue;
+    }
+
+    // 3. 번호 매기기 소제목: 1. 또는 1) 또는 (1) 뒤에 짧은 문장(40자 이하)이며 마침표로 끝나지 않는 행
+    if (/^(\d+[\.\)]|\(\d+\))\s+[^\n]{1,40}$/.test(trimmed) && !trimmed.endsWith('.')) {
+      convertedLines.push(`#### ${trimmed}`);
+      continue;
+    }
+
+    // 4. 글머리 기호 목록 변환: •, ·, ㆍ, o 기호 뒤 공백
+    if (/^[•·ㆍo]\s+/.test(trimmed)) {
+      convertedLines.push(`- ${trimmed.replace(/^[•·ㆍo]\s+/, '')}`);
+      continue;
+    }
+
+    // 5. 일반 본문 유지
+    convertedLines.push(line);
+  }
+
+  // 연속 3개 이상의 빈 줄을 2개로 압축하여 정돈
+  return convertedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export async function convertFileToMarkdown(
   file: File,
   imageSaveCallback?: (base64Data: string, contentType: string) => Promise<string>
 ): Promise<string> {
   const extension = file.name.split('.').pop()?.toLowerCase();
   if (extension === 'html' || extension === 'htm') return importHtmlWithImages(await file.text(), imageSaveCallback);
-  if (['txt', 'md', 'markdown'].includes(extension || '')) return file.text();
+  if (extension === 'txt') return importPlainTextToMarkdown(await file.text());
+  if (['md', 'markdown'].includes(extension || '')) return file.text();
   const arrayBuffer = await file.arrayBuffer();
 
   switch (extension) {
