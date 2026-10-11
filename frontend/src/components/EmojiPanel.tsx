@@ -486,7 +486,7 @@ export default function EmojiPanel({ onClose, onInsert, isToolbarOpen: propIsToo
       }}
       className={`no-print absolute top-0 bottom-0 ${
         isToolbarOpen ? 'right-12' : 'right-0'
-      } w-80 flex flex-col bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-l border-zinc-200 dark:border-zinc-800 shadow-[-8px_0_30px_rgba(0,0,0,0.12)] dark:shadow-[-8px_0_30px_rgba(0,0,0,0.45)] z-30 select-none animate-in slide-in-from-right-4 duration-200`}
+      } w-80 flex flex-col bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-l border-zinc-200 dark:border-zinc-800 shadow-[-8px_0_30px_rgba(0,0,0,0.12)] dark:shadow-[-8px_0_30px_rgba(0,0,0,0.45)] z-[60] select-none animate-in slide-in-from-right-4 duration-200`}
       aria-label="이모지 보관함"
     >
       {/* ── 1. 패널 상단 헤더 ── */}
