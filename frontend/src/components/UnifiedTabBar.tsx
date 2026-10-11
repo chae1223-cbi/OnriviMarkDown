@@ -276,8 +276,9 @@ export default function UnifiedTabBar() {
         })()}
           {/* ➕ 새 문서 추가 버튼 (브라우저 탭 표준) */}
           <button
-            onMouseDown={(e) => {
-              e.preventDefault();
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
               if (dispatchCommand) {
                 dispatchCommand('NEW_FILE');
               }

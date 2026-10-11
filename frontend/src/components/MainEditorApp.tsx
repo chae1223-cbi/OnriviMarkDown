@@ -8102,6 +8102,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           dispatchCommand('SAVE');
           return;
         }
+        if (keyUpper === 'N' && !isShift) {
+          e.preventDefault();
+          e.stopPropagation();
+          dispatchCommand('NEW_FILE');
+          return;
+        }
       }
 
       // 파일 열기와 작업장 폴더 열기는 제한사용자도 사용할 수 있다.
@@ -10345,6 +10351,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               userNickname, setUserNickname,
               updateContent
             }}
+          />
+
+          {/* 📄 [새 문서 생성 대화상자] 폴더 선택 및 파일명 지정 모달 */}
+          <NewDocumentModal
+            isOpen={isNewDocumentModalOpen}
+            onClose={() => setIsNewDocumentModalOpen(false)}
+            fileList={fileList}
+            rootFolder={rootFolder}
+            workspaceType={workspaceType}
+            onConfirm={handleCreateNewDocument}
+            isDarkMode={isDarkMode}
           />
 
           {/* 🎙️ 모바일 플로팅 음성 비서 (STT) */}
