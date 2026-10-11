@@ -32,6 +32,8 @@ interface NewDocumentModalProps {
   initialName?: string;
   dialogTitle?: string;
   initialFolderNode?: FileNode | null;
+  hideFolderSelection?: boolean;
+  confirmLabel?: string;
 }
 
 export default function NewDocumentModal({
@@ -44,7 +46,9 @@ export default function NewDocumentModal({
   isDarkMode = false,
   initialName = '새 문서',
   dialogTitle,
-  initialFolderNode
+  initialFolderNode,
+  hideFolderSelection = false,
+  confirmLabel
 }: NewDocumentModalProps) {
   const [fileName, setFileName] = useState<string>('새 문서');
   const [selectedFolderId, setSelectedFolderId] = useState<string>('ROOT');
@@ -145,7 +149,7 @@ export default function NewDocumentModal({
       child => child.kind === 'file' && child.name.toLowerCase() === finalName.toLowerCase()
     );
 
-    if (isDuplicate) {
+    if (isDuplicate && !hideFolderSelection) {
       setErrorMessage(`선택한 폴더에 이미 '${finalName}' 파일이 존재합니다.`);
       inputRef.current?.focus();
       return;
@@ -249,7 +253,7 @@ export default function NewDocumentModal({
           </div>
 
           {/* 2. 저장 위치(폴더) 선택 */}
-          <div className="space-y-1.5">
+          {hideFolderSelection ? <p className="text-sm text-slate-500">이름을 입력한 뒤 저장할 폴더를 선택합니다. 저장 완료 후 새 위치에서 계속 편집합니다.</p> : <div className="space-y-1.5">
             <label className="block text-xs font-bold text-slate-700 dark:text-zinc-300">
               저장할 폴더 위치
             </label>
@@ -282,7 +286,7 @@ export default function NewDocumentModal({
                 선택 경로: {selectedFolderOption.pathDisplay}
               </p>
             )}
-          </div>
+          </div>}
 
           {/* 에러 메시지 */}
           {errorMessage && (
@@ -319,7 +323,7 @@ export default function NewDocumentModal({
               ) : (
                 <>
                   <Icon name="Plus" size={15} />
-                  <span>{dialogTitle ? '가져오기' : '새 문서 만들기'}</span>
+                  <span>{confirmLabel || (dialogTitle ? '가져오기' : '새 문서 만들기')}</span>
                 </>
               )}
             </button>

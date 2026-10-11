@@ -253,9 +253,10 @@ export default function MenuBar() {
       : { label: "내 구글 드라이브 연결", icon: <span className="text-[13px]">☁️</span>, onClick: () => connectGoogleDrive && connectGoogleDrive() },
     { divider: true },
     { label: t('saveFile'), icon: <Icon name="Save" size={15} />, shortcut: 'Ctrl+S', disabled: isRestrictedUser, onClick: () => dispatch('SAVE') },
-    { label: t('saveFileAs'), icon: <Icon name="Export" size={15} />, shortcut: 'Ctrl+Shift+S', disabled: isRestrictedUser, onClick: () => dispatch('SAVE_AS') },
-    { label: 'MD와 참조 자료를 내 컴퓨터로 복사', icon: <Icon name="Export" size={15} />, disabled: isRestrictedUser || rootFolder?.type !== 'GDRIVE', onClick: () => window.dispatchEvent(new CustomEvent('onrivi:transfer-document', {detail:'download'})) },
-    { label: 'MD와 참조 자료를 Google Drive로 복사', icon: <Icon name="FolderSync" size={15} />, disabled: isRestrictedUser || rootFolder?.type === 'GDRIVE', onClick: () => window.dispatchEvent(new CustomEvent('onrivi:transfer-document', {detail:'upload'})) },
+    { label: t('saveFileAs'), icon: <Icon name="Export" size={15} />, shortcut: 'Ctrl+Shift+S', disabled: isRestrictedUser, subItems: [
+      {label: `내 컴퓨터(로컬)에 저장${rootFolder?.type !== 'GDRIVE' ? ' · 현재 저장소' : ''}`, icon: <Icon name="Folder" size={15} />, onClick: () => window.dispatchEvent(new CustomEvent('onrivi:save-as-target', {detail:'download'}))},
+      {label: `개인 Google Drive에 저장${rootFolder?.type === 'GDRIVE' ? ' · 현재 저장소' : ''}`, icon: <Icon name="FolderSync" size={15} />, onClick: () => window.dispatchEvent(new CustomEvent('onrivi:save-as-target', {detail:'upload'}))}
+    ] },
     { divider: true },
     { 
       label: t('export') + (previewMode !== 'preview' ? " (미리보기 모드 전용)" : ""), 

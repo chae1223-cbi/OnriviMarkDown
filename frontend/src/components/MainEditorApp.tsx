@@ -7374,6 +7374,69 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   const transferBusyRef = useRef(false);
   const [transferProgress, setTransferProgress] = useState('');
+  const [saveAsTarget, setSaveAsTarget] = useState<'download'|'upload'|null>(null);
+  const handleTargetSaveAs = async (name: string) => {
+    if (transferBusyRef.current || isRestrictedUser || isDuplicateInstance || isLicenseChecking) throw new Error('현재 저장할 수 없습니다.');
+    const markdown = editorRef.current?.getValue() ?? contentRef.current;
+    const sourceTabId = activeTabIdRef.current;
+    const sourceIsDrive = Boolean(currentFileNode?.driveId || currentFileNode?.driveFileId);
+    const direction = saveAsTarget!;
+    const sourcePath = currentFileNode?.path?.replace(/\\/g,'/');
+    const initialLocalFolder = sourceIsDrive ? undefined : {path:sourcePath?.slice(0,sourcePath.lastIndexOf('/')),handle:currentFileParentHandleRef.current || rootFolder?.handle};
+    let initialDrivePath;
+    if (sourceIsDrive && direction==='upload') {
+      const info = JSON.parse(localStorage.getItem('onrivi_gdrive_workspace_info') || 'null');
+      if (info?.rootFolderId) {
+        const findParentPath = (nodes, trail=[]) => { for (const item of nodes) { if (item.driveId===currentFileNode?.driveId && item.kind==='file') return trail; if (item.children) { const found=findParentPath(item.children,[...trail,{id:item.driveId || item.id,name:item.name}]); if(found)return found; } } };
+        initialDrivePath = [{id:info.rootFolderId,name:'OnriviAuthor'}, ...(info.workspacePath || [{id:rootFolder.driveFolderId || rootFolder.id,name:rootFolder.name}]), ...(findParentPath(fileList) || [])];
+      }
+    }
+    transferBusyRef.current=true;
+    setTransferProgress('저장할 폴더를 선택해 주세요.');
+    try {
+      const result = await transferDocument({direction,name,markdown,sourceKind:sourceIsDrive?'drive':'local',initialLocalFolder,initialDrivePath,onProgress:setTransferProgress,onSaved:saved=>{
+        if (activeTabIdRef.current!==sourceTabId || (editorRef.current?.getValue() ?? contentRef.current)!==markdown) { showToast('새 위치에 저장했습니다. 편집 내용이 변경되어 현재 문서는 유지합니다.', 'warning'); return; }
+        currentFileNodeRef.current=saved.node;
+        currentFileNameRef.current=saved.node.name;
+        currentFileParentHandleRef.current=saved.parentHandle || null;
+        rootFolderRef.current=saved.root;
+        workspaceTypeRef.current=saved.workspaceType;
+        lastSavedContentRef.current=saved.markdown;
+        setCurrentFileNode(saved.node); setCurrentFileName(saved.node.name);
+        setRootFolder(saved.root); setWorkspaceType(saved.workspaceType);
+        const updatedTabs = tabsRef.current.map(tab=>tab.id===sourceTabId ? {...tab,name:saved.node.name,path:saved.node.path,node:saved.node,driveFileId:saved.node.driveId || undefined,driveId:saved.node.driveId || undefined,parentHandle:saved.parentHandle,content:saved.markdown,isModified:false} : tab);
+        tabsRef.current=updatedTabs; setTabs(updatedTabs);
+        contentRef.current=saved.markdown; setContent(saved.markdown);
+        if (saved.markdown!==markdown) editorRef.current?.setValue(saved.markdown);
+        localStorage.setItem('rootFolder',JSON.stringify(saved.root));
+        localStorage.setItem('workspaceType',saved.workspaceType);
+        localStorage.setItem('onrivi_last_workspace_mode',saved.workspaceType==='cloud'?'cloud':'local');
+        if (saved.workspaceType==='cloud') {
+          const info = JSON.parse(localStorage.getItem('onrivi_gdrive_workspace_info') || 'null');
+          if(info) localStorage.setItem('onrivi_gdrive_workspace_info',JSON.stringify({...info,workspaceFolderId:saved.root.driveFolderId,workspaceFolderName:saved.root.name,workspacePath:undefined}));
+        } else {
+          if(saved.root.handle) idb.set('rootFolderHandle',saved.root.handle);
+          localStorage.setItem('onrivi_workspace_path',saved.root.path);
+          localStorage.setItem('onrivi_last_local_workspace_path',saved.root.path);
+          localStorage.setItem('onrivi_last_local_root_folder',JSON.stringify({...saved.root,handle:undefined}));
+        }
+        const env=saved.workspaceType==='cloud'?'cloud':'local';
+        saveResourceSettings(getResourceSettings(env),env);
+        setSaveStatus('saved');
+      }});
+      showToast(`다른 이름으로 저장 완료: ${result}`, 'success');
+      setSaveAsTarget(null);
+      await refreshFileList();
+    } catch (error:any) {
+      if(error.name==='AbortError') { setSaveAsTarget(null); return; }
+      throw error;
+    } finally { transferBusyRef.current=false; setTransferProgress(''); }
+  };
+  useEffect(()=>{
+    const open=(event:Event)=>{const target=(event as CustomEvent).detail;if(target==='download'||target==='upload')setSaveAsTarget(target);};
+    window.addEventListener('onrivi:save-as-target',open);
+    return ()=>window.removeEventListener('onrivi:save-as-target',open);
+  },[]);
   useEffect(() => {
     const transfer = async (event: Event) => {
       const direction = (event as CustomEvent).detail;
@@ -7471,7 +7534,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         return;
       case 'OPEN_WORKSPACE': selectRootFolder('local', null); return;
       case 'SAVE': handlers.save(); return;
-      case 'SAVE_AS': handlers.saveAs(); return;
+      case 'SAVE_AS': setSaveAsTarget(currentFileNodeRef.current?.driveId || currentFileNodeRef.current?.driveFileId ? 'upload' : 'download'); return;
       case 'EXIT': handlers.exit(); return;
 
       // 내보내기 관련
@@ -10405,6 +10468,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           />
 
           {transferProgress && <div role="status" aria-live="polite" className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[999999] rounded-xl border bg-white dark:bg-zinc-900 px-5 py-3 shadow-xl text-sm">{transferProgress}</div>}
+          <NewDocumentModal isOpen={Boolean(saveAsTarget)} onClose={()=>setSaveAsTarget(null)} fileList={[]} rootFolder={null} workspaceType={workspaceType} initialName={currentFileName || '새 문서.md'} dialogTitle={saveAsTarget==='upload'?'개인 Google Drive에 다른 이름으로 저장':'내 컴퓨터에 다른 이름으로 저장'} hideFolderSelection confirmLabel="저장 폴더 선택" onConfirm={handleTargetSaveAs} isDarkMode={isDarkMode} />
           {/* 📄 [새 문서 생성 대화상자] 폴더 선택 및 파일명 지정 모달 */}
           <NewDocumentModal
             isOpen={isNewDocumentModalOpen}

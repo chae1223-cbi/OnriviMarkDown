@@ -1936,7 +1936,7 @@ export const useFileExplorer = ({
         (currentFileNode as any)?.driveFileId || 
         (currentFileNode as any)?.driveId;
 
-      if (driveFileId || rootFolderRef.current?.type === 'GDRIVE' || workspaceType === 'cloud') {
+      if (driveFileId || (!targetFile.path && !targetFile.handle && (rootFolderRef.current?.type === 'GDRIVE' || workspaceType === 'cloud'))) {
         const token = getSavedDriveToken();
         if (token && driveFileId) {
           try {

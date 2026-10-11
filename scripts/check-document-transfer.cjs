@@ -13,7 +13,7 @@ function fixture() {
     ensureDriveFolder:async(_token,_name,parent)=>parent==='root'?'app':'media-folder',
     listDriveChildren:async()=>state.siblings,
     uploadDriveImage:async(...args)=>{calls.uploads.push(args);return {id:'image-id',name:'photo.png'};},
-    createDriveMarkdownFile:async(...args)=>calls.creates.push(args),
+    createDriveMarkdownFile:async(...args)=>{calls.creates.push(args);return {id:'new-md'};},
     readDriveFileContent:async()=>state.old
   };
   const sandbox = {
@@ -77,4 +77,21 @@ test('different MD receives suffix; identical MD is reused',async()=>{
   calls.creates.length=0; state.old='new';
   await api.transferDocument({direction:'upload',name:'travel.md',markdown:'new',onProgress:()=>{}});
   assert.equal(calls.creates.length,0);
+});
+test('local Save As returns the new file and root for continued editing',async()=>{
+  const {api}=fixture(); let saved;
+  await api.transferDocument({direction:'download',sourceKind:'local',name:'new.md',markdown:'![x](data:image/png;base64,AAAA)',initialLocalFolder:{path:'C:/Previous'},onProgress:()=>{},onSaved:value=>saved=value});
+  assert.equal(saved.node.path,'C:/Documents/new.md');
+  assert.equal(saved.root.path,'C:/Documents');
+  assert.equal(saved.workspaceType,'local');
+  assert.match(saved.markdown,/data:image/);
+});
+test('Drive Save As returns a new Drive ID and preserves same-storage references',async()=>{
+  const {api,calls}=fixture(); let saved;
+  await api.transferDocument({direction:'upload',sourceKind:'drive',name:'new.md',markdown:'![x](/media/photo.png?driveId=original)',initialDrivePath:[{id:'parent',name:'Current'}],onProgress:()=>{},onSaved:value=>saved=value});
+  assert.equal(saved.node.driveId,'new-md');
+  assert.equal(saved.root.driveFolderId,'destination');
+  assert.equal(saved.workspaceType,'cloud');
+  assert.equal(calls.uploads.length,0);
+  assert.equal(saved.markdown,'![x](/media/photo.png?driveId=original)');
 });

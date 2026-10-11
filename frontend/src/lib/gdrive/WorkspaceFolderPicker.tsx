@@ -28,7 +28,7 @@ function FolderPicker({ token, initialPath, done }: { token: string; initialPath
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
   }, [done]);
-  return <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4">
+  return <div className="fixed inset-0 z-[1000000] bg-black/60 flex items-center justify-center p-4">
     <div role="dialog" aria-modal="true" aria-labelledby="drive-workspace-title" className="w-full max-w-lg rounded-xl bg-white text-slate-900 shadow-xl p-6 space-y-4">
       <h2 id="drive-workspace-title" className="text-xl font-semibold">구글 드라이브 작업장 선택</h2>
       <p className="text-sm text-slate-600">온리비가 접근할 수 있는 폴더가 표시됩니다. 폴더를 열고 ‘이 폴더 사용’을 눌러 주세요.</p>

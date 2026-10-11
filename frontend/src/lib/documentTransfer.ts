@@ -42,14 +42,14 @@ export function findTransferReferences(markdown: string): Reference[] {
   return result;
 }
 
-async function chooseLocalFolder(): Promise<LocalFolder | null> {
+async function chooseLocalFolder(initial?: LocalFolder): Promise<LocalFolder | null> {
   const api = (window as any).electronAPI;
   if (api?.selectFolder) {
-    const selected = await api.selectFolder();
+    const selected = await api.selectFolder(initial?.path);
     return selected?.status === 'success' ? {path: selected.path} : null;
   }
   if (!(window as any).showDirectoryPicker) throw new Error('내 컴퓨터 폴더 선택은 Chrome 또는 Edge에서 사용해 주세요.');
-  return {handle: await (window as any).showDirectoryPicker({mode:'readwrite'})};
+  return {handle: await (window as any).showDirectoryPicker({mode:'readwrite', ...(initial?.handle ? {startIn:initial.handle} : {})})};
 }
 
 async function writeLocalCopy(folder: LocalFolder, relativePath: string, blob: Blob) {
@@ -91,20 +91,22 @@ async function readReference(ref: Reference, token: string | null, resource: Loc
   return (await dir.getFileHandle(ref.name)).getFile();
 }
 
-export async function transferDocument(options: { direction:'download'|'upload'; markdown:string; name:string; onProgress:(message:string)=>void }): Promise<string> {
+export type SavedTransfer = {markdown:string;node:any;root:any;workspaceType:'cloud'|'local'|'browser';parentHandle?:any};
+export async function transferDocument(options: { direction:'download'|'upload'; markdown:string; name:string; onProgress:(message:string)=>void; sourceKind?:'local'|'drive'; initialLocalFolder?:LocalFolder; initialDrivePath?:Array<{id:string;name:string}>; onSaved?:(saved:SavedTransfer)=>void }): Promise<string> {
   const {direction, markdown, onProgress} = options;
   const name = options.name.replace(/[\\/:*?"<>|]/g,'_');
   if (!name || !/\.md$/i.test(name)) throw new Error('먼저 Markdown 문서를 열어 주세요.');
-  const references = findTransferReferences(markdown);
+  const sameStorage = options.sourceKind === (direction==='download'?'local':'drive');
+  const references = sameStorage ? [] : findTransferReferences(markdown);
   let token = getSavedDriveToken();
   // Picker/auth must start in the click handler before resource reads.
   let localDestination: LocalFolder | null = null;
   let driveDestination: {id:string;name:string} | null = null;
   if (direction==='download') {
     onProgress('MD를 저장할 내 컴퓨터 폴더를 선택해 주세요.');
-    localDestination = await chooseLocalFolder();
+    localDestination = await chooseLocalFolder(options.initialLocalFolder);
     if (!localDestination) throw new DOMException('취소','AbortError');
-    if (!token || !hasValidDriveToken()) token = await requestGoogleDriveAuth();
+    if (!sameStorage && (!token || !hasValidDriveToken())) token = await requestGoogleDriveAuth();
   } else {
     if (!token || !hasValidDriveToken()) {
       token = await requestGoogleDriveAuth();
@@ -113,7 +115,7 @@ export async function transferDocument(options: { direction:'download'|'upload';
     }
     const {pickAccessibleDriveFolder} = await import('@/lib/gdrive/WorkspaceFolderPicker');
     const rootId = await ensureDriveFolder(token!, 'OnriviAuthor', 'root');
-    driveDestination = await pickAccessibleDriveFolder(token!,[{id:rootId,name:'OnriviAuthor'}]);
+    driveDestination = await pickAccessibleDriveFolder(token!,options.initialDrivePath?.length ? options.initialDrivePath : [{id:rootId,name:'OnriviAuthor'}]);
     if (!driveDestination) throw new DOMException('취소','AbortError');
   }
   const localSettings = getResourceSettings('local');
@@ -179,13 +181,19 @@ export async function transferDocument(options: { direction:'download'|'upload';
   onProgress('참조 경로를 반영한 MD를 저장하고 있습니다.');
   if (direction==='download') {
     const result = await writeLocalCopy(localDestination!,name,new Blob([converted],{type:'text/markdown;charset=utf-8'}));
+    const finalName = result.relativePath.split('/').pop()!;
+    const handle = localDestination!.handle ? await localDestination!.handle.getFileHandle(finalName) : undefined;
+    options.onSaved?.({markdown:converted,node:{name:finalName,kind:'file',path:result.path || `${localDestination!.handle.name}/${finalName}`,handle},root:localDestination!.path ? {name:localDestination!.path,path:localDestination!.path} : {name:localDestination!.handle.name,path:localDestination!.handle.name,handle:localDestination!.handle},workspaceType:localDestination!.path?'local':'browser',parentHandle:localDestination!.handle});
     return `${result.path || `${localDestination!.handle.name}/${result.relativePath}`} — 참조 자료 ${references.length}개 (${reused}개 재사용)`;
   }
   const siblings = await listDriveChildren(token!,driveDestination!.id);
   const same = siblings.find(item=>!item.isFolder && item.name===name);
-  if (same && await readDriveFileContent(token!,same.id)===converted) return `${driveDestination!.name}/${name} — 동일한 MD 재사용, 참조 자료 ${references.length}개`;
+  const finishDrive = (id:string,finalName:string) => options.onSaved?.({markdown:converted,node:{name:finalName,kind:'file',path:`GoogleDrive/${driveDestination!.name}/${finalName}`,id,driveId:id},root:{name:driveDestination!.name,type:'GDRIVE',id:driveDestination!.id,driveFolderId:driveDestination!.id,path:`GoogleDrive/${driveDestination!.name}`},workspaceType:'cloud'});
+  if (same && await readDriveFileContent(token!,same.id)===converted) { finishDrive(same.id,name); return `${driveDestination!.name}/${name} — 동일한 MD 재사용, 참조 자료 ${references.length}개`; }
   let finalName=name;
   for(let index=1; siblings.some(item=>item.name===finalName);index++) finalName=name.replace(/\.md$/i,`_${index}.md`);
-  await createDriveMarkdownFile(token!,driveDestination!.id,finalName,converted);
+  const created = await createDriveMarkdownFile(token!,driveDestination!.id,finalName,converted);
+  if (options.onSaved && !created?.id) throw new Error('저장된 Drive 파일 ID를 확인할 수 없습니다.');
+  finishDrive(created?.id,finalName);
   return `${driveDestination!.name}/${finalName} — 참조 자료 ${references.length}개`;
 }
