@@ -36,6 +36,18 @@ console.log('PASS: actual preview wheel handler keeps native document scroll and
 const pasteExports={};
 vm.runInNewContext(compile(path.join(frontend,'src/lib/visualMarkdownPaste.ts')),{exports:pasteExports,require:name=>name==='@/lib/visualDocumentCodec'?exportsObject:req(name)});
 const { EditorState } = req('prosemirror-state');
+const trailingCodec=createVisualDocumentCodec('tail');
+let trailingState=EditorState.create({doc:trailingCodec.doc});
+trailingState=trailingState.apply(trailingState.tr.insertText('    ',5));
+const trailingMD=trailingCodec.serialize(trailingState.doc);
+assert.equal(createVisualDocumentCodec(trailingMD).doc.firstChild.textContent,'tail    ');
+trailingState=trailingState.apply(trailingState.tr.insert(9,visualSchema.nodes.hard_break.create()));
+trailingState=trailingState.apply(trailingState.tr.insert(10,visualSchema.nodes.hard_break.create()));
+const breakMD=trailingCodec.serialize(trailingState.doc);
+assert.equal(createVisualDocumentCodec(breakMD).doc.firstChild.type.name,'paragraph');
+assert.equal(createVisualDocumentCodec(breakMD).doc.firstChild.childCount,3);
+assert.ok(breakMD.includes('<br><br>'));
+
 const sceneExample = '# 출력 A\n\n```markdown\n:::scene {cover}\n![표지](media/cover.png)\n\n# 제목\n:::\n```\n\n뒤 문단\n';
 const exampleCodec = createVisualDocumentCodec(sceneExample);
 assert.equal(exampleCodec.doc.childCount, 3);
@@ -371,6 +383,14 @@ async function visual() {
     const firstScroll=await page.evaluate(()=>window.qaSourceScroll);
     await page.mouse.wheel(0,400);await page.waitForFunction(first=>window.qaSourceScroll>first,firstScroll);
     await scrollPane.evaluate(el=>{el.classList.remove('custom-preview-container');el.style.height='';el.style.overflowY='';});
+    await page.evaluate(()=>window.setTestSource('tail'));
+    await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='tail');
+    await surface.locator('p').click();await page.keyboard.press('End');await page.keyboard.type('    ');
+    assert.equal(await surface.locator('p').textContent(),'tail    ');
+    await page.keyboard.press('Enter');await page.keyboard.press('Enter');
+    assert.equal(await surface.locator('p').count(),1);
+    assert.ok((await page.locator('#source').inputValue()).includes('<br><br>'));
+    await page.keyboard.insertText('next line');assert.ok((await surface.locator('p').textContent()).includes('next line'));
     // A heading's literal numeric prefix must never become an ordered list.
     await page.evaluate(() => window.setTestSource(''));
     await page.waitForFunction(() => document.querySelector('.visual-document-surface').textContent === '');

@@ -60,8 +60,7 @@ const indentDocument = (backward=false): Command => (state,dispatch,currentView)
   const size=Number.isFinite(configured)?Math.max(1,Math.min(16,configured)):2;
   const before=$from.parent.textBetween(0,$from.parentOffset,'\n');
   if(!backward){
-    const column=Array.from(before.slice(before.lastIndexOf('\n')+1)).length;
-    const gap=size-column%size;
+    const gap=size;
     const spaces=$from.parent.type===visualSchema.nodes.code_block?' '.repeat(gap):'\u00a0'.repeat(gap);
     if(dispatch)dispatch(state.tr.insertText(spaces,from,to).scrollIntoView());
     return true;
@@ -244,7 +243,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           return false;
         },
         'Mod-Enter': chainCommands(tableAction('afterTable'),exitCode),
-        Enter: chainCommands(tableEnter(), (state,dispatch,currentView)=>{const parent=state.selection.$from.depth>0?state.selection.$from.node(state.selection.$from.depth-1):null;return splitListItem(visualSchema.nodes.list_item,parent?.type===visualSchema.nodes.list_item && parent.attrs.checked!==null ? {checked:false} : undefined)(state,dispatch,currentView);}, baseKeymap.Enter),
+        Enter: chainCommands(tableEnter(), (state,dispatch)=>{const position=state.selection.$from;if(position.parent.type!==visualSchema.nodes.paragraph || position.depth!==1)return false;if(dispatch)dispatch(state.tr.replaceSelectionWith(visualSchema.nodes.hard_break.create()).scrollIntoView());return true;}, (state,dispatch,currentView)=>{const parent=state.selection.$from.depth>0?state.selection.$from.node(state.selection.$from.depth-1):null;return splitListItem(visualSchema.nodes.list_item,parent?.type===visualSchema.nodes.list_item && parent.attrs.checked!==null ? {checked:false} : undefined)(state,dispatch,currentView);}, baseKeymap.Enter),
         Tab: chainCommands(moveTableCell(),sinkListItem(visualSchema.nodes.list_item),indentDocument()), 'Shift-Tab': chainCommands(moveTableCell(true),liftListItem(visualSchema.nodes.list_item),indentDocument(true)),
       }), keymap(baseKeymap)] }),
       editable: () => !readOnly,
@@ -789,6 +788,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       .onrivi-content-root .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div),
       .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div) { white-space:break-spaces!important; tab-size:inherit; }
       .visual-document-surface p { margin:0 0 1em; }
+      .visual-document-surface p:empty, .visual-document-surface p:has(>br.ProseMirror-trailingBreak:only-child) { min-height:1.75em!important; }
       .visual-document-surface li { margin-top:0!important; margin-bottom:0!important; padding-top:0!important; padding-bottom:0!important; }
       .visual-document-surface li p { margin-top:0!important; margin-bottom:0!important; }
       .custom-preview-container .visual-document-surface li ul, .custom-preview-container .visual-document-surface li ol, .visual-document-surface li ul, .visual-document-surface li ol { margin-top:0!important; margin-bottom:0!important; padding-top:0!important; padding-bottom:0!important; }

@@ -57,7 +57,7 @@ visualTokenizer.parse = (source,environment) => {
   for(const token of tokenizer.parse(source,environment)) {
     const constructor = token.constructor as any;
     if(token.type==='th_close'||token.type==='td_close')result.push(new constructor('paragraph_close','p',-1));
-    if (inCell && token.type === 'inline' && token.children) {
+    if (token.type === 'inline' && token.children) {
       token.children = token.children.flatMap(child => {
         if (child.type !== 'text' || !/<br\s*\/?\s*>/i.test(child.content)) return [child];
         return child.content.split(/(<br\s*\/?\s*>)/i).map(part => {
@@ -82,6 +82,14 @@ const visualParser = new MarkdownParser(visualSchema,visualTokenizer,{
 });
 export const visualSerializer = new MarkdownSerializer({
   ...defaultMarkdownSerializer.nodes,
+  hard_break(state) { state.write('<br>'); },
+  paragraph(state,node) { if(!node.content.size)state.write('<br>');else state.renderInline(node);state.closeBlock(node); },
+  text(state,node,parent,index) {
+    const text=node.text || '';
+    const trailing=index===parent.childCount-1?text.match(/ +$/)?.[0]:undefined;
+    if(trailing && !node.marks.some(mark=>mark.type.name==='code')){const prefix=text.slice(0,-trailing.length);if(prefix)defaultMarkdownSerializer.nodes.text(state,visualSchema.text(prefix,node.marks),parent,index);state.write('&#32;'.repeat(trailing.length));}
+    else defaultMarkdownSerializer.nodes.text(state,node,parent,index);
+  },
   bullet_list(state,node) { state.renderList(node.type.create({...node.attrs,tight:true},node.content),'  ',()=>'- '); },
   ordered_list(state,node) { const start=node.attrs.order || 1;const width=String(start+node.childCount-1).length;state.renderList(node.type.create({...node.attrs,tight:true},node.content),' '.repeat(width+2),index=>String(start+index).padStart(width,' ')+'. '); },
   list_item(state,node) { if(node.attrs.checked!==null)state.write(node.attrs.checked?'[x] ':'[ ] ');state.renderContent(node); },
@@ -157,11 +165,12 @@ export function createVisualDocumentCodec(markdown: string) {
   for (let i = 0; i < ranges.length; i++) {
     const raw = body.slice(offsets[ranges[i]], i + 1 < ranges.length ? offsets[ranges[i + 1]] : body.length);
     let node: DocumentNode;
-    const unsupported = /(^|\n)\s*(:::|\[\^[^\]]+\]:|\$\$|<\/?[a-zA-Z]|\|)|\[\^[^\]]+\]|\$[^\n$]+\$|!\[/m.test(raw)
-      || /^\s*\[[^\]]+\]:/m.test(raw)
-      || /<\/?[a-zA-Z][^>]*>|==/.test(raw)
-      || (hasReferenceDefinitions && /\[[^\]]+\](?!\()/.test(raw))
-      || /^\s*```\s*(mermaid|math)/m.test(raw);
+    const safeRaw=raw.replace(/<br\s*\/?\s*>/gi,'');
+    const unsupported = /(^|\n)\s*(:::|\[\^[^\]]+\]:|\$\$|<\/?[a-zA-Z]|\|)|\[\^[^\]]+\]|\$[^\n$]+\$|!\[/m.test(safeRaw)
+      || /^\s*\[[^\]]+\]:/m.test(safeRaw)
+      || /<\/?[a-zA-Z][^>]*>|==/.test(safeRaw)
+      || (hasReferenceDefinitions && /\[[^\]]+\](?!\()/.test(safeRaw))
+      || /^\s*```\s*(mermaid|math)/m.test(safeRaw);
     try {
       const parsed = normalizeQuotes(visualParser.parse(raw));
       const plainCode = parsed.childCount === 1 && parsed.firstChild?.type.name === 'code_block'
