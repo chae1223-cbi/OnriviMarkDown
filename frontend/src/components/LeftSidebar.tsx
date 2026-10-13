@@ -1,6 +1,8 @@
 // ====================================================================
 // 📊 [OMD-UI-LeftSidebar-0001] LeftSidebar.tsx ➔ 에디터 좌측 탐색기 사이드바
-// 🎯 @KICK  : 파일 트리 탐색기, TOC, 북마크, 전역 검색 탭 제공. 폴더 CRUD/드래그앤드롭/컨텍스트메뉴 지원
+// 🚨 @PATCH : **2026-10-13** — [React Hooks exhaustive-deps 린트 경고 완전 해소 및 의존성 최적화]:
+//             1) openImportPicker 및 chooseImportDestination을 useCallback으로 메모이제이션하고 루트 액션 트리거 상단으로 스코프 재배치
+//             2) triggerImportRoot의 useCallback 및 TRIGGER_IMPORT 이벤트 리스너의 useEffect 의존성 배열에 openImportPicker를 안전하게 주입하여 Next.js ESLint 경고 완전 제거
 // 🚨 @PATCH : **2026-10-11** — [탐색기 스크롤 조작 최우선권 보장 및 리사이저 바 경계선 외곽 격리]:
 //             1) 사이드바 내부 12px 스크롤바를 덮고 마우스 이벤트를 가로채던 right-0 리사이저 바를 left-[calc(100%-1px)] 외곽으로 완전 격리하여 스크롤 조작 100% 보장
 //             2) 호버 시 번쩍이던 두꺼운 파란색 띠를 경계선 전용 2px 코발트 인디케이터로 슬림화하여 시각적 간섭 및 혼선 완전 해결
@@ -1419,6 +1421,47 @@ export default function LeftSidebar() {
     };
   }, [handleCancelCut, handleUndoMove]);
 
+  // 📝 루트 디렉토리 생성을 위한 Prompt 상태 제어 및 비동기 처리
+  const [promptConfig, setPromptConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    defaultValue: string;
+    type: 'createFile' | 'createFolder' | null;
+    error?: string;
+  }>({ isOpen: false, title: "", defaultValue: "", type: null, error: "" });
+
+  const importFileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
+  const importNameRef = useRef<string | null>(null);
+  const targetImportNodeRef = useRef<FileNode | null>(null);
+  const targetImportParentHandleRef = useRef<any>(null);
+
+  const chooseImportDestination = useCallback((file: File) => {
+    if (!isSupportedImportFile(file.name)) {
+      showToast('지원하지 않는 파일 형식입니다.', 'warning');
+      return;
+    }
+    setPendingImportFile(file);
+  }, [showToast]);
+
+  const openImportPicker = useCallback(async () => {
+    if (isRestrictedUser || isImporting) return;
+    const picker = (window as any).showOpenFilePicker;
+    if (typeof picker !== 'function') {
+      importFileInputRef.current?.click();
+      return;
+    }
+    try {
+      const [handle] = await picker.call(window, IMPORT_PICKER_OPTIONS);
+      const file = await handle.getFile();
+      chooseImportDestination(file);
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') {
+        showToast(error?.message || '파일 선택창을 열지 못했습니다.', 'error');
+      }
+    }
+  }, [isRestrictedUser, isImporting, chooseImportDestination, showToast]);
+
   // ⌨️ [루트 액션 트리거]
   const triggerCreateRootFile = useCallback(() => {
     setContextMenu(null);
@@ -1476,7 +1519,7 @@ export default function LeftSidebar() {
     targetImportNodeRef.current = null;
     targetImportParentHandleRef.current = null;
     void openImportPicker();
-  }, [isRestrictedUser, isImporting]);
+  }, [openImportPicker]);
 
   const triggerRevealRoot = useCallback(async () => {
     setContextMenu(null);
@@ -1882,39 +1925,6 @@ export default function LeftSidebar() {
     }
   }, [activeTocId, sidebarTab]);
 
-  // 📝 루트 디렉토리 생성을 위한 Prompt 상태 제어 및 비동기 처리
-  const [promptConfig, setPromptConfig] = useState<{
-    isOpen: boolean;
-    title: string;
-    defaultValue: string;
-    type: 'createFile' | 'createFolder' | null;
-    error?: string;
-  }>({ isOpen: false, title: "", defaultValue: "", type: null, error: "" });
-
-  const importFileInputRef = useRef<HTMLInputElement>(null);
-  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
-  const importNameRef = useRef<string | null>(null);
-  const chooseImportDestination = (file: File) => {
-    if (!isSupportedImportFile(file.name)) { showToast('지원하지 않는 파일 형식입니다.', 'warning'); return; }
-    setPendingImportFile(file);
-  };
-
-  const targetImportNodeRef = useRef<FileNode | null>(null);
-  const targetImportParentHandleRef = useRef<any>(null);
-  const openImportPicker = async () => {
-    if (isRestrictedUser || isImporting) return;
-    const picker = (window as any).showOpenFilePicker;
-    if (typeof picker !== 'function') { importFileInputRef.current?.click(); return; }
-    try {
-      const [handle] = await picker.call(window, IMPORT_PICKER_OPTIONS);
-      const file = await handle.getFile();
-      chooseImportDestination(file);
-    } catch (error: any) {
-      if (error?.name !== 'AbortError') showToast(error?.message || '파일 선택창을 열지 못했습니다.', 'error');
-    }
-  };
-
-
   useEffect(() => {
     const handleTriggerImport = (e?: any) => {
       if (isRestrictedUser) return;
@@ -1924,7 +1934,7 @@ export default function LeftSidebar() {
     };
     window.addEventListener('TRIGGER_IMPORT', handleTriggerImport);
     return () => window.removeEventListener('TRIGGER_IMPORT', handleTriggerImport);
-  }, [isRestrictedUser, isImporting]);
+  }, [isRestrictedUser, openImportPicker]);
 
 // ====================================================================
 // 📊 [OMD-FILE-LeftSidebar-0006] LeftSidebar ➔ onPromptConfirm

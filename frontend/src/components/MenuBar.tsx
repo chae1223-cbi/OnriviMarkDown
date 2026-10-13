@@ -2,6 +2,8 @@
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
 // 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
+// 🚨 @PATCH : **2026-10-13** — [편집 메뉴 '달력 및 날짜/시간 삽입' 연동]:
+//             상단 편집(Edit) 메뉴에 '달력 및 날짜/시간 삽입' 항목을 신설하여 언제든 인터랙티브 달력 모달을 호출할 수 있도록 연동
 // 🚨 @PATCH : **2026-10-11** — [파일 메뉴 최상단 '새 문서(Ctrl+N)' 항목 추가]:
 //             파일 메뉴 열기 시 맨 첫 번째 항목으로 '새 문서 (Ctrl+N)'를 배치하여 언제든 원클릭으로 새 집필 탭을 생성할 수 있도록 확장
 // 🚨 @PATCH : **2026-10-03** — [파일 메뉴 내 구글 드라이브 연결 및 해제 항목 추가]: 상단 파일(File) 메뉴에 '내 구글 드라이브 연결' 및 '구글 드라이브 해제' 항목을 추가하여 워크스페이스 상태와 관계없이 언제든 원클릭으로 클라우드 서재를 바인딩/전환할 수 있도록 접근성 극대화
@@ -313,6 +315,7 @@ export default function MenuBar() {
           { label: t('redo'), icon: <Icon name="Redo" size={15} />, shortcut: 'Ctrl+Y', disabled: isRestrictedUser || previewMode === 'preview', onClick: () => dispatch('REDO') },
           { divider: true },
           { label: "이모지 보관함", icon: <Icon name="Smile" size={15} />, shortcut: 'Ctrl+Shift+E', disabled: isRestrictedUser || previewMode === 'preview', onClick: () => dispatch('TOGGLE_EMOJI_PANEL') },
+          { label: "달력 및 날짜/시간 삽입", icon: <img src="/icons/Calendar.png" alt="달력" className="w-3.5 h-3.5 object-contain dark:invert" />, disabled: isRestrictedUser || previewMode === 'preview', onClick: () => dispatch('NOW') },
           { divider: true },
           { label: t('find'), icon: <Icon name="Search" size={15} />, shortcut: 'Ctrl+F', disabled: isRestrictedUser, onClick: () => dispatch('FIND') },
           { label: t('replace'), icon: <Icon name="Refresh" size={15} />, shortcut: 'Ctrl+H', disabled: isRestrictedUser || previewMode === 'preview', onClick: () => dispatch('REPLACE') },

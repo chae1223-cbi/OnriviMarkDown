@@ -18,14 +18,16 @@ interface MapModalProps {
 // ====================================================================
 // 📊 [OMD-CORE-MapModal-0006] MapModal ➔ MapModal
 // 🎯 @KICK  : Google Maps iframe 기반 지도 삽입 모달 - 주소 검색, 줌 제어, 크기/정렬 설정 및 프리미엄 HSL 테마 이식
-// 🛡️ @GUARD : isOpen/mounted false 시 null 반환
+// 🚨 @PATCH : **2026-10-13** — [지도 삽입 모달 초기 검색창 표시값 개선: 위경도 좌표 대신 실제 건축명('서울시청') 표기 및 title 속성 연동]:
+//             1) 초기 진입 시 또는 신규 지도 삽입 시 위도,경도 숫자 대신 실건축명 '서울시청'이 검색창에 기본 표기되도록 개선
+//             2) 삽입되는 iframe 코드에 title="${placeName}" 속성을 부여하여 웹 접근성 준수 및 재편집 시 건축명 보존
 // 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-07-15 - 왼쪽 사이드바 제거 요청 반영 및 본문 영역 확장
 // 🔗 @CALLS : handleSearch, handleInsert, setZoom, setMapAlign, showToast, createPortal
 // ====================================================================
 export default function MapModal({ isOpen, onClose, onInsert, isDarkMode, initialSource }: MapModalProps) {
   const { showToast } = useToast();
-  const [address, setAddress] = useState("서울특별시 중구 세종대로 110");
+  const [address, setAddress] = useState("서울시청");
   const [coords, setCoords] = useState("37.5665, 126.9780");
   const [placeName, setPlaceName] = useState("서울시청");
   const [zoom, setZoom] = useState(15);
@@ -49,13 +51,27 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode, initia
 
   useEffect(() => {
     if (!isOpen) return;
-    const details = initialSource ? mediaDetails(initialSource) : null;
-    const params = details ? new URL(details.path).searchParams : null;
-    const q = params?.get('q') || '37.5665,126.9780';
-    setCoords(q); setAddress(details?.title || q); setPlaceName(details?.title || '지도');
-    setZoom(Math.max(1,Math.min(20,Number(params?.get('z')) || 15)));
-    setMapWidth(details?.width || '600'); setMapHeight(details?.height || '350');
-    setMapAlign((['left','center','right'].includes(details?.align || '') ? details!.align : 'center') as MediaAlign);
+    if (initialSource) {
+      const details = mediaDetails(initialSource);
+      const params = details ? new URL(details.path).searchParams : null;
+      const q = params?.get('q') || '37.5665,126.9780';
+      setCoords(q);
+      const displayName = details?.title || (q.includes(',') ? '서울시청' : q);
+      setAddress(displayName);
+      setPlaceName(details?.title || '서울시청');
+      setZoom(Math.max(1, Math.min(20, Number(params?.get('z')) || 15)));
+      setMapWidth(details?.width || '600');
+      setMapHeight(details?.height || '350');
+      setMapAlign((['left', 'center', 'right'].includes(details?.align || '') ? details!.align : 'center') as MediaAlign);
+    } else {
+      setCoords("37.5665, 126.9780");
+      setAddress("서울시청");
+      setPlaceName("서울시청");
+      setZoom(15);
+      setMapWidth("600");
+      setMapHeight("350");
+      setMapAlign('center');
+    }
   }, [isOpen, initialSource]);
 
   // 지도 검색 함수 - Nominatim(OpenStreetMap) 기반 주소/장소명 검색
@@ -104,7 +120,8 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode, initia
   }, [cleanCoords, zoom, isDarkMode]);
 
   const [latVal, lngVal] = cleanCoords.split(',').map(s => s.trim());
-  const mapCode = `<iframe src="https://maps.google.com/maps?q=${latVal},${lngVal}&z=${zoom}&output=embed" style="width:${normalizeMediaDimension(mapWidth, '600px')}; height:${normalizeMediaDimension(mapHeight, '350px')}; border:0;" allowfullscreen loading="lazy" data-align="${mapAlign}"></iframe>`;
+  const safeTitle = (placeName || address || '서울시청').replace(/"/g, '&quot;');
+  const mapCode = `<iframe src="https://maps.google.com/maps?q=${latVal},${lngVal}&z=${zoom}&output=embed" title="${safeTitle}" style="width:${normalizeMediaDimension(mapWidth, '600px')}; height:${normalizeMediaDimension(mapHeight, '350px')}; border:0;" allowfullscreen loading="lazy" data-align="${mapAlign}"></iframe>`;
 
   const handleInsert = () => {
     onInsert(`\n${mapCode}\n`);
@@ -175,7 +192,7 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode, initia
                     type="text"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    placeholder="서울특별시 중구 세종대로 110"
+                    placeholder="예: 서울시청 또는 세종대로 110"
                     className={`w-full border-transparent focus:border-indigo-500/20 focus:ring-0 rounded-lg pl-11 pr-4 py-2.5 text-xs font-bold transition-all shadow-sm ${
                       isDarkMode ? 'bg-zinc-900 focus:bg-zinc-900' : 'bg-slate-50 focus:bg-slate-50/30'
                     }`}

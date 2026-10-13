@@ -2,6 +2,8 @@ import { remarkCodeBlockMetadata } from '../lib/codeBlockMetadata';
 import PicturebookPreview from './PicturebookPreview';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { exportContentFingerprint } from '@/lib/exportPreparation';
+import katex from 'katex';
+// 🚨 @PATCH : **2026-10-13** — [수식(math/latex) 코드블록 KaTeX 실시간 렌더링 지원]: ```math 및 ```latex 코드블록을 일반 텍스트 박스가 아닌 아름다운 KaTeX 수식으로 중앙 정렬 실시간 렌더링하도록 MathBlock 컴포넌트 탑재 및 원문 보기/복사 제어 연동
 // 🚨 @PATCH : **2026-10-13** — [Mermaid 다이어그램 상단 제어 버튼 마우스 호버 시 활성화]: 다이어그램(Mermaid) 블록의 상단 액션 버튼들(코드 복사, 새 창으로 확대, 이미지 복사, 저장)이 평소에는 숨겨져 있다가 마우스가 다이어그램 영역에 위치하거나 포커스될 때만 활성화되도록 변경
 // 🚨 @PATCH : **2026-10-10** — [한글 CJK 볼드(**) 닫힘 태그 바로 뒤 조사 렌더링 방어]: CommonMark 파서가 **온리비**는 과 같이 닫는 태그 바로 뒤에 한글 조사가 붙었을 때 강조를 풀지 못하고 리터럴 문자로 깨져 노출되는 결함을 방어하기 위해 cleanContent 전처리 단계에서 닫힘 태그 뒤 공백 자동 보정 연동
 // 🚨 @PATCH : **2026-10-07** — [환경설정 리소스 폴더(참조파일 등) 미디어 렌더링 폴더 ID 직결]: AsyncImage 및 AsyncVideo 렌더링 시 getResourceSettings('cloud')?.mediaFolderId를 최우선으로 사용하여 구글 드라이브 리소스 폴더 미디어 100% 정상 표시
@@ -1268,7 +1270,8 @@ const loadMermaidScript = (): Promise<any> => {
       }
       (window as any).define = undefined;
       const script = document.createElement('script');
-      script.src = './mermaid.min.js';
+      // Bundled ELK diagnostic fix: avoid stale cached copies that stringify React DOM.
+      script.src = './mermaid.min.js?v=elk-log-fix-1';
       const done = () => {
         if ((window as any).define === undefined) {
           (window as any).define = savedDefine;
@@ -1285,7 +1288,7 @@ const loadMermaidScript = (): Promise<any> => {
 
     // 1) 레이스 컨디션 완벽 차단: <script> 비동기 태그 대신 fetch + eval 동기 실행으로만 로드합니다.
     //    이를 통해 define이 undefined로 유지되는 시간차(비동기 갭)를 소거하여 Monaco 에디터 로더와의 충돌을 원천 차단합니다.
-    fetch('./mermaid.min.js')
+    fetch('./mermaid.min.js?v=elk-log-fix-1')
       .then(r => r.text())
       .then(code => {
         const savedDefine = (window as any).define;
@@ -1565,7 +1568,7 @@ const MermaidBlock = React.memo(function MermaidBlock({ code, dataLine }: { code
   }, []);
 
   useEffect(() => {
-    const cacheKey = `${code}|${isDark ? 'dark' : 'light'}`;
+    const cacheKey = `clean-v3|${code}|${isDark ? 'dark' : 'light'}`;
     const cachedSvg = mermaidSvgCache.get(cacheKey);
     if (cachedSvg) {
       setSvgHtml(cachedSvg);
@@ -1717,7 +1720,10 @@ const MermaidBlock = React.memo(function MermaidBlock({ code, dataLine }: { code
 
           mermaidObj.initialize({
             startOnLoad: false,
-            theme: isDark ? 'dark' : 'default',
+            theme: isDark ? 'dark' : 'base',
+            themeVariables:isDark?undefined:{primaryColor:'#eaf2ff',primaryTextColor:'#3155a5',primaryBorderColor:'#d4dce8',lineColor:'#8b929b',secondaryColor:'#f3f6fc',tertiaryColor:'#ffffff',fontFamily:'Pretendard, Noto Sans KR, Arial, sans-serif',fontSize:'16px'},
+            flowchart:{defaultRenderer:'elk',curve:'basis',nodeSpacing:48,rankSpacing:72,padding:20,htmlLabels:true},
+            themeCSS:'.node rect { rx:16px; ry:16px; } .nodeLabel { font-weight:600; }',
             securityLevel: 'loose',
             suppressErrors: true, // 에러 팝업 억제
           });
@@ -1732,7 +1738,7 @@ const MermaidBlock = React.memo(function MermaidBlock({ code, dataLine }: { code
         } catch (err: any) {
           console.warn('[Onrivi Author] Mermaid 렌더링 실패 가드 가동', err);
           if (active) {
-            setError('🎨 Onrivi Author: 다이어그램 렌더링 중 문법 충돌로 오류가 발생했습니다.');
+            setError('🎨 Onrivi Author: 다이어그램을 렌더링하지 못했습니다. 코드와 렌더링 오류를 확인해 주세요.');
             setLoading(false);
           }
           const badEl = document.getElementById(renderId);
@@ -1834,6 +1840,55 @@ const MermaidBlock = React.memo(function MermaidBlock({ code, dataLine }: { code
           />
         )}
       </div>
+    </div>
+  );
+});
+
+// ====================================================================
+// 📊 [OMD-CORE-MarkdownViewer-0003.5] MarkdownViewer ➔ MathBlock
+// 🎯 @KICK  : LaTeX/KaTeX 수식 코드블록(```math, ```latex)을 코드블록 UI 없이 순수 수식으로 중앙 정렬 실시간 렌더링
+// 🛡️ @GUARD : katex.render throwOnError: false 안전 파싱
+// 🚨 @PATCH : **2026-10-13** — 코드블록 외곽선/헤더/버튼을 배제하고 순수 수식만 본문에 자연스럽게 렌더링하도록 개선
+// ====================================================================
+const MathBlock = React.memo(function MathBlock({ code, dataLine }: { code: string; dataLine?: number | string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    try {
+      containerRef.current.innerHTML = '';
+      const cleanLatex = (code.trim() || '').replace(/\\\\/g, '\\');
+      if (!cleanLatex) {
+        setError(null);
+        return;
+      }
+      katex.render(cleanLatex, containerRef.current, {
+        throwOnError: false,
+        displayMode: true,
+        output: 'html',
+        strict: false
+      });
+      setError(null);
+    } catch (e: any) {
+      setError(e?.message || '수식 렌더링 오류');
+    }
+  }, [code]);
+
+  if (error) {
+    return (
+      <div data-line={dataLine} className="my-2 py-1 text-center text-xs text-rose-500 font-mono not-prose">
+        ⚠️ 수식 오류: {error}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      data-line={dataLine}
+      className="my-3 py-1 flex justify-center items-center overflow-x-auto text-zinc-900 dark:text-zinc-100 select-all not-prose"
+    >
+      <div ref={containerRef} className="w-full flex justify-center py-1" />
     </div>
   );
 });
@@ -3428,6 +3483,9 @@ function MarkdownViewer({
               }
               if (lang === 'mermaid') {
                 return <MermaidBlock code={codeContent} dataLine={extractDataLine(props, node)} />;
+              }
+              if (lang === 'math' || lang === 'latex') {
+                return <MathBlock code={codeContent} dataLine={extractDataLine(props, node)} />;
               }
               return <CodeBlock lang={lang} title={title} rawInfo={rawInfo} code={codeContent} className={className} node={node} lineMap={dynamicPropsRef.current.lineMap} {...props}>{children}</CodeBlock>;
             },

@@ -2,7 +2,19 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-001
- * -----------------------------------------------------------------------
+// 🚨 @PATCH : **2026-10-14** — [수식(visual_math) 네이티브 렌더링 및 모달 양방향 편집 지원]:
+//             1) VisualDocumentEditor의 onFormulaDialog에서 initialLatex를 수신하여 formulaModalInitialLatex 상태로 FormulaModal에 연동
+//             2) 수식 더블클릭 시 기존 LaTeX를 FormulaModal에서 즉시 수정하여 본문에 실시간 반영
+// 🚨 @PATCH : **2026-10-13** — [수식(MATH/LATEX) 문서보기 연동 및 본문 실시간 렌더링 지원]:
+//             1) VisualDocumentEditor에 onFormulaDialog 연동하여 수식 삽입 시 마크다운 보기로 튕기지 않고 문서보기 커서 위치에 즉시 수식 코드블록 삽입 및 실시간 렌더링 반영
+//             2) dispatchCommand에서 MATH/LATEX 실행 시 문서보기가 활성화되어 있으면 visualCommandRef.current?.('MATH')를 최우선 실행
+//             3) FormulaModal에서 삽입 완료 시 visualFormulaInsertRef를 통해 문서보기 커서 위치로 라우팅
+// 🚨 @PATCH : **2026-10-13** — [전용 인터랙티브 달력 모달(CalendarModal) 연동 및 에디터/문서보기 커서 위치 날짜 삽입 지원]:
+//             1) 플로팅 서식 툴바 및 상단 서식 툴바의 달력(Calendar.png) 클릭 시 인터랙티브 달력 모달(CalendarModal) 오픈 연동
+//             2) 월별 달력 날짜 선택, 6대 표준 서식, 시간(시:분:초) 포함 옵션을 지원하고 에디터(Monaco) 및 문서보기(VisualDocumentEditor) 커서 위치에 즉시 삽입
+// 🚨 @PATCH : **2026-10-13** — [문서보기(VisualDocumentEditor) 문서링크(DocLinkPicker) 커서 위치 호출 및 클릭 이동 연동]:
+//             1) visualDocLinkPositionRef 및 visualDocLinkInsertRef를 도입하여 문서보기 내 커서 좌표에 DocLinkPicker를 정확히 배치하고 문서 선택 시 위지윅 커서 위치에 [문서명](<상대경로>) 삽입 연동
+//             2) VisualDocumentEditor에 currentFilePath, onFileOpen(handleFileOpenByPath), onDocLinkDialog를 전달하여 문서링크 클릭 시 해당 탭/문서로 즉시 전환 이동 완비
 // 🚨 @PATCH : **2026-10-13** — [에디터 시작 시 좌측 탐색기 상시 펼침, 상단 보기 전환 버튼 제거 및 나란히 보기 마크다운 영역 읽기 전용·라인번호 숨김·배경 경계 분리]:
 //             1) 에디터 시작 시 좌측 탐색기(isSidebarOpen: true, sidebarTab: 'explorer')가 항상 펼쳐진 상태로 시작하도록 고정
 //             2) 문서 영역 상단의 '미리보기·나란히 보기' 버튼 바를 제거하고 하단 상태바의 보기 전환 버튼으로 일원화
@@ -336,6 +348,8 @@ import AboutModal from '@/components/AboutModal'; // 모달
 import LicenseModal from '@/components/LicenseModal'; // 라이선스 모달
 import AIDraftModal from '@/components/AIDraftModal'; // 초안 생성 모달
 import EmojiPanel from '@/components/EmojiPanel'; // 이모지 보관함 패널
+import CalendarModal from '@/components/CalendarModal'; // 달력 모달
+import DateTimeInsertPicker from '@/components/DateTimeInsertPicker';
 import { supabase } from '@/lib/supabaseClient';
 import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
 import UnifiedTabBar, { EditorTab } from '@/components/UnifiedTabBar';
@@ -1718,6 +1732,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const [docHeadings, setDocHeadings] = useState<string[]>([]);
   const [isHeadingLoading, setIsHeadingLoading] = useState(false);
   const [docHeadingSearchText, setDocHeadingSearchText] = useState('');
+  const visualDocLinkInsertRef = useRef<((targetUrl: string, displayTitle: string) => boolean) | null>(null);
+  const visualDocLinkPositionRef = useRef<{ top: number; left: number } | null>(null);
+  const visualFormulaInsertRef = useRef<((formula: string) => boolean | void) | null>(null);
+  const [formulaModalInitialLatex, setFormulaModalInitialLatex] = useState<string>('');
 
   // ====================================================================
   // 📊 [OMD-FILE-MainEditorApp-0014] MainEditorApp.tsx ➔ loadFilesForDocLinkPicker
@@ -1756,6 +1774,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       setDocHeadings([]);
       setIsHeadingLoading(false);
       setDocHeadingSearchText('');
+      visualDocLinkInsertRef.current = null;
+      visualDocLinkPositionRef.current = null;
     }
   }, [showDocLinkPicker, workspaceType, fileList, rootFolder, resourceFolder, resourceFolderHandle, currentFileNode]);
 
@@ -2956,6 +2976,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const [floatingHeadingLevel, setFloatingHeadingLevel] = useState(3);
   const [floatingQuoteDropdown, setFloatingQuoteDropdown] = useState<{ open: boolean; x: number; y: number; dropUp: boolean }>({ open: false, x: 0, y: 0, dropUp: false });
   const [dateTimeFormatDropdown, setDateTimeFormatDropdown] = useState<{ open: boolean; x: number; y: number; dropUp: boolean }>({ open: false, x: 0, y: 0, dropUp: false });
+  const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
+  const [isMonacoDatePickerOpen, setIsMonacoDatePickerOpen] = useState(false);
+  const [monacoDatePickerPos, setMonacoDatePickerPos] = useState({ top: 0, left: 0 });
   const [customDateTimeFormat, setCustomDateTimeFormat] = useState('YYYY-MM-DD HH:mm:ss');
 
   // ====================================================================
@@ -4902,9 +4925,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🚨 @PATCH : None
   // 🔗 @CALLS : utilsEditorActions.insertAtCursor
   // ====================================================================
-  const insertAtCursor = (text: string) => {
+  const insertAtCursor = useCallback((text: string) => {
+    if (visualFormulaInsertRef.current) {
+      visualFormulaInsertRef.current(text);
+      visualFormulaInsertRef.current = null;
+      return true;
+    }
     return utilsEditorActions.insertAtCursor(editorRef, lastSelectionRef, text);
-  };
+  }, []);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0048.1] MainEditorApp.tsx ➔ insertEmojiAtCursor
@@ -5008,7 +5036,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       window.removeEventListener('app:insert-at-cursor', handleInsert as any);
       window.removeEventListener('app:insert-folder-link', handleInsertFolderLink as any);
     };
-  }, [showToast]);
+  }, [showToast, insertAtCursor]);
 
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0049] MainEditorApp.tsx ➔ findLineNumberByHeading
@@ -5345,17 +5373,19 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     setDocHeadings([]);
     setDocHeadingSearchText('');
 
-    if (!editorRef.current || !targetNode || !targetNode.path) return;
-    const editor = editorRef.current;
-    editor.focus();
+    if (!targetNode || !targetNode.path) return;
 
-    let selection = editor.getSelection();
-    if ((!selection || selection.isEmpty()) && lastSelectionRef.current && !lastSelectionRef.current.isEmpty()) {
-      selection = lastSelectionRef.current;
+    let selectedText = '';
+    if (editorRef.current) {
+      const editor = editorRef.current;
+      let selection = editor.getSelection();
+      if ((!selection || selection.isEmpty()) && lastSelectionRef.current && !lastSelectionRef.current.isEmpty()) {
+        selection = lastSelectionRef.current;
+      }
+      if (selection) {
+        selectedText = editor.getModel()?.getValueInRange(selection) || '';
+      }
     }
-    if (!selection) return;
-    const model = editor.getModel();
-    const selectedText = model.getValueInRange(selection);
 
     const targetPath = targetNode.path;
     let baseFromPath = currentFileNode?.path;
@@ -5398,6 +5428,24 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const targetUrl = `${relativePath}${headingSuffix}`;
     // 일반 링크 [네이버](url) 처럼 [문서명](<./상대경로.md#헤딩>) 형식으로 안전하게 삽입
     const textToInsert = `[${displayTitle}](<${targetUrl}>)`;
+
+    // 💡 [VisualDocumentEditor 위지윅 모드 문서 링크 삽입 지원]
+    if (visualDocLinkInsertRef.current) {
+      const inserted = visualDocLinkInsertRef.current(targetUrl, displayTitle);
+      visualDocLinkInsertRef.current = null;
+      visualDocLinkPositionRef.current = null;
+      if (inserted) return;
+    }
+
+    if (!editorRef.current) return;
+    const editor = editorRef.current;
+    editor.focus();
+
+    let selection = editor.getSelection();
+    if ((!selection || selection.isEmpty()) && lastSelectionRef.current && !lastSelectionRef.current.isEmpty()) {
+      selection = lastSelectionRef.current;
+    }
+    if (!selection) return;
 
     const range = {
       startLineNumber: selection.startLineNumber,
@@ -7223,7 +7271,41 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   padding-top: 0 !important;
   padding-bottom: 0 !important;
 }
-`;
+.custom-preview-container .visual-document-surface blockquote p,
+.custom-preview-container .onrivi-alert-content p {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+/* Keep native code cards apart and scroll long lines inside each card. */
+.custom-preview-container .visual-document-surface .visual-code-block {
+  margin-top: 24px !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+.custom-preview-container .visual-document-surface .visual-code-block pre {
+  display: block !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow-x: auto !important;
+  white-space: pre !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+.custom-preview-container .visual-document-surface .visual-code-block pre code {
+  display: block !important;
+  width: max-content !important;
+  min-width: 100% !important;
+  white-space: pre !important;
+  overflow: visible !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+/* Separate top-level lists retain the same gap as a following paragraph. */
+.custom-preview-container .visual-document-surface > :is(ul,ol) + :is(ul,ol) {
+  margin-top: 1.5em !important;
+}
+`; 
 
     // 제목 컨트롤 값은 사용자 CSS의 h1 자동 중앙 배치보다 우선한다.
     for (let level = 1; level <= 6; level++) {
@@ -7575,6 +7657,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     showToast('새 문서를 만들었습니다.', 'success');
   };
 
+  const handleInsertFormattedDate = useCallback((formattedDate: string) => {
+    if (previewRef.current?.querySelector('.visual-document-editor') && visualCommandRef.current) {
+      visualCommandRef.current('INSERT_TEXT:' + formattedDate);
+    } else {
+      insertAtCursor(formattedDate);
+    }
+  }, [insertAtCursor]);
+
   const dispatchCommand = useCallback((type: EditorCommandType, payload?: any) => {
     const restrictedCommands = [
       'OPEN_FILE', 'OPEN_WORKSPACE', 'EXIT', 'GLOBAL_SEARCH', 'COPY_ALL',
@@ -7582,10 +7672,34 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       'SETTINGS', 'SETTINGS_SHORTCUTS', 'SETTINGS_ACCOUNT', 'HELP', 'LICENSE'
     ];
     if (isRestrictedUser && !restrictedCommands.includes(type)) return;
+    if (type === 'NOW' || type === 'CALENDAR') {
+      if (typeof payload === 'string' && payload) {
+        handleInsertFormattedDate(payload);
+        return;
+      }
+      // 1) 문서보기(Visual Document Editor) 모드인 경우, 문서보기 커서 위치에 바로 팝업 오픈!
+      if (previewRef.current?.querySelector('.visual-document-editor') && visualCommandRef.current?.(type)) {
+        return;
+      }
+      // 2) Monaco 에디터 모드인 경우, Monaco 커서 위치에 팝업 오픈!
+      const editor = editorRef.current;
+      const position = editor?.getPosition();
+      const visiblePosition = position && editor?.getScrolledVisiblePosition(position);
+      const editorRect = editor?.getDomNode()?.getBoundingClientRect();
+      const left = editorRect && visiblePosition
+        ? Math.min(editorRect.left + visiblePosition.left, Math.max(16, window.innerWidth - 380))
+        : Math.max(16, (window.innerWidth - 350) / 2);
+      const top = editorRect && visiblePosition
+        ? editorRect.top + visiblePosition.top + visiblePosition.height
+        : Math.max(16, window.innerHeight / 2 - 200);
+      setMonacoDatePickerPos({ top, left });
+      setIsMonacoDatePickerOpen(true);
+      return;
+    }
     if (!executingVisualSourceActionRef.current && previewRef.current?.querySelector('.visual-document-editor') && visualCommandRef.current?.(type)) return;
     if (!executingVisualSourceActionRef.current && previewRef.current?.querySelector('.visual-document-editor') && [
       'UNDERLINE', 'STRIKETHROUGH', 'IMAGE', 'VIDEO', 'MAP', 'TABLE', 'QUICK_TABLE',
-      'INSERT_TABLE_ROW', 'DELETE_TABLE_ROW', 'MATH', 'LATEX', 'CHART', 'CODE', 'CHECK',
+      'INSERT_TABLE_ROW', 'DELETE_TABLE_ROW', 'CHART', 'CODE', 'CHECK',
       'REMOVE_PREFIX', 'CLEAN_DOC', 'DOC_LINK', 'SIGNATURE', 'MERGE', 'ORGANIZE_FOOTNOTES',
     ].includes(type)) {
       showToast('이 기능은 현재 마크다운 보기에서 사용할 수 있습니다.', 'info');
@@ -7889,24 +8003,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         handlers.video();
         break;
       }
-      case 'NOW': {
-        // 툴바와 /now 명령은 먼저 같은 형식 선택기를 엽니다. 팝업에서
-        // 형식을 고른 뒤 전달되는 문자열 payload가 있을 때만 삽입합니다.
-        if (typeof payload !== 'string') {
-          const position = editor.getPosition();
-          const visiblePosition = position && editor.getScrolledVisiblePosition(position);
-          const editorRect = editor.getDomNode()?.getBoundingClientRect();
-          const x = editorRect && visiblePosition
-            ? Math.min(editorRect.left + visiblePosition.left, Math.max(8, window.innerWidth - 320))
-            : Math.max(8, (window.innerWidth - 312) / 2);
-          const y = editorRect && visiblePosition
-            ? editorRect.top + visiblePosition.top + visiblePosition.height
-            : Math.max(8, window.innerHeight / 2);
-          const dropUp = window.innerHeight - y < 330;
-          setDateTimeFormatDropdown({ open: true, x, y, dropUp });
-          return;
+      case 'NOW':
+      case 'CALENDAR': {
+        if (typeof payload === 'string' && payload) {
+          handleInsertFormattedDate(payload);
+        } else {
+          setIsCalendarModalOpen(true);
         }
-        handlers.now(payload);
         break;
       }
       case 'MAP': handlers.map(); break;
@@ -7918,7 +8021,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'CODE_BLOCK': handlers.code(); break;
       case 'CHART': handlers.chart(); break;
       case 'LATEX':
-      case 'MATH': handlers.math(); break;
+      case 'MATH': {
+        if (previewRef.current?.querySelector('.visual-document-editor') && visualCommandRef.current?.('MATH')) {
+          return;
+        }
+        handlers.math();
+        break;
+      }
       case 'SIGNATURE': handlers.signature(); break;
 
       // ★ 퀵 래핑 (Quick Transform)
@@ -8735,7 +8844,21 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // Get docLinkPicker absolute screen coordinates based on cursor position
   let docLinkPickerStyle: React.CSSProperties = { top: 0, left: 0 };
-  if (showDocLinkPicker && editorRef.current) {
+  if (showDocLinkPicker && visualDocLinkPositionRef.current) {
+    let { top, left } = visualDocLinkPositionRef.current;
+    const pickerWidth = 420;
+    const pickerHeight = 420;
+    if (typeof window !== 'undefined') {
+      if (left + pickerWidth > window.innerWidth) {
+        left = Math.max(16, window.innerWidth - pickerWidth - 16);
+      }
+      if (left < 16) left = 16;
+      if (top + pickerHeight > window.innerHeight) {
+        top = Math.max(16, window.innerHeight - pickerHeight - 16);
+      }
+    }
+    docLinkPickerStyle = { top, left };
+  } else if (showDocLinkPicker && editorRef.current) {
     const editor = editorRef.current;
     const position = editor.getPosition();
     if (position) {
@@ -9837,12 +9960,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                       id="datetime-format-trigger"
                                       onMouseDown={(e) => {
                                         e.preventDefault();
+                                        setFloatingToolbar(prev => ({ ...prev, visible: false }));
                                         dispatchCommand('NOW');
                                       }}
                                       className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center"
-                                      title="날짜/시간 형식 선택 후 삽입"
+                                      title="달력 및 날짜/시간 삽입"
                                     >
-                                      <img src="/icons/Calendar.png" alt="현재 날짜/시간" className="w-5 h-5 object-contain dark:invert" />
+                                      <img src="/icons/Calendar.png" alt="달력 및 날짜/시간 삽입" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                     <button
                                       onMouseDown={(e) => {
@@ -10364,8 +10488,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           return (
                             <div
                               className={isPreviewOnly
-                                ? "preview-page-sheet group relative mx-auto my-4 border border-purple-500/5 shadow-[0_16px_48px_rgba(15,0,109,0.04)] bg-white dark:bg-zinc-900 rounded-2xl transition-all duration-300 transform-gpu origin-top overflow-hidden pb-12 max-w-full"
-                                : `preview-page-sheet group relative mx-auto my-3 ${isLandscape ? 'max-w-6xl' : 'max-w-3xl'} w-full max-w-full bg-white dark:bg-zinc-900 border border-purple-500/5 shadow-[0_12px_42px_rgba(15,0,109,0.03)] rounded-2xl transition-all duration-300 origin-top overflow-hidden pb-12`
+                                ? "preview-page-sheet group relative mx-auto my-4 border border-purple-500/5 shadow-[0_16px_48px_rgba(15,0,109,0.04)] bg-white dark:bg-zinc-900 rounded-2xl origin-top overflow-hidden pb-12 max-w-full"
+                                : `preview-page-sheet group relative mx-auto my-3 ${isLandscape ? 'max-w-6xl' : 'max-w-3xl'} w-full max-w-full bg-white dark:bg-zinc-900 border border-purple-500/5 shadow-[0_12px_42px_rgba(15,0,109,0.03)] rounded-2xl origin-top overflow-hidden pb-12`
                               }
                               style={pageStyle}
                             >
@@ -10448,7 +10572,19 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                   </button>
                                 </div>
                                 {directEditEnabled && !isRestrictedUser && activeTabId && currentFileName !== '도움말.md' && !activeProfile.layout ? (
-                                  <VisualDocumentEditor key={activeTabId} documentId={activeTabId} tabSize={editorTabSize} onSourceScroll={offset=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel() || isScrollingRef.current==='editor')return;isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);const position=editor.getModel().getPositionAt(offset);editor.setScrollTop(editor.getTopForLineNumber(position.lineNumber));}} onSourceCursor={offset=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel())return;const position=editor.getModel().getPositionAt(offset);isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);editor.setPosition(position);editor.revealPositionInCenterIfOutsideViewport(position);}} commandRef={visualCommandRef} customCommands={customSlashCommands} customHotkeys={customHotkeys}
+                                  <VisualDocumentEditor key={activeTabId} documentId={activeTabId} tabSize={editorTabSize} onSourceScroll={offset=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel() || isScrollingRef.current==='editor')return;isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);const position=editor.getModel().getPositionAt(offset);editor.setScrollTop(editor.getTopForLineNumber(position.lineNumber));}} onSourceCursor={(offset,reveal=true)=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel())return;const position=editor.getModel().getPositionAt(offset);isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);const top=editor.getScrollTop(),left=editor.getScrollLeft();editor.setPosition(position);if(reveal)editor.revealPositionInCenterIfOutsideViewport(position);else editor.setScrollPosition({scrollTop:top,scrollLeft:left});}} commandRef={visualCommandRef} customCommands={customSlashCommands} customHotkeys={customHotkeys}
+                                    onDocLinkDialog={(pos, insert) => {
+                                      visualDocLinkPositionRef.current = pos;
+                                      visualDocLinkInsertRef.current = insert;
+                                      setShowDocLinkPicker(true);
+                                    }}
+                                    onFormulaDialog={(apply, initialLatex) => {
+                                      visualFormulaInsertRef.current = apply;
+                                      setFormulaModalInitialLatex(initialLatex || '');
+                                      setIsFormulaModalOpen(true);
+                                    }}
+                                    currentFilePath={currentFileNode?.path}
+                                    onFileOpen={handleFileOpenByPath}
                                     onImageFile={async file => {
                                       let savedPath: string | null = null;
                                       await handlePasteImageFile(file, path => { savedPath = path; });
@@ -10642,6 +10778,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               licenseStatus, deviceId, handleSuccessActivation, handlers, content, currentFileNodeRef,
               setCurrentFileName, setCurrentFileNode, lastSavedContentRef, setSaveStatus, refreshFileList,
               showToast, editorRef, insertAtCursor, lastSelectionRef, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,
+              formulaModalInitialLatex,
               handleFileClick, profiles, activeProfileId, dynamicCssString, setActiveProfileId: handleProfileChange, setProfiles,
               isSystemProfileId,
               getApiUrl,
@@ -10695,6 +10832,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             rootFolder={rootFolder}
             workspaceType={workspaceType}
             onConfirm={handleCreateNewDocument}
+            isDarkMode={isDarkMode}
+          />
+
+          {/* 📅 [달력 모달] 인터랙티브 월별 달력 및 다양한 날짜/시간 포맷 삽입 */}
+          <CalendarModal
+            isOpen={isCalendarModalOpen}
+            onClose={() => setIsCalendarModalOpen(false)}
+            onInsert={handleInsertFormattedDate}
             isDarkMode={isDarkMode}
           />
 
@@ -10818,82 +10963,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               ))}
             </div>
           )}
-          {/* ── 날짜/시간 형식 선택 팝업 ── */}
-          {dateTimeFormatDropdown.open && (
-            <div
-              id="datetime-format-dropdown-fixed"
-              onMouseDown={(e) => e.stopPropagation()}
-              style={{
-                position: 'fixed',
-                zIndex: 2147483647,
-                left: dateTimeFormatDropdown.x,
-                ...(dateTimeFormatDropdown.dropUp
-                  ? { bottom: window.innerHeight - dateTimeFormatDropdown.y + 4 }
-                  : { top: dateTimeFormatDropdown.y + 4 }),
-                width: '312px',
-              }}
-              className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl p-2.5 text-zinc-800 dark:text-zinc-100"
-            >
-              <div className="px-1 pb-2 text-xs font-bold">날짜/시간 삽입</div>
-              <div className="grid grid-cols-2 gap-1">
-                {[
-                  ['YYYY-MM-DD', '2026-09-29'],
-                  ['YYYY. MM. DD.', '2026. 09. 29.'],
-                  ['YYYY년 M월 D일', '2026년 9월 29일'],
-                  ['HH:mm', '14:30'],
-                  ['HH:mm:ss', '14:30:45'],
-                  ['YYYY-MM-DD HH:mm', '2026-09-29 14:30'],
-                  ['YYYY-MM-DD HH:mm:ss', '2026-09-29 14:30:45'],
-                  ['YYYY년 M월 D일 HH:mm', '2026년 9월 29일 14:30'],
-                ].map(([format, example]) => (
-                  <button
-                    key={format}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      dispatchCommand('NOW', format);
-                      setDateTimeFormatDropdown(prev => ({ ...prev, open: false }));
-                      setFloatingToolbar(prev => ({ ...prev, visible: false }));
-                    }}
-                    className="rounded-lg border border-zinc-200 dark:border-zinc-700 px-2 py-1.5 text-left hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
-                    title={`${format} 형식으로 삽입`}
-                  >
-                    <span className="block text-[11px] font-semibold">{format}</span>
-                    <span className="block mt-0.5 text-[10px] text-zinc-500 dark:text-zinc-400">{example}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="mt-2 border-t border-zinc-200 dark:border-zinc-700 pt-2">
-                <label className="block px-1 text-[10px] font-semibold text-zinc-500 dark:text-zinc-400">직접 형식</label>
-                <div className="mt-1 flex gap-1.5">
-                  <input
-                    value={customDateTimeFormat}
-                    onChange={(e) => setCustomDateTimeFormat(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && customDateTimeFormat.trim()) {
-                        e.preventDefault();
-                        dispatchCommand('NOW', customDateTimeFormat.trim());
-                        setDateTimeFormatDropdown(prev => ({ ...prev, open: false }));
-                        setFloatingToolbar(prev => ({ ...prev, visible: false }));
-                      }
-                    }}
-                    placeholder="YYYY-MM-DD HH:mm:ss"
-                    className="min-w-0 flex-1 rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-2 py-1.5 font-mono text-[11px] outline-none focus:border-blue-500"
-                  />
-                  <button
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      if (!customDateTimeFormat.trim()) return;
-                      dispatchCommand('NOW', customDateTimeFormat.trim());
-                      setDateTimeFormatDropdown(prev => ({ ...prev, open: false }));
-                      setFloatingToolbar(prev => ({ ...prev, visible: false }));
-                    }}
-                    className="rounded-md bg-blue-600 px-2.5 text-[11px] font-bold text-white hover:bg-blue-700"
-                  >삽입</button>
-                </div>
-                <p className="mt-1 px-1 text-[10px] text-zinc-500 dark:text-zinc-400">토큰: YYYY, MM, DD, HH, mm, ss</p>
-              </div>
-            </div>
-          )}
+          {/* ── 날짜/시간 커서 위치 스마트 입력 팝업 ── */}
+          <DateTimeInsertPicker
+            isOpen={isMonacoDatePickerOpen}
+            position={monacoDatePickerPos}
+            onClose={() => setIsMonacoDatePickerOpen(false)}
+            onInsert={handleInsertFormattedDate}
+            isDarkMode={isDarkMode}
+          />
         </div>
       </EditorProvider>
     </>

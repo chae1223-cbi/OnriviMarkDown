@@ -7,15 +7,26 @@ import { wrapMathWithBold } from "@/lib/editorUtils";
 import { msg } from '@/lib/systemMessages';
 import katex from 'katex';
 
+/**
+ * 프로그램명 : OnriviAuthor 
+ * 버전 정보 : 1.0.1
+ * 프로그램 ID : oaar-formula-modal
+ * 🚨 @PATCH : **2026-10-14** — [수식 에디터 모달 기존 수식 편집(initialLatex) 및 인라인($)/블록($$) 모드 양방향 연동]:
+ *             1) initialLatex prop을 추가하여 기존 수식 더블클릭 시 해당 LaTeX 수식을 모달에 즉각 로드
+ *             2) initialLatex 형식($...$ vs $$...$$)에 따라 인라인/블록 displayMode 자동 전환 및 실시간 KaTeX 미리보기 연동
+ *             3) 인라인 수식($) 삽입 시 후행 1칸 공백($latex$ )을 기본 포함하여 에디터 삽입 직후 수식 옆 본문 글쓰기 즉각 보장
+ *             4) 모달 오픈 시 initialLatex 상태 동기화로 신규 삽입 및 기존 수식 수정 일원화 지원
+ */
 interface FormulaModalProps {
   isOpen: boolean;
   onClose: () => void;
   onInsert: (code: string) => void;
   isDarkMode: boolean;
+  initialLatex?: string;
 }
 
-export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: FormulaModalProps) {
-  const [latex, setLatex] = useState("");
+export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode, initialLatex }: FormulaModalProps) {
+  const [latex, setLatex] = useState(initialLatex || "");
   const [displayMode, setDisplayMode] = useState<boolean>(true); // true: $$, false: $
   const [activeTab, setActiveTab] = useState<'symbols' | 'templates' | 'history'>('templates');
   const previewRef = useRef<HTMLDivElement>(null);
@@ -27,6 +38,20 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      let raw = (initialLatex || '').trim();
+      if (raw.startsWith('$$') && raw.endsWith('$$') && raw.length >= 4) {
+        setDisplayMode(true);
+        raw = raw.slice(2, -2).trim();
+      } else if (raw.startsWith('$') && raw.endsWith('$') && raw.length >= 2) {
+        setDisplayMode(false);
+        raw = raw.slice(1, -1).trim();
+      }
+      setLatex(raw);
+    }
+  }, [isOpen, initialLatex]);
 
   // 최근 사용된 수식 로드
   // ====================================================================
@@ -79,7 +104,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
           const cleanLatex = (latex.trim() || "f(x) = x^2").replace(/\\\\/g, '\\');
           katex.render(cleanLatex, previewEl, {
             throwOnError: false,
-            displayMode: true,
+            displayMode: displayMode,
             output: 'html',
             strict: false
           });
@@ -96,7 +121,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
     const animId = requestAnimationFrame(renderPreview);
     
     return () => cancelAnimationFrame(animId);
-  }, [latex, katexLoaded, isOpen]);
+  }, [latex, displayMode, katexLoaded, isOpen]);
 
   if (!isOpen) return null;
   if (!mounted) return null;
@@ -165,7 +190,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
     setHistory(newHistory);
     localStorage.setItem('onrivi-formula-history', JSON.stringify(newHistory));
 
-    const finalCode = displayMode ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
+    const finalCode = displayMode ? `\n$$\n${latex.trim()}\n$$\n` : `$${latex.trim()}$ `;
     onInsert(finalCode);
     setLatex("");
     onClose();

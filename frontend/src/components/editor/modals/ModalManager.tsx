@@ -2,6 +2,7 @@
  * 프로그램명 : OnriviAuthor
  * 프로그램 ID : oaar-modal-manager
  * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-10-14** — [수식 에디터 모달(FormulaModal) 기존 LaTeX(formulaModalInitialLatex) 전달 연동]: deps.formulaModalInitialLatex를 FormulaModal에 initialLatex로 주입하여 기존 수식 편집 완비
  * 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 미디어 대상 폴더 동적 경로 동기화]: resourceFolder(구글 드라이브 및 로컬)의 구분자 동적 판별 및 targetFolder media 경로 완전 동기화
  * 🚨 @PATCH : **2026-10-03** — [구글 드라이브 파일/폴더 생성 지원 및 미구현 백엔드 API 404 차단]: createFile/createFolder 시 구글 드라이브(GDRIVE) 분기 탑재 및 웹 브라우저 VFS 폴백 강화로 404 에러 원천 방어
  * 🚨 @PATCH : **2026-10-01** — [한글(.hwpx) 내보내기 모달 핸들러 제거]: ExportModal의 hwpx 선택 핸들러 분기 완전 삭제
@@ -419,6 +420,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         onClose={() => setIsFormulaModalOpen(false)}
         onInsert={(formula: string) => insertAtCursor(formula)}
         isDarkMode={isDarkMode}
+        initialLatex={deps.formulaModalInitialLatex}
       />
       <MergeModal
         isOpen={isMergeModalOpen}

@@ -2,6 +2,9 @@
 // 📊 [OMD-LIB-googleDriveClient-0001] src/lib/gdrive/googleDriveClient.ts
 // 🎯 @KICK  : 누구나 쉽게 사용하는 구글 드라이브 무설정(Zero-Config) 자동 연동 및 클라우드 작업장 클라이언트 모듈
 // 🛡️ @GUARD : Rule 1, Rule 2(대문자 코드값 GDRIVE), 최소 권한 원칙(drive.file 스코프 한정)
+// 🚨 @PATCH : **2026-10-14** — [구글 드라이브 인증 중복 호출 방어(activeAuthPromise) 및 데스크톱 무음 갱신 시 강제 브라우저 팝업 방지]:
+//             1) requestGoogleDriveAuth에 인-플라이트 프로미스(activeAuthPromise) 싱글톤을 적용하여 동시 다발적 인증 호출 시 단일 요청으로 공유 대기
+//             2) refreshDriveTokenSilently 실행 시 데스크톱 환경에서 사용자 동의 없는 브라우저 창 자동 팝업을 차단하고 만료 알림 이벤트로 안전 유도
 // 🚨 @PATCH : **2026-10-11** — [구글 드라이브 토큰 만료 전 자동 저장 & 만료/해제 시 비상 로컬 백업 안전망 구축]:
 //             1) 토큰 만료 2분(120초) 전 onrivi:drive_token_about_to_expire 이벤트 발송 및 작업 중 문서 클라우드 자동 사전 플러시 연동
 //             2) 토큰 만료(0초) 또는 401 오류 시 onrivi:drive_auth_expired / onrivi:drive_token_expired와 연계하여 현재 열린 모든 탭과 최신 작성 버퍼를 onrivi_emergency_gdrive_drafts 로컬 스냅샷으로 100% 비상 보존
@@ -300,16 +303,8 @@ export async function refreshDriveTokenSilently(): Promise<string | null> {
     // 1. 데스크톱(Electron) 환경
     const electronApi = (window as any).electronAPI;
     if (electronApi?.requestDesktopGDriveAuth) {
-      // 데스크톱 환경에서는 백그라운드 무음 토큰 재발급 루프백 요청
-      try {
-        const result = await electronApi.requestDesktopGDriveAuth();
-        if (result && result.access_token) {
-          saveDriveToken(result.access_token, Number(result.expires_in) || 3600);
-          return result.access_token;
-        }
-      } catch (dErr) {
-        console.warn('[GDrive Desktop Silent Refresh]', dErr);
-      }
+      // 데스크톱 환경에서는 시스템 브라우저 창이 열리므로 백그라운드 무음 자동 팝업을 차단하고 만료 시 사용자 재인증을 유도합니다.
+      console.log('[GDrive Auto-Refresh] 데스크톱 환경 감지: 백그라운드 브라우저 자동 팝업을 방지합니다.');
       return null;
     }
 
@@ -503,95 +498,110 @@ export function disconnectGoogleDrive(): void {
   }
 }
 
+let activeAuthPromise: Promise<string> | null = null;
+
 /**
  * 구글 OAuth 인증 팝업 호출 및 Access Token 발급
  */
 export async function requestGoogleDriveAuth(clientId?: string): Promise<string> {
-  // 🚀 [데스크톱 Electron 환경] 임베디드 웹뷰 및 비표준 리다이렉트 차단 방어를 위해 시스템 브라우저 웹 Handoff 브리지 호출
-  const electronApi = typeof window !== 'undefined' ? (window as any).electronAPI : null;
-  if (electronApi?.requestDesktopGDriveAuth) {
-    console.log('[GDrive] 데스크톱 환경 감지: 시스템 기본 브라우저를 통한 웹 Handoff 인증을 가동합니다.');
-    const result = await electronApi.requestDesktopGDriveAuth();
-    if (result && result.access_token) {
-      saveDriveToken(result.access_token, Number(result.expires_in) || 3600);
-      return result.access_token;
-    }
-    throw new Error('데스크톱 구글 인증 토큰 획득에 실패했습니다.');
+  if (activeAuthPromise) {
+    console.log('[GDrive] ℹ️ 이미 진행 중인 구글 드라이브 인증 요청이 존재합니다. 기존 요청을 공유 대기합니다.');
+    return activeAuthPromise;
   }
 
-  // 🌐 [웹 브라우저 환경] 기존 Google Identity Services (GIS) 웹 전용 팝업 실행
-  await loadGoogleIdentityScript();
-
-  const effectiveClientId =
-    clientId ||
-    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
-    '771142699427-0krki7r9c2m30bc75etjjmm2edkj6frr.apps.googleusercontent.com';
-
-  console.log('[GDrive] Requesting OAuth with client ID:', effectiveClientId);
-
-  return new Promise((resolve, reject) => {
+  activeAuthPromise = (async () => {
     try {
-      const google = (window as any).google;
-      if (!google?.accounts?.oauth2) {
-        return reject(new Error('Google Identity Services 로드에 실패했습니다.'));
+      // 🚀 [데스크톱 Electron 환경] 임베디드 웹뷰 및 비표준 리다이렉트 차단 방어를 위해 시스템 브라우저 웹 Handoff 브리지 호출
+      const electronApi = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+      if (electronApi?.requestDesktopGDriveAuth) {
+        console.log('[GDrive] 데스크톱 환경 감지: 시스템 기본 브라우저를 통한 웹 Handoff 인증을 가동합니다.');
+        const result = await electronApi.requestDesktopGDriveAuth();
+        if (result && result.access_token) {
+          saveDriveToken(result.access_token, Number(result.expires_in) || 3600);
+          return result.access_token;
+        }
+        throw new Error('데스크톱 구글 인증 토큰 획득에 실패했습니다.');
       }
 
-      let isFinished = false;
+      // 🌐 [웹 브라우저 환경] 기존 Google Identity Services (GIS) 웹 전용 팝업 실행
+      await loadGoogleIdentityScript();
 
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: effectiveClientId,
-        scope: GOOGLE_DRIVE_SCOPES,
-        callback: (response: any) => {
-          if (isFinished) return;
-          isFinished = true;
-          if (response.error) {
-            const code = String(response.error);
-            const detail = response.error_description || code;
-            const guidance = code === 'access_denied'
-              ? 'Google OAuth 앱이 테스트 상태이면 해당 계정을 테스트 사용자로 등록해야 합니다. 조직 계정은 관리자의 앱 접근 정책도 확인해 주세요.'
-              : /origin_mismatch|redirect_uri_mismatch/.test(code)
-                ? `Google Cloud의 OAuth 클라이언트에 현재 출처(${window.location.origin})가 등록되어 있는지 확인해 주세요.`
-                : '';
-            return reject(new Error(`구글 로그인 실패 (${code}): ${detail}${guidance ? '\n' + guidance : ''}`));
+      const effectiveClientId =
+        clientId ||
+        process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
+        '771142699427-0krki7r9c2m30bc75etjjmm2edkj6frr.apps.googleusercontent.com';
+
+      console.log('[GDrive] Requesting OAuth with client ID:', effectiveClientId);
+
+      return await new Promise<string>((resolve, reject) => {
+        try {
+          const google = (window as any).google;
+          if (!google?.accounts?.oauth2) {
+            return reject(new Error('Google Identity Services 로드에 실패했습니다.'));
           }
-          if (response.scope) {
-            console.log('[GDrive] Granted scopes:', response.scope);
-            if (!response.scope.split(/\s+/).includes('https://www.googleapis.com/auth/drive')) {
-              return reject(
-                new Error(
-                  '전체 드라이브 접근 권한이 필요합니다. 로그인 화면에서 Google Drive 파일 보기, 수정, 생성, 삭제 권한에 동의해 주세요.'
-                )
-              );
+
+          let isFinished = false;
+
+          const client = google.accounts.oauth2.initTokenClient({
+            client_id: effectiveClientId,
+            scope: GOOGLE_DRIVE_SCOPES,
+            callback: (response: any) => {
+              if (isFinished) return;
+              isFinished = true;
+              if (response.error) {
+                const code = String(response.error);
+                const detail = response.error_description || code;
+                const guidance = code === 'access_denied'
+                  ? 'Google OAuth 앱이 테스트 상태이면 해당 계정을 테스트 사용자로 등록해야 합니다. 조직 계정은 관리자의 앱 접근 정책도 확인해 주세요.'
+                  : /origin_mismatch|redirect_uri_mismatch/.test(code)
+                    ? `Google Cloud의 OAuth 클라이언트에 현재 출처(${window.location.origin})가 등록되어 있는지 확인해 주세요.`
+                    : '';
+                return reject(new Error(`구글 로그인 실패 (${code}): ${detail}${guidance ? '\n' + guidance : ''}`));
+              }
+              if (response.scope) {
+                console.log('[GDrive] Granted scopes:', response.scope);
+                if (!response.scope.split(/\s+/).includes('https://www.googleapis.com/auth/drive')) {
+                  return reject(
+                    new Error(
+                      '전체 드라이브 접근 권한이 필요합니다. 로그인 화면에서 Google Drive 파일 보기, 수정, 생성, 삭제 권한에 동의해 주세요.'
+                    )
+                  );
+                }
+              }
+              if (response.access_token) {
+                saveDriveToken(response.access_token, Number(response.expires_in) || 3600);
+                resolve(response.access_token);
+              } else {
+                reject(new Error('구글 인증 토큰이 반환되지 않았습니다.'));
+              }
+            },
+            error_callback: (nonOAuthError: any) => {
+              console.error('[GDrive OAuth error_callback]', nonOAuthError);
+              if (isFinished) return;
+              isFinished = true;
+              const type = nonOAuthError?.type || '';
+              if (type === 'popup_closed') {
+                reject(new Error('로그인 팝업창이 닫혔습니다.'));
+              } else if (type === 'popup_failed_to_open') {
+                reject(new Error('로그인 팝업창을 열지 못했습니다. 브라우저 주소창의 팝업 차단을 허용해주세요.'));
+              } else {
+                reject(new Error(`구글 로그인 오류: ${type || nonOAuthError?.message || JSON.stringify(nonOAuthError)}`));
+              }
             }
-          }
-          if (response.access_token) {
-            saveDriveToken(response.access_token, Number(response.expires_in) || 3600);
-            resolve(response.access_token);
-          } else {
-            reject(new Error('구글 인증 토큰이 반환되지 않았습니다.'));
-          }
-        },
-        error_callback: (nonOAuthError: any) => {
-          console.error('[GDrive OAuth error_callback]', nonOAuthError);
-          if (isFinished) return;
-          isFinished = true;
-          const type = nonOAuthError?.type || '';
-          if (type === 'popup_closed') {
-            reject(new Error('로그인 팝업창이 닫혔습니다.'));
-          } else if (type === 'popup_failed_to_open') {
-            reject(new Error('로그인 팝업창을 열지 못했습니다. 브라우저 주소창의 팝업 차단을 허용해주세요.'));
-          } else {
-            reject(new Error(`구글 로그인 오류: ${type || nonOAuthError?.message || JSON.stringify(nonOAuthError)}`));
-          }
+          });
+
+          // 팝업 표시 (계정 선택창 활성화)
+          client.requestAccessToken({ prompt: 'select_account' });
+        } catch (err) {
+          reject(err);
         }
       });
-
-      // 팝업 표시 (계정 선택창 활성화)
-      client.requestAccessToken({ prompt: 'select_account' });
-    } catch (err) {
-      reject(err);
+    } finally {
+      activeAuthPromise = null;
     }
-  });
+  })();
+
+  return activeAuthPromise;
 }
 
 /**

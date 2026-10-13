@@ -1,6 +1,7 @@
 // ====================================================================
 // 📊 [OMD-CORE-ToolbarConfig-0001] toolbarConfig.ts ➔ Toolbar Items Configuration
 // 🎯 @KICK  : 에디터 툴바, 플로팅 툴바 및 단축키/슬래시 커맨드 전역 설정 메타데이터
+// 🚨 @PATCH : **2026-10-13** — [달력/날짜 슬래시 커맨드 별칭 확장]: now 커맨드에 '달력', '캘린더', '시간' 별칭 추가 연동
 // 🚨 @PATCH : **2026-10-01** — [서명/발신인 붉은색 인감도장 태그 적용]: 기본 템플릿의 도장 표식을 붉은색 원형 인감도장 태그(<span style="color:#dc2626; border:1.5px solid #dc2626; border-radius:50%; padding:0 3px; font-size:0.85em; font-weight:bold;">인</span>)로 업그레이드
 // 🚨 @PATCH : **2026-10-01** — [서명/발신인 단축키 변경]: 다른 이름으로 저장(Ctrl+Shift+S)과의 충돌 방지를 위해 서명/발신인 기본 단축키를 Ctrl+Alt+R로 변경
 // 🚨 @PATCH : **2026-10-01** — [서명/발신인 툴바 아이템 추가]: 문서(Document) 그룹에 서명/발신인 (우측 정렬, signature) 툴바 아이템 신설
@@ -125,7 +126,7 @@ export const SLASH_ALIASES: Record<string, string[]> = {
   link: ['링크'], taglink: ['문서연결'], image: ['사진', '이미지'],
   youtube: ['동영상'], map: ['지도'], add_reference: ['참조관리'],
   codeblock: ['코드블록'], table: ['표'], math: ['수식'],
-  now: ['날짜'], signature: ['사인', '서명'],
+  now: ['날짜', '달력', '캘린더', '시간'], signature: ['사인', '서명'],
   styleSettings: ['서식'], aiHelp: ['인공지능'],
 };
 

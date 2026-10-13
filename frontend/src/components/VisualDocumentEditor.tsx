@@ -1,9 +1,54 @@
+/**
+ * 프로그램명 : OnriviAuthor 
+ * 버전 정보 : 1.0.1
+ * 프로그램 ID : oaar-visual-editor
+ * 🚨 @PATCH : **2026-10-14** — [수식 옆 글쓰기(공백 보장) 및 블록 수식 다음 줄 즉각 집필 환경 지원]:
+ *             1) visual_inline_math 삽입 시 후행 공백 텍스트 노드를 함께 생성하고 커서를 그 뒤로 이동시켜 인라인 수식 바로 옆에 끊김 없이 글쓰기 보장
+ *             2) visual_math 블록 수식 삽입 시 바로 다음 줄에 신규 본문 문단(paragraph)을 자동 생성하고 커서를 배치하여 블록 수식 아래 즉각 집필 지원
+ *             3) visual_math 및 visual_inline_math 전용 nodeView를 등록하여 수식을 코드블록/텍스트가 아닌 순수 KaTeX 렌더링으로 본문에 표시
+ *             4) 블록 및 인라인 수식 더블클릭 시 수식 에디터 모달(FormulaModal)을 각각 블록/인라인 모드로 호출하여 LaTeX 즉시 수정 및 상호 전환 반영
+ * 🚨 @PATCH : **2026-10-13** — [전용 인터랙티브 달력 모달(CalendarModal) 연동 및 위지윅 본문 날짜/시간 직접 삽입]:
+ *             1) 슬래시 명령어(/now, /날짜, /달력) 및 툴바 날짜 커맨드 실행 시 전용 CalendarModal 대화상자 팝업 연동
+ *             2) 달력에서 선택한 일자 및 서식을 현재 ProseMirror 위지윅 커서 위치에 즉시 텍스트 노드로 삽입
+ * 🚨 @PATCH : **2026-10-13** — [문서링크(taglink) 커서 위치 문서선택창 호출 및 문서링크 클릭 시 해당 페이지 이동 구현]:
+ *             1) onDocLinkDialog prop을 통해 문서보기 내 커서 위치(view.coordsAtPos)에 문서선택창(DocLinkPicker) 팝업 연동
+ *             2) 문서 선택 시 커서 위치에 [문서명](<상대경로.md>) 네이티브 링크 마크 즉시 삽입 지원
+ *             3) 본문 속 문서링크(.md, .markdown, knowledge:// 등) 클릭 시 onFileOpen(handleFileOpenByPath)을 호출하여 해당 문서/탭으로 즉각 전환 이동 완비
+ * 🚨 @PATCH : **2026-10-13** — [문서보기 본문 하이퍼링크(<a>) 클릭 시 외부 브라우저 새 창 열기 연동]:
+ *             1) EditorProps에 handleClick 핸들러를 장착하여 본문 내 링크 클릭 시 Electron(openExternal)/웹(window.open) 새 창으로 즉시 이동
+ *             2) 내부 앵커(#제목) 링크 클릭 시 해당 섹션으로 부드러운 스크롤(scrollIntoView) 이동 지원
+ *             3) .visual-document-surface a에 color(#1d4ed8), 밑줄 및 cursor:pointer 스타일을 부여하여 링크 식별성 및 호버 인터랙션 강화
+ * 🚨 @PATCH : **2026-10-13** — [슬래시(/) 명령어 감지 및 실행 장애 완전 해소]:
+ *             1) 줄바꿈(<br> hard_break) 바로 뒤에서 / 입력 시 textBetween의 leafText 누락으로 앞 글자와 결합되어 매칭이 실패하던 결함 완전 수정
+ *             2) nativeCommands['h1'~'h6']에 setHeadingBlock을 연결하여 슬래시 메뉴에서 제목 명령 정상 전환 보장
+ *             3) slashPattern에 전각 슬래시(／) 관용 지원 및 화면 하단 팝업 배치(spaceBelow) 클리핑 방어 완비
+ * 🚨 @PATCH : **2026-10-13** — [하이퍼링크 전용 LinkModal 모달 폼 연동 및 텍스트·URL 2단 입력 지원]:
+ *             1) window.prompt 대신 텍스트(예: 온리비)와 주소(URL)를 직관적으로 입력하는 LinkModal 모달 폼 전면 연동
+ *             2) 선택 텍스트가 없는 상태에서도 모달에서 텍스트와 주소를 직접 지정하여 커서 위치에 즉시 하이퍼링크 생성 지원
+ *             3) Ctrl+K 단축키, 플로팅 툴바(🔗), 상단 컨트롤(link)에서 LinkModal 즉시 호출 및 프로토콜 프리셋 지원
+ * 🚨 @PATCH : **2026-10-13** — [고시인성 3px 도톰한 단일 커서 최적화 및 네이티브 커서 2중 중복 방어]:
+ *             1) .visual-document-surface의 caret-color를 transparent로 지정하여 네이티브 1px 얇은 커서와의 2중 커서 중복을 완전 차단
+ *             2) visualCaret 고도화와 연동하여 눈이 편안한 3px 코발트 블루 단일 커서 및 깜빡임 애니메이션 제공
+ * 🚨 @PATCH : **2026-10-13** — [문서보기 링크 입력 지원 강화 및 Ctrl+K 단축키 연동]:
+ *             1) keymap에 'Mod-k' 바인딩 추가하여 선택 텍스트에 즉각 하이퍼링크 주소 입력 팝업 연동
+ *             2) visualMarkdownInputRules와 연동되어 본문에서 [텍스트](url) 타이핑 및 Ctrl+K 단축키로 직접 링크 작성 완비
+ * 🚨 @PATCH : **2026-10-13** — [밑줄(<u>) 네이티브 인라인 마크(underline) 연동 및 위지윅 본문 직접 편집 지원]:
+ *             1) visualSchema.marks.underline 등록에 맞춰 commands['UNDERLINE'], nativeCommands['underline'], keymap('Mod-u') 연동
+ *             2) 밑줄 서식 적용 시 별도 source_block(원문 편집창)으로 빠지지 않고 에디터 표면에서 즉시 밑줄 렌더링 및 직접 타이핑/수정 가능
+ * 🚨 @PATCH : **2026-10-13** — [제목 1~6 서식 명령 적용 시 앞머리 잔여 해시(#) 기호 자동 정돈 및 제목2 정상 전환 보장]:
+ *             1) 툴바/슬래시 커맨드의 '제목 1~6'(H1~H6) 실행 시 텍스트 앞머리에 잘못 남아있던 마크다운 해시 접두사(^(?:#{1,6}\s*))를 자동 정리(setHeadingBlock)
+ *             2) 사용자가 기존 문단에서 오타나 이전 변환으로 '# #2장'처럼 해시가 본문에 박힌 경우에도 제목 2 클릭 시 정상적인 H2 제목으로 변환 보장
+ */
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Fragment } from 'prosemirror-model';
 import { createPortal } from 'react-dom';
 import TableModal from '@/components/TableModal';
+import LinkModal from '@/components/LinkModal';
+import CalendarModal from '@/components/CalendarModal';
+import DateTimeInsertPicker from '@/components/DateTimeInsertPicker';
+import { selectedList } from '@/lib/visualListCommands';
 import { tableContext, tableAction, moveTableCell, tableEnter } from '@/lib/visualTableCommands';
 import VisualReadOnlyMarkdownBlock from '@/components/VisualReadOnlyMarkdownBlock';
 import { EditorState, TextSelection, Command } from 'prosemirror-state';
@@ -12,7 +57,7 @@ import { mediaDetails, copyMediaSource, type MediaKind } from '@/lib/mediaMarkup
 import { desktopClipboardImage } from '@/lib/desktopClipboard';
 import { markdownPasteTransaction } from '@/lib/visualMarkdownPaste';
 import { baseKeymap, chainCommands, exitCode, lift, setBlockType, toggleMark, wrapIn } from 'prosemirror-commands';
-import { wrapInList, splitListItem, sinkListItem, liftListItem } from 'prosemirror-schema-list';
+import { splitListItem, sinkListItem, liftListItem } from 'prosemirror-schema-list';
 import { history, undo, redo, closeHistory } from 'prosemirror-history';
 import { keymap } from 'prosemirror-keymap';
 import { createVisualDocumentCodec, visualSchema, visualImageDetails } from '@/lib/visualDocumentCodec';
@@ -21,19 +66,61 @@ import { undoInputRule } from 'prosemirror-inputrules';
 import { visualCommandCatalog, filterVisualCommands } from '@/lib/visualCommandCatalog';
 import { TOOLBAR_ITEMS, configuredHotkeyItem } from '@/lib/toolbarConfig';
 import { installVisualCaret } from '@/lib/visualCaret';
+import katex from 'katex';
 
-const slashPattern = new RegExp('(?:^|\\s)(\\/[\\p{L}\\p{N}_-]*)$', 'u');
+const slashPattern = new RegExp('(?:^|\\s)([\\/／][\\p{L}\\p{N}_-]*)$', 'u');
+
+const setHeadingBlock = (level: number): Command => (state, dispatch, view) => {
+  const { $from, $to } = state.selection;
+  if (!$from.sameParent($to) || !$from.parent.isTextblock) {
+    return setBlockType(visualSchema.nodes.heading, { level })(state, dispatch, view);
+  }
+  if (!dispatch) return true;
+  let tr = state.tr;
+  const parent = $from.parent;
+  const blockStart = $from.start();
+  const text = parent.textContent;
+  const hashMatch = text.match(/^(#{1,6}\s*)/);
+  if (hashMatch) {
+    tr = tr.delete(blockStart, blockStart + hashMatch[1].length);
+  }
+  const from = tr.mapping.map($from.pos);
+  const to = tr.mapping.map($to.pos);
+  tr = tr.setBlockType(from, to, visualSchema.nodes.heading, { level });
+  dispatch(tr.scrollIntoView());
+  return true;
+};
 
 // Always consume Tab in the document so browser focus cannot jump to controls.
-const makeChecklist:Command=(state,dispatch,currentView)=>{
-  const apply=(tr:import('prosemirror-state').Transaction)=>{
-    const position=tr.selection.$from;
-    for(let depth=position.depth;depth>0;depth--)if(position.node(depth).type===visualSchema.nodes.list_item){tr.setNodeMarkup(position.before(depth),undefined,{...position.node(depth).attrs,checked:false});break;}
-    dispatch?.(tr);
-  };
-  for(let depth=state.selection.$from.depth;depth>0;depth--)if(state.selection.$from.node(depth).type===visualSchema.nodes.list_item){apply(state.tr);return true;}
-  return wrapInList(visualSchema.nodes.bullet_list)(state,apply,currentView);
+const removeHeadingAtStart:Command=(state,dispatch)=>{
+  const position=state.selection.$from;
+  if(!state.selection.empty || position.parent.type!==visualSchema.nodes.heading || position.parentOffset!==0)return false;
+  if(dispatch)dispatch(closeHistory(state.tr.setBlockType(position.before(),position.after(),visualSchema.nodes.paragraph).setStoredMarks([])));
+  return true;
 };
+const exitQuote=(emptyOnly=false):Command=>(state,dispatch)=>{
+  const position=state.selection.$from;
+  if(!state.selection.empty)return false;
+  let depth=0;for(let i=1;i<position.depth;i++)if(position.node(i).type===visualSchema.nodes.blockquote){depth=i;break;}
+  if(!depth)return false;
+  const quote=position.node(depth),start=position.before(depth),end=start+quote.nodeSize;
+  const trailingBreak=position.parentOffset===position.parent.content.size && position.parent.lastChild?.type===visualSchema.nodes.hard_break;
+  const emptyLast=position.depth===depth+1 && position.parent.type===visualSchema.nodes.paragraph && (!position.parent.content.size || trailingBreak) && position.index(depth)===quote.childCount-1;
+  if(emptyOnly && !emptyLast)return false;
+  if(dispatch){
+    let tr=state.tr;
+    if(emptyOnly && quote.childCount===1 && !position.parent.content.size){tr=tr.replaceWith(start,end,visualSchema.nodes.paragraph.create());tr=tr.setSelection(TextSelection.create(tr.doc,start+1));}
+    else {
+      if(emptyOnly)tr=trailingBreak ? tr.delete(position.pos-1,position.pos) : tr.delete(position.before(),position.after());
+      const after=tr.mapping.map(end,-1),following=tr.doc.nodeAt(after);
+      if(following?.type!==visualSchema.nodes.paragraph)tr=tr.insert(after,visualSchema.nodes.paragraph.create());
+      tr=tr.setSelection(TextSelection.create(tr.doc,after+1));
+    }
+    dispatch(closeHistory(tr).scrollIntoView());
+  }
+  return true;
+};
+const makeChecklist=selectedList('check');
 const indentDocument = (backward=false): Command => (state,dispatch,currentView) => {
   const {$from,from,to}=state.selection;
   for(let depth=$from.depth;depth>0;depth--)if($from.node(depth).type===visualSchema.nodes.list_item){
@@ -58,10 +145,10 @@ const indentDocument = (backward=false): Command => (state,dispatch,currentView)
   if(!$from.parent.isTextblock)return true;
   const configured=currentView?Number.parseInt(currentView.dom.dataset.editorTabSize || getComputedStyle(currentView.dom).tabSize,10):2;
   const size=Number.isFinite(configured)?Math.max(1,Math.min(16,configured)):2;
-  const before=$from.parent.textBetween(0,$from.parentOffset,'\n');
+  const before=$from.parent.textBetween(0,$from.parentOffset,'\n','\n');
   if(!backward){
     const gap=size;
-    const spaces=$from.parent.type===visualSchema.nodes.code_block?' '.repeat(gap):'\u00a0'.repeat(gap);
+    const spaces=' '.repeat(gap);
     if(dispatch)dispatch(state.tr.insertText(spaces,from,to).scrollIntoView());
     return true;
   }
@@ -86,12 +173,34 @@ function synchronizeTextSelection(view: EditorView) {
   } catch { /* A DOM selection may be removed during a document update. */ }
 }
 
+function resolveDocPath(relPath: string, currentFile: string): string {
+  if (!relPath || relPath.startsWith('http://') || relPath.startsWith('https://')) return relPath;
+  let normRel = relPath.replace(/\\/g, '/');
+  if (normRel.startsWith('file:///')) normRel = normRel.replace(/^file:\/\/\//, '');
+  if (/^[a-zA-Z]:\//.test(normRel) || normRel.startsWith('/')) return normRel;
+  const normCurrent = currentFile.replace(/\\/g, '/');
+  const lastSlash = normCurrent.lastIndexOf('/');
+  const baseFolder = lastSlash !== -1 ? normCurrent.substring(0, lastSlash) : '';
+  if (normRel.startsWith('./')) normRel = normRel.substring(2);
+  const segments = (baseFolder ? baseFolder.split('/') : []).concat(normRel.split('/'));
+  const resolvedSegments: string[] = [];
+  for (const seg of segments) {
+    if (seg === '.' || seg === '') continue;
+    if (seg === '..') {
+      if (resolvedSegments.length) resolvedSegments.pop();
+    } else {
+      resolvedSegments.push(seg);
+    }
+  }
+  return resolvedSegments.join('/');
+}
+
 type Codec = ReturnType<typeof createVisualDocumentCodec>;
-const sessions = new Map<string, { source: string; state: EditorState; codec: Codec }>();
+const sessions = new Map<string, { source: string; state: EditorState; codec: Codec; scrollTop?:number; scrollLeft?:number }>();
 type Props = { content: string; onChange: (markdown: string) => void; readOnly?: boolean;
   onSourceScroll?: (offset:number)=>void;
   tabSize?:number;
-  onSourceCursor?: (offset:number)=>void;
+  onSourceCursor?: (offset:number,reveal?:boolean)=>void;
   documentId?: string; commandRef?: React.MutableRefObject<((command: string) => boolean) | null>;
   customHotkeys?: Record<string, string>;
   customCommands?: Record<string, string>;
@@ -101,9 +210,13 @@ type Props = { content: string; onChange: (markdown: string) => void; readOnly?:
   onImageFile?: (file: Blob) => Promise<string | null>;
   onMediaDialog?: (kind: MediaKind, source: string | null, insert: (code: string) => boolean) => void;
   onImageDialog?: (source: string | null, insert: (path: string, alt: string) => boolean) => void;
+  onDocLinkDialog?: (position: { top: number; left: number }, insert: (targetUrl: string, displayTitle: string) => boolean) => void;
+  onFormulaDialog?: (apply: (formula: string) => boolean | void, initialLatex?: string) => void;
+  currentFilePath?: string;
+  onFileOpen?: (filePath: string, heading?: string) => void;
   onSourceAction?: (id: string, source: string, from: number, to: number) => void };
 
-export default function VisualDocumentEditor({ content, onChange, readOnly = false, tabSize=4, onSourceScroll, onSourceCursor, documentId, commandRef, customCommands = {}, customHotkeys = {}, onSourceAction, onFloatingToolbar, floatingToolbarVisible, renderImage, onImageFile, onImageDialog, onMediaDialog }: Props) {
+export default function VisualDocumentEditor({ content, onChange, readOnly = false, tabSize=4, onSourceScroll, onSourceCursor, documentId, commandRef, customCommands = {}, customHotkeys = {}, onSourceAction, onFloatingToolbar, floatingToolbarVisible, renderImage, onImageFile, onImageDialog, onMediaDialog, onDocLinkDialog, onFormulaDialog, currentFilePath, onFileOpen }: Props) {
   const cursorFrame=useRef(0);
   useEffect(()=>()=>cancelAnimationFrame(cursorFrame.current),[]);
   const cursorCallback=useRef(onSourceCursor);cursorCallback.current=onSourceCursor;
@@ -137,8 +250,12 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   const [imageMounts, setImageMounts] = useState<{ id: number; element: HTMLElement; source: string }[]>([]);
   const viewRef = useRef<EditorView | null>(null);
   const caretRef = useRef<ReturnType<typeof installVisualCaret> | null>(null);
-  const images = useRef({ renderImage, onImageFile, onImageDialog, onMediaDialog });
-  images.current = { renderImage, onImageFile, onImageDialog, onMediaDialog };
+  const onFileOpenRef = useRef(onFileOpen);
+  onFileOpenRef.current = onFileOpen;
+  const currentFilePathRef = useRef(currentFilePath);
+  currentFilePathRef.current = currentFilePath;
+  const images = useRef({ renderImage, onImageFile, onImageDialog, onMediaDialog, onDocLinkDialog, onFormulaDialog });
+  images.current = { renderImage, onImageFile, onImageDialog, onMediaDialog, onDocLinkDialog, onFormulaDialog };
   const imageTargets = useRef(new Set<{ from: number; to: number; source?: string; valid: boolean }>());
   const beginMediaRef = useRef<(kind: MediaKind, source?: string, position?: number) => void>(() => {});
   const beginImageRef = useRef<(source?: string, position?: number, file?: Blob) => void>(() => {});
@@ -163,6 +280,15 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   const [tableDialog,setTableDialog] = useState(false);
   const tableTargetRef = useRef<{from:number;to:number;valid:boolean}|null>(null);
   const openTableRef = useRef<() => void>(()=>{});
+  const [linkDialog, setLinkDialog] = useState(false);
+  const [calendarDialog, setCalendarDialog] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [datePickerPos, setDatePickerPos] = useState({ top: 0, left: 0 });
+  const dateTargetRef = useRef<{ from: number; to: number; valid: boolean } | null>(null);
+  const openDatePickerRef = useRef<(removeSlash?: boolean) => void>(() => {});
+  const [linkDialogData, setLinkDialogData] = useState({ text: '', href: 'https://' });
+  const linkTargetRef = useRef<{ from: number; to: number; valid: boolean } | null>(null);
+  const linkCommandRef = useRef<Command>(() => false);
   const [selection, setSelection] = useState(false);
   const manualFloatingRef = useRef(false);
   const selectionVisibleRef = useRef(false);
@@ -193,7 +319,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     document.querySelector('#visual-slash-menu [data-selected="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [menuIndex]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!host.current) return;
     const pendingImages = imageTargets.current;
     const cached = documentId ? sessions.get(documentId) : undefined;
@@ -234,7 +360,9 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     };
     const view = new EditorView(host.current, {
       state: cached?.source === content ? cached.state : EditorState.create({ doc: codec.doc, plugins: [history(), visualMarkdownInputRules(), keymap({
-        Backspace: chainCommands(undoInputRule, baseKeymap.Backspace),
+        Backspace: chainCommands(removeHeadingAtStart, undoInputRule, baseKeymap.Backspace),
+        'Mod-u': toggleMark(visualSchema.marks.underline),
+        'Mod-k': (state, dispatch) => linkCommandRef.current(state, dispatch),
         ArrowDown:(state,dispatch,currentView)=>{
           if(!state.selection.empty || !currentView?.endOfTextblock('down'))return false;
           const table=tableContext(state);
@@ -242,13 +370,155 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           if(state.selection.$from.parent.type===visualSchema.nodes.code_block && state.selection.$from.parentOffset===state.selection.$from.parent.content.size)return exitCode(state,dispatch,currentView);
           return false;
         },
-        'Mod-Enter': chainCommands(tableAction('afterTable'),exitCode),
-        Enter: chainCommands(tableEnter(), (state,dispatch)=>{const position=state.selection.$from;if(position.parent.type!==visualSchema.nodes.paragraph || position.depth!==1)return false;if(dispatch)dispatch(state.tr.replaceSelectionWith(visualSchema.nodes.hard_break.create()).scrollIntoView());return true;}, (state,dispatch,currentView)=>{const parent=state.selection.$from.depth>0?state.selection.$from.node(state.selection.$from.depth-1):null;return splitListItem(visualSchema.nodes.list_item,parent?.type===visualSchema.nodes.list_item && parent.attrs.checked!==null ? {checked:false} : undefined)(state,dispatch,currentView);}, baseKeymap.Enter),
+        'Mod-Enter': chainCommands(tableAction('afterTable'),exitCode,exitQuote()),
+        Enter: chainCommands(tableEnter(), (state,dispatch)=>{const position=state.selection.$from;if(position.parent.type!==visualSchema.nodes.paragraph)return false;let quoted=false;for(let i=1;i<position.depth;i++)if(position.node(i).type===visualSchema.nodes.blockquote)quoted=true;if(!quoted)return false;if(dispatch)dispatch(state.tr.replaceSelectionWith(visualSchema.nodes.hard_break.create()).scrollIntoView());return true;}, (state,dispatch)=>{const position=state.selection.$from;if(position.parent.type!==visualSchema.nodes.paragraph || position.depth!==1)return false;if(dispatch)dispatch(state.tr.replaceSelectionWith(visualSchema.nodes.hard_break.create()).scrollIntoView());return true;}, (state,dispatch,currentView)=>{const parent=state.selection.$from.depth>0?state.selection.$from.node(state.selection.$from.depth-1):null;return splitListItem(visualSchema.nodes.list_item,parent?.type===visualSchema.nodes.list_item && parent.attrs.checked!==null ? {checked:false} : undefined)(state,dispatch,currentView);}, baseKeymap.Enter),
         Tab: chainCommands(moveTableCell(),sinkListItem(visualSchema.nodes.list_item),indentDocument()), 'Shift-Tab': chainCommands(moveTableCell(true),liftListItem(visualSchema.nodes.list_item),indentDocument(true)),
       }), keymap(baseKeymap)] }),
       editable: () => !readOnly,
       attributes: { class: 'visual-document-surface', 'aria-label': '문서 직접 편집', role: 'textbox', 'aria-multiline': 'true', 'data-editor-tab-size': String(tabSize) },
       nodeViews: { visual_image:mediaNodeView, visual_media:mediaNodeView,
+        visual_math(node, currentView, getPos) {
+          const dom = document.createElement('div');
+          dom.className = 'visual-math-node my-4 py-3 px-4 text-center cursor-pointer select-none rounded-lg hover:ring-2 hover:ring-blue-500/40 transition-all';
+          dom.contentEditable = 'false';
+          dom.setAttribute('data-latex', node.attrs.latex || '');
+          dom.setAttribute('title', '더블클릭하여 수식 에디터 열기');
+
+          const render = () => {
+            const cleanLatex = (node.attrs.latex || '').trim();
+            try {
+              dom.innerHTML = '';
+              if (katex) {
+                katex.render(cleanLatex || 'f(x) = x^2', dom, {
+                  throwOnError: false,
+                  displayMode: true,
+                  strict: false
+                });
+              } else {
+                dom.textContent = cleanLatex || '수식';
+              }
+            } catch {
+              dom.textContent = cleanLatex;
+            }
+          };
+
+          render();
+
+          dom.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const pos = getPos();
+            if (typeof pos !== 'number' || !currentView.editable) return;
+            if (images.current.onFormulaDialog) {
+              images.current.onFormulaDialog((formulaCode: string) => {
+                const cleanCode = formulaCode.trim();
+                const isInline = cleanCode.startsWith('$') && !cleanCode.startsWith('$$');
+                const rawLatex = cleanCode.startsWith('$$')
+                  ? cleanCode.replace(/^\$\$|\$\$$/g, '').trim()
+                  : cleanCode.startsWith('$')
+                    ? cleanCode.replace(/^\$|\$$/g, '').trim()
+                    : cleanCode.startsWith('```')
+                      ? cleanCode.replace(/^```[a-z]*\r?\n|```$/gi, '').trim()
+                      : cleanCode;
+                if (isInline) {
+                  currentView.dispatch(currentView.state.tr.replaceWith(pos, pos + 1, visualSchema.nodes.visual_inline_math.create({ latex: rawLatex })));
+                } else {
+                  currentView.dispatch(currentView.state.tr.setNodeMarkup(pos, undefined, { latex: rawLatex }));
+                }
+                return true;
+              }, `\n$$\n${node.attrs.latex}\n$$\n`);
+            }
+          });
+
+          return {
+            dom,
+            selectNode() { dom.classList.add('ring-2', 'ring-blue-500'); },
+            deselectNode() { dom.classList.remove('ring-2', 'ring-blue-500'); },
+            ignoreMutation: () => true,
+            stopEvent: () => false,
+            update(next) {
+              if (next.type !== node.type) return false;
+              if (next.attrs.latex !== node.attrs.latex) {
+                node = next;
+                render();
+              } else {
+                node = next;
+              }
+              return true;
+            }
+          };
+        },
+        visual_inline_math(node, currentView, getPos) {
+          const dom = document.createElement('span');
+          dom.className = 'visual-inline-math-node inline-flex items-center px-1 py-0.5 mx-0.5 align-baseline cursor-pointer select-none rounded hover:ring-2 hover:ring-blue-400/40 transition-all text-zinc-900 dark:text-zinc-100';
+          dom.contentEditable = 'false';
+          dom.setAttribute('data-latex', node.attrs.latex || '');
+          dom.setAttribute('title', '더블클릭하여 인라인 수식 편집');
+
+          const render = () => {
+            const cleanLatex = (node.attrs.latex || '').trim();
+            try {
+              dom.innerHTML = '';
+              if (katex) {
+                katex.render(cleanLatex || 'x', dom, {
+                  throwOnError: false,
+                  displayMode: false,
+                  strict: false
+                });
+              } else {
+                dom.textContent = `$${cleanLatex}$`;
+              }
+            } catch {
+              dom.textContent = `$${cleanLatex}$`;
+            }
+          };
+
+          render();
+
+          dom.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const pos = getPos();
+            if (typeof pos !== 'number' || !currentView.editable) return;
+            if (images.current.onFormulaDialog) {
+              images.current.onFormulaDialog((formulaCode: string) => {
+                const cleanCode = formulaCode.trim();
+                const isInline = cleanCode.startsWith('$') && !cleanCode.startsWith('$$');
+                const rawLatex = cleanCode.startsWith('$$')
+                  ? cleanCode.replace(/^\$\$|\$\$$/g, '').trim()
+                  : cleanCode.startsWith('$')
+                    ? cleanCode.replace(/^\$|\$$/g, '').trim()
+                    : cleanCode.startsWith('```')
+                      ? cleanCode.replace(/^```[a-z]*\r?\n|```$/gi, '').trim()
+                      : cleanCode;
+                if (isInline) {
+                  currentView.dispatch(currentView.state.tr.setNodeMarkup(pos, undefined, { latex: rawLatex }));
+                } else {
+                  currentView.dispatch(currentView.state.tr.replaceWith(pos, pos + 1, visualSchema.nodes.visual_math.create({ latex: rawLatex })));
+                }
+                return true;
+              }, `$${node.attrs.latex}$`);
+            }
+          });
+
+          return {
+            dom,
+            selectNode() { dom.classList.add('ring-2', 'ring-blue-500'); },
+            deselectNode() { dom.classList.remove('ring-2', 'ring-blue-500'); },
+            ignoreMutation: () => true,
+            stopEvent: () => false,
+            update(next) {
+              if (next.type !== node.type) return false;
+              if (next.attrs.latex !== node.attrs.latex) {
+                node = next;
+                render();
+              } else {
+                node = next;
+              }
+              return true;
+            }
+          };
+        },
         list_item(node,currentView,getPos){
           const dom=document.createElement('li'),content=document.createElement('div'),checkbox=document.createElement('input');
           checkbox.type='checkbox';checkbox.contentEditable='false';checkbox.setAttribute('aria-label','할 일 완료');checkbox.style.cssText='float:left;margin:6px 8px 0 -24px;width:16px;height:16px';
@@ -269,32 +539,62 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         code_block(node, currentView, getPos) {
           const dom = document.createElement('div');
           dom.className = 'codeblock-area visual-code-block'; dom.spellcheck = false;
-          const header=document.createElement('label'); header.contentEditable='false'; header.className='visual-code-language no-print';
+          const header=document.createElement('div'); header.contentEditable='false'; header.className='visual-code-language no-print';
           header.textContent='CODE ';
           const input=document.createElement('input'); input.setAttribute('aria-label','코드 블록 언어');input.placeholder='text, javascript, python, mermaid';input.value=node.attrs.params || '';input.disabled=!currentView.editable;
           input.addEventListener('change',()=>{
             const pos=getPos();if(typeof pos!=='number' || !currentView.editable)return;
             currentView.dispatch(closeHistory(currentView.state.tr.setNodeMarkup(pos,undefined,{...node.attrs,params:input.value.replace(/[\r\n]/g,'').trim()})));
           });header.append(input);
+          const copy=document.createElement('button');copy.type='button';copy.textContent='복사';copy.setAttribute('aria-label','코드 내용 복사');copy.className='onrivi-media-control no-print';copy.contentEditable='false';
+          let copyTimer:ReturnType<typeof setTimeout>|undefined;
+          copy.addEventListener('mousedown',event=>event.preventDefault());
+          copy.addEventListener('click',async()=>{
+            clearTimeout(copyTimer);
+            try {
+              const api=(window as any).electronAPI;
+              if(api?.copyTextToClipboard)await api.copyTextToClipboard(node.textContent);
+              else await navigator.clipboard.writeText(node.textContent);
+              copy.textContent='복사됨';
+            } catch { copy.textContent='복사 실패'; }
+            if(dom.isConnected)copyTimer=setTimeout(()=>{copy.textContent='복사';},1800);
+          });header.append(copy);
           const pre = document.createElement('pre'), code = document.createElement('code');
-          pre.spellcheck = false; code.spellcheck = false;
+          pre.className = 'custom-scrollbar'; pre.spellcheck = false; code.spellcheck = false;
+          const panel=document.createElement('details');panel.className='visual-code-editor-panel';
+          const initialLang = String(node.attrs.params || '').split(/\s/)[0].toLowerCase();
+          const isInitialMermaid = initialLang === 'mermaid';
+          panel.open = !isInitialMermaid || !node.textContent;
+          const summary=document.createElement('summary');summary.contentEditable='false';summary.textContent='코드 편집';summary.className='onrivi-media-control no-print text-[11px] opacity-70 hover:opacity-100';
+          const done=document.createElement('button');done.type='button';done.textContent='편집 완료';done.className='onrivi-media-control no-print text-[11px]';done.contentEditable='false';
+          done.addEventListener('mousedown',event=>event.preventDefault());done.addEventListener('click',()=>{panel.open=false;});header.append(done);
+          panel.append(summary,header,pre);
           const preview=document.createElement('div'); preview.contentEditable='false';
+          preview.className = 'visual-mermaid-preview';
           const id=++imageSequence.current;
-          let renderedSource:string|null=null;
+          let renderedSource:string|null=null;let renderTimer:ReturnType<typeof setTimeout>|undefined;
+          let previousSpecial = isInitialMermaid;
           const render=()=>{
-            const mermaid=String(node.attrs.params || '').split(/\s/)[0]==='mermaid';
-            preview.hidden=!mermaid;
-            const source=mermaid?'```mermaid\n'+node.textContent+'\n```':null;
+            const lang = String(node.attrs.params || '').split(/\s/)[0].toLowerCase();
+            const mermaid = lang === 'mermaid';
+            preview.hidden = !mermaid;
+            summary.hidden = !mermaid;
+            done.hidden = !mermaid;
+            if(!mermaid) panel.open = true;
+            else if(!previousSpecial && node.textContent) panel.open = false;
+            previousSpecial = mermaid;
+            const source = mermaid ? '```mermaid\n' + node.textContent + '\n```' : null;
             if(source===renderedSource)return;
             renderedSource=source;
-            if(source)setImageMounts(previous=>[...previous.filter(item=>item.id!==id),{id,element:preview,source}]);
+            clearTimeout(renderTimer);
+            if(source && node.textContent.trim())renderTimer=setTimeout(()=>setImageMounts(previous=>[...previous.filter(item=>item.id!==id),{id,element:preview,source}]),180);
             else setImageMounts(previous=>previous.filter(item=>item.id!==id));
           };
-          pre.appendChild(code); dom.append(header,pre,preview);render();
-          return { dom, contentDOM: code, stopEvent:event=>header.contains(event.target as Node),
+          pre.appendChild(code); dom.append(panel,preview);render();
+          return { dom, contentDOM: code, stopEvent:event=>header.contains(event.target as Node) || event.target===summary,
             ignoreMutation:mutation=>mutation.type!=='selection' && !code.contains(mutation.target) && mutation.target!==code,
             update(next) {if(next.type!==node.type)return false;node=next;if(document.activeElement!==input)input.value=node.attrs.params || '';render();return true;},
-            destroy(){queueMicrotask(()=>{if(viewRef.current)setImageMounts(previous=>previous.filter(item=>item.id!==id));});} };
+            destroy(){clearTimeout(renderTimer);clearTimeout(copyTimer);queueMicrotask(()=>{if(viewRef.current)setImageMounts(previous=>previous.filter(item=>item.id!==id));});} };
         },
         source_block(node, currentView, getPos) {
           const dom = document.createElement('div');dom.contentEditable = 'false';dom.className = 'visual-source-block';
@@ -303,12 +603,23 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           const summary=document.createElement('summary');summary.textContent='편집';
           const input=document.createElement('textarea');input.setAttribute('aria-label','블록 원문');input.value=node.attrs.source;input.rows=8;input.style.width='100%';input.disabled=!currentView.editable;
           const apply=document.createElement('button');apply.type='button';apply.textContent='적용';apply.disabled=!currentView.editable;
+          let sourceTimer:ReturnType<typeof setTimeout>|undefined;
+          input.addEventListener('input',()=>{
+            clearTimeout(sourceTimer);
+            if(!/^\s*```mermaid(?:\s|$)/i.test(input.value))return;
+            sourceTimer=setTimeout(()=>{
+              const pos=getPos();if(typeof pos!=='number' || !currentView.editable || !dom.isConnected)return;
+              if(currentView.state.doc.nodeAt(pos)?.type!==node.type)return;
+              if(input.value!==node.attrs.source)currentView.dispatch(currentView.state.tr.setNodeMarkup(pos,undefined,{source:input.value}));
+            },250);
+          });
+
           apply.addEventListener('click',()=>{const pos=getPos();if(typeof pos==='number' && currentView.editable){currentView.dispatch(closeHistory(currentView.state.tr.setNodeMarkup(pos,undefined,{source:input.value})));details.open=false;}});
           details.append(summary,input,apply);dom.append(picture,details);
           const render=()=>setImageMounts(previous=>[...previous.filter(item=>item.id!==id),{id,element:picture,source:node.attrs.source}]);render();
           return {dom,ignoreMutation:()=>true,stopEvent:event=>details.contains(event.target as Node),
-            update(next){if(next.type!==node.type)return false;if(next.attrs.source!==node.attrs.source){node=next;input.value=node.attrs.source;render();}return true;},
-            destroy(){queueMicrotask(()=>{if(viewRef.current)setImageMounts(previous=>previous.filter(item=>item.id!==id));});}};
+            update(next){if(next.type!==node.type)return false;if(next.attrs.source!==node.attrs.source){node=next;if(document.activeElement!==input || input.value!==node.attrs.source)input.value=node.attrs.source;render();}return true;},
+            destroy(){clearTimeout(sourceTimer);queueMicrotask(()=>{if(viewRef.current)setImageMounts(previous=>previous.filter(item=>item.id!==id));});}};
         },
       },
       dispatchTransaction(transaction) {
@@ -318,7 +629,14 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           if (target.source && (from.deleted || to.deleted)) target.valid = false;
           target.from = from.pos; target.to = Math.max(from.pos, to.pos);
         });
+        const viewport=host.current?.closest('.custom-preview-container') as HTMLElement|null;
+        const topBefore=viewport?.scrollTop;
         view.updateState(view.state.apply(transaction));
+        if(transaction.docChanged && viewport && topBefore!==undefined && viewport.scrollTop!==topBefore){
+          try{const bounds=viewport.getBoundingClientRect(),caret=view.coordsAtPos(view.state.selection.head);
+            if(caret.top>=bounds.top+8 && caret.bottom<=bounds.bottom-8)viewport.scrollTop=topBefore;
+          }catch{/* Let ProseMirror scroll when the caret is outside the viewport. */}
+        }
         caretRef.current?.schedule();
         if(transaction.selectionSet && !transaction.docChanged && view.hasFocus() && !view.composing && cursorCallback.current){
           const token='ONRIVICURSORMAP';
@@ -330,13 +648,13 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         const { from, to, $from, empty } = view.state.selection;
         if (transaction.docChanged) manualFloatingRef.current = false;
         setSelection(manualFloatingRef.current);
-        const markNames = ['strong', 'em', 'code', 'link', 'strike'];
+        const markNames = ['strong', 'em', 'code', 'link', 'strike', 'underline'];
         const currentMarks = markNames.filter(name => empty
           ? (view.state.storedMarks ?? $from.marks()).some(mark => mark.type.name === name)
           : view.state.doc.rangeHasMark(from, to, visualSchema.marks[name]));
         setActiveMarks(previous => previous.join(',') === currentMarks.join(',') ? previous : currentMarks);
         const before = $from.parent.isTextblock && $from.parent.type !== visualSchema.nodes.code_block
-          ? $from.parent.textBetween(Math.max(0, $from.parentOffset - 100), $from.parentOffset, '\n') : '';
+          ? $from.parent.textBetween(Math.max(0, $from.parentOffset - 100), $from.parentOffset, '\n', '\n') : '';
         const match = before.match(slashPattern);
         slashRange.current = empty && match ? { from: from - match[1].length, to } : null;
         setSlash(Boolean(slashRange.current));
@@ -344,8 +662,11 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         menuIndexRef.current = 0; setMenuIndex(0);
         if (!empty || slashRange.current) {
           const rect = view.coordsAtPos(from);
-          setPopup({ top: Math.max(8, Math.min(window.innerHeight - 150, empty ? rect.bottom + 6 : rect.top - 48)),
-            left: Math.max(8, Math.min(window.innerWidth - 360, rect.left)) });
+          const spaceBelow = window.innerHeight - rect.bottom;
+          const top = empty
+            ? (spaceBelow < 260 && rect.top > 260 ? Math.max(8, rect.top - 240) : Math.max(8, Math.min(window.innerHeight - 150, rect.bottom + 6)))
+            : Math.max(8, Math.min(window.innerHeight - 150, rect.top - 48));
+          setPopup({ top, left: Math.max(8, Math.min(window.innerWidth - 360, rect.left)) });
         }
         if (transaction.docChanged) {
           const next = codec.serialize(view.state.doc);
@@ -357,14 +678,14 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
               if(viewRef.current!==view || !view.hasFocus() || view.composing)return;
               const token='ONRIVICURSORMAP';
               const offset=codec.serialize(view.state.tr.insertText(token,view.state.selection.head).doc).indexOf(token);
-              if(offset>=0)cursorCallback.current?.(offset);
+              if(offset>=0)cursorCallback.current?.(offset,false);
             });
           }
         }
       },
       handleKeyDown(currentView, event) {
         if (!currentView.editable || event.isComposing) return false;
-        if(event.key==='Tab')synchronizeTextSelection(currentView);
+        if(event.key==='Tab' || event.key==='Backspace')synchronizeTextSelection(currentView);
         if(event.key==='Tab'){
           const position=currentView.state.selection.$from;
           if(!tableContext(currentView.state) && position.parent.isTextblock && position.parentOffset>0 && position.parentOffset<position.parent.content.size){
@@ -390,12 +711,15 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         }
         if ((event.ctrlKey || event.metaKey) && (event.code === 'Space' || event.key === ' ')) {
           const { from, to, $from, empty } = currentView.state.selection;
-          const before = $from.parent.isTextblock ? $from.parent.textBetween(0, $from.parentOffset, '\n') : '';
+          const before = $from.parent.isTextblock ? $from.parent.textBetween(0, $from.parentOffset, '\n', '\n') : '';
           const match = before.match(slashPattern);
           const rect = currentView.coordsAtPos(from);
           const slashCommand = empty && Boolean(match);
-          setPopup({ top: Math.max(8, Math.min(window.innerHeight - 150, slashCommand ? rect.bottom + 6 : rect.top - 48)),
-            left: Math.max(8, Math.min(window.innerWidth - 360, rect.left)) });
+          const spaceBelow = window.innerHeight - rect.bottom;
+          const top = slashCommand
+            ? (spaceBelow < 260 && rect.top > 260 ? Math.max(8, rect.top - 240) : Math.max(8, Math.min(window.innerHeight - 150, rect.bottom + 6)))
+            : Math.max(8, Math.min(window.innerHeight - 150, rect.top - 48));
+          setPopup({ top, left: Math.max(8, Math.min(window.innerWidth - 360, rect.left)) });
           if (slashCommand) {
             slashRange.current = { from: from - match![1].length, to };
             setSlash(true); setSelection(false);
@@ -441,6 +765,71 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         }
         return false;
       },
+      handleClick(currentView, pos, event) {
+        const anchor = (event.target as HTMLElement | null)?.closest?.('a');
+        let href = anchor?.getAttribute('href') || '';
+        if (!href) {
+          const mark = currentView.state.doc.resolve(pos).marks().find(m => m.type === visualSchema.marks.link);
+          if (mark?.attrs?.href) href = mark.attrs.href;
+        }
+        href = href.trim();
+        if (!href) return false;
+
+        if (href.startsWith('<') && href.endsWith('>')) {
+          href = href.slice(1, -1).trim();
+        }
+        href = href.replace(/^[<"']|[>"']$/g, '').trim();
+
+        if (href.startsWith('#') || href.startsWith('.#')) {
+          const rawId = href.startsWith('.#') ? href.slice(2) : href.slice(1);
+          const targetId = decodeURIComponent(rawId);
+          const targetEl = document.getElementById(targetId) || Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6')).find(h => (h.textContent?.trim() || '').normalize('NFC') === targetId.normalize('NFC'));
+          if (targetEl) {
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            event.preventDefault();
+            return true;
+          }
+        }
+
+        const isMdFile = href.endsWith('.md') || href.endsWith('.markdown') || href.includes('.md#') || href.includes('.markdown#');
+        const isKnowledgeLink = href.startsWith('knowledge://');
+        const isRelativeDoc = !/^(https?:|mailto:|tel:)/i.test(href) && (isMdFile || isKnowledgeLink || href.includes('.md'));
+
+        if (isRelativeDoc && onFileOpenRef.current) {
+          event.preventDefault();
+          event.stopPropagation();
+          const cleanHref = href.split('#')[0].replace(/^[<"']|[>"']$/g, '').trim();
+          const hashPart = href.includes('#') ? href.split('#')[1].replace(/^[<"']|[>"']$/g, '').trim() : undefined;
+
+          let resolved = cleanHref;
+          if (cleanHref.startsWith('file:///')) {
+            resolved = decodeURIComponent(cleanHref.replace(/^file:\/\/\//, ''));
+          } else if (currentFilePathRef.current) {
+            resolved = resolveDocPath(cleanHref, currentFilePathRef.current);
+          }
+          onFileOpenRef.current(resolved, hashPart);
+          return true;
+        }
+
+        let targetUrl = href;
+        if (targetUrl.startsWith('www.')) targetUrl = `https://${targetUrl}`;
+        const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+        if (api?.openExternal && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://') || targetUrl.startsWith('mailto:') || targetUrl.startsWith('tel:'))) {
+          event.preventDefault();
+          api.openExternal(targetUrl);
+          return true;
+        } else if (api?.openPath && (targetUrl.startsWith('file:///') || /^[a-zA-Z]:[/\\]/.test(targetUrl))) {
+          event.preventDefault();
+          const cleanLocalPath = targetUrl.startsWith('file:///') ? decodeURIComponent(targetUrl.replace(/^file:\/\/\//, '')) : targetUrl;
+          api.openPath(cleanLocalPath);
+          return true;
+        } else if (/^(https?:|mailto:|tel:)/i.test(targetUrl) || targetUrl.startsWith('www.')) {
+          event.preventDefault();
+          window.open(targetUrl, '_blank', 'noopener,noreferrer');
+          return true;
+        }
+        return false;
+      },
       handleDOMEvents: { mouseup(currentView) {
         cancelAnimationFrame(cursorFrame.current);
         cursorFrame.current=requestAnimationFrame(()=>{
@@ -456,18 +845,32 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     });
     viewRef.current = view;
     caretRef.current = installVisualCaret(view);
+    const scrollContainer=host.current.closest('.custom-preview-container') as HTMLElement|null;
+    if(scrollContainer){scrollContainer.scrollTop=cached?.source===content ? cached.scrollTop || 0 : 0;scrollContainer.scrollLeft=cached?.source===content ? cached.scrollLeft || 0 : 0;}
     // Codec belongs to this editor instance, keeping unchanged source node bytes.
     (view as EditorView & { replaceSource?: (source: string) => void }).replaceSource = source => {
       imageTargets.current.forEach(target => { target.valid = false; });
-      codec = createVisualDocumentCodec(source);
-      codecRef.current = codec;
-      emitted.current = source;
-      const previous = view.state.selection;
-      const state = EditorState.create({ doc: codec.doc, plugins: view.state.plugins });
-      // Metadata/save refreshes must not reset an active cursor to the start.
-      const limit = state.doc.content.size;
-      const selection = TextSelection.between(state.doc.resolve(Math.min(previous.anchor, limit)), state.doc.resolve(Math.min(previous.head, limit)));
-      view.updateState(state.apply(state.tr.setSelection(selection)));
+      const top=scrollContainer?.scrollTop,left=scrollContainer?.scrollLeft;
+      const nextCodec=createVisualDocumentCodec(source);
+      const oldDoc=view.state.doc;
+      if(oldDoc.content.eq(nextCodec.doc.content)){
+        const mapped=new Map<import('prosemirror-model').Node,string>();
+        oldDoc.forEach((node,_offset,index)=>{const raw=nextCodec.originalSource(nextCodec.doc.child(index));if(raw!==undefined)mapped.set(node,raw);});
+        nextCodec.adopt({doc:oldDoc,originalSource:node=>mapped.get(node)});
+        if(oldDoc.attrs.frontmatter!==nextCodec.doc.attrs.frontmatter)view.updateState(view.state.apply(view.state.tr.setDocAttribute('frontmatter',nextCodec.doc.attrs.frontmatter).setMeta('addToHistory',false)));
+      } else {
+        const from=oldDoc.content.findDiffStart(nextCodec.doc.content);
+        const end=oldDoc.content.findDiffEnd(nextCodec.doc.content);
+        let tr=view.state.tr;
+        if(from!==null && end){const overlap=from-Math.min(end.a,end.b);const oldEnd=end.a+Math.max(0,overlap),newEnd=end.b+Math.max(0,overlap);tr=tr.replace(from,oldEnd,nextCodec.doc.slice(from,newEnd));}
+        tr=tr.setDocAttribute('frontmatter',nextCodec.doc.attrs.frontmatter).setMeta('addToHistory',false);
+        view.updateState(view.state.apply(tr));
+        const preserved=new Map<import('prosemirror-model').Node,string>();
+        view.state.doc.forEach((node,_offset,index)=>{const matching=nextCodec.doc.maybeChild(index);if(matching?.eq(node)){const raw=nextCodec.originalSource(matching);if(raw!==undefined)preserved.set(node,raw);}});
+        nextCodec.adopt({doc:view.state.doc,originalSource:node=>preserved.get(node)});
+      }
+      codec=nextCodec;codecRef.current=codec;emitted.current=source;
+      if(scrollContainer && top!==undefined){scrollContainer.scrollTop=top;scrollContainer.scrollLeft=left || 0;}
       setInTable(Boolean(tableContext(view.state)));
       setActiveMarks(view.state.selection.$from.marks().map(mark=>mark.type.name));
       caretRef.current?.schedule();
@@ -476,7 +879,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     };
     return () => {
       if (documentId) {
-        sessions.set(documentId, { source: emitted.current, state: view.state, codec });
+        sessions.set(documentId, { source: emitted.current, state: view.state, codec,scrollTop:scrollContainer?.scrollTop,scrollLeft:scrollContainer?.scrollLeft });
         if (sessions.size > 20) sessions.delete(sessions.keys().next().value!);
       }
       pendingImages.forEach(target => { target.valid = false; }); pendingImages.clear();
@@ -521,23 +924,91 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   };
   const blockCommands: [string, Command][] = [
     ['본문', setBlockType(visualSchema.nodes.paragraph)],
-    ['제목 1', setBlockType(visualSchema.nodes.heading, { level: 1 })],
-    ['제목 2', setBlockType(visualSchema.nodes.heading, { level: 2 })],
-    ['제목 3', setBlockType(visualSchema.nodes.heading, { level: 3 })],
-    ['글머리 목록', wrapInList(visualSchema.nodes.bullet_list)],
-    ['번호 목록', wrapInList(visualSchema.nodes.ordered_list)],
+    ['제목 1', setHeadingBlock(1)],
+    ['제목 2', setHeadingBlock(2)],
+    ['제목 3', setHeadingBlock(3)],
+    ['글머리 목록', selectedList('bullet')],
+    ['번호 목록', selectedList('ordered')],
     ['인용문', wrapIn(visualSchema.nodes.blockquote)],
     ['코드 블록', setBlockType(visualSchema.nodes.code_block)],
     ['구분선', (state, dispatch) => { dispatch?.(state.tr.replaceSelectionWith(visualSchema.nodes.horizontal_rule.create()).scrollIntoView()); return true; }],
   ];
   const link: Command = (state, dispatch) => {
-    if (state.selection.empty) { setNotice('링크로 만들 글을 먼저 선택해 주세요.'); return false; }
-    const href = window.prompt('링크 주소를 입력해 주세요.', 'https://');
-    if (!href) return false;
-    if (!/^(https?:\/\/|mailto:|#|\/|\.\.?\/)/i.test(href.trim())) { setNotice('https://로 시작하는 주소를 입력해 주세요.'); return false; }
-    return toggleMark(visualSchema.marks.link, { href: href.trim() })(state, dispatch);
+    const view = viewRef.current;
+    if (!view || !view.editable) return false;
+    const { from, to, empty } = view.state.selection;
+    let selectedText = '';
+    let existingHref = 'https://';
+    if (!empty) {
+      selectedText = view.state.doc.textBetween(from, to, ' ');
+      const mark = view.state.doc.nodeAt(from)?.marks.find(m => m.type.name === 'link');
+      if (mark?.attrs?.href) existingHref = mark.attrs.href;
+    }
+    linkTargetRef.current = { from, to, valid: true };
+    setLinkDialogData({ text: selectedText, href: existingHref });
+    setLinkDialog(true);
+    return true;
+  };
+  linkCommandRef.current = link;
+
+  const handleLinkConfirm = ({ text, href }: { text: string; href: string }) => {
+    const view = viewRef.current;
+    const target = linkTargetRef.current;
+    if (!view || !target?.valid || !view.editable) {
+      setNotice('문서나 삽입 위치가 변경되었습니다.');
+      return;
+    }
+    linkTargetRef.current = null;
+    const mark = visualSchema.marks.link.create({ href });
+    const textNode = view.state.schema.text(text, [mark]);
+    const tr = view.state.tr.replaceWith(target.from, target.to, textNode);
+    const nextPos = target.from + text.length;
+    tr.setSelection(TextSelection.create(tr.doc, nextPos));
+    view.dispatch(closeHistory(tr).scrollIntoView());
+    view.focus();
+  };
+  const openDatePicker = (removeSlash = false) => {
+    const view = viewRef.current;
+    if (!view || readOnly) return;
+    const from = view.state.selection.from;
+    const to = view.state.selection.to;
+    const rect = view.coordsAtPos(from);
+    const isSlash = removeSlash && slashRange.current;
+    dateTargetRef.current = {
+      from: isSlash ? slashRange.current!.from : from,
+      to: isSlash ? slashRange.current!.to : to,
+      valid: true,
+    };
+    if (isSlash) {
+      slashRange.current = null;
+      setSlash(false);
+    }
+    setDatePickerPos({
+      top: rect.bottom + 6,
+      left: Math.max(16, rect.left),
+    });
+    setDatePickerOpen(true);
+  };
+  openDatePickerRef.current = openDatePicker;
+
+  const handleDateInsert = (formattedDate: string) => {
+    const view = viewRef.current;
+    if (!view || !view.editable) return;
+    const target = dateTargetRef.current;
+    if (target && target.valid) {
+      let tr = view.state.tr.replaceWith(target.from, target.to, view.state.schema.text(formattedDate));
+      const nextPos = target.from + formattedDate.length;
+      tr = tr.setSelection(TextSelection.create(tr.doc, nextPos));
+      view.dispatch(closeHistory(tr).scrollIntoView());
+    } else {
+      view.dispatch(view.state.tr.insertText(formattedDate).scrollIntoView());
+    }
+    view.focus();
+    setDatePickerOpen(false);
+    dateTargetRef.current = null;
   };
   const clear: Command = (state, dispatch, view) => {
+    if(selectedList('clear')(state,dispatch,view))return true;
     const { from, to, $from } = state.selection;
     const transaction = state.tr.removeMark(state.selection.empty ? $from.start() : from,
       state.selection.empty ? $from.end() : to).setStoredMarks([]);
@@ -571,14 +1042,16 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   };
   const nativeCommands: Record<string, Command> = {
     bold: toggleMark(visualSchema.marks.strong), italic: toggleMark(visualSchema.marks.em),
+    underline: toggleMark(visualSchema.marks.underline),
     inlineCode: toggleMark(visualSchema.marks.code), strikethrough:toggleMark(visualSchema.marks.strike), link, clear,
     quoteNote:setQuote('NOTE'),quoteTip:setQuote('TIP'),quoteImportant:setQuote('IMPORTANT'),quoteWarning:setQuote('WARNING'),quoteCaution:setQuote('CAUTION'),
     table:()=>{openTableRef.current();return true;},
-    list: wrapInList(visualSchema.nodes.bullet_list), orderedList: wrapInList(visualSchema.nodes.ordered_list),
+    list: selectedList('bullet'), orderedList: selectedList('ordered'),
     checklist:makeChecklist, quote: setQuote(null), codeblock: setBlockType(visualSchema.nodes.code_block),
     divider: blockCommands[blockCommands.length - 1][1], undo, redo,
+    math: () => { executeItem('math'); return true; }, latex: () => { executeItem('math'); return true; },
   };
-  for (let level = 1; level <= 6; level++) nativeCommands[`h${level}`] = setBlockType(visualSchema.nodes.heading, { level });
+  for (let level = 1; level <= 6; level++) nativeCommands[`h${level}`] = setHeadingBlock(level);
   beginImageRef.current = (source, position, file) => {
     const view = viewRef.current;
     if (!view || !view.editable) return;
@@ -648,6 +1121,93 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       }
       beginImageRef.current(); return;
     }
+    if (id === 'now' || id === 'calendar') {
+      openDatePicker(removeSlash);
+      return;
+    }
+    if (id === 'taglink' && images.current.onDocLinkDialog) {
+      const from = view.state.selection.from;
+      const to = view.state.selection.to;
+      const rect = view.coordsAtPos(from);
+      const isSlash = removeSlash && slashRange.current;
+      const target = {
+        from: isSlash ? slashRange.current!.from : from,
+        to: isSlash ? slashRange.current!.to : to,
+        valid: true,
+      };
+      if (isSlash) {
+        slashRange.current = null;
+        setSlash(false);
+      }
+      images.current.onDocLinkDialog(
+        { top: Math.max(8, Math.min(window.innerHeight - 150, rect.bottom + 6)), left: Math.max(8, Math.min(window.innerWidth - 440, rect.left)) },
+        (targetUrl: string, displayTitle: string) => {
+          if (!target.valid || viewRef.current !== view || !view.editable) return false;
+          const mark = visualSchema.marks.link.create({ href: targetUrl });
+          const textNode = view.state.schema.text(displayTitle, [mark]);
+          let tr = view.state.tr.replaceWith(target.from, target.to, textNode);
+          const nextPos = target.from + displayTitle.length;
+          tr = tr.setSelection(TextSelection.create(tr.doc, nextPos));
+          view.dispatch(closeHistory(tr).scrollIntoView());
+          view.focus();
+          return true;
+        }
+      );
+      return;
+    }
+    if (id === 'math' || id === 'latex') {
+      const isSlash = removeSlash && slashRange.current;
+      const from = isSlash ? slashRange.current!.from : view.state.selection.from;
+      const to = isSlash ? slashRange.current!.to : view.state.selection.to;
+      if (isSlash) {
+        slashRange.current = null;
+        setSlash(false);
+      }
+      if (images.current.onFormulaDialog) {
+        const target = { from, to, valid: true };
+        imageTargets.current.add(target);
+        images.current.onFormulaDialog((formulaCode: string) => {
+          imageTargets.current.delete(target);
+          if (!target.valid || viewRef.current !== view || !view.editable) return false;
+          const cleanCode = formulaCode.trim();
+          const isInline = cleanCode.startsWith('$') && !cleanCode.startsWith('$$') && cleanCode.endsWith('$') && cleanCode.length >= 2;
+          let tr = view.state.tr;
+          if (isInline) {
+            const rawLatex = cleanCode.slice(1, -1).trim();
+            const inlineNode = visualSchema.nodes.visual_inline_math.create({ latex: rawLatex });
+            const spaceNode = view.state.schema.text(' ');
+            tr = tr.replaceWith(target.from, target.to, [inlineNode, spaceNode]);
+            const nextPos = target.from + inlineNode.nodeSize + spaceNode.nodeSize;
+            tr = tr.setSelection(TextSelection.create(tr.doc, nextPos));
+          } else {
+            const rawLatex = cleanCode.startsWith('$$')
+              ? cleanCode.replace(/^\$\$|\$\$$/g, '').trim()
+              : cleanCode.startsWith('```')
+                ? cleanCode.replace(/^```[a-z]*\r?\n|```$/gi, '').trim()
+                : cleanCode;
+            const mathNode = visualSchema.nodes.visual_math.create({ latex: rawLatex });
+            const nextParagraph = visualSchema.nodes.paragraph.create();
+            tr = tr.replaceWith(target.from, target.to, [mathNode, nextParagraph]);
+            const nextPos = target.from + mathNode.nodeSize + 1;
+            tr = tr.setSelection(TextSelection.create(tr.doc, nextPos));
+          }
+          view.dispatch(closeHistory(tr).scrollIntoView());
+          view.focus();
+          return true;
+        });
+        return;
+      }
+      const sampleText = '\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}';
+      const sampleNode = visualSchema.nodes.visual_math.create({ latex: sampleText });
+      let tr = view.state.tr.replaceWith(from, to, sampleNode);
+      if (tr.selection.to === tr.doc.content.size || tr.selection.$to.parent === tr.doc) {
+        tr = tr.insert(tr.doc.content.size, visualSchema.nodes.paragraph.create());
+        tr = tr.setSelection(TextSelection.create(tr.doc, tr.doc.content.size - 1));
+      }
+      view.dispatch(closeHistory(tr).scrollIntoView());
+      view.focus();
+      return;
+    }
     if (nativeCommands[id]) { run(nativeCommands[id], removeSlash); return; }
     if (removeSlash && slashRange.current) {
       const range = slashRange.current;
@@ -671,14 +1231,17 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     if (!commandRef) return;
     const commands: Record<string, Command> = {
       UNDO: undo, REDO: redo, BOLD: toggleMark(visualSchema.marks.strong),
-      ITALIC: toggleMark(visualSchema.marks.em), INLINE_CODE: toggleMark(visualSchema.marks.code),
-      LIST: wrapInList(visualSchema.nodes.bullet_list), ORDERED_LIST: wrapInList(visualSchema.nodes.ordered_list),
+      ITALIC: toggleMark(visualSchema.marks.em), UNDERLINE: toggleMark(visualSchema.marks.underline),
+      INLINE_CODE: toggleMark(visualSchema.marks.code),
+      LIST: selectedList('bullet'), ORDERED_LIST: selectedList('ordered'),
       CHECK:makeChecklist,CHECKLIST:makeChecklist, QUOTE: setQuote(null), CODE_BLOCK: setBlockType(visualSchema.nodes.code_block),
       LINK: link, REMOVE_PREFIX: clear, STRIKETHROUGH:toggleMark(visualSchema.marks.strike),
       QUOTE_NOTE:setQuote('NOTE'),QUOTE_TIP:setQuote('TIP'),QUOTE_IMPORTANT:setQuote('IMPORTANT'),QUOTE_WARNING:setQuote('WARNING'),QUOTE_CAUTION:setQuote('CAUTION'),
       TABLE:()=>{openTableRef.current();return true;}, QUICK_TABLE:()=>{openTableRef.current();return true;}, INSERT_TABLE_ROW:tableAction('addRow'), DELETE_TABLE_ROW:tableAction('deleteRow'),
+      NOW: () => { openDatePickerRef.current(); return true; }, CALENDAR: () => { openDatePickerRef.current(); return true; },
+      MATH: () => { executeItemRef.current('math'); return true; }, LATEX: () => { executeItemRef.current('math'); return true; },
     };
-    for (let level = 1; level <= 6; level++) commands[`H${level}`] = setBlockType(visualSchema.nodes.heading, { level });
+    for (let level = 1; level <= 6; level++) commands[`H${level}`] = setHeadingBlock(level);
     const bridge = (command: string) => {
       if (command.startsWith('INSERT_TEXT:')) {
         const view=viewRef.current;
@@ -693,9 +1256,13 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         view.focus();
         const {from,to,$from,empty} = view.state.selection;
         const rect = view.coordsAtPos(from);
-        setPopup({top:Math.max(8,Math.min(window.innerHeight-150,command==='SLASH_COMMAND'?rect.bottom+6:rect.top-48)),left:Math.max(8,Math.min(window.innerWidth-360,rect.left))});
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const top = command === 'SLASH_COMMAND'
+          ? (spaceBelow < 260 && rect.top > 260 ? Math.max(8, rect.top - 240) : Math.max(8, Math.min(window.innerHeight - 150, rect.bottom + 6)))
+          : Math.max(8, Math.min(window.innerHeight - 150, rect.top - 48));
+        setPopup({ top, left: Math.max(8, Math.min(window.innerWidth - 360, rect.left)) });
         if (command === 'SLASH_COMMAND') {
-          const before = $from.parent.isTextblock ? $from.parent.textBetween(0,$from.parentOffset,'\n') : '';
+          const before = $from.parent.isTextblock ? $from.parent.textBetween(0, $from.parentOffset, '\n', '\n') : '';
           const match = before.match(slashPattern);
           slashRange.current = {from:empty && match ? from-match[1].length : from,to};
           setQuery(empty && match ? match[1].slice(1).toLowerCase() : '');
@@ -710,6 +1277,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       if (command === 'FOCUS') { viewRef.current?.focus(); return true; }
       if (commands[command]) { run(commands[command]); return true; }
       const aliases: Record<string, string> = { HR:'divider', CHECK:'checklist', CHECKLIST:'checklist', CITE:'citation', DOCLINK:'taglink',
+        NOW:'now', CALENDAR:'now',
         VIDEO:'youtube', YOUTUBE:'youtube', ADD_REFERENCE:'add_reference', TOGGLE_CSS_STYLE:'styleSettings', AI_DRAFT:'aiHelp', CODE:'codeblock', LATEX:'math', MATH:'math' };
       const item = TOOLBAR_ITEMS.find(tool => tool.id === aliases[command] || tool.id.replace(/([A-Z])/g, '_$1').toUpperCase() === command);
       if (!item) return false;
@@ -744,11 +1312,23 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       }} className="rounded border p-2 text-sm"><option value="">문단 서식</option>
         {blockCommands.map(([label]) => <option key={label}>{label}</option>)}
       </select>
-      <span className="ml-auto text-xs text-zinc-500">/ 입력: 블록 추가 · Ctrl+Space: 툴바 · Ctrl+Enter: 표/코드 아래 본문 · Tab: 목록 들여쓰기</span>
+      <span className="ml-auto text-xs text-zinc-500">/ 입력: 블록 추가 · Ctrl+Space: 툴바 · Ctrl+Enter: 표·코드·인용문 아래 본문 · Tab: 목록 들여쓰기</span>
       <span aria-label="현재 입력 서식" className="text-xs text-blue-700">{activeMarks.length ? activeMarks.map(name => ({strong:'bold',em:'italic',code:'inlinecode',link:'link',strike:'strike'})[name]).join(' + ') : 'plain'}</span>
     </div>
     {inTable && !readOnly && createPortal(<div style={tableToolPosition} className="no-print fixed z-[100000] flex flex-wrap gap-1 rounded-lg border border-blue-200 bg-blue-50 p-2 text-zinc-800 shadow-lg" data-editor-controls aria-label="표 편집 도구">
       <strong className="self-center px-2 text-sm">표 편집 도구</strong>
+      <button type="button" className="onrivi-media-control" aria-label="표 복사" onMouseDown={e=>e.preventDefault()} onClick={async()=>{
+        const view=viewRef.current,codec=codecRef.current;
+        const context=view && tableContext(view.state);
+        if(!context || !codec)return;
+        const text=codec.serialize(visualSchema.nodes.doc.create(null,context.table));
+        try {
+          const api=(window as any).electronAPI;
+          if(api?.copyTextToClipboard)await api.copyTextToClipboard(text);
+          else await navigator.clipboard.writeText(text);
+          setNotice('표를 마크다운 형식으로 복사했습니다.');
+        } catch {setNotice('표 복사에 실패했습니다.');}
+      }}>복사</button>
       {(['addRow','deleteRow','addColumn','deleteColumn','left','center','right','afterTable','deleteTable'] as const).map(action=><button key={action} type="button" className="rounded border bg-white px-2 py-1 text-sm" onMouseDown={e=>e.preventDefault()} onClick={()=>{const view=viewRef.current,command=tableAction(action);if(view && !command(view.state))setNotice('헤더 행과 마지막 열은 삭제할 수 없습니다. 표 전체를 지우려면 표 삭제를 사용해 주세요.');else run(command);}}>
         {{addRow:'행 추가',deleteRow:'행 삭제',addColumn:'열 추가',deleteColumn:'열 삭제',left:'본문 왼쪽',center:'본문 중앙',right:'본문 오른쪽',afterTable:'표 아래 본문',deleteTable:'표 삭제'}[action]}</button>)}
     </div>, document.body)}
@@ -762,11 +1342,37 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       let first=0;tr.doc.descendants((node,pos)=>{if(node===table){first=pos+4;return false;}return true;});
       tr=tr.setSelection(TextSelection.create(tr.doc,first));view.dispatch(closeHistory(tr).scrollIntoView());view.focus();
     }} />
+    <LinkModal
+      isOpen={linkDialog}
+      onClose={() => { setLinkDialog(false); linkTargetRef.current = null; }}
+      onConfirm={handleLinkConfirm}
+      initialText={linkDialogData.text}
+      initialHref={linkDialogData.href}
+      isDarkMode={false}
+    />
+    <CalendarModal
+      isOpen={calendarDialog}
+      onClose={() => setCalendarDialog(false)}
+      onInsert={(formattedDate) => {
+        const view = viewRef.current;
+        if (!view || !view.editable) return;
+        view.dispatch(view.state.tr.insertText(formattedDate).scrollIntoView());
+        view.focus();
+      }}
+      isDarkMode={false}
+    />
+    <DateTimeInsertPicker
+      isOpen={datePickerOpen}
+      position={datePickerPos}
+      onClose={() => { setDatePickerOpen(false); dateTargetRef.current = null; }}
+      onInsert={handleDateInsert}
+      isDarkMode={false}
+    />
     {notice && <div role="status" className="flex justify-between bg-amber-50 px-4 py-2 text-sm text-amber-900" data-editor-controls>{notice}<button type="button" onClick={() => setNotice('')}>닫기</button></div>}
     {selection && !readOnly && !onFloatingToolbar && createPortal(<div role="toolbar" aria-label="선택한 글 서식" style={{ ...popup,
       left: Math.max(8, Math.min(popup.left, window.innerWidth - 916)), width: 'min(900px, calc(100vw - 16px))',
       maxHeight: Math.min(window.innerHeight * 0.4, window.innerHeight - popup.top - 8), overflow:'auto' }} className="fixed z-[1000] flex flex-wrap rounded-xl border bg-white text-zinc-800 shadow-lg" data-editor-controls>
-      {([['bold','B'], ['italic','I'], ['inlineCode','</>'], ['link','🔗'], ['clear','⌫']] as [string,string][]).map(([id,label]) => itemButton(id,label))}
+      {([['bold','B'], ['italic','I'], ['inlineCode','</>'], ['link','🔗'], ['orderedList','1.'], ['list','•'], ['checklist','☑'], ['clear','⌫']] as [string,string][]).map(([id,label]) => itemButton(id,label))}
     </div>, document.body)}
     {slash && !readOnly && createPortal(<div id="visual-slash-menu" role="menu" aria-label="슬래시 명령어" style={{ ...popup, width: 'min(650px, calc(100vw - 16px))',
       left: Math.max(8, Math.min(popup.left, window.innerWidth - 666)),
@@ -783,7 +1389,10 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     <div ref={host} />
     {imageMounts.map(item => createPortal(renderImage?.(item.source) || <VisualReadOnlyMarkdownBlock source={item.source} />, item.element, String(item.id)))}
     <style>{`
-      .visual-document-surface { caret-color:#2563eb; outline:none; min-height:360px; padding:28px; white-space:pre-wrap; overflow-wrap:anywhere; color:inherit; background:inherit; font-family:inherit; font-size:inherit; line-height:1.75; }
+      .custom-preview-container:has(.visual-document-editor) { overflow-anchor:none!important; scroll-behavior:auto!important; }
+      .visual-document-surface { caret-color:transparent; outline:none; min-height:360px; padding:28px; white-space:pre-wrap; overflow-wrap:anywhere; color:inherit; background:inherit; font-family:inherit; font-size:inherit; line-height:1.75; }
+      .visual-document-surface a { color:#1d4ed8; text-decoration:underline; cursor:pointer; }
+      .visual-document-surface a:hover { color:#1e40af; text-decoration:underline; }
       .custom-preview-container .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div),
       .onrivi-content-root .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div),
       .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div) { white-space:break-spaces!important; tab-size:inherit; }
@@ -797,9 +1406,21 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       .visual-document-surface h3 { font-size:1.25em; font-weight:700; }
       .visual-document-surface ul { padding-left:2em; list-style:disc; }
       .visual-document-surface ul, .visual-document-surface ol { padding-left:2em!important; margin-top:0!important; margin-bottom:0!important; }
+      /* Keep the boundary between separate top-level lists, without adding item gaps. */
+      .custom-preview-container .visual-document-surface > :is(ul,ol) + :is(ul,ol),
+      .visual-document-surface > :is(ul,ol) + :is(ul,ol) { margin-top:1.5em!important; }
+
       .visual-document-surface ol { padding-left:2em; list-style:decimal; }
       .visual-document-surface blockquote { border-left:3px solid #93c5fd; padding-left:1em; }
       .visual-document-surface pre { background:#f4f4f5; padding:12px; white-space:pre-wrap; }
+      .visual-document-surface .visual-code-block { margin-top:24px!important; min-width:0; max-width:100%; box-sizing:border-box; }
+      .visual-document-surface .visual-code-editor-panel { min-width:0; max-width:100%; }
+      .visual-document-surface .visual-code-block pre { display:block!important; max-width:100%!important; box-sizing:border-box!important; overflow-x:auto!important; white-space:pre!important; overflow-wrap:normal!important; word-break:normal!important; }
+      .visual-document-surface .visual-code-block pre code { display:block!important; width:max-content!important; min-width:100%; white-space:pre!important; overflow:visible!important; overflow-wrap:normal!important; word-break:normal!important; }
+      .visual-code-editor-panel > summary { width:max-content; margin:8px 12px; cursor:pointer; }
+      .visual-code-editor-panel > summary[hidden] { display:none!important; }
+      .visual-code-language button[aria-label="코드 내용 복사"] { margin-left:auto; }
+      .visual-code-language button[hidden] { display:none!important; }
       .visual-document-surface .visual-code-language { display:flex!important; gap:10px; align-items:center; padding:10px 16px!important; margin:0!important; background:#eef2f7!important; border-bottom:1px solid #dbe2ea; font-family:system-ui,sans-serif!important; font-size:11px!important; line-height:1.4!important; font-weight:700; letter-spacing:.06em; color:#475569!important; }
       .visual-document-surface .visual-code-language input { background:#fff!important; color:#334155!important; border:1px solid #cbd5e1; border-radius:6px; padding:4px 8px!important; width:120px!important; max-width:60%; height:28px; box-sizing:border-box; font-family:system-ui,sans-serif!important; font-size:12px!important; line-height:18px!important; letter-spacing:0; }
       .visual-code-language input:focus { outline:2px solid #93c5fd; outline-offset:2px; }
@@ -834,6 +1455,9 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       .visual-readonly-callout > strong { color:inherit; display:block; margin-bottom:8px; }
       .visual-readonly-caption { margin-top:8px; color:#71717a; font-size:11px; }
       .visual-document-surface .ProseMirror-selectednode { outline:2px solid #93c5fd; }
+      .visual-math-preview { margin: 8px 0; overflow-x: auto; display: flex; justify-content: center; }
+      .visual-math-preview .visual-readonly-content pre,
+      .visual-math-preview pre { display: none !important; }
     `}</style>
   </section>;
 }
