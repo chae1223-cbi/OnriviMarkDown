@@ -1,6 +1,9 @@
 // 🚨 @PATCH : **2026-10-07** — [환경설정 리소스 폴더(참조파일 등) media 하위폴더 직결 바인딩]: 구글 드라이브 업로드 시 cloudSettings.mediaFolderId 우선 참조 및 부모 리소스 폴더 하위 탐색으로 환경설정에 지정된 리소스 폴더에 안전 저장
 // 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 전역 미디어 실시간 연동 강화]: getEffectiveResourceFolder 연동 및 구글 드라이브(OnriviAuthor/참조파일/media) 업로드 지원
 "use client";
+import { pickResourceMedia } from '@/lib/resourceMediaPicker';
+import { saveResourceMedia, importResourceMedia } from '@/lib/resourceMedia';
+import { desktopClipboardImage } from '@/lib/desktopClipboard';
 
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { idb } from '@/lib/indexedDbHelper';
@@ -59,7 +62,9 @@ export default function ImageModal({
   rootFolder,
   resourceFolder,
 }: ImageModalProps) {
+  const [saving, setSaving] = useState(false);
   const [imagePath, setImagePath] = useState("");
+  const [clipboardMessage, setClipboardMessage] = useState('');
   const [appliedPath, setAppliedPath] = useState("");
   const [imageAlt, setImageAlt] = useState("이미지 설명");
   const [imageWidth, setImageWidth] = useState("");
@@ -74,24 +79,14 @@ export default function ImageModal({
   const [browsingDrive,setBrowsingDrive]=useState(false);
   const guardResource=()=>{try {requireResourceSettings();return true;}catch(e:any){onClose();showToast?.(e.message,'error');return false;}};
   const browseSource=async()=>{
-    if(!guardResource())return;
-    const drive=getResourceSettings()?.kind === 'drive';
-    if(!drive){fileInputRef.current?.click();return;}
     if(browsingDrive)return;
     setBrowsingDrive(true);
     try {
-      const token=getSavedDriveToken(),info=getSavedWorkspaceInfo();
-      if(!token||!info?.resourceFolderId)throw new Error('구글 드라이브를 먼저 연결해 주세요.');
-      const {pickDriveResourceImage}=await import('@/lib/gdrive/ResourceFilePicker');
-      const file=await pickDriveResourceImage(token,info.resourceFolderId);
+      const file = await pickResourceMedia('image',workspaceType,resourceFolderHandle);
       if(!file)return;
-      const sourcePath=`/media/${encodeURIComponent(file.name)}?driveId=${encodeURIComponent(file.id)}`;
-      const preview=await getDriveMediaImageBlobUrl(token,info.mediaFolderId,sourcePath);
-      if(!preview)throw new Error('선택한 이미지를 불러오지 못했습니다.');
-      const blob=await (await fetch(preview)).blob();
-      const uploaded=await uploadDriveImage(token,info.mediaFolderId,blob,file.name);
-      const path=`/media/${encodeURIComponent(uploaded.name)}?driveId=${encodeURIComponent(uploaded.id)}`;
-      setImagePath(path);setAppliedPath(path);setTempPreviewUrl(preview);setImageLoadError(false);
+      const path = await saveResourceMedia(file,file.name,resourceFolderHandle);
+      setImagePath(path);setAppliedPath(path);setTempPreviewUrl('');setImageLoadError(false);
+      showToast?.('선택한 사진을 현재 리소스 폴더에 복사했습니다.','success');
     }catch(e){showToast?.(e instanceof Error?e.message:'파일 선택 실패','error');}
     finally{setBrowsingDrive(false);}
   };
@@ -109,6 +104,7 @@ export default function ImageModal({
 
   useEffect(() => {
     if (isOpen) {
+      setClipboardMessage('');
       setAppliedPath("");
       setTempPreviewUrl("");
       if (initialData) {
@@ -128,97 +124,14 @@ export default function ImageModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  const handleLocalImageSave = async (base64Data: string, fileName: string, imageFile: File) => {
+  const handleLocalImageSave = async (_base64Data: string, fileName: string, imageFile: File) => {
     try {
-    requireResourceSettings();
-    let finalPath = '';
-    const api = (window as any).electronAPI;
-
-    // ☁️ [Google Drive 작업장 및 리소스 폴더 지원]
-    const isDriveTarget = getResourceSettings()?.kind === 'drive';
-    if (isDriveTarget) {
-      const token = getSavedDriveToken();
-      const cloudSettings = getResourceSettings('cloud');
-      const wsInfo = getSavedWorkspaceInfo();
-      let mediaFolderId = cloudSettings?.mediaFolderId || wsInfo?.mediaFolderId;
-      if (!mediaFolderId && token && (cloudSettings?.folderId || wsInfo?.resourceFolderId)) {
-        try {
-          const parentId = cloudSettings?.folderId || wsInfo?.resourceFolderId;
-          const { listDriveChildren } = await import('@/lib/gdrive/googleDriveClient');
-          const children = await listDriveChildren(token, parentId!);
-          const m = children.find(c => c.isFolder && c.name === 'media');
-          if (m) mediaFolderId = m.id;
-        } catch {}
-      }
-      if (token && mediaFolderId) {
-        try {
-          const uploaded = await uploadDriveImage(token, mediaFolderId, imageFile, fileName);
-          if (uploaded?.id) {
-            finalPath = `/media/${encodeURIComponent(uploaded.name)}?driveId=${encodeURIComponent(uploaded.id)}`;
-            return finalPath;
-          }
-        } catch (e) {
-          throw e;
-        }
-      }
-      throw new Error('드라이브 리소스 폴더 연결을 확인해 주세요.');
-    }
-    
-    if (api) {
-      // 💡 [Desktop] targetFolder prop 대신 항상 최신 유효 resourceFolder를 읽어 사용
-      const freshResourceFolder = getEffectiveResourceFolder(resourceFolder);
-      let effectiveTargetFolder = '';
-      if (freshResourceFolder) {
-        const sep = freshResourceFolder.includes('\\') ? '\\' : '/';
-        effectiveTargetFolder = freshResourceFolder + sep + 'media';
-      }
-      const saveResult = await api.saveImage(effectiveTargetFolder, base64Data, fileName);
-      if (saveResult && saveResult.success) {
-        if (saveResult.mediaPath) {
-          // main.js가 명시적으로 mediaPath를 반환한 경우 (가장 정확)
-          finalPath = saveResult.mediaPath;
-        } else if (saveResult.absolutePath) {
-          // absolutePath만 있는 경우 media:// 프로토콜로 렌더링
-          finalPath = `media://local/serve?url=${encodeURIComponent(saveResult.absolutePath)}`;
-        }
-      }
-    } else if (workspaceType === 'browser' || workspaceType === 'local') {
-      try {
-        const settings = getResourceSettings();
-        let handle = resourceFolderHandle || (window as any).__resourceFolderHandle;
-        if (!handle || handle.name !== settings?.path) handle = await idb.get('resourceFolderHandle');
-        if (settings?.kind === 'browser' && handle?.name === settings.path) {
-          const options = { mode: 'readwrite' };
-          let permission = await handle.queryPermission(options);
-          if (permission !== 'granted') permission = await handle.requestPermission(options);
-          if (permission !== 'granted') throw new Error('리소스 폴더 접근 권한을 다시 설정해 주세요.');
-          (window as any).__resourceFolderHandle = handle;
-          const mediaDir = await handle.getDirectoryHandle('media', { create: true });
-          const fileHandle = await mediaDir.getFileHandle(fileName, { create: true });
-          const writable = await fileHandle.createWritable();
-          await writable.write(imageFile);
-          await writable.close();
-          finalPath = `/media/${fileName}`;
-        } else { throw new Error('리소스 폴더 접근 권한을 다시 설정해 주세요.'); }
-      } catch (e) {
-        throw e;
-      }
-    }
-
-    if (finalPath) {
-      setImagePath(finalPath);
-      setAppliedPath(finalPath);
-      if (showToast) showToast('리소스 폴더의 media에 저장되었습니다.', 'success');
-    } else { throw new Error('리소스 폴더에 이미지를 저장하지 못했습니다.'); }
-    return finalPath;
-    } catch (error) {
-      setTempPreviewUrl('');
-      const message = error instanceof Error ? error.message : '이미지를 저장하지 못했습니다.';
-      showToast?.(message, 'error');
-      if (getResourceSettings()?.kind === 'browser') {
-        window.dispatchEvent(new CustomEvent('onrivi:resource-settings'));
-      }
-      return '';
+      const finalPath = await saveResourceMedia(imageFile,fileName,resourceFolderHandle);
+      setImagePath(finalPath); setAppliedPath(finalPath);
+      showToast?.('현재 리소스 폴더에 복사했습니다. 같은 이름의 파일은 덮어씁니다.', 'success');
+      return finalPath;
+    } catch(error) {
+      setTempPreviewUrl(''); showToast?.(error instanceof Error ? error.message : '이미지 저장 실패','error'); return '';
     }
   };
 
@@ -269,15 +182,24 @@ export default function ImageModal({
     return null;
   };
 
-  const handlePasteEvent = async (e: React.ClipboardEvent<HTMLDivElement>) => {
+  const handlePasteEvent = async (e: React.ClipboardEvent<HTMLDivElement>, reportEmpty = false) => {
+    const directImage = Array.from(e.clipboardData?.items || []).some(item => item.type.startsWith('image/'))
+      || Array.from(e.clipboardData?.files || []).some(file => file.type.startsWith('image/'));
+    if (directImage) { e.preventDefault(); e.stopPropagation(); }
     const imageFile = await resolveClipboardFile(e);
-    if (!imageFile) return;
+    if (!imageFile) {
+      if (reportEmpty) setClipboardMessage('클립보드에 이미지가 없습니다. 그림을 우클릭하여 ‘이미지 복사’하거나 캡처한 뒤 다시 눌러 주세요.');
+      return;
+    }
+    setClipboardMessage('이미지를 읽고 저장하고 있습니다…');
     e.preventDefault();
     e.stopPropagation();
 
     const reader = new FileReader();
     reader.onload = async () => {
       const result = reader.result as string;
+      setTempPreviewUrl(result);
+      setImageLoadError(false);
       const base64Data = result.split(',')[1];
       if (!base64Data) {
         if (showToast) showToast('이미지 데이터를 읽을 수 없습니다.', 'error');
@@ -298,9 +220,11 @@ export default function ImageModal({
       } catch (e) {
         console.warn('해시 생성 실패, 기본 시간 기반 이름 사용', e);
       }
-      await handleLocalImageSave(base64Data, fileName, imageFile!);
+      const saved = await handleLocalImageSave(base64Data, fileName, imageFile!);
+      setClipboardMessage(saved ? '이미지를 불러왔습니다. 아래 이미지 삽입 버튼으로 적용해 주세요.' : '이미지 저장에 실패했습니다. 리소스 폴더 연결과 오류 알림을 확인해 주세요.');
     };
     reader.onerror = () => {
+      setClipboardMessage('클립보드 이미지 데이터를 읽지 못했습니다. 이미지를 다시 복사해 주세요.');
       if (showToast) showToast('이미지 파일을 읽는데 실패했습니다.', 'error');
     };
     reader.readAsDataURL(imageFile);
@@ -315,7 +239,14 @@ export default function ImageModal({
     else if (mdMatch) url = mdMatch[1];
 
     url = url.replace(/^[\("'\s]+|[\)"'\s]+$/g, '');
-    url = url.replace(/[?&](?:width|height|w|h)=[^&]*/gi, '');
+    const question = url.indexOf('?');
+    if (question >= 0) {
+      const hash = url.indexOf('#', question);
+      const params = new URLSearchParams(url.slice(question + 1, hash >= 0 ? hash : undefined));
+      ['width', 'height', 'w', 'h', 'align'].forEach(key => params.delete(key));
+      const query = params.toString();
+      url = url.slice(0, question) + (query ? '?' + query : '') + (hash >= 0 ? url.slice(hash) : '');
+    }
 
     if (url.startsWith('media://')) {
       try {
@@ -367,11 +298,14 @@ export default function ImageModal({
     return localBlobUrl;
   },[cleanImagePath,localBlobUrl,resourceFolder,tempPreviewUrl]);
 
-  const handleInsert = () => {
+  const handleInsert = async () => {
+    if (saving) return;
     if(!guardResource())return;
     const insertPath = appliedPath || cleanImagePath;
     if (insertPath) {
-      let finalPath = insertPath;
+      setSaving(true);
+      try {
+      let finalPath = await importResourceMedia(insertPath,resourceFolderHandle);
       const params: string[] = [];
       if (imageWidth.trim()) params.push(`width=${encodeURIComponent(imageWidth.trim())}`);
       if (imageHeight.trim()) params.push(`height=${encodeURIComponent(imageHeight.trim())}`);
@@ -387,6 +321,7 @@ export default function ImageModal({
       setImageHeight("");
       setImageAlign("center");
       onClose();
+      } catch(error) { showToast?.(error instanceof Error ? error.message : '이미지 복사 실패','error'); } finally { setSaving(false); }
     }
   };
 
@@ -404,50 +339,8 @@ export default function ImageModal({
         const localMediaUrl = `media://local/serve?url=${encodeURIComponent(filePath)}`;
         setTempPreviewUrl(localMediaUrl);
 
-        // 2. 복사 생략(리소스 폴더 내부 파일) 체크
-        const freshResourceFolder = getEffectiveResourceFolder(resourceFolder);
-        let targetDir = '';
-        if (freshResourceFolder) {
-          targetDir = freshResourceFolder + (freshResourceFolder.includes('\\') ? '\\media' : '/media');
-        }
-
-        if (targetDir) {
-          const normFilePath = filePath.replace(/\\/g, '/').toLowerCase();
-          const normTargetDir = targetDir.replace(/\\/g, '/').toLowerCase();
-          
-          if (normFilePath.startsWith(normTargetDir + '/')) {
-            const fileName = filePath.substring(Math.max(filePath.lastIndexOf('\\'), filePath.lastIndexOf('/')) + 1);
-            const isMediaDir = normTargetDir.endsWith('/media') || normTargetDir.endsWith('/assets');
-            const finalFolderName = targetDir.substring(Math.max(targetDir.lastIndexOf('\\'), targetDir.lastIndexOf('/')) + 1);
-            
-            let finalPath = '';
-            if (isMediaDir && targetFolder) {
-              finalPath = `/${finalFolderName}/${fileName}`;
-            } else {
-              finalPath = localMediaUrl;
-            }
-            
-            setImagePath(finalPath);
-            setAppliedPath(finalPath);
-            setImageAlt("이미지 설명");
-            if (showToast) showToast('리소스 폴더의 기존 파일을 선택하여 복사 없이 바로 적용합니다.', 'success');
-            return; // 중단 (디스크 파일 변경 및 쓰기가 없으므로 잠금 에러 0%)
-          }
-        }
-
-        // 외부 파일인 경우 로컬 저장 프로세스 진행
-        try {
-          const dataUrl = await api.readImageAsBase64(filePath);
-          if (dataUrl) {
-            const base64Data = dataUrl.split(',')[1] || '';
-            const fileName = file.name ? file.name.replace(/\s+/g, '_') : `image_${Date.now()}.png`;
-            await handleLocalImageSave(base64Data, fileName, file);
-            setImageAlt("이미지 설명");
-          }
-        } catch (err) {
-          console.error('데스크탑 이미지 로드 실패:', err);
-          if (showToast) showToast('이미지를 로드하는 중 오류가 발생했습니다.', 'error');
-        }
+        await handleLocalImageSave('',file.name,file);
+        setImageAlt('이미지 설명');
         return;
       }
 
@@ -459,7 +352,7 @@ export default function ImageModal({
         
         setTempPreviewUrl(result);
 
-        const fileName = file.name ? file.name.replace(/\s+/g, '_') : `image_${Date.now()}.png`;
+        const fileName = file.name ? file.name : `image_${Date.now()}.png`;
         await handleLocalImageSave(base64Data, fileName, file);
         setImageAlt("이미지 설명");
       };
@@ -471,7 +364,13 @@ export default function ImageModal({
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 md:p-6" style={{ overflowY: "auto" }} onPaste={handlePasteEvent}>
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 md:p-6" style={{ overflowY: "auto" }} onPaste={event => { void handlePasteEvent(event); }} onKeyDownCapture={event => {
+      const file = desktopClipboardImage(event);
+      if (!file) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void handlePasteEvent({ clipboardData:{ items:[], files:[file] }, preventDefault(){}, stopPropagation(){} } as any);
+    }}>
       <div className="absolute inset-0 bg-black/65" onClick={onClose} />
 
       {/* PREMIUM WIDE MODAL (SCR-014) */}
@@ -525,7 +424,9 @@ export default function ImageModal({
                     setAppliedPath("");
                   }}
                   onPaste={(e) => {
-                    // 💡 전역 바이너리 업로드 핸들러로 버블링 원천 차단
+                    const hasImage = Array.from(e.clipboardData?.items || []).some(item => item.type.startsWith('image/'))
+                      || Array.from(e.clipboardData?.files || []).some(file => file.type.startsWith('image/'));
+                    if (hasImage) { void handlePasteEvent(e as any); return; }
                     e.stopPropagation();
                     e.nativeEvent?.stopImmediatePropagation?.();
                     const text = e.clipboardData?.getData('text') || '';
@@ -565,10 +466,10 @@ export default function ImageModal({
             </div>
 
             {/* 슬림 붙여넣기 바 */}
-            <div
-              tabIndex={0}
-              onPaste={handlePasteEvent}
-              onClick={(e) => e.currentTarget.focus()}
+            <button
+              type="button"
+              onPaste={event => { void handlePasteEvent(event as any); }}
+              onClick={() => { void handlePasteEvent({clipboardData:{items:[],files:[]},preventDefault(){},stopPropagation(){}} as any, true); }}
               className={`group flex items-center gap-3 px-4 py-2.5 rounded-lg border border-dashed cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${
                 isDarkMode
                   ? 'bg-zinc-900 border-zinc-700 hover:border-indigo-500 hover:bg-zinc-800'
@@ -577,9 +478,10 @@ export default function ImageModal({
             >
               <Upload className="text-slate-400 group-hover:text-indigo-500 transition-colors shrink-0" size={14} />
               <span className="font-bold text-xs text-slate-500 dark:text-zinc-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                여기를 클릭 후 클립보드 이미지 붙여넣기 (Ctrl+V)
+                클립보드 이미지 붙여넣기 (클릭 또는 Ctrl+V)
               </span>
-            </div>
+            </button>
+            {clipboardMessage && <p role="status" className="text-xs text-indigo-700 dark:text-indigo-300">{clipboardMessage}</p>}
 
             {/* 이미지 속성 */}
             <div className={`rounded-lg p-4 border ${
@@ -734,7 +636,7 @@ export default function ImageModal({
           </button>
           <button
             onClick={handleInsert}
-            disabled={!cleanImagePath}
+            disabled={!cleanImagePath || saving}
             className={`px-6 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all active:scale-[0.98] ${
               cleanImagePath
                 ? 'bg-[#1d4ed8] hover:bg-[#1e40af] text-white shadow-md shadow-[#1d4ed8]/25'

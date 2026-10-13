@@ -1,0 +1,161 @@
+import type { CssProfile } from '@/types/cssProfile';
+import { extractFrontmatter } from './frontmatter';
+
+export const DEFAULT_BOOK_LAYOUT: NonNullable<CssProfile['layout']> = {
+  schemaVersion: 1, type: 'picturebook', cover: 'full-image',
+  imageRatio: 0.5, imageFit: 'cover', gap: '6mm', pageNumbers: true,
+};
+
+export function normalizeBookLayout(value: unknown): CssProfile['layout'] {
+  if (!value || typeof value !== 'object') return undefined;
+  const input = value as Record<string, unknown>;
+  if (input.type !== 'picturebook' || (input.schemaVersion !== undefined && input.schemaVersion !== 1)) {
+    throw new Error('지원하지 않는 문서 배치 형식 또는 버전입니다.');
+  }
+  return {
+    ...DEFAULT_BOOK_LAYOUT,
+    cover: input.cover === 'image-right' ? 'image-right' : 'full-image',
+    imageRatio: typeof input.imageRatio === 'number' && Number.isFinite(input.imageRatio)
+      ? Math.min(0.7, Math.max(0.3, input.imageRatio)) : 0.5,
+    imageFit: input.imageFit === 'contain' ? 'contain' : 'cover',
+    gap: typeof input.gap === 'string' && /^\d+(?:\.\d+)?(?:mm|px)$/.test(input.gap) ? input.gap : '6mm',
+    pageNumbers: input.pageNumbers !== false,
+  };
+}
+
+export interface BookScene { image: string; body: string; cover: boolean; start: number; end: number; opening: string; raw: string }
+
+/** Explicit blocks preserve ordinary Markdown and reference definitions. */
+export function parseBookScenes(markdown: string): { scenes: BookScene[]; errors: string[] } {
+  const lines = markdown.replace(/\r\n/g, '\n').split('\n');
+  const scenes: BookScene[] = [];
+  const errors: string[] = [];
+  let block: string[] | null = null;
+  let isCover = false;
+  let fence = '';
+  let offset = 0;
+  let start = 0;
+  let opening = '';
+  const outside: string[] = [];
+  for (const line of lines) {
+    const lineStart = offset;
+    offset += line.length + 1;
+    const match = line.match(/^\s*(`{3,}|~{3,})/);
+    if (match) {
+      if (!fence) fence = match[1];
+      else if (match[1][0] === fence[0] && match[1].length >= fence.length) fence = '';
+      (block || outside).push(line);
+      continue;
+    }
+    if (!fence && /^:::scene(?:\s+\{[^}]*\})?\s*$/.test(line)) {
+      if (block) { errors.push('장면 안에 다른 장면을 시작할 수 없습니다.'); continue; }
+      block = []; isCover = /\bcover\b/.test(line); start = lineStart; opening = line; continue;
+    }
+    if (!fence && block && /^:::\s*$/.test(line)) {
+      const content = block.join('\n');
+      const imageMatch = content.match(/^\s*(!\[[^\]\n]*\](?:\([^\n]+\)|\[[^\]\n]*\]))\s*$/m);
+      scenes.push({ image: imageMatch?.[1] || '', body: imageMatch
+        ? content.slice(0, imageMatch.index) + '\n'.repeat((imageMatch[0].match(/\n/g)||[]).length) + content.slice(imageMatch.index! + imageMatch[0].length) : content,
+        cover: isCover, start, end: lineStart + line.length, opening, raw: content });
+      block = null; continue;
+    }
+    (block || outside).push(line);
+  }
+  if (block) errors.push('마지막 장면의 닫는 표시 :::가 없습니다.');
+  const definitions = outside.filter(line => /^\s{0,3}\[[^\]]+\]:/.test(line)).join('\n');
+  if (outside.some(line => line.trim() && !/^\s{0,3}\[[^\]]+\]:/.test(line))) {
+    errors.push('장면 밖의 본문이 있습니다. 모든 내용을 :::scene 블록 안에 넣어 주세요.');
+  }
+  for (const scene of scenes) {
+    if (!scene.image) errors.push(`${scenes.indexOf(scene) + 1}번째 장면에 그림이 없습니다.`);
+    if (definitions) { scene.image += '\n\n' + definitions; scene.body += '\n\n' + definitions; }
+  }
+  if (scenes.some((scene, i) => scene.cover && i !== 0)) errors.push('표지 장면은 첫 번째에만 배치해 주세요.');
+  if (!scenes.length) errors.push(':::scene 블록을 추가해 그림과 본문을 작성해 주세요.');
+  return { scenes, errors };
+}
+
+export function replaceBookScene(markdown: string, scene: BookScene, raw: string): string {
+  return markdown.slice(0, scene.start) + scene.opening + '\n' + raw + '\n:::' + markdown.slice(scene.end);
+}
+
+export function moveBookSceneUp(markdown: string, index: number): string {
+  const { scenes } = parseBookScenes(markdown);
+  const scene = scenes[index];
+  const previous = scenes[index-1];
+  if (!scene || !previous || scene.cover || previous.cover) return markdown;
+  return markdown.slice(0,previous.start) + markdown.slice(scene.start,scene.end)
+    + markdown.slice(previous.end,scene.start) + markdown.slice(previous.start,previous.end) + markdown.slice(scene.end);
+}
+
+/** Render using the profile loaded from the resource profile files. */
+export function documentBookProfile(markdown: string, fallback: CssProfile, preferLive = false): CssProfile {
+  return fallback;
+}
+
+/** Read old embedded settings only to migrate them into the profile library. */
+export function legacyBookProfile(markdown: string): CssProfile | undefined {
+  try {
+    const { data } = extractFrontmatter(markdown);
+    const snapshot = JSON.parse(data.onrivi_picturebook_profile || 'null');
+    const id = data.css_profile?.replace(/^["']|["']$/g, '');
+    if (!snapshot || snapshot.id !== id || !snapshot.pageStyle || !snapshot.rules) return undefined;
+    const layout = normalizeBookLayout(snapshot.layout);
+    if (!layout) return undefined;
+    return { ...snapshot, layout };
+  } catch { return undefined; }
+}
+
+export function writeBookProfileSnapshot(markdown: string, profile?: CssProfile, keepExisting = false): string {
+  const { data, content } = extractFrontmatter(markdown);
+  const existing = data.onrivi_picturebook_profile;
+  delete data.onrivi_picturebook_profile;
+  if (existing === data.onrivi_picturebook_profile) return markdown;
+  return '---\n메타영역\n#서식설정\n' + Object.entries(data).filter(([,value]) => value !== undefined)
+    .map(([key,value]) => `${key}: ${value}`).join('\n') + '\n---\n\n' + content;
+}
+
+export function replaceSceneImage(markdown:string, index:number, imagePath:string, alt:string, expectedRaw?:string): string {
+  const {content:body} = extractFrontmatter(markdown);
+  const normalized = body.replace(/\r\n/g,'\n');
+  const scene = parseBookScenes(normalized).scenes[index];
+  if (!scene || (expectedRaw !== undefined && scene.raw !== expectedRaw)) throw new Error('사진 선택 중 장면이 변경됐습니다. 해당 그림을 다시 선택해 주세요.');
+  const image = `![${alt.replace(/[\[\]\r\n]/g,' ')}](<${imagePath}>)`;
+  const raw = /!\[[^\]\n]*\](?:\([^\n]+\)|\[[^\]\n]*\])/.test(scene.raw)
+    ? scene.raw.replace(/!\[[^\]\n]*\](?:\([^\n]+\)|\[[^\]\n]*\])/,image)
+    : image+'\n\n'+scene.raw;
+  return markdown.slice(0,markdown.length-body.length) + replaceBookScene(normalized,scene,raw);
+}
+
+export const BOOK_SAMPLE = `:::scene {cover}
+![표지 그림](media/cover.png)
+
+# 책 제목
+
+저자 이름
+:::
+
+:::scene
+![첫 번째 장면](media/scene-01.png)
+
+첫 번째 장면의 이야기를 입력하세요.
+:::
+`;
+
+/** Edit only the selected scene, preserving its image and outside reference definitions. */
+export function sceneEditableBody(scene: BookScene): string {
+  const image = scene.raw.match(/^\s*(!\[[^\]\n]*\](?:\([^\n]+\)|\[[^\]\n]*\]))[ \t]*$/m);
+  return image ? scene.raw.slice(0,image.index) + scene.raw.slice(image.index!+image[0].length) : scene.raw;
+}
+export function replaceSceneBody(markdown:string,index:number,body:string,expectedRaw:string):string {
+  const scene=parseBookScenes(markdown).scenes[index];
+  if(!scene || scene.raw!==expectedRaw)throw new Error('편집 중 장면이 변경되었습니다. 다시 선택해 주세요.');
+  const image=scene.raw.match(/^\s*(!\[[^\]\n]*\](?:\([^\n]+\)|\[[^\]\n]*\]))[ \t]*$/m)?.[1];
+  return replaceBookScene(markdown,scene,(image ? image+'\n\n' : '')+body.trim());
+}
+export function duplicateBookScene(markdown:string,index:number):string {
+  const scene=parseBookScenes(markdown).scenes[index];
+  if(!scene)return markdown;
+  const copy='\n\n:::scene\n'+scene.raw+'\n:::';
+  return markdown.slice(0,scene.end)+copy+markdown.slice(scene.end);
+}

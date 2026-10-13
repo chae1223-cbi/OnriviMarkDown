@@ -68,7 +68,7 @@ export async function waitForExportResources(root: HTMLElement, timeoutMs = EXPO
 export async function prepareExportPreview(root: HTMLElement): Promise<void> {
   await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
   const deadline = Date.now() + EXPORT_RESOURCE_TIMEOUT_MS;
-  while (root.querySelector('[data-export-state="loading"]')) {
+  while (root.querySelector('[data-export-state="loading"],[data-book-paginating="true"]')) {
     if (Date.now() >= deadline) throw new Error('이미지 또는 다이어그램 준비 시간이 초과되었습니다. 미리보기를 확인하고 다시 내보내 주세요.');
     await new Promise(resolve => setTimeout(resolve, 50));
   }

@@ -179,6 +179,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         initialTab={settingsModalInitialTab}
         isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode}
         fontSize={fontSize} setFontSize={setFontSize}
+        editorTabSize={deps.editorTabSize} setEditorTabSize={deps.setEditorTabSize}
         wordWrap={wordWrap} setWordWrap={setWordWrap}
         autoSave={autoSave} setAutoSave={setAutoSave}
         rootFolder={rootFolder} onSelectRootFolder={selectRootFolder}
@@ -224,6 +225,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
       />
 
       <ExportModal
+        isPicturebook={profiles.find((profile:any) => profile.id === activeProfileId)?.layout?.type === 'picturebook'}
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         isDarkMode={isDarkMode}
@@ -472,7 +474,13 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
       rootFolder={deps.rootFolder}
       showToast={showToast}
       onInsert={(path: string, alt: string, range: any) => {
-        if (range) {
+        if (range?.documentMedia) {
+          deps.replaceDocumentMedia?.(range,path,alt);
+        } else if (range?.visualImage) {
+          deps.replaceVisualImage?.(range,path,alt);
+        } else if (range?.bookSceneIndex !== undefined) {
+          deps.replacePicturebookImage?.(range,path,alt);
+        } else if (range) {
           // 기존 이미지 편집: range 위치의 텍스트만 교체 (빈 줄 추가 없음)
           const editor = editorRef.current;
           if (editor) {
@@ -493,10 +501,12 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
     />
     <YoutubeModal
       isOpen={isYoutubeModalOpen}
-      onClose={() => { setIsYoutubeModalOpen(false); setYoutubeInitialUrl(null); }}
+      onClose={() => { setIsYoutubeModalOpen(false); setYoutubeInitialUrl(null); deps.clearMediaDialog?.(); }}
       onInsert={(code: string) => {
-        insertMediaAtCursor(editorRef, lastSelectionRef, code, updateContent);
+        if (deps.mediaDialogSource?.kind === 'video') deps.insertVisualMedia?.('video',code);
+        else insertMediaAtCursor(editorRef, lastSelectionRef, code, updateContent);
       }}
+      initialSource={deps.mediaDialogSource?.kind === 'video' ? deps.mediaDialogSource.source : undefined}
       isDarkMode={isDarkMode}
       initialUrl={youtubeInitialUrl || undefined}
       targetFolder={resourceFolder ? resourceFolder + (resourceFolder.includes('\\') ? '\\media' : '/media') : (rootFolder?.name || '')}
@@ -507,8 +517,12 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
     />
       <MapModal
         isOpen={isMapModalOpen}
-        onClose={() => setIsMapModalOpen(false)}
-        onInsert={(code: string) => insertMediaAtCursor(editorRef, lastSelectionRef, code, updateContent)}
+        onClose={() => {setIsMapModalOpen(false);deps.clearMediaDialog?.();}}
+        initialSource={deps.mediaDialogSource?.kind === 'map' ? deps.mediaDialogSource.source : undefined}
+        onInsert={(code: string) => {
+          if (deps.mediaDialogSource?.kind === 'map') deps.insertVisualMedia?.('map',code);
+          else insertMediaAtCursor(editorRef, lastSelectionRef, code, updateContent);
+        }}
         isDarkMode={isDarkMode}
       />
       <TableModal
@@ -573,11 +587,15 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         onSelectProfile={setActiveProfileId}
         onUpdateProfile={(updated: any) => {
           try {requireResourceSettings();}catch(error:any){showToast(error.message,'warning');return;}
+          if (isSystemProfileId(updated.id) || updated.id === 'default') return;
           setProfiles((prev: any) =>
           isSystemProfileId(updated.id) || updated.id === 'default'
             ? prev
             : prev.map((p: any) => p.id === updated.id && !isSystemProfileId(p.id) ? updated : p)
-        );}}
+        );
+          // 현재 서식의 변경값을 문서에도 기록하여 모달을 닫은 뒤 이전 스냅샷으로 돌아가지 않게 한다.
+          if (updated.id === activeProfileId) setActiveProfileId(updated.id, updated);
+        }}
         onAddProfile={() => {
           try {requireResourceSettings();}catch(error:any){showToast(error.message,'warning');return;}
           const newId = 'profile-' + Date.now();

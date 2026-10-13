@@ -2,6 +2,9 @@
 // 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 전역 미디어 실시간 연동 강화]: getEffectiveResourceFolder 연동 및 구글 드라이브(OnriviAuthor/참조파일/media) 업로드 지원
 "use client";
 
+import { pickResourceMedia } from '@/lib/resourceMediaPicker';
+import { mediaDetails, videoMarkup } from '@/lib/mediaMarkup';
+import { saveResourceMedia, importResourceMedia } from '@/lib/resourceMedia';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
@@ -20,6 +23,7 @@ interface YoutubeModalProps {
   isDarkMode: boolean;
   targetFolder?: string;
   initialUrl?: string;
+  initialSource?: string;
   resourceFolderHandle?: any;
   workspaceType?: string;
   rootFolder?: any;
@@ -41,7 +45,7 @@ export default function YoutubeModal({
   onInsert,
   isDarkMode,
   targetFolder,
-  initialUrl,
+  initialUrl, initialSource,
   resourceFolderHandle,
   workspaceType,
   rootFolder,
@@ -74,25 +78,21 @@ export default function YoutubeModal({
     return valid;
   };
   const [drivePreview, setDrivePreview] = useState<{path:string;url:string}|null>(null);
+  const [browsing,setBrowsing] = useState(false);
   const handleBrowse = async () => {
-    if (!requireResourceFolder()) return;
-    if (!(getResourceSettings()?.kind === 'drive')) { fileInputRef.current?.click(); return; }
+    if(browsing)return;
+    setBrowsing(true);
     try {
-      const token = getSavedDriveToken(); const info = getSavedWorkspaceInfo();
-      if (!token || !info) throw new Error('구글 드라이브를 먼저 연결해 주세요.');
-      const file = await pickDriveResourceFile(token, info.mediaFolderId,{title:'구글 드라이브 동영상 선택',accept:f=>f.mimeType.startsWith('video/') || /\.(mp4|webm|mov|ogg)$/i.test(f.name)});
-      if (!file) return;
-      if (Number(file.size || 0) > 100 * 1024 * 1024) throw new Error('동영상 크기는 100MB를 초과할 수 없습니다.');
-      const sourcePath = `/media/${encodeURIComponent(file.name)}?driveId=${encodeURIComponent(file.id)}`;
-      const url = await getDriveMediaImageBlobUrl(token,info.mediaFolderId,sourcePath);
-      if (!url) throw new Error('선택한 동영상을 읽지 못했습니다.');
-      const blob = await (await fetch(url)).blob();
-      const uploaded = await uploadDriveImage(token,info.mediaFolderId,blob,file.name);
-      const path = `/media/${encodeURIComponent(uploaded.name || file.name)}?driveId=${encodeURIComponent(uploaded.id)}`;
-      setSourceUrl(path); setAppliedPath(path); setDrivePreview({path,url});
-      showToast('동영상을 리소스 폴더의 media에 저장했습니다.', 'success');
-    } catch(e:any) { showToast(e.message,'error'); }
+      const file = await pickResourceMedia('video',workspaceType,resourceFolderHandle);
+      if(!file)return;
+      if(file.size > 100*1024*1024)throw new Error('동영상 크기는 100MB를 초과할 수 없습니다.');
+      const path = await saveResourceMedia(file,file.name,resourceFolderHandle);
+      setSourceUrl(path);setAppliedPath(path);setDrivePreview(null);
+      showToast('선택한 동영상을 현재 리소스 폴더에 복사했습니다.','success');
+    }catch(e:any){showToast(e.message || '파일 선택 실패','error');}
+    finally{setBrowsing(false);}
   };
+  const [saving, setSaving] = useState(false);
   const [sourceUrl, setSourceUrl] = useState("");
   const [appliedPath, setAppliedPath] = useState("");
   const [customDisplayName, setCustomDisplayName] = useState("");
@@ -105,112 +105,30 @@ export default function YoutubeModal({
   }, []);
 
   useEffect(() => {
-    if (isOpen && initialUrl) {
-      setSourceUrl(initialUrl);
-      setAppliedPath(initialUrl);
+    if (isOpen) {
+      const details = initialSource ? mediaDetails(initialSource) : null;
+      const url = details?.path || initialUrl || '';
+      setSourceUrl(url); setAppliedPath(url);
+      setVideoWidth(details?.width || '600'); setVideoHeight(details?.height || '340');
+      setVideoAlign((['left','center','right'].includes(details?.align || '') ? details!.align : 'center') as MediaAlign);
+      setCustomDisplayName(details?.title || '');
     } else if (!isOpen) {
       setSourceUrl("");
       setAppliedPath("");
       setCustomDisplayName("");
     }
-  }, [isOpen, initialUrl]);
+  }, [isOpen, initialUrl, initialSource]);
 
-  const uploadVideo = async (file: File, base64Data: string) => {
-    if (!requireResourceFolder()) return;
-    const ext = file.name.split('.').pop() || 'mp4';
-    const fileName = file.name ? file.name.replace(/\s+/g, '_') : `video_${Date.now()}.${ext}`;
-    const api = (window as any).electronAPI;
-
-    // ☁️ [Google Drive 작업장 및 리소스 폴더 지원]
-    const isDriveTarget = getResourceSettings()?.kind === 'drive';
-    if (isDriveTarget) {
-      const token = getSavedDriveToken();
-      const cloudSettings = getResourceSettings('cloud');
-      const wsInfo = getSavedWorkspaceInfo();
-      let mediaFolderId = cloudSettings?.mediaFolderId || wsInfo?.mediaFolderId;
-      if (!mediaFolderId && token && (cloudSettings?.folderId || wsInfo?.resourceFolderId)) {
-        try {
-          const parentId = cloudSettings?.folderId || wsInfo?.resourceFolderId;
-          const { listDriveChildren } = await import('@/lib/gdrive/googleDriveClient');
-          const children = await listDriveChildren(token, parentId!);
-          const m = children.find(c => c.isFolder && c.name === 'media');
-          if (m) mediaFolderId = m.id;
-        } catch {}
-      }
-      if (!token || !mediaFolderId) { showToast('구글 드라이브를 먼저 연결해 주세요.', 'error'); return; }
-      if (token && mediaFolderId) {
-        try {
-          const uploaded = await uploadDriveImage(token, mediaFolderId, file, fileName);
-          if (uploaded?.id) {
-            const finalPath = `/media/${encodeURIComponent(uploaded.name || fileName)}?driveId=${encodeURIComponent(uploaded.id)}`;
-            setSourceUrl(finalPath);
-            setAppliedPath(finalPath);
-            setDrivePreview({path:finalPath,url:await getDriveMediaImageBlobUrl(token,mediaFolderId,finalPath) || ''});
-            showToast('동영상이 구글 드라이브(media)에 저장되었습니다.', 'success');
-            return;
-          }
-        } catch (e) {
-          showToast('드라이브 동영상 저장에 실패했습니다. 연결을 확인해 주세요.', 'error');
-          return;
-        }
-      }
-    }
-
-    if (api) {
-      // 🖥️ 데스크탑: 무조건 로컬(resourceFolder) 저장
-      const freshResourceFolder = getEffectiveResourceFolder(resourceFolder);
-      if (!freshResourceFolder) throw new Error('동영상을 저장할 리소스 폴더를 먼저 지정해 주세요.');
-      let effectiveTargetFolder = '';
-      if (freshResourceFolder) {
-        const sep = freshResourceFolder.includes('\\') ? '\\' : '/';
-        effectiveTargetFolder = freshResourceFolder + sep + 'media';
-      }
-      const saveResult = await api.saveImage(effectiveTargetFolder, base64Data, fileName);
-      if (saveResult && saveResult.success) {
-        const finalPath = saveResult.mediaPath
-          ? saveResult.mediaPath
-          : `media://local/serve?url=${encodeURIComponent(saveResult.absolutePath)}`;
-        setSourceUrl(finalPath);
-        setAppliedPath(finalPath);
-        showToast('동영상이 로컬 폴더에 저장되었습니다.', 'success');
-      } else {
-        showToast('동영상 저장 실패', 'error');
-      }
-    } else {
-      setSourceUrl(URL.createObjectURL(file));
-      let finalPath = '';
-      if (workspaceType === 'browser' || workspaceType === 'local') {
-        try {
-          if (resourceFolderHandle) {
-            const mediaDir = await resourceFolderHandle.getDirectoryHandle('media', { create: true });
-            const fileHandle = await mediaDir.getFileHandle(fileName, { create: true });
-            const writable = await fileHandle.createWritable();
-            await writable.write(file);
-            await writable.close();
-            finalPath = `/media/${fileName}`;
-          }
-        } catch (e) {
-          console.error('브라우저 로컬 저장 실패:', e);
-        }
-      }
-      if (finalPath) {
-        setAppliedPath(finalPath);
-        showToast('로컬 폴더에 저장되었습니다.', 'success');
-        return;
-      }
-      throw new Error('동영상을 저장할 로컬 리소스 폴더를 먼저 연결해 주세요.');
-    }
+  const uploadVideo = async (file: File, _base64Data: string) => {
+    const finalPath = await saveResourceMedia(file,file.name,resourceFolderHandle);
+    setSourceUrl(finalPath); setAppliedPath(finalPath);
+    showToast('현재 리소스 폴더에 복사했습니다. 같은 이름의 파일은 덮어씁니다.','success');
   };
 
   const readFile = async (file: File) => {
     if (file.size > 100 * 1024 * 1024) { showToast('동영상 크기는 100MB를 초과할 수 없습니다.', 'error'); return; }
     try {
-      const drive = getResourceSettings()?.kind === 'drive';
-      let base64 = '';
-      if (!drive && (window as any).electronAPI) {
-        base64 = await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve((reader.result as string).split(',')[1]);reader.onerror=()=>reject(new Error('파일 읽기 실패'));reader.readAsDataURL(file);});
-      }
-      await uploadVideo(file,base64);
+      await uploadVideo(file,'');
     } catch(e:any) { showToast(e.message || '동영상 저장 실패','error'); }
   };
 
@@ -276,8 +194,11 @@ export default function YoutubeModal({
     if (/\.(mp4|webm|ogg|mov)(?:[?#]|$)/i.test(url) || /^(\/media\/|\.\/media\/|\/assets\/|\.\/assets\/|media:|blob:|data:video\/)/i.test(url)) {
       return `<video src="${escapeAttribute(url)}" title="${title}" controls style="width:${width}; height:${height};" data-align="${videoAlign}"></video>`;
     }
+    if (initialSource && mediaDetails(initialSource)?.element === 'iframe') {
+      return `<iframe src="${escapeAttribute(url)}" title="${title}" style="width:${width}; height:${height}; border:0;" allowfullscreen loading="lazy" data-align="${videoAlign}"></iframe>`;
+    }
     return `[${customDisplayName.trim() || displayName}](${url})`;
-  }, [appliedPath, cleanPath, videoWidth, videoHeight, customDisplayName, displayName, isYoutube, detectedVideoId, videoAlign]);
+  }, [appliedPath, cleanPath, videoWidth, videoHeight, customDisplayName, displayName, isYoutube, detectedVideoId, videoAlign, initialSource]);
 
   useEffect(()=>{
     let active=true;
@@ -302,19 +223,25 @@ export default function YoutubeModal({
     return sourceUrl;
   },[drivePreview,sourceUrl,resourceFolder]);
 
-  const handleInsert = () => {
+  const handleInsert = async () => {
+    if (saving) return;
     if (!requireResourceFolder()) return;
     const url = appliedPath || cleanPath;
     if (!url) {
       showToast('동영상 URL을 입력하거나 파일을 선택해주세요.', 'warning');
       return;
     }
-    onInsert(`\n${insertCode}\n`);
+    setSaving(true);
+    try {
+    const copied = await importResourceMedia(url,resourceFolderHandle);
+    const code = copied === url ? insertCode : videoMarkup(copied,normalizeMediaDimension(videoWidth,'600px'),normalizeMediaDimension(videoHeight,'340px'),videoAlign,customDisplayName || displayName);
+    onInsert(`\n${code}\n`);
     setSourceUrl("");
     setAppliedPath("");
     setCustomDisplayName("");
     onClose();
-    showToast("동영상이 본문에 삽입되었습니다.", "success");
+    showToast("동영상을 적용했습니다.", "success");
+    } catch(error:any) { showToast(error.message || "동영상 복사 실패", "error"); } finally { setSaving(false); }
   };
 
   if (!isOpen) return null;
@@ -593,7 +520,7 @@ export default function YoutubeModal({
             </button>
             <button
               onClick={handleInsert}
-              disabled={!hasContent}
+              disabled={!hasContent || saving}
               className={`px-6 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all active:scale-[0.98] ${
                 hasContent
                   ? 'bg-[#1d4ed8] hover:bg-[#1e40af] text-white shadow-md shadow-[#1d4ed8]/25'

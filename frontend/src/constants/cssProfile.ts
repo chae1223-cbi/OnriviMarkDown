@@ -1,4 +1,5 @@
 import { CssProfile } from '../types/cssProfile';
+import { normalizeBookLayout } from '../lib/picturebook';
 
 // ====================================================================
 // 📊 [OMD-CORE-cssProfile-0006] cssProfile ➔ SYSTEM_PROFILE_IDS
@@ -261,7 +262,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       },
       "th": {
         "background-color": "#f7f7f8",
-        "padding": "10px 12px",
+        "padding": "5px 8px",
         "border-style": "solid",
         "border-width": "1px",
         "border-color": "#cbd5e1",
@@ -270,7 +271,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
         "color": "#202123"
       },
       "td": {
-        "padding": "10px 12px",
+        "padding": "5px 8px",
         "border-style": "solid",
         "border-width": "1px",
         "border-color": "#cbd5e1",
@@ -2649,5 +2650,6 @@ export function normalizeCssProfile(
     hrStructure: mergedHrStructure,
     checkboxStructure: mergedCheckboxStructure,
     tableStructure: mergedTableStructure,
+    layout: normalizeBookLayout(imported?.layout),
   };
 }

@@ -6,7 +6,7 @@ import {listDriveChildren, type GoogleDriveFileItem} from './googleDriveClient';
 
 type PickerOptions = { foldersOnly?:boolean; title?: string; accept?: (file: GoogleDriveFileItem) => boolean };
 function Picker({token,rootId,done,options}:{token:string;rootId:string;options:PickerOptions;done:(file:GoogleDriveFileItem|null)=>void}) {
-  const [path,setPath]=useState([{id:'root',name:'내 드라이브'}]);
+  const [path,setPath]=useState([{id:rootId,name:rootId === 'root' ? '내 드라이브' : '리소스 폴더'}]);
   const [globalSearch,setGlobalSearch]=useState('');
   const [items,setItems]=useState<GoogleDriveFileItem[]>([]);
   const [query,setQuery]=useState('');
@@ -60,3 +60,30 @@ export async function pickResourceTextFile(accept:string, rootId?:string, cloud?
 }
 
 export function pickDriveResourceFolder(token:string) { return pickDriveResourceFile(token,"root",{title:"리소스 폴더 선택 — 선택한 폴더 안에 기본 파일을 생성합니다",foldersOnly:true}); }
+
+function LocalPicker({rootHandle,accept,done}:{rootHandle:any;accept:(name:string)=>boolean;done:(file:File|null)=>void}) {
+  const [folders,setFolders] = useState<any[]>([rootHandle]);
+  const [entries,setEntries] = useState<any[]>([]);
+  const [error,setError] = useState('');
+  const current = folders[folders.length-1];
+  useEffect(()=>{let active=true;setEntries([]);setError('');void (async()=>{
+    const items=[];for await(const entry of current.values())if(entry.kind==='directory'||accept(entry.name))items.push(entry);
+    if(active)setEntries(items.sort((a,b)=>a.kind===b.kind?a.name.localeCompare(b.name):a.kind==='directory'?-1:1));
+  })().catch(e=>{if(active)setError(e.message);});return()=>{active=false};},[current,accept]);
+  return <div className="fixed inset-0 z-[99999999] bg-black/60 flex items-center justify-center p-4" onKeyDown={e=>{if(e.key==='Escape')done(null)}}>
+    <section role="dialog" aria-modal="true" aria-label="로컬 리소스 파일 선택" className="bg-white text-slate-900 rounded-xl p-6 w-full max-w-xl">
+      <h2 className="font-bold">로컬 리소스 파일 선택</h2>
+      <div className="flex gap-2 my-3">{folders.map((folder,index)=><button key={index} className="text-blue-700 underline" onClick={()=>setFolders(folders.slice(0,index+1))}>{folder.name} /</button>)}</div>
+      {error && <p role="alert">{error}</p>}
+      <div className="h-72 overflow-auto">{entries.map(entry=><button key={entry.name} className="block w-full p-3 text-left hover:bg-blue-50" onClick={()=>{if(entry.kind==='directory')setFolders([...folders,entry]);else void entry.getFile().then(done).catch((e:any)=>setError(e.message));}}>{entry.kind==='directory'?'📁':'📄'} {entry.name}</button>)}</div>
+      <button className="border rounded px-3 py-2" onClick={()=>done(null)}>취소</button>
+    </section>
+  </div>;
+}
+export function pickLocalResourceFile(handle:any,accept:(name:string)=>boolean):Promise<File|null> {
+  return new Promise(resolve=>{const container=document.createElement('div');document.body.append(container);const root=createRoot(container);
+    const previous=document.activeElement as HTMLElement|null;let settled=false;
+    const done=(file:File|null)=>{if(settled)return;settled=true;root.unmount();container.remove();previous?.focus();resolve(file)};
+    root.render(<LocalPicker rootHandle={handle} accept={accept} done={done}/>);
+  });
+}

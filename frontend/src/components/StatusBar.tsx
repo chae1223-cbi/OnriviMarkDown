@@ -531,17 +531,14 @@ function StatusBar() {
               return (
                 <>
                   <button
-                    disabled={isEditDisabled}
-                    onClick={() => !isEditDisabled && setPreviewMode('edit')}
-                    title={disabledTitle || "편집보기 - 에디터만 표시"}
+                    onClick={() => setPreviewMode('preview')}
+                    title={isEditDisabled ? "미리보기 전용 모드 (읽기 전용/제한 상태)" : "미리보기 - 렌더링된 문서만 표시"}
                     className={`px-3 py-1.5 text-[12px] font-bold transition-all duration-150 select-none ${
-                      isEditDisabled ? 'opacity-40 cursor-not-allowed' : ''
-                    } ${
-                      previewMode === 'edit'
+                      previewMode === 'preview'
                         ? 'bg-emerald-500 text-white'
                         : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/8 dark:hover:bg-white/8'
                     }`}
-                  >{isEditDisabled ? '🔒' : ''}편집보기</button>
+                  >문서 보기</button>
                   <div className="w-px h-4 bg-black/10 dark:bg-white/10" />
                   <button
                     disabled={isEditDisabled}
@@ -554,17 +551,8 @@ function StatusBar() {
                         ? 'bg-emerald-500 text-white'
                         : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/8 dark:hover:bg-white/8'
                     }`}
-                  >{isEditDisabled ? '🔒' : ''}분할모드</button>
-                  <div className="w-px h-4 bg-black/10 dark:bg-white/10" />
-                  <button
-                    onClick={() => setPreviewMode('preview')}
-                    title={isEditDisabled ? "미리보기 전용 모드 (읽기 전용/제한 상태)" : "미리보기 - 렌더링된 문서만 표시"}
-                    className={`px-3 py-1.5 text-[12px] font-bold transition-all duration-150 select-none ${
-                      previewMode === 'preview'
-                        ? 'bg-emerald-500 text-white'
-                        : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/8 dark:hover:bg-white/8'
-                    }`}
-                  >미리보기</button>
+                  >{isEditDisabled ? '🔒' : ''}나란히 보기</button>
+
                 </>
               );
             })()}

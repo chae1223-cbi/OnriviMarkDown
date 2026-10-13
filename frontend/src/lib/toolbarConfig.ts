@@ -112,6 +112,39 @@ export const getDefaultCommands = () => {
 //             InsertAsSnippet 하이라이트 방지, filterText 한글/영문 검색 지원
 // 🔗 @CALLS : 없음
 // ====================================================================
+// Local-language search aliases share the configured slash command action.
+export const SLASH_ALIASES: Record<string, string[]> = {
+  bold: ['굵게', '강조'], italic: ['기울임'], inlineCode: ['인라인코드'],
+  underline: ['밑줄'], strikethrough: ['취소선'], footnote: ['각주'],
+  citation: ['인용문헌'], h1: ['제목1'], h2: ['제목2'], h3: ['제목3'],
+  h4: ['제목4'], h5: ['제목5'], h6: ['제목6'], divider: ['구분선'],
+  orderedList: ['숫자목록'], list: ['글머리목록'],
+  quote: ['인용'], quoteNote: ['참고', '노트'], quoteTip: ['팁'],
+  quoteImportant: ['중요'], quoteWarning: ['주의'], quoteCaution: ['경고'],
+  checklist: ['할일', '체크리스트'], clear: ['초기화'], cleanDoc: ['정리'],
+  link: ['링크'], taglink: ['문서연결'], image: ['사진', '이미지'],
+  youtube: ['동영상'], map: ['지도'], add_reference: ['참조관리'],
+  codeblock: ['코드블록'], table: ['표'], math: ['수식'],
+  now: ['날짜'], signature: ['사인', '서명'],
+  styleSettings: ['서식'], aiHelp: ['인공지능'],
+};
+
+export function configuredHotkeyItem(event: KeyboardEvent, custom: Record<string, string> = {}) {
+  const mac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/i.test(navigator.userAgent || navigator.platform);
+  if (event.isComposing || (!mac && event.metaKey)) return undefined;
+  const key = event.code.startsWith('Key') ? event.code.slice(3) : event.code.startsWith('Digit') ? event.code.slice(5) : event.code === 'Space' ? 'SPACE' : event.key.toUpperCase();
+  const parts = [];
+  if (event.ctrlKey || (mac && event.metaKey)) parts.push('CTRL');
+  if (event.shiftKey) parts.push('SHIFT');
+  if (event.altKey) parts.push('ALT');
+  parts.push(key);
+  const combo = parts.join('+');
+  return TOOLBAR_ITEMS.find(item => {
+    const configured = custom[item.id] !== undefined ? custom[item.id] : item.defaultHotkey;
+    return !!configured && configured.replace(/\s+/g, '').toUpperCase().replace('CTRLCMD', 'CTRL') === combo;
+  });
+}
+
 export const getSlashCommands = (monaco: any, customCommands: Record<string, string> = {}) => {
   // 슬래시 자동완성에서 제외할 항목 (UI 토글/래핑 류는 에디터에서 쓸 일 없음)
   const EXCLUDED_FROM_SLASH = new Set([
@@ -123,7 +156,7 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
   return TOOLBAR_ITEMS
     .filter(item => !EXCLUDED_FROM_SLASH.has(item.id))
     .flatMap(item => {
-      const cmdStr = customCommands[item.id] || item.defaultCommand;
+      const cmdStr = (customCommands[item.id] !== undefined ? customCommands[item.id] : item.defaultCommand).trim().replace(/^\//, '');
       if (!cmdStr) return [];
 
       let insertText = item.insertText;
@@ -201,7 +234,7 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
       else if (item.id === 'quote') aliasTerms = '인용 인용구 quote';
       else if (item.id === 'signature') aliasTerms = '사인 sign 서명 발신인 right 우측정렬';
 
-      const filterText = `/${cmdStr} /${item.name} ${item.name} ${cmdStr} ${item.group} ${aliasTerms}`;
+      const filterText = `/${cmdStr} /${item.name} ${item.name} ${cmdStr} ${item.group} ${aliasTerms} ${(SLASH_ALIASES[item.id] || []).map(alias => '/' + alias).join(' ')}`;
 
       // 💡 [서명 듀얼 슬래시 커맨드] /sign 및 /사인 모두 개별 자동완성 항목으로 즉시 제안
       if (item.id === 'signature') {
@@ -212,7 +245,7 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
           insertText: insertText,
           insertTextRules: insertTextRules,
           detail: `[${item.group}] ${item.name}${item.tagFormat ? `  ·  ${item.tagFormat}` : ''}`,
-          filterText: `/sign /사인 서명 sign 사인 우측정렬 발신인 ${item.name}`,
+          filterText,
           sortText: 'sign',
           command: command
         };
@@ -223,7 +256,7 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
           insertText: insertText,
           insertTextRules: insertTextRules,
           detail: `[${item.group}] ${item.name}${item.tagFormat ? `  ·  ${item.tagFormat}` : ''}`,
-          filterText: `/사인 /sign 서명 사인 sign 우측정렬 발신인 ${item.name}`,
+          filterText,
           sortText: '사인',
           command: command
         };

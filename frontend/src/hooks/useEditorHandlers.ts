@@ -8,6 +8,7 @@ import { vfsWriteFile } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { stripFrontmatter } from "@/lib/editorUtils";
 import { updateCssProfileInFrontmatter } from '@/lib/frontmatter';
+import { documentBookProfile } from '@/lib/picturebook';
 import { supabase } from '@/lib/supabaseClient';
 import { clearAuthSessionStorage } from '@/lib/authSessionHelper';
 import { logoutCurrentWebSession } from '@/lib/logoutWebSession';
@@ -62,6 +63,7 @@ export const useEditorHandlers = ({
   activeProfileId,
   isDarkMode,
   dynamicCssString,
+  preferLiveProfile,
   setSaveStatus,
   setCurrentFileName,
   setCurrentFileNode,
@@ -998,7 +1000,7 @@ export const useEditorHandlers = ({
     print: async () => {
       if (!await prepareEditorForExport()) return;
       if (!previewRef.current) return;
-      const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+      const activeProfile = documentBookProfile(contentRef.current, profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE, preferLiveProfile);
       const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
       const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor, paperSize } = activeProfile.pageStyle;
       await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile });
@@ -1006,7 +1008,7 @@ export const useEditorHandlers = ({
     exportPDF: async () => {
       if (!await prepareEditorForExport()) return;
       if (!previewRef.current) return;
-      const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+      const activeProfile = documentBookProfile(contentRef.current, profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE, preferLiveProfile);
       const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
       const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor, paperSize } = activeProfile.pageStyle;
       await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile });
@@ -1040,10 +1042,12 @@ export const useEditorHandlers = ({
       await exportEPUB({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, dynamicCssString, backgroundColor: activeProfile.pageStyle.backgroundColor, activeProfile });
     },
     exportHWPX: async () => {
+      if (profiles.find(p => p.id === activeProfileId)?.layout?.type === 'picturebook') { showToast('그림책은 PDF 또는 EPUB으로 내보내 주세요.', 'warning'); return; }
       if (!await prepareEditorForExport() || !previewRef.current) return;
       await exportHWPX({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, activeProfile: profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE });
     },
     exportDOCX: async () => {
+      if (profiles.find(p => p.id === activeProfileId)?.layout?.type === 'picturebook') { showToast('그림책은 PDF 또는 EPUB으로 내보내 주세요.', 'warning'); return; }
       if (!await prepareEditorForExport()) return;
       if (!previewRef.current) return;
       await exportDOCX({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, activeProfile: profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE });

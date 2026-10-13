@@ -1,3 +1,8 @@
+// ====================================================================
+// 📊 [OMD-STORE-USEUISTORE-0001] useUIStore.ts ➔ useUIStore
+// 🎯 @KICK  : 에디터 전역 UI 레이아웃 상태(사이드바, 툴바, 테마 팔레트, 탭) 관리
+// 🚨 @PATCH : **2026-10-13** — [에디터 시작 시 좌측 탐색기 상시 펼침 초기화]: 에디터 시작 시 로컬 스토리지의 이전 닫힘 여부와 무관하게 왼쪽 탐색기(isSidebarOpen: true, sidebarTab: 'explorer')가 항상 펼쳐진 상태로 시작하도록 수정
+// ====================================================================
 import { create } from 'zustand';
 
 interface UIState {
@@ -19,9 +24,9 @@ interface UIState {
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  // 초기 상태 - 로컬 스토리지에서 마지막으로 설정한 상태 복원
+  // 초기 상태 - 에디터 시작 시 왼쪽 탐색기는 항상 펼침 유지
   isDarkMode: false,
-  isSidebarOpen: typeof window !== 'undefined' ? localStorage.getItem('onrivi_sidebar_open') !== 'false' : true,
+  isSidebarOpen: true,
   isToolbarOpen: typeof window !== 'undefined' ? localStorage.getItem('onrivi_toolbar_open') === 'true' : false,
   themePalette: 'vs-dark',
   sidebarWidth: 300,

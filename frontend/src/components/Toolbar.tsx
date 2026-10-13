@@ -33,10 +33,10 @@ function openExternal(url: string) {
   }
 }
 
-export default function Toolbar() {
+export default function Toolbar({ documentEditing = false }: { documentEditing?: boolean }) {
   const { dispatchCommand: dispatch, previewMode, isExpired, activeTabId, geminiApiKey, showToast, isRestrictedUser, isEmojiPanelOpen } = useEditorContext();
   const router = useRouter();
-  const showProductivity = previewMode !== 'preview' && !isExpired && !isRestrictedUser && activeTabId;
+  const showProductivity = (previewMode !== 'preview' || documentEditing) && !isExpired && !isRestrictedUser && activeTabId;
 
   return (
     <div className="flex flex-col items-center gap-2 pb-1 mt-auto">
@@ -55,6 +55,8 @@ export default function Toolbar() {
           >
             <Icon name="Smile" size={20} className={isEmojiPanelOpen ? 'text-blue-700 dark:text-blue-400' : 'text-zinc-500 dark:text-zinc-400'} />
           </button>
+
+
 
           <button
             onMouseDown={(e) => { e.preventDefault(); dispatch('TOGGLE_FLOATING_TOOLBAR'); }}

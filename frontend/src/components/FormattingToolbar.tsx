@@ -89,7 +89,7 @@ export default function FormattingToolbar() {
       {/* 서식 */}
       <FormatBtn label="B" title={tooltip('굵게', SHORTCUTS.bold)} onAction={() => dispatch('BOLD')} bold />
       <FormatBtn label="I" title={tooltip('기울임', SHORTCUTS.italic)} onAction={() => dispatch('ITALIC')} italic />
-      <FormatBtn label={<img src="./icons/Password.png" alt="인라인 코드" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('인라인 코드', SHORTCUTS.inlineCode)} onAction={() => dispatch('INLINE_CODE')} />
+      <FormatBtn label={<img src="/icons/Password.png" alt="인라인 코드" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('인라인 코드', SHORTCUTS.inlineCode)} onAction={() => dispatch('INLINE_CODE')} />
       <FormatBtn label="U" title={tooltip('밑줄', SHORTCUTS.underline)} onAction={() => dispatch('UNDERLINE')} underline />
       <FormatBtn label={<span className="line-through">S</span>} title={tooltip('취소선', SHORTCUTS.strikethrough)} onAction={() => dispatch('STRIKETHROUGH')} />
 
@@ -109,33 +109,33 @@ export default function FormattingToolbar() {
 
       {/* 문서/구분선 */}
       <FormatBtn label="—" title={tooltip('구분선', SHORTCUTS.hr)} onAction={() => dispatch('HR')} />
-      <FormatBtn label={<img src="./icons/ListNumbers.png" alt="숫자 목록" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('숫자 목록', SHORTCUTS.orderedList)} onAction={() => dispatch('ORDERED_LIST')} />
-      <FormatBtn label={<img src="./icons/ListBullets.png" alt="글머리 기호" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('글머리 기호', SHORTCUTS.list)} onAction={() => dispatch('LIST')} />
+      <FormatBtn label={<img src="/icons/ListNumbers.png" alt="숫자 목록" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('숫자 목록', SHORTCUTS.orderedList)} onAction={() => dispatch('ORDERED_LIST')} />
+      <FormatBtn label={<img src="/icons/ListBullets.png" alt="글머리 기호" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('글머리 기호', SHORTCUTS.list)} onAction={() => dispatch('LIST')} />
       <QuoteDropdownBtn dispatch={dispatch} />
-      <FormatBtn label={<img src="./icons/ListChecks.png" alt="체크리스트" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('체크리스트', SHORTCUTS.check)} onAction={() => dispatch('CHECK')} />
-      <FormatBtn label={<img src="./icons/Eraser.png" alt="태그 취소" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('태그 취소', SHORTCUTS.eraser)} onAction={() => dispatch('REMOVE_PREFIX')} />
-      <FormatBtn label={<img src="./icons/MagicWand.png" alt="문서 서식 일괄 정리" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('문서 서식 일괄 정리', SHORTCUTS.cleanDoc)} onAction={() => dispatch('CLEAN_DOC')} />
+      <FormatBtn label={<img src="/icons/ListChecks.png" alt="체크리스트" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('체크리스트', SHORTCUTS.check)} onAction={() => dispatch('CHECK')} />
+      <FormatBtn label={<img src="/icons/Eraser.png" alt="태그 취소" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('태그 취소', SHORTCUTS.eraser)} onAction={() => dispatch('REMOVE_PREFIX')} />
+      <FormatBtn label={<img src="/icons/MagicWand.png" alt="문서 서식 일괄 정리" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('문서 서식 일괄 정리', SHORTCUTS.cleanDoc)} onAction={() => dispatch('CLEAN_DOC')} />
 
       <Divider />
 
       {/* 링크/미디어 */}
-      <FormatBtn label={<img src="./icons/Link.png" alt="링크" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('링크', SHORTCUTS.link)} onAction={() => dispatch('LINK')} />
-      <FormatBtn label={<img src="./icons/BookBookmark.png" alt="문서 연결" className="w-5 h-5 object-contain dark:invert" />} title="문서 연결" onAction={() => dispatch('DOCLINK')} />
+      <FormatBtn label={<img src="/icons/Link.png" alt="링크" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('링크', SHORTCUTS.link)} onAction={() => dispatch('LINK')} />
+      <FormatBtn label={<img src="/icons/BookBookmark.png" alt="문서 연결" className="w-5 h-5 object-contain dark:invert" />} title="문서 연결" onAction={() => dispatch('DOCLINK')} />
       <FormatBtn label={<Icon name="NewspaperClipping" size={18} className="text-zinc-800 dark:text-zinc-100" />} title={tooltip('인용(참조문헌)', 'Ctrl+Alt+C')} onAction={() => dispatch('CITE')} />
       <FormatBtn label="fn" title={tooltip('각주', SHORTCUTS.footnote)} onAction={() => dispatch('FOOTNOTE')} />
       <Divider />
-      <FormatBtn label={<img src="./icons/Farm.png" alt="이미지" className="w-5 h-5 object-contain dark:invert" />} title="이미지" onAction={() => dispatch('IMAGE')} />
-      <FormatBtn label={<img src="./icons/FilmReel.png" alt="동영상삽입" className="w-5 h-5 object-contain dark:invert" />} title="동영상삽입" onAction={() => dispatch('YOUTUBE')} />
-      <FormatBtn label={<img src="./icons/Calendar.png" alt="현재 날짜/시간" className="w-5 h-5 object-contain dark:invert" />} title="현재 날짜/시간" onAction={() => dispatch('NOW')} />
+      <FormatBtn label={<img src="/icons/Farm.png" alt="이미지" className="w-5 h-5 object-contain dark:invert" />} title="이미지" onAction={() => dispatch('IMAGE')} />
+      <FormatBtn label={<img src="/icons/FilmReel.png" alt="동영상삽입" className="w-5 h-5 object-contain dark:invert" />} title="동영상삽입" onAction={() => dispatch('YOUTUBE')} />
+      <FormatBtn label={<img src="/icons/Calendar.png" alt="현재 날짜/시간" className="w-5 h-5 object-contain dark:invert" />} title="현재 날짜/시간" onAction={() => dispatch('NOW')} />
       <FormatBtn label={<Icon name="Signature" size={18} className="text-zinc-800 dark:text-zinc-100" />} title={tooltip('서명/발신인 (우측 정렬)', SHORTCUTS.signature)} onAction={() => dispatch('SIGNATURE')} />
 
       <Divider />
 
       {/* 고급/코드 */}
-      <FormatBtn label={<img src="./icons/MapTrifold.png" alt="지도 삽입" className="w-5 h-5 object-contain dark:invert" />} title="지도 삽입" onAction={() => dispatch('MAP')} />
-      <FormatBtn label={<img src="./icons/Table.png" alt="표 생성" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('표 생성', SHORTCUTS.table)} onAction={() => dispatch('TABLE')} />
-      <FormatBtn label={<img src="./icons/FileCode.png" alt="코드 블록" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('코드 블록', SHORTCUTS.code)} onAction={() => dispatch('CODE')} />
-      <FormatBtn label={<img src="./icons/PlusMinus.png" alt="수식(LaTeX)" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('수식(LaTeX)', SHORTCUTS.math)} onAction={() => dispatch('LATEX')} />
+      <FormatBtn label={<img src="/icons/MapTrifold.png" alt="지도 삽입" className="w-5 h-5 object-contain dark:invert" />} title="지도 삽입" onAction={() => dispatch('MAP')} />
+      <FormatBtn label={<img src="/icons/Table.png" alt="표 생성" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('표 생성', SHORTCUTS.table)} onAction={() => dispatch('TABLE')} />
+      <FormatBtn label={<img src="/icons/FileCode.png" alt="코드 블록" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('코드 블록', SHORTCUTS.code)} onAction={() => dispatch('CODE')} />
+      <FormatBtn label={<img src="/icons/PlusMinus.png" alt="수식(LaTeX)" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('수식(LaTeX)', SHORTCUTS.math)} onAction={() => dispatch('LATEX')} />
     </div>
   );
 }
@@ -203,7 +203,7 @@ function QuoteDropdownBtn({ dispatch }: { dispatch: (cmd: any) => void }) {
         className="h-8 px-1.5 rounded-l-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all flex items-center justify-center cursor-pointer"
         title="인용구 (Ctrl+Q)"
       >
-        <img src="./icons/WechatLogo.png" alt="인용구" className="w-5 h-5 object-contain dark:invert" />
+        <img src="/icons/WechatLogo.png" alt="인용구" className="w-5 h-5 object-contain dark:invert" />
       </button>
 
       <button

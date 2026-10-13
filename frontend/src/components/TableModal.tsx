@@ -16,7 +16,7 @@ interface TableModalProps {
 // 🎯 @KICK  : 표 삽입 모달 - 10x10 그리드 UI로 마우스 표 크기 선택 후 마크다운 코드 생성
 // 🛡️ @GUARD : isOpen false 또는 mounted false 시 null 반환으로 조기 종료
 // 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
-//             2026-09-02 - 열(컬럼) 기본 정렬 프리셋 4종(기본 좌측, 전체 중앙, 회계형, 요약형) 선택 UI 및 마크다운 자동 생성 지원
+//             2026-09-02 - 헤더는 중앙 정렬 · 본문 열 정렬 프리셋 4종(기본 좌측, 전체 중앙, 회계형, 요약형) 선택 UI 및 마크다운 자동 생성 지원
 //             2026-07-15 - 마우스 드래그 그리드 10x10 디자인 전면 개편 및 안개 블러 제거, 라운드 4px 규격 장착
 // 🔗 @CALLS : handleInsert, createPortal
 // ====================================================================
@@ -136,7 +136,7 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
           {/* Column Alignment Presets */}
           <div className="w-full mb-4">
             <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 mb-2 block text-center">
-              열(컬럼) 기본 정렬 프리셋
+              헤더는 중앙 정렬 · 본문 열 정렬 프리셋
             </label>
             <div className="grid grid-cols-2 gap-1.5">
               <button

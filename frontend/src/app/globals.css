@@ -18,6 +18,7 @@
 }
 
 /* ===================================================================
+ * 🚨 @PATCH : **2026-10-13** — [나란히 보기 마크다운 영역 배경색 분리, 라인번호 거터 제거 및 읽기 전용 커서 숨김]: 문서 보기(#ffffff)와 경계가 구분되도록 마크다운 영역 배경을 분리하고, 라인번호 거터(.monaco-editor .margin, .line-numbers)와 읽기 전용 마크다운 영역(#onrivi-markdown-pane)의 입력 커서 바를 숨김 처리
  * 🚨 @PATCH : **2026-10-10** — [탐색기(LeftSidebar) 스크롤바 폭 100% 확대(6px->12px) 및 시인성 강화]: 기존 6px 규격의 얇은 스크롤바 폭을 12px(100% 확대)로 확장하고, 은은한 트랙과 고대비 썸(Thumb) 및 호버 반응을 탑재한 .explorer-scrollbar 유틸리티 신설
  * 🚨 @PATCH : **2026-10-02** — [이미지 드래그 앤 드롭 실시간 위치 가이드라인 및 드롭 타겟 라인 하이라이트 스타일 탑재]: 드래그 중인 이미지가 삽입될 행과 위치를 사용자가 마우스를 놓기 전에 100% 식별할 수 있도록 .onrivi-drop-line-highlight 스타일 추가
  * 🚨 @PATCH : **2026-10-02** — [학교안심 폰트 WOFF2 포맷 일원화 및 구형 중복 파일 정리]: Hakgyoansim 폰트의 중복 TTF/OTF/WOFF를 제거하고 고압축 WOFF2로 일원화하여 시각적 품위를 100% 동일하게 유지하면서 패키징 용량 대폭 경량화
@@ -743,21 +744,11 @@ mark.onrivi-search-text-highlight {
   box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.9) !important;
 }
 
-/* 🎯 Monaco 에디터 커서(Caret) 항시 가시성 100% 보장 */
-.monaco-editor .cursors-layer .cursor {
-  background-color: #2563eb !important;
-  border-color: #2563eb !important;
-  color: #2563eb !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  display: block !important;
-}
-
-.dark .monaco-editor .cursors-layer .cursor,
-.vs-dark .monaco-editor .cursors-layer .cursor {
-  background-color: #60a5fa !important;
-  border-color: #60a5fa !important;
-  color: #60a5fa !important;
+/* 🎯 나란히 보기 마크다운 영역(#onrivi-markdown-pane)은 읽기 전용이므로 입력 커서 바를 숨기고 현재 행 하이라이트로만 위치를 표시 */
+#onrivi-markdown-pane .monaco-editor .cursors-layer .cursor {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
 /* 입력 중 본문 높이가 바뀌어도 브라우저가 스크롤 위치를 자동 보정하지 않게 하고, 하단 80px 여백을 확보합니다. */
@@ -1559,32 +1550,13 @@ div.onrivi-list-spacer {
   border: none !important;
 }
 
-/* 🛡️ [에디터 라인 넘버 영역 시각적 차별화 패치]
-   라인 넘버 영역(회색 배경)을 콤팩트하게 줄이고, 경계선과 본문 사이의 가로 여백을 확실히 늘려 
-   에디터 라인 넘버와 본문이 명확하게 영역별로 인지 및 차별화되도록 개선합니다. */
-.monaco-editor .margin {
-  background-color: #ffffff !important;
-  border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
-}
-.monaco-editor .margin::before {
-  display: none !important;
-}
-.monaco-editor .margin-view-overlays {
-  z-index: 2 !important;
-}
+/* 🛡️ [마크다운 에디터 라인 넘버 숨김 패치]
+   마크다운 영역에서 줄번호(line-numbers) 및 좌측 거터 여백(.margin)이 노출되지 않도록 숨김 처리합니다. */
+.monaco-editor .margin,
 .monaco-editor .line-numbers {
-  text-align: center !important;
-  color: #8b949e !important;
-  z-index: 3 !important;
-}
-
-/* 다크모드 전용 라인 넘버 마진 스타일 */
-.dark .monaco-editor .margin {
-  background-color: #1e1e1e !important;
-  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
-}
-.dark .monaco-editor .line-numbers {
-  color: #6e7681 !important;
+  display: none !important;
+  width: 0 !important;
+  border: none !important;
 }
 
 /* 🛡️ [에디터 우측 본문 여백 패치]
@@ -2351,3 +2323,18 @@ input::-ms-clear {
 /* Only physical code rows reserve height; token spans remain inline. */
 .codeblock-area .onrivi-line { min-height: 1lh !important; }
 .codeblock-area .onrivi-line span { display: inline; padding: 0; }
+
+
+/* Media actions share one high-contrast style, independent of document themes. */
+.onrivi-media-control {
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  background:rgba(38,38,38,.92)!important; color:#fff!important;
+  border:1px solid rgba(255,255,255,.22)!important; border-radius:6px!important;
+  padding:6px 10px!important; font-size:14px!important; line-height:20px!important;
+  font-weight:600!important; font-family:inherit; white-space:nowrap;
+  box-shadow:0 2px 8px rgba(0,0,0,.18); cursor:pointer;
+}
+.onrivi-media-control:hover { background:#171717!important; }
+.onrivi-media-control:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
+@media (hover:none) { .onrivi-media-actions-frame > [data-editor-controls] { opacity:1!important; } }
+@media print { .onrivi-media-control { display:none!important; } }

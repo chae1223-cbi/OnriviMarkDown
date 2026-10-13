@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // 5. 폴더 선택 대화상자 띄우기 (전체 검색 범위 선택용)
+  selectMediaFile: (options) => ipcRenderer.invoke('dialog:selectMediaFile', options),
   selectFolder: (defaultPath) => ipcRenderer.invoke('dialog:selectFolder', defaultPath),
 
   // 5.5. 파일 저장 대화상자 띄우기
@@ -158,6 +159,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 24. 클립보드 네이티브 이미지 읽기 API
   readClipboardImage: () => ipcRenderer.invoke('clipboard:readImage'),
+  readClipboardImageSync: () => ipcRenderer.sendSync('clipboard:readImageSync'),
 
   // 23. 사용자 서식 프로필 읽기/저장 (Desktop — userData or resourceFolder)
   readProfiles: (resourceFolder) => ipcRenderer.invoke('file:readProfiles', resourceFolder),

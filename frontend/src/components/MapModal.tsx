@@ -1,5 +1,6 @@
 "use client";
 
+import { mediaDetails } from '@/lib/mediaMarkup';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Search, Plus, Minus, MapPin, Copy, Check, Map } from 'lucide-react';
@@ -11,6 +12,7 @@ interface MapModalProps {
   onClose: () => void;
   onInsert: (code: string) => void;
   isDarkMode: boolean;
+  initialSource?: string;
 }
 
 // ====================================================================
@@ -21,7 +23,7 @@ interface MapModalProps {
 //             2026-07-15 - 왼쪽 사이드바 제거 요청 반영 및 본문 영역 확장
 // 🔗 @CALLS : handleSearch, handleInsert, setZoom, setMapAlign, showToast, createPortal
 // ====================================================================
-export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapModalProps) {
+export default function MapModal({ isOpen, onClose, onInsert, isDarkMode, initialSource }: MapModalProps) {
   const { showToast } = useToast();
   const [address, setAddress] = useState("서울특별시 중구 세종대로 110");
   const [coords, setCoords] = useState("37.5665, 126.9780");
@@ -44,6 +46,17 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
     const frame = requestAnimationFrame(() => addressInputRef.current?.focus({ preventScroll: true }));
     return () => cancelAnimationFrame(frame);
   }, [isOpen, mounted]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const details = initialSource ? mediaDetails(initialSource) : null;
+    const params = details ? new URL(details.path).searchParams : null;
+    const q = params?.get('q') || '37.5665,126.9780';
+    setCoords(q); setAddress(details?.title || q); setPlaceName(details?.title || '지도');
+    setZoom(Math.max(1,Math.min(20,Number(params?.get('z')) || 15)));
+    setMapWidth(details?.width || '600'); setMapHeight(details?.height || '350');
+    setMapAlign((['left','center','right'].includes(details?.align || '') ? details!.align : 'center') as MediaAlign);
+  }, [isOpen, initialSource]);
 
   // 지도 검색 함수 - Nominatim(OpenStreetMap) 기반 주소/장소명 검색
   const handleSearch = async (e?: React.FormEvent) => {

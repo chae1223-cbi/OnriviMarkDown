@@ -335,15 +335,7 @@ export default function MenuBar() {
             icon: <Icon name="Preview" size={15} />, 
             subItems: [
               { 
-                label: "편집 전용", 
-                icon: <Icon name="EditOnly" size={14} />,
-                disabled: isRestrictedUser,
-                title: isRestrictedUser ? "읽기 전용(제한사용자) 모드에서는 사용할 수 없습니다." : undefined,
-                isActive: previewMode === 'edit',
-                onClick: () => !isRestrictedUser && setPreviewMode('edit') 
-              },
-              { 
-                label: "분할 화면", 
+                label: "나란히 보기", 
                 icon: <Icon name="ClosePanel" size={14} />,
                 disabled: isRestrictedUser,
                 title: isRestrictedUser ? "읽기 전용(제한사용자) 모드에서는 사용할 수 없습니다." : undefined,

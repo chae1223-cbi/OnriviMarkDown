@@ -1287,18 +1287,24 @@ async function uploadUniqueDriveImage(
     throw new Error('미디어 폴더 ID 또는 파일 데이터가 누락되었습니다.');
   }
   const fileBuffer = await fileBlob.arrayBuffer();
-  const checksum = CryptoJS.MD5(CryptoJS.lib.WordArray.create(new Uint8Array(fileBuffer) as any)).toString();
   let pageToken: string | undefined;
   do {
-    const params=new URLSearchParams({q:`'${mediaFolderId.replace(/'/g,"\\'")}' in parents and trashed = false`,fields:'nextPageToken,files(id,name,md5Checksum)',pageSize:'1000'});
-    if(pageToken)params.set('pageToken',pageToken);
-    const response=await fetch(`https://www.googleapis.com/drive/v3/files?${params}`,{headers:{Authorization:`Bearer ${authToken}`}});
-    if(!response.ok)throw await parseDriveError(response,'이미지 중복 확인');
-    const result=await response.json();
-    const existing=result.files?.find((item:any)=>item.md5Checksum===checksum);
-    if(existing)return {id:existing.id,name:existing.name};
-    pageToken=result.nextPageToken;
-  }while(pageToken);
+    const params = new URLSearchParams({q:`'${mediaFolderId.replace(/'/g,"\\'")}' in parents and trashed = false`,fields:'nextPageToken,files(id,name,modifiedTime)',orderBy:'modifiedTime desc',pageSize:'1000'});
+    if (pageToken) params.set('pageToken',pageToken);
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {headers:{Authorization:`Bearer ${authToken}`}});
+    if (!response.ok) throw await parseDriveError(response,'미디어 파일 확인');
+    const result = await response.json();
+    const existing = result.files?.find((item:any) => item.name.normalize('NFC') === fileName.normalize('NFC'));
+    if (existing) {
+      const updated = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(existing.id)}?uploadType=media&fields=id,name`, {
+        method:'PATCH', headers:{Authorization:`Bearer ${authToken}`,'Content-Type':fileBlob.type || 'application/octet-stream'}, body:fileBuffer,
+      });
+      if (!updated.ok) throw await parseDriveError(updated,'미디어 덮어쓰기');
+      invalidateDriveMediaCache(mediaFolderId,existing.id,existing.name);
+      return {id:existing.id,name:existing.name};
+    }
+    pageToken = result.nextPageToken;
+  } while (pageToken);
   const metadata = {
     name: fileName,
     mimeType: fileBlob.type || 'image/png',
@@ -1348,6 +1354,17 @@ async function uploadUniqueDriveImage(
 }
 
 const driveImageBlobCache = new Map<string, string>();
+export function invalidateDriveMediaCache(folderId: string, fileId: string, fileName: string) {
+  driveImageBlobCache.forEach((_url, key) => {
+    if (!key.startsWith(folderId + ':')) return;
+    const value = key.slice(folderId.length + 1);
+    let name = value;
+    try { name = decodeURIComponent(value); } catch {}
+    // Other cached files remain valid; mounted images may still use the old URL.
+    if (value === fileId || name.normalize('NFC') === fileName.normalize('NFC')) driveImageBlobCache.delete(key);
+  });
+}
+
 
 /**
  * 구글 드라이브 /참조파일/media 폴더에서 파일명으로 이미지 Blob URL을 반환 (캐싱 지원)

@@ -54,6 +54,7 @@ import {
   Layers, ArrowUpRight, Search, FileCode2, AlertCircle, RefreshCw, Cpu
 } from 'lucide-react';
 import { CssProfile } from '@/types/cssProfile';
+import { DEFAULT_BOOK_LAYOUT } from '@/lib/picturebook';
 import { isSystemProfileId, DEFAULT_PROFILE, sanitizeAndParseCssProfileJson, normalizeCssProfile } from '@/constants/cssProfile';
 import { CSS_PROFILE_GUIDE_MD } from '@/constants/cssProfileGuide';
 import ConfirmModal from './ConfirmModal';
@@ -120,7 +121,7 @@ export default function StyleManagerModal({
     }
   };
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'system' | 'custom'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'system' | 'custom' | 'picturebook'>('all');
   const [toast, setToast] = useState<string | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState('');
@@ -570,7 +571,7 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
       : filterType === 'custom'
       ? reversedUserProfiles
       : [...reversedUserProfiles, ...systemProfiles]
-  ).filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  ).filter(p => (filterType !== 'picturebook' || p.layout?.type === 'picturebook') && p.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   // 선택된 서식의 상세 정보 요약
   const currentTable = selectedProfile?.tableStructure || {
@@ -581,7 +582,7 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
     <div className={`fixed inset-0 z-[210] flex flex-col font-sans ${surfaceBase}`}>
       
       {/* 🌟 1. 상단 글로벌 헤더 바 (Modern Technical Editorial) */}
-      <header className={`h-16 px-6 flex items-center justify-between border-b ${hairline} ${dk ? 'bg-[#090D16]/95 backdrop-blur-md' : 'bg-white/95 backdrop-blur-md'} shrink-0`}>
+      <header className={`min-h-16 py-3 gap-3 px-6 flex flex-wrap items-center justify-between border-b ${hairline} ${dk ? 'bg-[#090D16]/95 backdrop-blur-md' : 'bg-white/95 backdrop-blur-md'} shrink-0`}>
         <div className="flex items-center gap-3.5">
           <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#1d4ed8]/10 dark:bg-[#1d4ed8]/20 text-[#1d4ed8] border border-[#1d4ed8]/20 shadow-xs">
             <BookOpen className="w-5 h-5 text-[#1d4ed8]" />
@@ -601,7 +602,7 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           {/* 기본 서식으로 새로 만들기 상단 퀵 버튼 */}
           {/* 최신 서식 수동 새로고침 버튼 */}
           <button
@@ -617,6 +618,15 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
             <span>{isRefreshing ? '갱신 중...' : '서식 새로고침'}</span>
           </button>
 
+          {(['full-image', 'image-right'] as const).map(cover => <button key={cover}
+            className="px-3 py-2 text-xs font-bold border border-blue-300 rounded-xl text-blue-700"
+            onClick={() => {
+              const profile = normalizeCssProfile({ ...DEFAULT_PROFILE,
+                id: `profile-book-${Date.now()}`, name: cover === 'full-image' ? '그림책 — 전체 그림 표지' : '그림책 — 오른쪽 그림 표지',
+                layout: { ...DEFAULT_BOOK_LAYOUT, cover },
+              }, profiles);
+              onImportProfile?.(profile); setSelectedId(profile.id); onSelectProfile(profile.id);
+            }}>+ 그림책 · {cover === 'full-image' ? '전체 표지' : '오른쪽 표지'}</button>)}
           <button
             onClick={handleAddNewProfile}
             className="flex items-center gap-1.5 px-3.5 py-2 text-[12px] font-bold text-white bg-[#1d4ed8] hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-all duration-150 hover:scale-[1.02] active:scale-[0.98]"
@@ -679,6 +689,7 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
                 { key: 'all', label: '전체' },
                 { key: 'custom', label: '내 서식' },
                 { key: 'system', label: '시스템' },
+                { key: 'picturebook', label: '그림책' },
               ].map(f => (
                 <button
                   key={f.key}
@@ -782,7 +793,7 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <span className="text-[14px] shrink-0">
-                        {isSys ? '🏛️' : '🎨'}
+                        {p.layout ? '📖' : isSys ? '🏛️' : '🎨'}
                       </span>
                       <div className="min-w-0 text-left">
                         <p className={`text-[12.5px] truncate leading-tight ${
@@ -795,6 +806,11 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
                         <p className="text-[10px] text-slate-400 dark:text-zinc-500 truncate mt-0.5">
                           {p.pageStyle?.fontSize || '15px'} · {p.pageStyle?.fontFamily?.split(',')[0].replace(/['"]/g, '') || '기본서체'}
                         </p>
+                        {p.layout && <div className="flex gap-1 mt-1" aria-label="그림과 본문 배치">
+                          <span className="w-6 h-4 rounded-sm bg-blue-200 border border-blue-300" />
+                          <span className="w-6 h-4 rounded-sm border border-slate-300 text-[8px] leading-4 text-center">본문</span>
+                          <span className="text-[9px] text-blue-600">{p.layout.cover === 'full-image' ? '전체 표지' : '오른쪽 표지'}</span>
+                        </div>}
                       </div>
                     </div>
 
@@ -872,6 +888,10 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
                     <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-zinc-100 truncate">
                       {selectedProfile?.name}
                     </h1>
+                    <button type="button" className="border rounded-lg px-2 py-1 text-xs" onClick={() => {
+                      const copy = normalizeCssProfile({ ...structuredClone(selectedProfile), id:`profile-copy-${Date.now()}`, name:`${selectedProfile.name} 복사` }, profiles);
+                      onImportProfile?.(copy); setSelectedId(copy.id); onSelectProfile(copy.id);
+                    }}>서식 복제</button>
                     {!isSystem && (
                       <button
                         onClick={handleRenameStart}

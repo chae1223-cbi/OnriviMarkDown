@@ -1,6 +1,8 @@
 import { remarkCodeBlockMetadata } from '../lib/codeBlockMetadata';
+import PicturebookPreview from './PicturebookPreview';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { exportContentFingerprint } from '@/lib/exportPreparation';
+// 🚨 @PATCH : **2026-10-13** — [Mermaid 다이어그램 상단 제어 버튼 마우스 호버 시 활성화]: 다이어그램(Mermaid) 블록의 상단 액션 버튼들(코드 복사, 새 창으로 확대, 이미지 복사, 저장)이 평소에는 숨겨져 있다가 마우스가 다이어그램 영역에 위치하거나 포커스될 때만 활성화되도록 변경
 // 🚨 @PATCH : **2026-10-10** — [한글 CJK 볼드(**) 닫힘 태그 바로 뒤 조사 렌더링 방어]: CommonMark 파서가 **온리비**는 과 같이 닫는 태그 바로 뒤에 한글 조사가 붙었을 때 강조를 풀지 못하고 리터럴 문자로 깨져 노출되는 결함을 방어하기 위해 cleanContent 전처리 단계에서 닫힘 태그 뒤 공백 자동 보정 연동
 // 🚨 @PATCH : **2026-10-07** — [환경설정 리소스 폴더(참조파일 등) 미디어 렌더링 폴더 ID 직결]: AsyncImage 및 AsyncVideo 렌더링 시 getResourceSettings('cloud')?.mediaFolderId를 최우선으로 사용하여 구글 드라이브 리소스 폴더 미디어 100% 정상 표시
 // 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 전역 미디어 실시간 연동 강화]: 구글 드라이브(OnriviAuthor/참조파일/media) 및 로컬/웹 리소스 폴더 변경 시 AsyncImage 실시간 감지 및 캐싱 Blob URL 렌더링 지원
@@ -65,6 +67,7 @@ import { exportContentFingerprint } from '@/lib/exportPreparation';
 
 import React, { useMemo, useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
+import TableHeaderCell from '@/components/TableHeaderCell';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import remarkMath from 'remark-math';
@@ -79,6 +82,8 @@ import VideoCard from '@/components/VideoCard';
 import SocialVideoCard from '@/components/SocialVideoCard';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { rehypePreserveFootnotes } from '@/lib/rehypePreserveFootnotes';
+import { copyMediaSource } from '@/lib/mediaMarkup';
+import { mediaSourceRange } from '@/lib/mediaSourceRange';
 import { useToast } from '@/components/ToastProvider';
 import { extractFrontmatter } from '@/lib/frontmatter';
 import { loadSecureData } from '@/lib/secureStorage';
@@ -142,6 +147,11 @@ const getTextFromChildren = (children: React.ReactNode): string => {
  * @description 마크다운 렌더러 뷰어 컴포넌트에 주입되는 마크다운 원문(content), 체크박스 토글 핸들러 규격 명세입니다.
  */
 interface MarkdownViewerProps {
+  picturebookProfile?: import('@/types/cssProfile').CssProfile;
+  mediaControlsManaged?: boolean;
+  onMediaEdit?: (kind:'image'|'video'|'map', path:string, line:number) => void;
+  onPicturebookChange?: (markdown: string) => void;
+  onPicturebookImageEdit?: (index:number) => void;
   content: string;
   originalContent?: string;
   lineMap?: number[];
@@ -182,7 +192,24 @@ const extractDataLine = (props: any, node?: any): number | undefined => {
 // 🖼️ [ONR-MD-006] AsyncImage 커스텀 컴포넌트
 // @description 웹 브라우저 환경에서 로컬 파일(OPFS/VFS)을 비동기적으로 읽어와 렌더링합니다.
 // ====================================================================
-const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, resourceFolder, workspaceType, api, queryString, style, className, onImageLoaded, ...props }: any) => {
+function useResourceMediaRevision(source: string) {
+  const [revision,setRevision] = useState(0);
+  useEffect(() => {
+    const refresh = (event: Event) => {
+      let path = source || '';
+      try { if (/^media(?:-local)?:/.test(path)) path = new URL(path).searchParams.get('url') || path; } catch {}
+      let name = path.split('?')[0].split(/[\\/]/).pop() || '';
+      try { name = decodeURIComponent(name); } catch {}
+      if (name.normalize('NFC') === (event as CustomEvent).detail?.name?.normalize('NFC')) setRevision(Date.now());
+    };
+    window.addEventListener('onrivi:media-updated',refresh);
+    return () => window.removeEventListener('onrivi:media-updated',refresh);
+  },[source]);
+  return revision;
+}
+
+const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, resourceFolder, workspaceType, api, queryString, style, className, onImageLoaded, showCopyControl = true, ...props }: any) => {
+  const revision = useResourceMediaRevision(src);
   const [imgSrc, setImgSrc] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
     const [copied, setCopied] = useState(false);
@@ -190,6 +217,8 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
   
   useEffect(() => {
     let objectUrl = '';
+    let cancelled = false;
+    const updateImage = (value: string) => { if (!cancelled) setImgSrc(value); };
     setErrorMsg('');
     const loadLocalImage = async () => {
       try {
@@ -203,7 +232,7 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
           const fileName = mediaSource.substring(mediaSource.lastIndexOf('/media/') + 1) + (src.includes('?') ? src.slice(src.indexOf('?')) : queryString || '');
           const blobUrl = await getDriveMediaImageBlobUrl(token, folderId, fileName);
           if (!blobUrl) throw new Error(`구글 드라이브 미디어 폴더에서 이미지를 찾지 못했습니다: ${fileName}`);
-          setImgSrc(blobUrl);
+          updateImage(blobUrl);
           return;
         }
         if (api) {
@@ -220,9 +249,9 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
           }
 
           if (targetAbsolutePath && !src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('blob:') && (!src.startsWith('media://') || src.startsWith('media://local/serve'))) {
-            setImgSrc(`media://local/serve?url=${encodeURIComponent(targetAbsolutePath)}`);
+            updateImage(`media://local/serve?url=${encodeURIComponent(targetAbsolutePath)}&v=${revision}`);
           } else {
-            setImgSrc(src);
+            updateImage(src);
           }
         } else if (!src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('blob:')) {
           const pureSrc = src.split('?')[0].split('#')[0];
@@ -240,7 +269,7 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
             if (webSrc.startsWith('frontend/public/')) webSrc = webSrc.replace('frontend/public/', '/');
             else if (webSrc.startsWith('public/')) webSrc = webSrc.replace('public/', '/');
             
-            setImgSrc(queryString ? (webSrc.includes('?') ? webSrc + '&' + queryString.substring(1) : webSrc + queryString) : webSrc);
+            updateImage(queryString ? (webSrc.includes('?') ? webSrc + '&' + queryString.substring(1) : webSrc + queryString) : webSrc);
             return;
           }
 
@@ -254,7 +283,7 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
               const driveBlobUrl = await getDriveMediaImageBlobUrl(token, targetMediaFolderId, pureSrc);
               if (driveBlobUrl) {
                 // Blob URLs are exact identifiers; sizing is already applied via style.
-                setImgSrc(driveBlobUrl);
+                updateImage(driveBlobUrl);
                 return;
               }
             }
@@ -280,7 +309,7 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
               if (fileHandle) {
                 const file = await fileHandle.getFile();
                 objectUrl = URL.createObjectURL(file);
-                setImgSrc(objectUrl);
+                updateImage(objectUrl);
                 return;
               }
             } catch (err: any) {
@@ -299,7 +328,7 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
               if (fileHandle) {
                 const file = await fileHandle.getFile();
                 objectUrl = URL.createObjectURL(file);
-                setImgSrc(objectUrl);
+                updateImage(objectUrl);
                 return;
               }
             } catch (err: any) {
@@ -321,18 +350,19 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
 
           if (b64) {
             if (b64.startsWith('data:image/')) {
-              setImgSrc(b64);
+              updateImage(b64);
             } else {
-              setImgSrc(`data:image/png;base64,${b64}`);
+              updateImage(`data:image/png;base64,${b64}`);
             }
             return;
           } else {
             throw new Error(`이미지 파일을 찾을 수 없습니다: ${pureSrc}`);
           }
         } else {
-          setImgSrc(src);
+          updateImage(src);
         }
       } catch (e: any) {
+        if (cancelled) return;
         console.error(`[AsyncImage] VFS ERROR:`, e);
         if (getResourceSettings()?.kind === 'drive') {
           setErrorMsg(e.message || '구글 드라이브 이미지를 불러오지 못했습니다.');
@@ -342,16 +372,17 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
         const fallbackSrc = api 
           ? `media://local/serve?url=${encodeURIComponent(absolutePath)}`
           : `/api/view?filePath=${encodeURIComponent(absolutePath)}`;
-        setImgSrc(queryString ? (fallbackSrc.includes('?') ? fallbackSrc + '&' + queryString.substring(1) : fallbackSrc + queryString) : fallbackSrc);
+        updateImage(queryString ? (fallbackSrc.includes('?') ? fallbackSrc + '&' + queryString.substring(1) : fallbackSrc + queryString) : fallbackSrc);
       }
     };
     
     loadLocalImage();
     
     return () => {
+      cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [src, absolutePath, rootFolder, resourceFolderHandle, resourceFolder, workspaceType, api, queryString]);
+  }, [src, absolutePath, rootFolder, resourceFolderHandle, resourceFolder, workspaceType, api, queryString, revision]);
 
   if (errorMsg) {
     return (
@@ -418,9 +449,9 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
     return (
       <div data-line={extractDataLine(props)} className={`relative group inline-flex flex-col onrivi-image-wrapper ${className || ''}`} style={style}>
         <img ref={imgRef} src={imgSrc} alt={alt} className={className} onError={onImgError} onLoad={handleImgLoad} {...props} data-line={undefined} style={{ maxWidth: '100%', height: 'auto', objectFit: 'contain' }} />
-        <button
+        {showCopyControl && <button
             onClick={handleCopy}
-            className="copy-button-hook absolute top-2 right-2 px-2.5 py-1.5 bg-black/60 dark:bg-white/20 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity text-xs flex items-center gap-1.5 z-10 hover:bg-black/80 font-medium no-print"
+            className="onrivi-media-control copy-button-hook absolute top-2 right-2 px-2.5 py-1.5 bg-black/60 dark:bg-white/20 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity text-xs flex items-center gap-1.5 z-10 hover:bg-black/80 font-medium no-print"
             title="복사"
             style={{ userSelect: 'none' }}
           >
@@ -435,7 +466,7 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
                 <span>복사</span>
               </>
             )}
-          </button>
+          </button>}
       </div>
     );
 
@@ -443,6 +474,7 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
 };
 
 const AsyncVideo = ({ src, absolutePath, rootFolder, resourceFolderHandle, workspaceType, api, queryString, style, className, ...props }: any) => {
+  const revision = useResourceMediaRevision(src);
   const [videoSrc, setVideoSrc] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
   
@@ -465,7 +497,7 @@ const AsyncVideo = ({ src, absolutePath, rootFolder, resourceFolderHandle, works
           if (src.startsWith('media://local/serve') || src.startsWith('media-local://')) {
              try {
                if (src.startsWith('media-local://')) {
-                 targetAbsolutePath = decodeURIComponent(src.replace('media-local://', ''));
+                 targetAbsolutePath = new URL(src).searchParams.get('url') || decodeURIComponent(src.replace('media-local://', ''));
                  if (targetAbsolutePath.startsWith('/')) targetAbsolutePath = targetAbsolutePath.substring(1);
                } else {
                  const parsedUrl = new URL(src);
@@ -480,7 +512,7 @@ const AsyncVideo = ({ src, absolutePath, rootFolder, resourceFolderHandle, works
           if (targetAbsolutePath && !src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('blob:') && (!src.startsWith('media://') || src.startsWith('media://local/serve'))) {
             // Electron의 registerFileProtocol을 타도록 media-local 스킴 사용
             // 윈도우 경로 인코딩 문제를 피하기 위해 쿼리스트링(?url=) 방식 사용
-            setVideoSrc(`media-local://serve?url=${encodeURIComponent(targetAbsolutePath)}`);
+            setVideoSrc(`media-local://serve?url=${encodeURIComponent(targetAbsolutePath.split('?')[0])}&v=${revision || driveQuery.get('v') || ''}`);
           } else {
             setVideoSrc(src);
           }
@@ -585,7 +617,7 @@ const AsyncVideo = ({ src, absolutePath, rootFolder, resourceFolderHandle, works
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [src, absolutePath, rootFolder, resourceFolderHandle, workspaceType, api, queryString]);
+  }, [src, absolutePath, rootFolder, resourceFolderHandle, workspaceType, api, queryString, revision]);
 
   if (errorMsg) {
     return (
@@ -1056,7 +1088,7 @@ function CodeBlock({ lang, title, rawInfo, code, className, node, lineMap, child
         </span>
         <button
             onClick={handleCopy}
-            className="copy-button-hook shrink-0 px-2.5 py-1 bg-black/20 dark:bg-white/10 hover:bg-black/40 dark:hover:bg-white/20 text-slate-100 rounded opacity-90 hover:opacity-100 transition-opacity text-xs flex items-center gap-1.5 z-10 font-medium no-print"
+            className="onrivi-media-control copy-button-hook shrink-0 px-2.5 py-1 bg-black/20 dark:bg-white/10 hover:bg-black/40 dark:hover:bg-white/20 text-slate-100 rounded opacity-90 hover:opacity-100 transition-opacity text-xs flex items-center gap-1.5 z-10 font-medium no-print"
             title="복사"
             style={{ userSelect: 'none' }}
           >
@@ -1169,7 +1201,7 @@ function TableWrapper({ children, ...restProps }: { children: React.ReactElement
       {/* 마우스 호버 시 우측 상단에 노출되는 미려한 시트/표형식 복사 단추 */}
       <button
             onClick={handleCopy}
-            className="copy-button-hook absolute top-1 right-1 px-2 py-1 bg-black/60 dark:bg-white/20 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity text-[11px] flex items-center gap-1 z-10 hover:bg-black/80 font-medium no-print"
+            className="onrivi-media-control copy-button-hook absolute top-1 right-1 px-2 py-1 bg-black/60 dark:bg-white/20 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity text-[11px] flex items-center gap-1 z-10 hover:bg-black/80 font-medium no-print"
             title="복사"
             style={{ userSelect: 'none' }}
           >
@@ -1730,16 +1762,16 @@ const MermaidBlock = React.memo(function MermaidBlock({ code, dataLine }: { code
   };
 
   return (
-    <div ref={containerRef} data-line={dataLine} data-export-state={error ? "error" : loading ? "loading" : "ready"} className="relative group my-6 border border-zinc-200/60  rounded-lg overflow-hidden shadow-sm bg-white  select-text">
+    <div ref={containerRef} data-line={dataLine} data-export-state={error ? "error" : loading ? "loading" : "ready"} className="relative group onrivi-media-actions-frame my-6 border border-zinc-200/60  rounded-lg overflow-hidden shadow-sm bg-white  select-text">
 
-      <div className="flex items-center justify-between px-4 py-2 bg-zinc-50  border-b border-zinc-200/60 ">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 bg-zinc-50 border-b border-zinc-200/60">
         <span className="text-xs font-semibold text-zinc-500  break-words min-w-0 flex items-center gap-1.5">
           📊 다이어그램 (Mermaid)
         </span>
-        <div className="flex items-center gap-1.5">
+        <div className="no-print flex flex-wrap items-center gap-1.5 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity duration-150" data-editor-controls>
           <button
             onClick={handleCopyCode}
-            className="text-[11px] px-2.5 py-1 rounded bg-white  border border-zinc-200  text-zinc-600  hover:bg-zinc-50 :bg-zinc-700 active:scale-95 transition-all shadow-sm font-medium cursor-pointer"
+            className="onrivi-media-control"
             title="마크다운 소스 복사"
           >
             {copied ? '✓ 코드 복사됨' : '코드 복사'}
@@ -1748,21 +1780,21 @@ const MermaidBlock = React.memo(function MermaidBlock({ code, dataLine }: { code
             <>
               <button
                 onClick={openInNewWindow}
-                className="text-[11px] px-2.5 py-1 rounded bg-white  border border-zinc-200  text-zinc-600  hover:bg-zinc-50 :bg-zinc-700 hover:text-blue-600 :text-blue-400 active:scale-95 transition-all shadow-sm font-medium cursor-pointer"
+                className="onrivi-media-control"
                 title="다이어그램을 새 웹브라우저 창으로 크게 보기"
               >
                 🔍 새 창으로 확대
               </button>
               <button
                 onClick={handleCopyImage}
-                className="text-[11px] px-2.5 py-1 rounded bg-white  border border-zinc-200  text-zinc-600  hover:bg-zinc-50 :bg-zinc-700 hover:text-blue-600 :text-blue-400 active:scale-95 transition-all shadow-sm font-medium cursor-pointer"
+                className="onrivi-media-control"
                 title="차트 이미지를 클립보드에 복사해 워드나 한글에 바로 붙여넣기"
               >
                 {imageCopied ? '✓ 이미지 복사됨' : '이미지 복사'}
               </button>
               <button
                 onClick={handleSaveImage}
-                className="text-[11px] px-2.5 py-1 rounded bg-white  border border-zinc-200  text-zinc-600  hover:bg-zinc-50 :bg-zinc-700 hover:text-blue-600 :text-blue-400 active:scale-95 transition-all shadow-sm font-medium cursor-pointer"
+                className="onrivi-media-control"
                 title="차트를 PNG 파일로 저장"
               >
                 💾 저장
@@ -1816,15 +1848,31 @@ const MermaidBlock = React.memo(function MermaidBlock({ code, dataLine }: { code
 function MarkdownViewer({
   content, originalContent, lineMap, onCheckboxToggle, currentFilePath, rootFolderPath,
   onFileOpen, listIndent, marginTop, marginBottom, marginLeft, marginRight, bibContent, rootFolder, resourceFolderHandle, resourceFolder, workspaceType,
-  onImageLoaded, activeLine, customCss
+  onImageLoaded, activeLine, customCss, picturebookProfile, onPicturebookChange, onMediaEdit, mediaControlsManaged
 }: MarkdownViewerProps) {
 
   const { showToast } = useToast();
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef(content);
   const originalContentRef = useRef(originalContent);
-  const dynamicPropsRef = useRef({ lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, resourceFolderHandle, resourceFolder, workspaceType, showToast });
-  dynamicPropsRef.current = { lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, resourceFolderHandle, resourceFolder, workspaceType, showToast };
+  const dynamicPropsRef = useRef({ lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, resourceFolderHandle, resourceFolder, workspaceType, showToast, onMediaEdit, mediaControlsManaged });
+  dynamicPropsRef.current = { lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, resourceFolderHandle, resourceFolder, workspaceType, showToast, onMediaEdit, mediaControlsManaged };
+
+  const attachMediaActions = useCallback((kind:'image'|'video'|'map', path:string, node:any, child:React.ReactNode) => {
+    if (!dynamicPropsRef.current.onMediaEdit) return child;
+    const line = dynamicPropsRef.current.lineMap?.[node?.position?.start?.line || 0] || node?.position?.start?.line || 1;
+    return <div className="relative group onrivi-media-actions-frame" style={{maxWidth:'100%'}}>
+      {child}
+      <div className="absolute top-2 right-2 z-20 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 no-print" data-editor-controls contentEditable={false}>
+        <button type="button" className="onrivi-media-control" onMouseDown={e=>e.preventDefault()} onClick={e=>{e.stopPropagation();dynamicPropsRef.current.onMediaEdit?.(kind,path,line);}}>편집</button>
+        <button type="button" className="onrivi-media-control" title="미디어 참조 복사" onMouseDown={e=>e.preventDefault()} onClick={e=>{
+          e.stopPropagation(); const match = mediaSourceRange(originalContentRef.current || contentRef.current,kind,path,line);
+          if (!match) {showToast('원본 미디어 위치를 찾지 못했습니다.','warning');return;}
+          void copyMediaSource(match.source).then(()=>showToast('미디어 참조를 복사했습니다.','success')).catch(()=>showToast('클립보드 복사 실패','error'));
+        }}>복사</button>
+      </div>
+    </div>;
+  },[showToast]);
 
   const frontmatterCustomCss = useMemo(() => {
     if (!content) return '';
@@ -2664,7 +2712,7 @@ function MarkdownViewer({
 
               const videoAlign = props['data-align'] || node?.properties?.dataAlign || 'center';
               const alignItems = videoAlign === 'left' ? 'flex-start' : videoAlign === 'right' ? 'flex-end' : 'center';
-              return (
+              return attachMediaActions('video', src || actualSrc, node, (
                 <figure data-line={extractDataLine(props, node)} className="onrivi-video-figure" style={{ display: 'flex', flexDirection: 'column', alignItems, width: '100%', clear: 'both' }}>
                   <div className="relative flex flex-col onrivi-video-wrapper" style={{ display: 'flex', flexDirection: 'column', alignItems, width: '100%', maxWidth: '100%' }}>
                     <AsyncVideo
@@ -2678,7 +2726,7 @@ function MarkdownViewer({
                     />
                   </div>
                 </figure>
-              );
+              ));
             },
             img: ({ node, src, alt, style, ...props }: any) => {
               if (!src) return <img alt={alt} {...props} />;
@@ -2925,8 +2973,9 @@ function MarkdownViewer({
                 forceAlignClass = 'force-align-center';
               }
               
-              const imgElement = (
-                <AsyncImage 
+              const imgElement = attachMediaActions('image',src,node, (
+                <AsyncImage
+                  showCopyControl={!dynamicPropsRef.current.onMediaEdit && !dynamicPropsRef.current.mediaControlsManaged}
                   src={finalSrc} 
                   alt={alt} 
                   absolutePath={absolutePath} 
@@ -2941,7 +2990,7 @@ function MarkdownViewer({
                   onImageLoaded={onImageLoaded}
                   {...props} 
                 />
-              );
+              ));
               
               const line = extractDataLine(props, node);
               if (alt && alt.trim() !== '') {
@@ -3336,6 +3385,7 @@ function MarkdownViewer({
                 </a>
               );
             },
+            th: TableHeaderCell,
             table: ({ node, children, className, ...props }: any) => {
                return (
                  <TableWrapper>
@@ -3438,7 +3488,7 @@ function MarkdownViewer({
               const wrapperClass = isMap ? 'onrivi-map-wrapper map-embed-wrapper' : 'onrivi-iframe-wrapper';
               const figureClass = isMap ? 'onrivi-map-figure' : 'onrivi-iframe-figure';
 
-              return (
+              return attachMediaActions(isMap ? 'map' : 'video',src,node, (
                 <figure data-line={line} style={alignStyle} className={figureClass}>
                   <div className={`relative flex flex-col ${wrapperClass}`} style={{ display: 'flex', flexDirection: 'column', alignItems: alignStyle.alignItems, width: '100%', maxWidth: '100%' }}>
                     <iframe
@@ -3449,7 +3499,7 @@ function MarkdownViewer({
                     />
                   </div>
                 </figure>
-              );
+              ));
             },
             input: ({ node, ...props }: any) => {
               const importedId = props['data-import-checkbox'];
@@ -3702,10 +3752,15 @@ function MarkdownViewer({
                 return (
                   <div 
                     style={{ ...style, ...getIndentStyle(node) }} 
+                    ref={(element) => {
+                      if (!element) return;
+                      const backgrounds = {NOTE:'#eff6ff',TIP:'#ecfdf5',IMPORTANT:'#faf5ff',WARNING:'#fffbeb',CAUTION:'#fff1f2'};
+                      element.style.setProperty('background-color', backgrounds[alertType], 'important');
+                    }}
                     className={`onrivi-alert-box my-4 border-l-4 rounded-r-lg ${alertStyles.border} ${alertStyles.bg} p-4 shadow-xs`} 
                     {...(props as any)}
                   >
-                    <div className={`onrivi-alert-title flex items-center gap-2 font-bold mb-1.5 text-sm tracking-wide uppercase ${alertStyles.text}`}>
+                    <div className={`onrivi-alert-title flex items-center gap-2 font-bold mb-1.5 text-sm tracking-wide uppercase text-inherit`}>
                       <span className="text-base">{alertStyles.icon}</span>
                       <span>{alertStyles.title}</span>
                     </div>
@@ -3726,7 +3781,7 @@ function MarkdownViewer({
                 </blockquote>
               );
             }
-          }), [getIndentStyle, onImageLoaded])}
+          }), [getIndentStyle, onImageLoaded, attachMediaActions])}
         >
           {processedContent}
         </ReactMarkdown>
@@ -3737,4 +3792,23 @@ function MarkdownViewer({
 
 // 에디터 커서 열·상태바처럼 미리보기와 무관한 상위 상태가 바뀌어도
 // Markdown AST와 DOM을 다시 만들지 않도록 보호합니다.
-export default React.memo(MarkdownViewer);
+function LayoutAwareViewer(props: MarkdownViewerProps) {
+  const original = props.originalContent ?? props.content;
+  const {data,content:body} = extractFrontmatter(original);
+  const requestedId = data.css_profile?.replace(/^["']|["']$/g,'');
+  if (requestedId?.startsWith('profile-book-') && requestedId !== props.picturebookProfile?.id) {
+    return <div className="p-6 text-sm text-slate-500" role="status">그림책 서식을 불러오는 중입니다. 계속 표시되면 리소스 폴더의 서식 연결을 확인해 주세요.</div>;
+  }
+  if (props.picturebookProfile?.layout?.type !== 'picturebook') return <MarkdownViewer {...props} />;
+  return <PicturebookPreview content={body.replace(/\r\n/g, '\n')} profile={props.picturebookProfile}
+    onImageEdit={props.onPicturebookImageEdit}
+    sourceLineOffset={(original.slice(0, original.length-body.length).match(/\n/g) || []).length}
+    onChange={props.onPicturebookChange ? next => props.onPicturebookChange!(original.slice(0, original.length-body.length) + next) : undefined}
+    fingerprint={exportContentFingerprint(original)}
+    renderMarkdown={part => <MarkdownViewer {...props} content={part} originalContent={undefined}
+      lineMap={undefined}
+      picturebookProfile={undefined} onPicturebookChange={undefined} onCheckboxToggle={undefined} bibContent={undefined} />} />;
+}
+
+export default React.memo(LayoutAwareViewer);
+

@@ -5,6 +5,16 @@ export interface CssRuleSet {
 
 /** 서식 정의 프로필 - 전역 타이포그래피 + 태그별 CSS 룰셋 */
 export interface CssProfile {
+  /** 고정 페이지 그림책 배치. 없으면 기존 연속 문서로 표시한다. */
+  layout?: {
+    schemaVersion: 1;
+    type: 'picturebook';
+    cover: 'full-image' | 'image-right';
+    imageRatio: number;
+    imageFit: 'contain' | 'cover';
+    gap: string;
+    pageNumbers: boolean;
+  };
   /** 고유 식별자 (예: 'default', 'profile-1234567890') */
   id: string;
   /** 프로필 표시 이름 (사용자 지정 가능) */

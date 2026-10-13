@@ -33,6 +33,7 @@ import { getWelcomeContent } from '@/constants/welcomeContent';
 import { SHOWCASE_MODULES } from '@/constants/styleShowcaseModules';
 import { CssProfile } from '@/types/cssProfile';
 import { DEFAULT_PROFILE } from '@/constants/cssProfile';
+import { PAPER_SIZES } from '@/constants/paperSizes';
 import { X, Palette, Sparkles, Layers, FileText } from 'lucide-react';
 
 interface CssStyleModalProps {
@@ -40,7 +41,7 @@ interface CssStyleModalProps {
   onClose: () => void;
   profiles: CssProfile[];
   activeProfileId: string;
-  onSelectProfile: (id: string) => void;
+  onSelectProfile: (id: string, profile?: CssProfile) => void;
   onUpdateProfile: (profile: CssProfile) => void;
   onAddProfile?: () => void;
   onDeleteProfile?: (id: string) => void;
@@ -205,8 +206,6 @@ export default function CssStyleModal({
     }
   };
 
-  if (!isOpen) return null;
-
   const welcomeContent = getWelcomeContent();
   const documentDisplayContent = (currentDocContent && currentDocContent.trim().length > 0)
     ? currentDocContent
@@ -214,6 +213,32 @@ export default function CssStyleModal({
 
   const activeProfile = profiles.find((p: any) => p.id === activeProfileId) || DEFAULT_PROFILE;
   const paperBgColor = activeProfile.pageStyle.backgroundColor || '#ffffff';
+  const paper = PAPER_SIZES[activeProfile.pageStyle.paperSize?.toLowerCase()] || PAPER_SIZES.a4;
+  const landscape = activeProfile.pageStyle.orientation === 'landscape';
+  const paperWidth = landscape ? paper.height : paper.width;
+  const paperHeight = landscape ? paper.width : paper.height;
+  const paperKey = `${activeProfile.id}:${paperWidth}:${paperHeight}:${activeProfile.layout?.type || 'flow'}`;
+  const previousPaperKey = useRef(paperKey);
+  const [paperScale, setPaperScale] = useState(1);
+
+  useEffect(() => {
+    if (previousPaperKey.current !== paperKey || (isOpen && activeProfile.layout?.type === 'picturebook')) {
+      setPreviewViewMode('document');
+    }
+    previousPaperKey.current = paperKey;
+  }, [paperKey, isOpen, activeProfile.layout?.type]);
+
+  useEffect(() => {
+    const container = previewScrollRef.current;
+    if (!container || !isOpen) return;
+    const resize = () => setPaperScale(Math.min(1, Math.max(0.1, (container.clientWidth - 80) / (paperWidth * 96 / 25.4))));
+    const observer = new ResizeObserver(resize);
+    observer.observe(container);
+    resize();
+    return () => observer.disconnect();
+  }, [isOpen, paperWidth]);
+
+  if (!isOpen) return null;
 
   return (
     <div className={`fixed inset-0 z-[200] flex flex-col transition-all duration-300 ${isDarkMode ? 'bg-[#111216]' : 'bg-[#F8F9FA]'}`}>
@@ -372,15 +397,23 @@ export default function CssStyleModal({
                 </div>
               ) : (
                 /* 📝 모드 2: 현재 편집 중인 실제 문서 전체 뷰 */
+                <div>
+                  <p className="mb-3 text-sm text-slate-500" role="status">{paper.label} · {landscape ? '가로' : '세로'} · {paperWidth} × {paperHeight} mm</p>
                 <div
-                  className="p-8 lg:p-12 relative shadow-sm border border-slate-200/80 dark:border-zinc-800/80 rounded-2xl"
-                  style={{ backgroundColor: paperBgColor }}
+                  data-style-paper-preview="true"
+                  className="relative mx-auto shadow-sm border border-slate-200/80 dark:border-zinc-800/80"
+                  style={activeProfile.layout?.type === 'picturebook' ? { backgroundColor: 'transparent', border: 'none', boxShadow: 'none' } : {
+                    backgroundColor: paperBgColor, boxSizing: 'border-box', width: `${paperWidth}mm`, minHeight: `${paperHeight}mm`, zoom: paperScale,
+                    padding: `${activeProfile.pageStyle.marginTop || '18mm'} ${activeProfile.pageStyle.marginRight || '12mm'} ${activeProfile.pageStyle.marginBottom || '18mm'} ${activeProfile.pageStyle.marginLeft || '12mm'}`,
+                  }}
                 >
                   <MarkdownViewer
                     content={documentDisplayContent}
                     originalContent={documentDisplayContent}
                     customCss={dynamicCssString}
+                    picturebookProfile={activeProfile.layout?.type === 'picturebook' ? activeProfile : undefined}
                   />
+                </div>
                 </div>
               )}
             </div>

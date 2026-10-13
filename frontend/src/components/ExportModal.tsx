@@ -13,6 +13,7 @@ interface ExportModalProps {
   onClose: () => void;
   onExport: (format: 'print' | 'docx' | 'hwpx' | 'html' | 'png' | 'epub') => void;
   isDarkMode: boolean;
+  isPicturebook?: boolean;
 }
 
 /**
@@ -35,6 +36,7 @@ export default function ExportModal({
   onClose, 
   onExport, 
   isDarkMode,
+  isPicturebook = false,
 }: ExportModalProps) {
   const [selectedFormat, setSelectedFormat] = useState<'print' | 'docx' | 'hwpx' | 'html' | 'png' | 'epub'>('print');
   const [mounted, setMounted] = useState(false);
@@ -42,6 +44,7 @@ export default function ExportModal({
   useEffect(() => {
     setMounted(true);
   }, []);
+  useEffect(() => { if (isPicturebook && (selectedFormat === 'docx' || selectedFormat === 'hwpx')) setSelectedFormat('print'); }, [isPicturebook, selectedFormat]);
 
   if (!isOpen) return null;
   if (!mounted) return null;
@@ -53,7 +56,7 @@ export default function ExportModal({
     { id: 'html', label: "HTML 파일", desc: "웹 브라우저에서 바로 열기용 (.html)", icon: <Globe size={20} className="text-blue-500" /> },
     { id: 'epub', label: "EPUB 전자책", desc: "eBook 리더 및 태블릿 기기용", icon: <BookOpen size={20} className="text-purple-500" /> },
     { id: 'png', label: "PNG 이미지", desc: "SNS 공유 및 프리젠테이션용", icon: <ImageIcon size={20} className="text-green-500" /> },
-  ];
+  ].filter(format => !isPicturebook || (format.id !== 'docx' && format.id !== 'hwpx'));
 
   return createPortal(
     <div 

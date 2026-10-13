@@ -66,6 +66,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'; // useState
 import { CssProfile, CssRuleSet } from '@/types/cssProfile'; // CssProfile : 서식 프로필 타입, CssRuleSet : 서식 규칙 타입
 import { DEFAULT_PROFILE, isSystemProfileId, sanitizeAndParseCssProfileJson, normalizeCssProfile, resolveCssProfile } from '@/constants/cssProfile'; // DEFAULT_PROFILE : 기본 프로필, isSystemProfileId : 시스템 프로필인지 확인, 정규화 엔진
 import { PAPER_SIZES } from '@/constants/paperSizes'; // PAPER_SIZES : 종이 크기
+import { DEFAULT_BOOK_LAYOUT, BOOK_SAMPLE } from '@/lib/picturebook';
 import { CSS_PROFILE_GUIDE_MD } from '@/constants/cssProfileGuide'; // CSS_PROFILE_GUIDE_MD : CSS 프로필 가이드
 import FontSelectorModal from './FontSelectorModal'; // FontSelectorModal : 폰트 선택 모달
 import ConfirmModal from './ConfirmModal'; // ConfirmModal : 확인 모달
@@ -83,7 +84,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 interface CssStyleFormProps {
   profiles: CssProfile[];
   activeProfileId: string;
-  onSelectProfile: (id: string) => void;
+  onSelectProfile: (id: string, profile?: CssProfile) => void;
   onUpdateProfile: (profile: CssProfile) => void;
   onAddProfile?: () => void;
   onDeleteProfile?: (id: string) => void;
@@ -635,6 +636,7 @@ ${guideContent}
       rafIdRef.current = requestAnimationFrame(() => {
         if (pendingProfileRef.current) {
           onUpdateProfile(pendingProfileRef.current);
+          pendingProfileRef.current = null;
         }
         rafIdRef.current = null;
       });
@@ -1456,6 +1458,41 @@ ${guideContent}
         </AccordionSection>
 
         {/* 3단계: 고급 레이아웃 아코디언 설정들 */}
+        <div className="p-4 border rounded-xl space-y-3">
+          <h3 className="font-bold">문서 배치</h3>
+          <select aria-label="문서 배치" disabled={isSystemProfile}
+            value={currentProfile.layout ? 'picturebook' : 'flow'}
+            onChange={e => triggerUpdate({ ...currentProfile, layout: e.target.value === 'picturebook' ? { ...DEFAULT_BOOK_LAYOUT } : undefined })}>
+            <option value="flow">일반 문서</option><option value="picturebook">그림책 — 그림과 본문</option>
+          </select>
+          {currentProfile.layout && <>
+            <label className="block">표지 배치 <select disabled={isSystemProfile} value={currentProfile.layout.cover}
+              onChange={e => triggerUpdate({ ...currentProfile, layout: { ...currentProfile.layout!, cover: e.target.value as 'full-image' | 'image-right' } })}>
+              <option value="full-image">전체 그림 표지</option><option value="image-right">오른쪽 그림 표지</option>
+            </select></label>
+            <label className="block">그림 영역 {Math.round(currentProfile.layout.imageRatio*100)}%
+              <input type="range" min="30" max="70" disabled={isSystemProfile} value={currentProfile.layout.imageRatio*100}
+                onChange={e => triggerUpdate({ ...currentProfile, layout: { ...currentProfile.layout!, imageRatio: Number(e.target.value)/100 } })} />
+            </label>
+            <label className="block">그림 맞춤 <select disabled={isSystemProfile} value={currentProfile.layout.imageFit}
+              onChange={e => triggerUpdate({ ...currentProfile, layout: { ...currentProfile.layout!, imageFit: e.target.value as 'contain' | 'cover' } })}>
+              <option value="contain">전체 보이기</option><option value="cover">영역 채우기</option>
+            </select></label>
+            <label className="block">영역 간격(mm) <input type="number" min="0" max="30" disabled={isSystemProfile}
+              value={parseFloat(currentProfile.layout.gap)} onChange={e => triggerUpdate({ ...currentProfile, layout: { ...currentProfile.layout!, gap: `${Math.max(0, Math.min(30, Number(e.target.value)))}mm` } })} /></label>
+            <label className="block"><input type="checkbox" disabled={isSystemProfile} checked={currentProfile.layout.pageNumbers}
+              onChange={e => triggerUpdate({ ...currentProfile, layout: { ...currentProfile.layout!, pageNumbers: e.target.checked } })} /> 페이지 번호</label>
+            <button type="button" className="border rounded px-3 py-2" onClick={() => {
+              const latest = pendingProfileRef.current?.id === currentProfile.id ? pendingProfileRef.current : currentProfile;
+              onSelectProfile(latest.id, latest);
+              showToast('현재 문서에 용지와 서식을 적용했습니다.');
+            }}>현재 문서에 이 서식 적용</button>
+            <p className="text-xs">설정 변경은 미리보기에서 확인한 후 적용하세요. 문서는 마지막으로 적용한 서식을 보관합니다.</p>
+            <p className="text-sm">용지와 방향은 아래 용지 설정을 따릅니다. 원문은 장면 블록으로 작성합니다. 표지 장면에는 {'{cover}'}를 붙입니다.</p>
+            <details><summary>장면 작성 예시</summary><pre className="whitespace-pre-wrap text-xs">{BOOK_SAMPLE}</pre>
+              <button type="button" onClick={() => navigator.clipboard.writeText(BOOK_SAMPLE)}>예시 복사</button></details>
+          </>}
+        </div>
         <AccordionSection
           id="advanced"
           title="⚙️ 고급 레이아웃 및 본문 문단"

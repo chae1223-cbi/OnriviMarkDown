@@ -61,12 +61,31 @@ export function parseDynamicFrontmatter(content: string): FrontmatterInfo {
  * [구간 선형 보간 (Piecewise Linear Interpolation) 탑재]
  * 인용문, 표, 코드블록, 이미지 등 에디터 라인 수 대비 미리보기 높이가 거대한 요소들의 비선형 왜곡을 실시간 비례 보간으로 완벽 보정
  */
+/** Picturebook fragments use one full-document anchor per fixed page. */
+function syncBookScene(container: HTMLElement, line: number, column=1): boolean {
+  const pages = Array.from(container.querySelectorAll<HTMLElement>('.book-page[data-line]'));
+  if (!pages.length) return false;
+  container.dataset.bookSyncLine = String(line);
+  const candidates=pages.filter(item=>line>=Number(item.dataset.line) && line<=Number(item.dataset.bookEndLine));
+  const page = [...candidates].reverse().find(item=>Number(item.dataset.line)<line || Number(item.dataset.bookStartColumn||1)<=column)
+    || [...pages].reverse().find(item => Number(item.dataset.line) <= line) || pages[0];
+  const top = page.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+  const target = Math.max(0, Math.min(container.scrollHeight - container.clientHeight, top - 16));
+  if (Math.abs(container.scrollTop - target) > 2) container.scrollTop = target;
+  return true;
+}
+
 export function syncPreviewFromEditorScroll(
   previewContainer: HTMLElement | null,
   editor: any,
   content: string = ''
 ): void {
   if (!previewContainer || !editor || previewContainer.clientHeight === 0) return;
+  if (previewContainer.querySelector('.book-page[data-line]')) {
+    const range = editor.getVisibleRanges?.()[0];
+    syncBookScene(previewContainer, range?.startLineNumber ?? editor.getPosition?.()?.lineNumber ?? 1,range?.startColumn ?? 1);
+    return;
+  }
 
   const editorScrollTop = editor.getScrollTop?.() ?? 0;
   const editorScrollHeight = editor.getScrollHeight?.() ?? 0;
@@ -266,6 +285,7 @@ export function syncPreviewToTargetLine(
   options?: SyncTargetOptions
 ): void {
   if (!previewContainer || previewContainer.clientHeight === 0) return;
+  if (syncBookScene(previewContainer, targetLine, options?.column)) return;
 
   const fmInfo = parseDynamicFrontmatter(content);
 

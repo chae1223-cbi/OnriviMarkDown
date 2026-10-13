@@ -410,6 +410,15 @@ export default function EmojiPanel({ onClose, onInsert, isToolbarOpen: propIsToo
   const [recentEmojis, setRecentEmojis] = useState<string[]>(DEFAULT_RECENTS);
   const [copiedEmoji, setCopiedEmoji] = useState<string | null>(null);
 
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault(); event.stopImmediatePropagation(); onClose();
+    };
+    window.addEventListener('keydown', closeOnEscape, true);
+    return () => window.removeEventListener('keydown', closeOnEscape, true);
+  }, [onClose]);
+
   // 1. 최근 사용 이모지 localStorage 로드
   useEffect(() => {
     try {

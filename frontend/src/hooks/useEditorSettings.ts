@@ -46,6 +46,7 @@ export const useEditorSettings = (
   const [fontSize, setFontSize] = useState<number>(16);
   const [editorFontWeight, setEditorFontWeight] = useState<'normal' | 'medium' | 'semibold' | 'bold'>('medium');
   const [editorHighContrast, setEditorHighContrast] = useState<boolean>(false);
+  const [editorTabSize,setEditorTabSize] = useState<number>(4);
   const [wordWrap, setWordWrap] = useState<'on' | 'off'>('off');
   const [autoSave, setAutoSave] = useState<number>(5);
   const [quoteStyle, setQuoteStyle] = useState<'modern' | 'clean' | 'none'>('modern');
@@ -122,7 +123,8 @@ export const useEditorSettings = (
         fontSize: 16,
         wordWrap: 'on' as 'on' | 'off',
         autoSave: 5,
-        previewMode: 'both' as 'edit' | 'both' | 'preview' | 'css-style',
+        editorTabSize: 4,
+        previewMode: 'preview' as 'edit' | 'both' | 'preview' | 'css-style',
         quoteStyle: 'modern' as 'modern' | 'clean' | 'none',
         customHotkeys: getDefaultHotkeys(),
         customSlashCommands: getDefaultCommands(),
@@ -321,13 +323,14 @@ export const useEditorSettings = (
       setEditorFontWeight(baseSettings.editorFontWeight || 'medium');
       setEditorHighContrast(baseSettings.editorHighContrast || false);
       setWordWrap(baseSettings.wordWrap);
+      setEditorTabSize(Math.max(1,Math.min(16,Number(baseSettings.editorTabSize)||4)));
       // 하위 호환성: boolean 값이 스토리지에 남아있는 경우 변환
       if (typeof baseSettings.autoSave === 'boolean') {
         setAutoSave(baseSettings.autoSave ? 5 : 0);
       } else {
         setAutoSave(baseSettings.autoSave || 0);
       }
-      setPreviewMode(baseSettings.previewMode);
+      setPreviewMode('preview');
       setQuoteStyle(baseSettings.quoteStyle);
       setCustomHotkeys(baseSettings.customHotkeys);
       setCustomSlashCommands(baseSettings.customSlashCommands);
@@ -370,7 +373,7 @@ export const useEditorSettings = (
       setWorkspaceType(activeWorkspaceType as any);
 
       if (activeWorkspaceType === 'gdrive' || activeWorkspaceType === 'cloud') {
-        setPreviewMode(baseSettings.previewMode);
+        setPreviewMode('preview');
         const savedFolder = localStorage.getItem('rootFolder');
         if (savedFolder) {
           try {
@@ -397,7 +400,7 @@ export const useEditorSettings = (
         }
         setRootFolder(null);
       } else if (activeWorkspaceType === 'browser') {
-        setPreviewMode(baseSettings.previewMode);
+        setPreviewMode('preview');
 
         try {
           const savedHandle = await idb.get('rootFolderHandle');
@@ -468,6 +471,7 @@ export const useEditorSettings = (
     const settings = {
       isDarkMode,
       fontSize,
+      editorTabSize,
       editorFontWeight,
       editorHighContrast,
       wordWrap,
@@ -520,6 +524,7 @@ export const useEditorSettings = (
     mounted,
     isDarkMode,
     fontSize,
+    editorTabSize,
     editorFontWeight,
     editorHighContrast,
     wordWrap,
@@ -540,6 +545,7 @@ export const useEditorSettings = (
     setIsDarkMode,
     fontSize,
     setFontSize,
+    editorTabSize,setEditorTabSize,
     editorFontWeight,
     setEditorFontWeight,
     editorHighContrast,

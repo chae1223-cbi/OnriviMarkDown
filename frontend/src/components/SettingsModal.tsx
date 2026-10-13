@@ -41,6 +41,8 @@ interface SettingsModalProps {
   onClose: () => void;
   isDarkMode: boolean;
   setIsDarkMode: (v: boolean) => void;
+  editorTabSize?: number;
+  setEditorTabSize?: (value:number)=>void;
   fontSize: number;
   setFontSize: (v: number) => void;
   wordWrap: 'on' | 'off';
@@ -87,7 +89,7 @@ interface SettingsModalProps {
 
 export default function SettingsModal({
   isOpen, onClose, isDarkMode, setIsDarkMode,
-  fontSize, setFontSize, wordWrap, setWordWrap,
+  fontSize, setFontSize, editorTabSize=4, setEditorTabSize, wordWrap, setWordWrap,
   autoSave, setAutoSave,
   previewMode, setPreviewMode,
   customHotkeys, setCustomHotkeys,
@@ -607,6 +609,10 @@ export default function SettingsModal({
                   }
                 />
 
+                <SettingRow icon={<Icon name="TypeIcon" size={18} />} title="탭 간격" description="문서 보기와 나란히 보기에서 Tab 입력 시 사용할 공백 칸 수입니다."
+                  control={<select aria-label="탭 간격" value={editorTabSize} onChange={event=>setEditorTabSize?.(Number(event.target.value))} className="rounded-lg border px-4 py-2">
+                    {[1,2,3,4,6,8,12,16].map(size=><option key={size} value={size}>{size}칸</option>)}
+                  </select>} />
                 <SettingRow 
                   icon={<Icon name="TypeIcon" size={18} />}
                   title="에디터 글꼴 크기 (Font Size)"

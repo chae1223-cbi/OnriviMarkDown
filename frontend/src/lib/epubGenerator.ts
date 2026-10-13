@@ -188,6 +188,7 @@ function sanitizeToXHTML(htmlString: string, currentDocTitle: string): string {
 }
 
 interface EpubOptions {
+  fixedLayout?: {width:number;height:number;css:string};
   title: string;
   creator?: string;
   language?: string;
@@ -220,6 +221,7 @@ export async function generateEpub({
   fontFamily,
   exportPageBreakLevel = 'none',
   onProgress
+  ,fixedLayout
 }: EpubOptions): Promise<Blob> {
   const zip = new JSZip();
   const uuid = typeof crypto !== 'undefined' && crypto.randomUUID 
@@ -375,7 +377,10 @@ export async function generateEpub({
     sections.push({ id: `section${sections.length + 1}`, html: buffer.map(serialize).join(''), title: firstHeading?.textContent?.trim() || title });
     buffer = [];
   };
-  for (const node of Array.from(bodyDoc.body.childNodes)) {
+  if (fixedLayout) {
+    bodyDoc.querySelectorAll('.book-page').forEach(page=>sections.push({id:`section${sections.length+1}`,html:serialize(page),title:page.querySelector('h1,h2,h3')?.textContent?.trim() || `${title} ${sections.length+1}`}));
+  }
+  for (const node of fixedLayout ? [] : Array.from(bodyDoc.body.childNodes)) {
     const el = node as HTMLElement;
     const manual = el.classList?.contains('page-break');
     const heading = /^H[1-6]$/.test(el.tagName || '') && Number(el.tagName.slice(1)) <= levelNum;
@@ -424,6 +429,7 @@ export async function generateEpub({
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${language}" lang="${language}">
   <head>
     <meta charset="utf-8" />
+    ${fixedLayout ? `<meta name="viewport" content="width=${fixedLayout.width}, height=${fixedLayout.height}"/>` : ''}
     <title>${safeTitle}</title>
     <link rel="stylesheet" type="text/css" href="../styles/style.css" />
   </head>
@@ -890,6 +896,7 @@ del {
   });
   const fontManifestItems = Array.from(packagedFonts.values()).map((font, index) =>
     `<item id="font_${index}" href="${font.path}" media-type="${font.mime}"/>`).join('\n');
+  if (fixedLayout) styleCss += '\n'+fixedLayout.css;
   zip.file('OEBPS/styles/style.css', styleCss);
 
   // 8.5. OEBPS/toc.ncx (EPUB2 호환성 목차 파일 생성 - 교보문고, 예스24, 리디북스 등 국내외 이북 리더기 필수 하위 호환 규격)
@@ -935,6 +942,7 @@ del {
     <dc:creator id="creator">${escapeXml(creator)}</dc:creator>
     <meta refines="#creator" property="role" scheme="marc:relators">aut</meta>
     <meta property="dcterms:modified">${modifiedTime}</meta>
+    ${fixedLayout ? '<meta property="rendition:layout">pre-paginated</meta><meta property="rendition:spread">none</meta><meta property="rendition:orientation">auto</meta>' : ''}
   </metadata>
   <manifest>
     <item id="toc" href="text/toc.xhtml" media-type="application/xhtml+xml" properties="nav"/>
@@ -945,7 +953,7 @@ del {
     ${fontManifestItems}
   </manifest>
   <spine toc="ncx">
-    <itemref idref="toc"/>
+    ${fixedLayout ? '' : '<itemref idref="toc"/>'}
     ${sectionSpineItems}
   </spine>
 </package>`;

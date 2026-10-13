@@ -2867,7 +2867,14 @@ ipcMain.handle('file:saveBinary', async (event, filePath, bytes) => {
   if (typeof filePath !== 'string' || !path.isAbsolute(filePath) || !(bytes instanceof Uint8Array)) {
     throw new Error('파일 저장 경로나 데이터가 올바르지 않습니다.');
   }
-  await fs.promises.writeFile(filePath, bytes);
+  try {
+    await fs.promises.writeFile(filePath, bytes);
+  } catch (error) {
+    if (error.code === 'EBUSY' || error.code === 'EPERM') {
+      throw new Error(`파일을 저장할 수 없습니다. PDF 뷰어 등에서 '${path.basename(filePath)}' 파일을 닫은 후 다시 저장하거나 다른 파일 이름을 선택해 주세요. (${error.code})`);
+    }
+    throw error;
+  }
   return { name: path.basename(filePath), path: filePath };
 });
 
@@ -2900,6 +2907,21 @@ ipcMain.handle('file:writeTransferCopy', async (_event, folderPath, relativePath
 
 // 4. 프론트엔드에서 폴더 선택 다이얼로그 호출 시 OS 표준 창 띄우기
 //    기본 경로는 사용자 Documents 폴더 혹은 전달받은 defaultPath
+ipcMain.handle('dialog:selectMediaFile', async (_event, options = {}) => {
+  const video = options.kind === 'video';
+  const extensions = video ? ['mp4','webm','mov','ogg','m4v','avi','mkv'] : ['png','jpg','jpeg','gif','webp','svg','bmp','avif'];
+  const start = typeof options.defaultPath === 'string' ? path.resolve(options.defaultPath.normalize('NFC')) : '';
+  if (!start || !fs.existsSync(start) || !fs.statSync(start).isDirectory()) throw new Error('환경설정의 로컬 리소스 폴더를 확인해 주세요.');
+  const result = await dialog.showOpenDialog(mainWindow,{title:video?'동영상 선택':'사진 선택',defaultPath:start,properties:['openFile'],filters:[{name:video?'동영상':'사진',extensions}]});
+  if(result.canceled || !result.filePaths.length)return {canceled:true};
+  const selected = result.filePaths[0];
+  const extension = path.extname(selected).slice(1).toLowerCase();
+  if(!extensions.includes(extension))throw new Error('지원하는 미디어 파일을 선택해 주세요.');
+  if(video && (await fs.promises.stat(selected)).size > 100*1024*1024)throw new Error('동영상 크기는 100MB를 초과할 수 없습니다.');
+  const types = {png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',svg:'image/svg+xml',bmp:'image/bmp',avif:'image/avif',mp4:'video/mp4',webm:'video/webm',mov:'video/quicktime',ogg:'video/ogg',m4v:'video/mp4',avi:'video/x-msvideo',mkv:'video/x-matroska'};
+  return {canceled:false,name:path.basename(selected),mimeType:types[extension],bytes:new Uint8Array(await fs.promises.readFile(selected))};
+});
+
 ipcMain.handle('dialog:selectFolder', async (event, defaultPath) => {
   if (!mainWindow) return { status: 'canceled' };
   
@@ -3628,7 +3650,7 @@ ipcMain.handle('clipboard:copyText', (event, text) => {
 });
 
 // 24. 클립보드에서 네이티브 이미지 읽기 API (윈도우 캡쳐/탐색기 파일 복사/비트맵 직접 복원)
-ipcMain.handle('clipboard:readImage', () => {
+function readNativeClipboardImage() {
   try {
     const { clipboard } = require('electron');
     // 1. 네이티브 비트맵 이미지 확인 (윈도우 캡처, 그림판, 브라우저 이미지 복사 등)
@@ -3653,6 +3675,24 @@ ipcMain.handle('clipboard:readImage', () => {
         }
       } catch (_) {}
     }
+    // Explorer can publish DROPFILES rather than FileNameW.
+    if (process.platform === 'win32') {
+      for (const format of ['CF_HDROP', 'HDROP', 'FileDrop']) {
+        try {
+          const buffer = clipboard.readBuffer(format);
+          if (buffer.length < 20) continue;
+          const offset = buffer.readUInt32LE(0);
+          if (offset < 20 || offset >= buffer.length) continue;
+          const encoding = buffer.readUInt32LE(16) ? 'utf16le' : 'latin1';
+          for (const candidate of buffer.subarray(offset).toString(encoding).split('\0').filter(Boolean)) {
+            const extension = path.extname(candidate).toLowerCase().slice(1);
+            if (!['png','jpg','jpeg','gif','webp','svg','bmp','ico','avif'].includes(extension) || !fs.existsSync(candidate)) continue;
+            const mime = extension === 'svg' ? 'image/svg+xml' : `image/${extension === 'jpg' ? 'jpeg' : extension}`;
+            return `data:${mime};base64,${fs.readFileSync(candidate).toString('base64')}`;
+          }
+        } catch (_) {}
+      }
+    }
     // 3. 파일 경로 텍스트 확인 (파일 복사 경로 문자열 폴백)
     const text = (clipboard.readText() || '').trim();
     if (text && fs.existsSync(text)) {
@@ -3667,7 +3707,9 @@ ipcMain.handle('clipboard:readImage', () => {
   } catch (err) {
     return null;
   }
-});
+}
+ipcMain.handle('clipboard:readImage', readNativeClipboardImage);
+ipcMain.on('clipboard:readImageSync', event => { event.returnValue = readNativeClipboardImage(); });
 
 // 시스템 브라우저 외부 링크 실행 핸들러
 ipcMain.handle('system:openExternal', async (event, url) => {
@@ -3742,19 +3784,9 @@ ipcMain.handle('file:saveImage', async (event, targetFolder, base64Data, fileNam
       throw new Error('리소스 폴더를 찾을 수 없습니다. 환경설정에서 리소스 폴더를 지정해 주세요.');
     }
 
-    const absolutePath = path.join(rawFolder, fileName);
+    if (typeof fileName !== 'string' || path.basename(fileName) !== fileName || /[\\/]/.test(fileName)) throw new Error('미디어 파일 이름이 올바르지 않습니다.');
+    const absolutePath = path.join(rawFolder, fileName.normalize('NFC'));
     const buffer = Buffer.from(base64Data, 'base64');
-    // Reuse byte-identical assets even when their filenames differ.
-    for (const entry of await fs.promises.readdir(rawFolder, { withFileTypes: true })) {
-      if (!entry.isFile() || !/\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(entry.name)) continue;
-      const candidate = path.join(rawFolder, entry.name);
-      const stat = await fs.promises.stat(candidate);
-      if (stat.size !== buffer.length) continue;
-      if ((await fs.promises.readFile(candidate)).equals(buffer)) {
-        return { success: true, fileName: entry.name, absolutePath: candidate, isRelative,
-          mediaPath: isRelative ? `/${path.basename(rawFolder)}/${entry.name}` : null, reused: true };
-      }
-    }
     await fs.promises.writeFile(absolutePath, buffer);
 
     const finalFolderName = path.basename(rawFolder);
@@ -3764,7 +3796,7 @@ ipcMain.handle('file:saveImage', async (event, targetFolder, base64Data, fileNam
       fileName,
       absolutePath: absolutePath,
       isRelative: isRelative,
-      mediaPath: isRelative ? `/${finalFolderName}/${fileName}` : null
+      mediaPath: isRelative ? `/${finalFolderName}/${encodeURIComponent(fileName)}?v=${Date.now()}` : null
     };
   } catch (e) {
     console.error('이미지 저장 실패 (Electron):', e);

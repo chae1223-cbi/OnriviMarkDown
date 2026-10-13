@@ -2,6 +2,7 @@
 // ====================================================================
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 모나코 에디터 3대 이벤트(타이핑/커서/스크롤) 단일 책임 연동
+// 🚨 @PATCH : **2026-10-13** — [나란히 보기 마크다운 영역 읽기 전용 잠금·라인번호 숨김 및 배경색 시각적 경계 분리]: 나란히 보기(previewMode === 'both')에서 마크다운 영역 직접 입력/붙여넣기/드롭/커서 노출을 차단하고, 라인번호(lineNumbers: 'off')를 숨기며, 모달·문서 편집기 위임 프로그래밍 방식 편집(executeEdits)만 안전하게 통과하도록 처리하고 슬레이트 배경색(#eef2f6) 적용
 // 🚨 @PATCH : **2026-10-02** — [이미지 드래그 앤 드롭 실시간 위치 가이드라인 및 드롭 타겟 라인/커서 인디케이터 탑재]: 이미지 드래그 중 마우스 아래 삽입 위치(행 전체 하이라이트 및 실시간 커서 바/위치 뱃지)를 드롭 전에 즉시 시각적으로 확인 가능하도록 완벽 구현
 // 🚨 @PATCH : **2026-10-02** — [붙여넣기 다중 리스너 단일 인스턴스 보장]: 동일 ClipboardEvent에 대해 handledPasteEvents WeakSet 가드를 추가하여 window/container/editorDom 다중 등록으로 인한 중복 실행 원천 차단
 // 🚨 @PATCH : **2026-10-02** — [드래그 앤 드롭 이미지 설명(Alt) 널(빈값) 적용]: 에디터 드래그 드롭 이미지 삽입 시 ![](${url}) 빈 설명으로 통일
@@ -54,6 +55,7 @@
 // ====================================================================
 import { useRef } from 'react';
 import { syncPreviewFromEditorScroll, syncPreviewToTargetLine } from '@/lib/syncEngine';
+import { desktopClipboardImage } from '@/lib/desktopClipboard';
 import { openAndFocusFindWidget } from '@/utils/findWidgetHelper';
 
 export function useMonacoSetup(deps: any) {
@@ -80,6 +82,43 @@ export function useMonacoSetup(deps: any) {
                     (window as any).monaco = monaco;
                   }
 
+                  // 🔒 나란히 보기(previewMode === 'both')에서 마크다운 영역은 사용자 직접 편집이 금지(readOnly: true)되지만,
+                  // 문서 직접 편집기(VisualDocumentEditor)나 모달(수식, 표, 유튜브, 지도, 이미지, AI 등)에서
+                  // 호출하는 프로그래밍 방식의 editor.executeEdits / pushUndoStop은 정상 반영되도록 래핑합니다.
+                  const rawExecuteEdits = editor.executeEdits.bind(editor);
+                  const rawPushUndoStop = editor.pushUndoStop.bind(editor);
+                  const rawUpdateOptions = editor.updateOptions.bind(editor);
+                  const shouldKeepReadOnly = () =>
+                    Boolean(depsRef.current?.isRestrictedUser) ||
+                    (depsRef.current?.tabsRef?.current?.length ?? 0) === 0 ||
+                    depsRef.current?.previewModeRef?.current === 'both';
+
+                  editor.pushUndoStop = () => {
+                    if (depsRef.current?.isRestrictedUser || (depsRef.current?.tabsRef?.current?.length ?? 0) === 0) {
+                      return false;
+                    }
+                    const lockAfter = shouldKeepReadOnly();
+                    if (lockAfter) rawUpdateOptions({ readOnly: false, domReadOnly: false });
+                    try {
+                      return rawPushUndoStop();
+                    } finally {
+                      if (lockAfter) rawUpdateOptions({ readOnly: true, domReadOnly: true });
+                    }
+                  };
+
+                  editor.executeEdits = (source: any, edits: any, endCursorState?: any) => {
+                    if (depsRef.current?.isRestrictedUser || (depsRef.current?.tabsRef?.current?.length ?? 0) === 0) {
+                      return false;
+                    }
+                    const lockAfter = shouldKeepReadOnly();
+                    if (lockAfter) rawUpdateOptions({ readOnly: false, domReadOnly: false });
+                    try {
+                      return rawExecuteEdits(source, edits, endCursorState);
+                    } finally {
+                      if (lockAfter) rawUpdateOptions({ readOnly: true, domReadOnly: true });
+                    }
+                  };
+
                   // Monaco의 기본 커서 DOM은 IME 조합·장식 재렌더링 과정에서 일시적으로
                   // 숨겨질 수 있습니다. 실제 Monaco 좌표를 따라가는 별도 표시기를 두어
                   // 사용자가 언제나 현재 입력 위치를 찾을 수 있게 합니다.
@@ -89,8 +128,8 @@ export function useMonacoSetup(deps: any) {
                   persistentCaret.style.cssText = [
                     'position:absolute',
                     'z-index:1000',
-                    'width:4px',
-                    'min-width:4px',
+                    'width:5px',
+                    'min-width:5px',
                     'background:#2563eb',
                     'pointer-events:none',
                     'display:none',
@@ -101,7 +140,7 @@ export function useMonacoSetup(deps: any) {
                   editorDomNode?.appendChild(persistentCaret);
 
                   const updatePersistentCaret = () => {
-                    if (!editorDomNode?.isConnected || !editor.hasTextFocus?.()) {
+                    if (previewModeRef.current === 'both' || !editorDomNode?.isConnected || !editor.hasTextFocus?.()) {
                       persistentCaret.style.display = 'none';
                       return;
                     }
@@ -417,10 +456,13 @@ export function useMonacoSetup(deps: any) {
                     fontWeight: deps.editorFontWeight === 'bold' ? '700' : deps.editorFontWeight === 'semibold' ? '600' : deps.editorFontWeight === 'medium' ? '500' : '400',
                     lineHeight: 28, // 16px 기준 1.75 비율
                     letterSpacing: 0,
-                    cursorWidth: 4,
-                    padding: { top: 20, bottom: 24, left: 16, right: 32 },
-                    lineDecorationsWidth: 26,
-                    lineNumbersMinChars: 4,
+                    cursorWidth: 5,
+                    padding: { top: 28, bottom: 28 },
+                    lineNumbers: 'off',
+                    lineDecorationsWidth: 8,
+                    lineNumbersMinChars: 0,
+                    glyphMargin: false,
+                    folding: false,
                     automaticLayout: true,
                     wordWrap: 'on',
                     wrappingStrategy: 'advanced',
@@ -433,8 +475,9 @@ export function useMonacoSetup(deps: any) {
                     occurrencesHighlight: false,
                     selectionHighlight: false,
                     scrollbar: {
-                      vertical: 'visible',
-                      horizontal: 'auto',
+                      vertical: previewModeRef.current==='both'?'hidden':'visible',
+                      horizontal: previewModeRef.current==='both'?'hidden':'auto',
+                      handleMouseWheel:previewModeRef.current!=='both',
                       verticalScrollbarSize: 16, // 💡 기존 32px에서 절반인 16px로 축소하여 슬림하고 미려한 스크롤바 규격화
                       horizontalScrollbarSize: 10,
                       useShadows: false,
@@ -512,8 +555,19 @@ export function useMonacoSetup(deps: any) {
                   let rafSyncId: number | null = null;
                   let rafCursorSyncId: number | null = null;
                   let prevCursorCol = 1;
+                  let bookWheelUntil = 0;
+                  const bookWheelDom = editor.getDomNode();
+                  const handleBookWheel = () => {
+                    if (!previewRef.current?.querySelector('.book-page[data-line]')) return;
+                    bookWheelUntil = Date.now() + 500;
+                    if (rafCursorSyncId) { cancelAnimationFrame(rafCursorSyncId); rafCursorSyncId = null; }
+                    cursorSyncLock = false;
+                  };
+                  bookWheelDom?.addEventListener('wheel', handleBookWheel, { passive:true, capture:true });
+                  editor.onDidDispose(() => bookWheelDom?.removeEventListener('wheel', handleBookWheel, true));
 
                   const syncPreviewFromEditor = () => {
+                    if(previewRef.current?.querySelector('.visual-document-editor'))return;
                     if (previewModeRef.current !== 'both' || !previewRef.current) return;
                     if (isScrollingRef.current === 'preview') return;
 
@@ -528,6 +582,8 @@ export function useMonacoSetup(deps: any) {
                   let rafCursorStateId: number | null = null;
 
                   const syncPreviewFromCursor = (lineNumber: number, column?: number) => {
+                    if(previewRef.current?.querySelector('.visual-document-editor'))return;
+                    if (Date.now() < bookWheelUntil) return;
                     if (previewModeRef.current !== 'both' || !previewRef.current) return;
                     if (isScrollingRef.current === 'preview') return;
 
@@ -1540,7 +1596,7 @@ export function useMonacoSetup(deps: any) {
                   });
 
                   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyH, () => {
-                    openAndFocusFindWidget(editor, true);
+                    openAndFocusFindWidget(editor, previewModeRef.current !== 'both');
                   });
 
                   // 💡 [테마 적용 안전장치] 마운트 시점에 수동으로 모든 테마를 다시 정의하고 강제 적용
@@ -1558,13 +1614,13 @@ export function useMonacoSetup(deps: any) {
                       ],
                       colors: {
                         ...t.colors,
-                        'editor.background': isDark ? '#0f172a' : '#ffffff',
-                        'editorGutter.background': isDark ? '#0f172a' : '#ffffff',
+                        'editor.background': isDark ? '#0b1120' : '#eef2f6',
+                        'editorGutter.background': isDark ? '#090d16' : '#e2e8f0',
                         'editor.foreground': isDark ? '#e2e8f0' : '#1e293b',
-                        'editorLineNumber.foreground': isDark ? '#475569' : '#94A3B8',
+                        'editorLineNumber.foreground': isDark ? '#475569' : '#64748b',
                         'editorLineNumber.activeForeground': isDark ? '#60A5FA' : '#2563EB',
                         'editorCursor.foreground': isDark ? '#38bdf8' : '#1d4ed8', // 🎯 고대비 커서 시인성 강화 (다크: 네온 스카이블루 #38bdf8 / 라이트: 코발트 블루 #1d4ed8)
-                        'editor.lineHighlightBackground': isDark ? '#1e293b50' : '#88888810',
+                        'editor.lineHighlightBackground': isDark ? '#1e293b50' : '#cbd5e155',
                         'editorIndentGuide.background': '#88888815',
                         'editorIndentGuide.activeBackground': '#88888830',
                       }
@@ -1578,7 +1634,18 @@ export function useMonacoSetup(deps: any) {
                   const container = editor.getContainerDomNode();
                   const editorDom = editor.getDomNode();
                   const handledPasteEvents = new WeakSet<ClipboardEvent>();
+                  const onNativeImagePaste = (event: KeyboardEvent) => {
+                    if (previewModeRef.current === 'both') return;
+                    const file = desktopClipboardImage(event);
+                    if (!file) return;
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                    void depsRef.current?.handlePasteImageFile?.(file);
+                  };
+                  editorDom?.addEventListener('keydown', onNativeImagePaste, true);
+                  editor.onDidDispose(() => editorDom?.removeEventListener('keydown', onNativeImagePaste, true));
                   const onEditorPaste = (e: ClipboardEvent) => {
+                    if (previewModeRef.current === 'both') return;
                     // 전역 capture 리스너에서도 본문 편집기 내부의 이벤트만 처리한다.
                     // 모달의 JSON·프롬프트 입력창은 브라우저의 기본 붙여넣기를 사용한다.
                     const target = e.target;
@@ -1625,8 +1692,8 @@ export function useMonacoSetup(deps: any) {
                   dropIndicatorCaret.style.cssText = [
                     'position:absolute',
                     'z-index:2000',
-                    'width:4px',
-                    'min-width:4px',
+                    'width:5px',
+                    'min-width:5px',
                     'background:#1d4ed8',
                     'pointer-events:none',
                     'display:none',
@@ -1669,6 +1736,7 @@ export function useMonacoSetup(deps: any) {
 
                   let dragCounter = 0;
                   const handleDragOver = (e: DragEvent) => {
+                    if (previewModeRef.current === 'both') return;
                     if (e.dataTransfer) {
                       e.preventDefault();
                       e.stopPropagation();
@@ -1713,6 +1781,7 @@ export function useMonacoSetup(deps: any) {
 
                   container.addEventListener('dragover', handleDragOver, true);
                   container.addEventListener('dragenter', (e: DragEvent) => {
+                    if (previewModeRef.current === 'both') return;
                     handleDragOver(e);
                     dragCounter++;
                     if (e.dataTransfer?.types?.includes('Files')) {
@@ -1738,6 +1807,11 @@ export function useMonacoSetup(deps: any) {
                     container.style.outline = '';
                     container.style.outlineOffset = '';
                     clearDropIndicator();
+                    if (previewModeRef.current === 'both') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      return;
+                    }
 
                     const target = editor.getTargetAtClientPoint(e.clientX, e.clientY);
                     const position = target?.position || editor.getPosition();
@@ -1879,6 +1953,8 @@ export function useMonacoSetup(deps: any) {
                   });
 
                   editor.onDidChangeCursorPosition((e) => {
+                    if(previewModeRef.current==='both' && editor.hasTextFocus())window.dispatchEvent(new CustomEvent('onrivi:source-cursor',{detail:{offset:editor.getModel()?.getOffsetAt(e.position)}}));
+
                     const currentLine = e.position.lineNumber;
                     const currentCol = e.position.column;
                     const hasLineChanged = prevCursorLineRef.current !== currentLine;

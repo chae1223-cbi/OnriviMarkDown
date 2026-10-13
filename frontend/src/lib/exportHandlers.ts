@@ -1950,6 +1950,17 @@ export async function exportPDF({
 
     await prepareExportPreview(previewEl);
     const targetEl = previewEl.querySelector('.markdown-viewer-root') as HTMLElement || previewEl;
+    const isPicturebook = targetEl.dataset.picturebook === 'true';
+    if (isPicturebook) {
+      if (targetEl.querySelector('.book-screen-only [role="status"]') || targetEl.dataset.bookInvalid === 'true') {
+        throw new Error('그림책의 장면 구성·이미지·본문 넘침 안내를 확인하고 수정해 주세요.');
+      }
+      for (const text of Array.from(targetEl.querySelectorAll<HTMLElement>('[data-book-text]'))) {
+        if (text.scrollHeight > text.clientHeight + 2 || text.scrollWidth > text.clientWidth + 2) {
+          throw new Error('페이지 영역을 넘는 본문이 있습니다. 글을 줄이거나 장면을 나눠 주세요.');
+        }
+      }
+    }
     const clone = clonePreview(targetEl);
     markLeadExportFigure(clone);
     progress.update('이미지 준비 중');
@@ -1984,6 +1995,7 @@ export async function exportPDF({
     const figurePageHeight = orientation === 'landscape' ? figurePaper.width : figurePaper.height;
     const marginMm = (value: string | undefined) => cssPx(value || '18mm') * 25.4 / 96;
     const pdfImageMaxHeight = Math.max(1, (figurePageHeight - marginMm(marginTop) - marginMm(marginBottom)) * EXPORT_FIGURE_HEIGHT_RATIO);
+    if (!isPicturebook) {
     clone.querySelectorAll('figure, .onrivi-image-figure').forEach(el => {
       const fig = el as HTMLElement;
       fig.style.setProperty('display', 'block', 'important');
@@ -2019,6 +2031,7 @@ export async function exportPDF({
       cap.style.setProperty('page-break-inside', 'avoid', 'important');
       cap.style.setProperty('break-inside', 'avoid', 'important');
     });
+    }
 
     // 🌟 가로폭 좁아짐 현상 해결: 미리보기 컴포넌트에 남겨질 수 있는 가로폭 제약(width, max-width)을 초기화하여
     //    Electron 및 브라우저 인쇄 영역에 맞게 자연스럽게 반응형 100% 본문 너비를 확보하게 처리합니다.
@@ -2027,8 +2040,10 @@ export async function exportPDF({
     clone.style.height = 'auto';
 
     // 🌟 html2canvas 한계 보완: 테이블/인라인코드 inline style 강제 적용
-    applyExportInlineStyles(clone, activeProfile, targetEl);
-    unwrapPrintTables(clone);
+    if (!isPicturebook) {
+      applyExportInlineStyles(clone, activeProfile, targetEl);
+      unwrapPrintTables(clone);
+    }
 
     // 📄 페이지 나누기: 제목 기준 강제 페이지 분할 전면 폐지 (자연스러운 본문 흐름 유지, exportPageBreakLevel 미적용)
 
@@ -2051,7 +2066,7 @@ export async function exportPDF({
     const pageHeight = isLandscape ? paperSpec.width : paperSpec.height;
     const cssPageSize = `${pageWidth}mm ${pageHeight}mm`;
 
-    const finalHtml = `
+    let finalHtml = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -2069,10 +2084,10 @@ export async function exportPDF({
   <style>
     @page {
       size: ${cssPageSize};
-      margin-top: ${marginTop || '18mm'} !important;
-      margin-bottom: ${marginBottom || '18mm'} !important;
-      margin-left: ${marginLeft || '12mm'} !important;
-      margin-right: ${marginRight || '12mm'} !important;
+      margin-top: ${isPicturebook ? '0' : marginTop || '18mm'} !important;
+      margin-bottom: ${isPicturebook ? '0' : marginBottom || '18mm'} !important;
+      margin-left: ${isPicturebook ? '0' : marginLeft || '12mm'} !important;
+      margin-right: ${isPicturebook ? '0' : marginRight || '12mm'} !important;
       background-color: ${pageBg} !important;
     }
     
@@ -2392,6 +2407,22 @@ export async function exportPDF({
 </body>
 </html>
     `;
+
+    if (isPicturebook) {
+      clone.querySelectorAll('.book-screen-only').forEach(el => el.remove());
+      const bookPrintCss = `<style>
+        @page { size:${cssPageSize}; margin:0!important; }
+        html,body,.page-break-container,.picturebook-root { width:auto!important; max-width:none!important; padding:0!important; margin:0!important; }
+        .picturebook-root .book-page { width:${pageWidth}mm!important; height:${pageHeight}mm!important; zoom:1!important; margin:0!important; break-after:page!important; break-inside:avoid!important; }
+        .picturebook-root .book-page:last-of-type { break-after:auto!important; }
+        .picturebook-root .book-image { height:100%!important; }
+        .picturebook-root .book-image .markdown-viewer-root,.picturebook-root .book-image .markdown-viewer-root > div,.picturebook-root .book-image .onrivi-image-figure,.picturebook-root .book-image figure,.picturebook-root .book-image p,.picturebook-root .onrivi-image-wrapper { height:100%!important; min-height:0!important; padding:0!important; margin:0!important; }
+        .picturebook-root .book-page .book-image .markdown-viewer-root img { width:100%!important; height:100%!important; max-height:none!important; object-fit:${activeProfile?.layout?.imageFit || 'cover'}!important; }
+        .picturebook-root .book-text .markdown-viewer-root { padding:0!important; }
+        .book-screen-only,.picturebook-root figcaption { display:none!important; }
+      </style>`;
+      finalHtml = finalHtml.replace('</head>', bookPrintCss + '</head>');
+    }
 
     if (isElectron) {
       // ====================================================================
@@ -2749,6 +2780,9 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
     progress.update('이미지 준비 중');
     await inlineLocalImages(clone); // 이미지 Base64 인라인 변환 추가
 
+    const isPicturebook = targetEl.dataset.picturebook === 'true';
+    if (isPicturebook && targetEl.dataset.bookInvalid === 'true') throw new Error('그림책의 이미지 로딩 또는 본문 넘침을 해결한 후 내보내 주세요.');
+    const fixedLayout = isPicturebook ? (await import('@/lib/picturebookEpub')).preparePicturebookEpub(clone,targetEl) : undefined;
     // 🌟 EPUB 내보내기 가로폭 제약 초기화 패치: clone 객체의 인라인 가로폭 제약을 제거하여 리더기 뷰포트에 맞게 자연스러운 흐름을 보장하도록 보정
     clone.style.width = '100%';
     clone.style.maxWidth = 'none';
@@ -2778,6 +2812,7 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
     clone.querySelector('style.export-style-element')?.remove();
 
     // 🌟 미리보기 실제 렌더링 스타일(테이블/코드블록 테마/인라인코드)을 clone에 1:1 인라인 주입
+    if (!isPicturebook) {
     applyExportInlineStyles(clone, activeProfile, targetEl);
 
     // 🛡️ Mermaid SVG → base64 data:image/svg+xml <img> 변환
@@ -2869,6 +2904,7 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
       img.style.setProperty('break-inside', 'avoid', 'important');
     });
 
+    }
     progress.update('사용 중인 글꼴 준비 중');
     const fontCss = await withExportTimeout(embedExportFonts(previewEl), '내보내기 글꼴', 60000);
     progress.update('전자책 구성 중');
@@ -2879,6 +2915,7 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
       onProgress: percent => progress?.update(`전자책 압축 중 ${Math.floor(percent)}%`),
       fontFamily: computedFontFamily,
       exportPageBreakLevel: 'none'
+      ,fixedLayout
     });
 
     showToast('EPUB 저장 중...', 'info');

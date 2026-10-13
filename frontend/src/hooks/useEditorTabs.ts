@@ -5,6 +5,7 @@ import { FileNode } from '@/lib/indexedDbHelper';
 import { getWelcomeContent } from "@/constants/welcomeContent";
 import { vfsReadFile } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
+import { syncVisualSourceModel } from '@/lib/incrementalVisualModel';
 
 /**
  * [OMD-HOOK-0003] useEditorTabs 커스텀 훅
@@ -58,7 +59,7 @@ export const useEditorTabs = (
   // 🚨 @PATCH : 2026-09-05 - [한글 IME 조합 중 preview DOM 정지 결함 해결] isComposingRef.current 가드 제거하여 한글 타이핑 중에도 100ms 디바운스 후 setContent 및 preview DOM 갱신이 즉시 실행되도록 수정; 이전에는 한글 조합 중 preview가 완전히 멈추던 결함 완전 해결
   // 🔗 @CALLS : setContent, setTabs
   // ====================================================================
-  const updateContent = useCallback((newValue: string, fromEditor: boolean = false) => {
+  const updateContent = useCallback((newValue: string, fromEditor: boolean = false, incrementalVisual: boolean = false) => {
     if (fromEditor && !isEditorMountedRef.current) return;
     if (fromEditor && previewModeRef.current === 'preview') return;
 
@@ -76,7 +77,13 @@ export const useEditorTabs = (
       setContent(newValue);
       setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, content: newValue } : t));
       if (editorRef.current && editorRef.current.getValue() !== newValue) {
-        editorRef.current.setValue(newValue);
+        const model = editorRef.current.getModel?.();
+        if (incrementalVisual && model?.pushEditOperations && !model.isDisposed?.()) {
+          syncVisualSourceModel(model, newValue);
+          // This edit is already reflected in React and the active tab. Do not
+          // repeat it through the source editor's preview debounce listener.
+          if (previewDebounceRef.current) { clearTimeout(previewDebounceRef.current); previewDebounceRef.current = null; }
+        } else editorRef.current.setValue(newValue);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
