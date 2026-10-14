@@ -2,6 +2,46 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-visual-editor
+ * 🚨 @PATCH : **2026-10-14** — [머메이드 편집기(textarea) 및 각주(footnote) 입력 시 커서(Caret) 고시인성 표시 지원]:
+ *             1) .visual-document-surface의 caret-color: transparent로 인해 자식 입력 요소의 커서가 투명화되던 결함을 해결하기 위해 textarea, input, .visual-mermaid-code-input, .visual-footnote-text에 caret-color: #2563eb !important(다크모드 #60a5fa) 지정
+ *             2) 각주 입력기(visual-footnote-text)에 cursor: text, data-placeholder 안내 문구 및 :empty::before 플레이스홀더를 장착하여 빈 각주에서도 커서 높이 및 타이핑 위치 100% 보장
+ * 🚨 @PATCH : **2026-10-14** — [각주(Footnote) 영역 시각적 구분선/헤더 표시 및 서식관리 폰트 크기·스타일 실시간 연동]:
+ *             1) 본문과 각주 영역을 명확히 구분할 수 있도록 첫 번째 각주 상단에 '📌 각주 (Footnotes)' 배지 및 구분선(visual-footnote-area-header) 자동 표시
+ *             2) 각주 본문 텍스트 크기를 기존 16~18px 본문 크기 종속에서 벗어나 12.5px 콤팩트 규격으로 최적화하고 본문 되돌아가기(↩) 및 호버 삭제(×) 버튼 장착
+ *             3) 서식관리(CssStyleModal)의 각주 글자 크기(font-size), 글자 색상(color), 굵기(font-weight), 줄간격(line-height) 변경 사항이 문서보기에 1:1 실시간 반영되도록 dynamicCssString 연동
+ * 🚨 @PATCH : **2026-10-14** — [코드 블록(code_block) 및 다이어그램 블록 손쉬운 원클릭/키보드 삭제 지원]:
+ *             1) 일반 코드 블록(visual-code-block) 헤더에 원클릭 '삭제' 버튼(deleteBtn) 추가하여 불필요한 코드 블록 즉각 제거 지원
+ *             2) 빈 코드 블록에서 Backspace/Delete 입력 시 이전 블록으로 이동하며 자동 삭제 또는 일반 문단(paragraph)으로 즉시 변환
+ *             3) Mod-Shift-k(Ctrl+Shift+K) 단축키를 통한 현재 코드 블록 즉각 삭제 커맨드 구현
+ *             4) 머메이드(Mermaid) 다이어그램 카드 헤더 컨트롤 및 하단 서랍에 각각 '🗑️ 삭제', '다이어그램 삭제' 버튼을 탑재하여 다이어그램 원클릭 완전 삭제 지원
+ * 🚨 @PATCH : **2026-10-14** — [머메이드(Mermaid) 다이어그램 카드 내부 통합 접기/펼치기 편집 서랍 구현]:
+ *             1) 다이어그램 아래 분리된 독립 박스로 표시되던 편집기를 상위 다이어그램 카드 내부 하단 서랍(visual-mermaid-container)으로 완전 통합
+ *             2) 다이어그램 카드 상단 헤더 '✏️ 코드 편집' 버튼 및 하단 '머메이드 코드 편집' 바 클릭 시 다이어그램 카드 안에서 매끄럽게 펼치기/접기 토글
+ *             3) 텍스트에어리어 내 Tab 키 공백(2칸) 입력 지원 및 타이핑 시 실시간 렌더링 반영, '코드 접기'/'적용 완료' 제공
+ * 🚨 @PATCH : **2026-10-14** — [머메이드(Mermaid) 다이어그램 전용 실시간 편집기(visual-mermaid-editor) 활성화]:
+ *             1) 머메이드(```mermaid) 블록에 전용 다이어그램 코드 편집 드롭다운 및 고대비 모노 텍스트에어리어 연동
+ *             2) 250ms 디바운스 실시간 프리뷰 렌더링 및 '적용 완료' 원클릭 히스토리 커밋 지원
+ *             3) 일반 텍스트/HTML 블록에는 편집 UI가 노출되지 않고 오직 머메이드 블록에서만 정밀하게 편집 기능 활성화
+ * 🚨 @PATCH : **2026-10-14** — [문서보기(VisualDocumentEditor) 내 각주(Footnote) 네이티브 삽입/인라인 편집 및 점선 박스/편집창 UI 완전 제거]:
+ *             1) 각주 버튼(fn), 단축키(Ctrl+Alt+F), 슬래시(/footnote, /각주) 실행 시 나란히 보기 전환 없이 현재 문서보기에서 본문 참조[^N] 및 하단 정의[^N]: 를 즉각 생성 삽입
+ *             2) visual_footnote_ref(클릭 시 하단 각주로 점프) 및 visual_footnote_def(본문으로 점프 및 각주 내용 직접 인라인 타이핑 편집) 전용 NodeView 장착
+ *             3) source_block의 <details><summary>편집</summary> UI 및 점선 박스 테두리(border: 1px dashed)를 완전 제거하여 깔끔한 원문 렌더링 보장
+ * 🚨 @PATCH : **2026-10-14** — [인용문 내 [!태그]([!Note], [!참고] 등) 타이핑 및 엔터 시 콜아웃 알림상자 자동 변환(calloutEnter) 연동]:
+ *             1) 인용문(blockquote) 내에서 [!Note], [!참고] 등 입력 후 엔터 입력 시에도 즉각 해당 스타일의 콜아웃 박스로 자동 전환되도록 calloutEnter 커맨드 추가
+ *             2) 태그 텍스트가 일반 본문으로 잔존하여 마크다운 소스에서 역슬래시 이스케이프(\[\!Note\])로 오분기되던 결함을 원천 방어하고 alertType 속성으로 정규화
+ * 🚨 @PATCH : **2026-10-14** — [제목(Heading) 태그 내 엔터(Enter) 입력 시 다음 행(문단) 정상 이동 및 제목 행 동반 밀림 결함 완전 해결]:
+ *             1) 제목(H1~H6) 끝에서 엔터(Enter) 입력 시 제목 행이 아래로 함께 밀리거나 다음 행으로 넘어가지 않던 현상을 해결하기 위해 전용 headingEnter 커맨드 구현
+ *             2) 제목 끝(parentOffset === contentSize)에서 엔터 시 제목 아래에 신규 본문 문단(paragraph)을 깔끔하게 생성하고 커서를 다음 행으로 즉각 이동 보장
+ *             3) 내용이 빈 제목(contentSize === 0)에서 엔터 입력 시 제목 태그를 일반 문단으로 즉시 변환하여 유령 헤딩 태그 및 불필요한 빈 행 누적 원천 차단
+ *             4) 제목 앞머리(parentOffset === 0)에서 엔터 시 제목 위에 빈 문단을 생성하여 기존 제목 행 구조 보존
+ * 🚨 @PATCH : **2026-10-14** — [엔터(Enter) 입력 시 문단 분할(splitBlock) 및 리스트 연속 생성(splitListItem) 복원, Shift+Enter 소프트 개행(<br>) 정규화, 빈 행 과도한 높이 축소(min-height: 1.25em, margin: 0 0 0.5em)]:
+ *             1) 문서보기(VisualDocumentEditor)에서 엔터(Enter) 입력 시 단일 문단 내 강제 <br> 삽입으로 문단이 끊기지 않고 리스트 전환이 차단되던 결함을 전면 수정하여, 엔터 입력 시 정상 문단 분할(splitBlock) 및 리스트 연속 항목 생성 보장
+ *             2) Shift+Enter 입력 시 문단 내 소프트 줄바꿈(<br> hard_break)이 작동하도록 단축키를 명확히 분리
+ *             3) 빈 행(p:empty)의 과도한 44px+ 여백을 min-height: 1.25em 및 margin: 0 0 0.25em으로 최적화하여 깔끔한 행간 복원
+ * 🚨 @PATCH : **2026-10-14** — [리스트(bullet/ordered/task) 마우스 클릭 위치 1:1 정밀 커서 배치 및 1열 쏠림 결함 해결]:
+ *             1) synchronizeTextSelection에서 DOM 선택 노드가 텍스트 노드가 아닐 때(ELEMENT_NODE) 자식 인덱스(0) 매핑으로 인해 커서가 행 시작(column:1)으로 강제 리셋되던 결함 방어
+ *             2) handleClick에 li 요소 클릭 감지 및 posAtCoords 기반 정밀 위치 추적을 탑재하여 글머리 기호/체크박스/본문 글자 클릭 시 해당 클릭 좌표로 즉각 TextSelection 배치
+ *             3) list_item NodeView의 dom(li) 및 contentDOM(div)에 cursor: text 스타일을 부여하여 리스트 전 영역 텍스트 커서 시인성 일원화
  * 🚨 @PATCH : **2026-10-14** — [수식 옆 글쓰기(공백 보장) 및 블록 수식 다음 줄 즉각 집필 환경 지원]:
  *             1) visual_inline_math 삽입 시 후행 공백 텍스트 노드를 함께 생성하고 커서를 그 뒤로 이동시켜 인라인 수식 바로 옆에 끊김 없이 글쓰기 보장
  *             2) visual_math 블록 수식 삽입 시 바로 다음 줄에 신규 본문 문단(paragraph)을 자동 생성하고 커서를 배치하여 블록 수식 아래 즉각 집필 지원
@@ -91,12 +131,136 @@ const setHeadingBlock = (level: number): Command => (state, dispatch, view) => {
   return true;
 };
 
+// 빈 코드 블록에서 Backspace 입력 시 코드 블록을 삭제하거나 이전 블록 끝으로 이동 / 일반 문단 변환
+const backspaceInCodeBlock: Command = (state, dispatch) => {
+  const { $from, empty } = state.selection;
+  if (!empty || $from.parent.type !== visualSchema.nodes.code_block) return false;
+  if ($from.parent.content.size === 0) {
+    if (dispatch) {
+      const pos = $from.before();
+      const after = $from.after();
+      const index = $from.index($from.depth - 1);
+      if (index > 0) {
+        let tr = state.tr.delete(pos, after);
+        const prevEnd = tr.mapping.map(pos - 1);
+        tr = tr.setSelection(TextSelection.create(tr.doc, prevEnd));
+        dispatch(closeHistory(tr).scrollIntoView());
+      } else {
+        let tr = state.tr.setBlockType(pos, after, visualSchema.nodes.paragraph);
+        dispatch(closeHistory(tr).scrollIntoView());
+      }
+    }
+    return true;
+  }
+  return false;
+};
+
+const deleteInCodeBlock: Command = (state, dispatch) => {
+  const { $from, empty } = state.selection;
+  if (!empty || $from.parent.type !== visualSchema.nodes.code_block) return false;
+  if ($from.parent.content.size === 0) {
+    if (dispatch) {
+      const pos = $from.before();
+      const after = $from.after();
+      let tr = state.tr.delete(pos, after);
+      if (tr.doc.content.size === 0) {
+        tr = tr.insert(0, visualSchema.nodes.paragraph.create());
+      }
+      const safePos = Math.min(pos + 1, tr.doc.content.size);
+      tr = tr.setSelection(TextSelection.create(tr.doc, safePos));
+      dispatch(closeHistory(tr).scrollIntoView());
+    }
+    return true;
+  }
+  return false;
+};
+
 // Always consume Tab in the document so browser focus cannot jump to controls.
 const removeHeadingAtStart:Command=(state,dispatch)=>{
   const position=state.selection.$from;
   if(!state.selection.empty || position.parent.type!==visualSchema.nodes.heading || position.parentOffset!==0)return false;
   if(dispatch)dispatch(closeHistory(state.tr.setBlockType(position.before(),position.after(),visualSchema.nodes.paragraph).setStoredMarks([])));
   return true;
+};
+const headingEnter: Command = (state, dispatch) => {
+  const { $from, empty } = state.selection;
+  if (!empty || $from.parent.type !== visualSchema.nodes.heading) return false;
+
+  const heading = $from.parent;
+  const parentOffset = $from.parentOffset;
+  const contentSize = heading.content.size;
+
+  if (dispatch) {
+    let tr = state.tr;
+
+    // 1. 내용이 빈 제목: 일반 빈 문단(paragraph)으로 즉시 변환하여 유령 헤딩 방어
+    if (contentSize === 0) {
+      tr = tr.setBlockType($from.before(), $from.after(), visualSchema.nodes.paragraph);
+      dispatch(closeHistory(tr).scrollIntoView());
+      return true;
+    }
+
+    // 2. 제목 끝에서 엔터: 제목 아래에 신규 본문 문단(paragraph) 생성 후 커서를 다음 행으로 이동
+    if (parentOffset === contentSize) {
+      const posAfter = $from.after();
+      const p = visualSchema.nodes.paragraph.create();
+      tr = tr.insert(posAfter, p);
+      tr = tr.setSelection(TextSelection.create(tr.doc, posAfter + 1));
+      dispatch(closeHistory(tr).scrollIntoView());
+      return true;
+    }
+
+    // 3. 제목 맨 앞에서 엔터: 제목 위에 빈 문단 삽입하고 제목 행 위치는 유지
+    if (parentOffset === 0) {
+      const posBefore = $from.before();
+      const p = visualSchema.nodes.paragraph.create();
+      tr = tr.insert(posBefore, p);
+      tr = tr.setSelection(TextSelection.create(tr.doc, posBefore + p.nodeSize + 1));
+      dispatch(closeHistory(tr).scrollIntoView());
+      return true;
+    }
+
+    // 4. 제목 중간에서 엔터: 앞부분은 제목으로 유지하고 뒷부분은 새 본문 문단으로 분할
+    const posAfter = $from.after();
+    const textBefore = heading.content.cut(0, parentOffset);
+    const textAfter = heading.content.cut(parentOffset);
+    const newHeading = heading.type.create(heading.attrs, textBefore);
+    const newParagraph = visualSchema.nodes.paragraph.create(null, textAfter);
+    tr = tr.replaceWith($from.before(), posAfter, [newHeading, newParagraph]);
+    const targetPos = $from.before() + newHeading.nodeSize + 1;
+    tr = tr.setSelection(TextSelection.create(tr.doc, targetPos));
+    dispatch(closeHistory(tr).scrollIntoView());
+  }
+  return true;
+};
+const calloutEnter: Command = (state, dispatch) => {
+  const { $from, empty } = state.selection;
+  if (!empty) return false;
+  for (let depth = $from.depth; depth > 0; depth--) {
+    if ($from.node(depth).type === visualSchema.nodes.blockquote) {
+      const parent = $from.parent;
+      const text = parent.textContent;
+      const match = text.match(/^\s*\[!([^\]]+)\]\s*(.*)$/);
+      if (match) {
+        if (dispatch) {
+          const rawTag = match[1].trim();
+          const upper = rawTag.toUpperCase();
+          const alertType = ['NOTE', 'TIP', 'IMPORTANT', 'WARNING', 'CAUTION'].includes(upper) ? upper : rawTag;
+          const remainingText = match[2] || '';
+          const bqPos = $from.before(depth);
+          let tr = state.tr;
+          tr = tr.delete($from.start(), $from.end());
+          if (remainingText) {
+            tr = tr.insertText(remainingText, $from.start());
+          }
+          tr = tr.setNodeMarkup(bqPos, undefined, { alertType });
+          dispatch(closeHistory(tr).scrollIntoView());
+        }
+        return true;
+      }
+    }
+  }
+  return false;
 };
 const exitQuote=(emptyOnly=false):Command=>(state,dispatch)=>{
   const position=state.selection.$from;
@@ -165,6 +329,7 @@ function synchronizeTextSelection(view: EditorView) {
   if (view.composing || !(view.state.selection instanceof TextSelection) || !view.hasFocus()) return;
   const selection = document.getSelection();
   if (!selection?.anchorNode || !selection.focusNode || !view.dom.contains(selection.anchorNode) || !view.dom.contains(selection.focusNode)) return;
+  if (selection.anchorNode.nodeType !== Node.TEXT_NODE || selection.focusNode.nodeType !== Node.TEXT_NODE) return;
   try {
     const anchor=view.posAtDOM(selection.anchorNode,selection.anchorOffset),head=view.posAtDOM(selection.focusNode,selection.focusOffset);
     if(anchor!==view.state.selection.anchor || head!==view.state.selection.head) {
@@ -289,6 +454,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   const [linkDialogData, setLinkDialogData] = useState({ text: '', href: 'https://' });
   const linkTargetRef = useRef<{ from: number; to: number; valid: boolean } | null>(null);
   const linkCommandRef = useRef<Command>(() => false);
+  const insertFootnoteRef = useRef<(removeSlash?: boolean) => void>(() => {});
   const [selection, setSelection] = useState(false);
   const manualFloatingRef = useRef(false);
   const selectionVisibleRef = useRef(false);
@@ -360,9 +526,29 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     };
     const view = new EditorView(host.current, {
       state: cached?.source === content ? cached.state : EditorState.create({ doc: codec.doc, plugins: [history(), visualMarkdownInputRules(), keymap({
-        Backspace: chainCommands(removeHeadingAtStart, undoInputRule, baseKeymap.Backspace),
+        Backspace: chainCommands(removeHeadingAtStart, backspaceInCodeBlock, undoInputRule, baseKeymap.Backspace),
+        Delete: chainCommands(deleteInCodeBlock, baseKeymap.Delete),
+        'Mod-Shift-k': (state, dispatch) => {
+          const { $from } = state.selection;
+          if ($from.parent.type === visualSchema.nodes.code_block) {
+            if (dispatch) {
+              const pos = $from.before();
+              const after = $from.after();
+              const tr = state.tr;
+              if (state.doc.childCount === 1 && pos === 0) {
+                dispatch(closeHistory(tr.replaceWith(pos, after, visualSchema.nodes.paragraph.create())).scrollIntoView());
+              } else {
+                dispatch(closeHistory(tr.delete(pos, after)).scrollIntoView());
+              }
+            }
+            return true;
+          }
+          return false;
+        },
         'Mod-u': toggleMark(visualSchema.marks.underline),
         'Mod-k': (state, dispatch) => linkCommandRef.current(state, dispatch),
+        'Mod-Alt-f': () => { insertFootnoteRef.current?.(); return true; },
+        'Mod-Alt-F': () => { insertFootnoteRef.current?.(); return true; },
         ArrowDown:(state,dispatch,currentView)=>{
           if(!state.selection.empty || !currentView?.endOfTextblock('down'))return false;
           const table=tableContext(state);
@@ -371,7 +557,20 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           return false;
         },
         'Mod-Enter': chainCommands(tableAction('afterTable'),exitCode,exitQuote()),
-        Enter: chainCommands(tableEnter(), (state,dispatch)=>{const position=state.selection.$from;if(position.parent.type!==visualSchema.nodes.paragraph)return false;let quoted=false;for(let i=1;i<position.depth;i++)if(position.node(i).type===visualSchema.nodes.blockquote)quoted=true;if(!quoted)return false;if(dispatch)dispatch(state.tr.replaceSelectionWith(visualSchema.nodes.hard_break.create()).scrollIntoView());return true;}, (state,dispatch)=>{const position=state.selection.$from;if(position.parent.type!==visualSchema.nodes.paragraph || position.depth!==1)return false;if(dispatch)dispatch(state.tr.replaceSelectionWith(visualSchema.nodes.hard_break.create()).scrollIntoView());return true;}, (state,dispatch,currentView)=>{const parent=state.selection.$from.depth>0?state.selection.$from.node(state.selection.$from.depth-1):null;return splitListItem(visualSchema.nodes.list_item,parent?.type===visualSchema.nodes.list_item && parent.attrs.checked!==null ? {checked:false} : undefined)(state,dispatch,currentView);}, baseKeymap.Enter),
+        Enter: chainCommands(
+          tableEnter(),
+          calloutEnter,
+          (state, dispatch, currentView) => {
+            const parent = state.selection.$from.depth > 0 ? state.selection.$from.node(state.selection.$from.depth - 1) : null;
+            return splitListItem(visualSchema.nodes.list_item, parent?.type === visualSchema.nodes.list_item && parent.attrs.checked !== null ? { checked: false } : undefined)(state, dispatch, currentView);
+          },
+          headingEnter,
+          baseKeymap.Enter
+        ),
+        'Shift-Enter': chainCommands(exitCode, (state, dispatch) => {
+          if (dispatch) dispatch(state.tr.replaceSelectionWith(visualSchema.nodes.hard_break.create()).scrollIntoView());
+          return true;
+        }),
         Tab: chainCommands(moveTableCell(),sinkListItem(visualSchema.nodes.list_item),indentDocument()), 'Shift-Tab': chainCommands(moveTableCell(true),liftListItem(visualSchema.nodes.list_item),indentDocument(true)),
       }), keymap(baseKeymap)] }),
       editable: () => !readOnly,
@@ -521,6 +720,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         },
         list_item(node,currentView,getPos){
           const dom=document.createElement('li'),content=document.createElement('div'),checkbox=document.createElement('input');
+          dom.style.cursor='text';content.style.cursor='text';
           checkbox.type='checkbox';checkbox.contentEditable='false';checkbox.setAttribute('aria-label','할 일 완료');checkbox.style.cssText='float:left;margin:6px 8px 0 -24px;width:16px;height:16px';
           const update=()=>{
             const task=node.attrs.checked!==null;
@@ -559,6 +759,29 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             } catch { copy.textContent='복사 실패'; }
             if(dom.isConnected)copyTimer=setTimeout(()=>{copy.textContent='복사';},1800);
           });header.append(copy);
+          const deleteBtn = document.createElement('button');
+          deleteBtn.type = 'button';
+          deleteBtn.textContent = '삭제';
+          deleteBtn.setAttribute('aria-label', '코드 블록 삭제');
+          deleteBtn.title = '코드 블록 삭제 (Backspace)';
+          deleteBtn.className = 'onrivi-media-control no-print text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 text-[11px] font-medium transition-colors cursor-pointer';
+          deleteBtn.contentEditable = 'false';
+          deleteBtn.addEventListener('mousedown', event => event.preventDefault());
+          deleteBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const pos = getPos();
+            if (typeof pos !== 'number' || !currentView.editable) return;
+            const tr = currentView.state.tr;
+            const nodeSize = node.nodeSize;
+            if (currentView.state.doc.childCount === 1 && pos === 0) {
+              currentView.dispatch(closeHistory(tr.replaceWith(pos, pos + nodeSize, visualSchema.nodes.paragraph.create())));
+            } else {
+              currentView.dispatch(closeHistory(tr.delete(pos, pos + nodeSize)));
+            }
+            currentView.focus();
+          });
+          header.append(deleteBtn);
           const pre = document.createElement('pre'), code = document.createElement('code');
           pre.className = 'custom-scrollbar'; pre.spellcheck = false; code.spellcheck = false;
           const panel=document.createElement('details');panel.className='visual-code-editor-panel';
@@ -596,30 +819,365 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             update(next) {if(next.type!==node.type)return false;node=next;if(document.activeElement!==input)input.value=node.attrs.params || '';render();return true;},
             destroy(){clearTimeout(renderTimer);clearTimeout(copyTimer);queueMicrotask(()=>{if(viewRef.current)setImageMounts(previous=>previous.filter(item=>item.id!==id));});} };
         },
-        source_block(node, currentView, getPos) {
-          const dom = document.createElement('div');dom.contentEditable = 'false';dom.className = 'visual-source-block';
-          const picture=document.createElement('div');const id=++imageSequence.current;
-          const details=document.createElement('details');details.className='no-print';
-          const summary=document.createElement('summary');summary.textContent='편집';
-          const input=document.createElement('textarea');input.setAttribute('aria-label','블록 원문');input.value=node.attrs.source;input.rows=8;input.style.width='100%';input.disabled=!currentView.editable;
-          const apply=document.createElement('button');apply.type='button';apply.textContent='적용';apply.disabled=!currentView.editable;
-          let sourceTimer:ReturnType<typeof setTimeout>|undefined;
-          input.addEventListener('input',()=>{
-            clearTimeout(sourceTimer);
-            if(!/^\s*```mermaid(?:\s|$)/i.test(input.value))return;
-            sourceTimer=setTimeout(()=>{
-              const pos=getPos();if(typeof pos!=='number' || !currentView.editable || !dom.isConnected)return;
-              if(currentView.state.doc.nodeAt(pos)?.type!==node.type)return;
-              if(input.value!==node.attrs.source)currentView.dispatch(currentView.state.tr.setNodeMarkup(pos,undefined,{source:input.value}));
-            },250);
+        visual_footnote_ref(node, currentView) {
+          const dom = document.createElement('sup');
+          dom.className = 'visual-footnote-ref inline-block text-xs font-bold text-blue-700 dark:text-blue-400 px-1 select-all cursor-pointer hover:underline';
+          dom.textContent = `[${node.attrs.label}]`;
+          dom.setAttribute('data-footnote-ref', node.attrs.label);
+          dom.title = `각주 [^${node.attrs.label}] 바로가기`;
+          dom.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const targetDef = currentView.dom.querySelector(`[data-footnote-def="${node.attrs.label}"]`);
+            if (targetDef) {
+              targetDef.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              targetDef.classList.add('ring-2', 'ring-blue-500');
+              setTimeout(() => targetDef.classList.remove('ring-2', 'ring-blue-500'), 1500);
+            }
+          });
+          return {
+            dom,
+            stopEvent: () => false,
+            update: next => next.type === node.type
+          };
+        },
+        visual_footnote_def(node, currentView, getPos) {
+          const dom = document.createElement('div');
+          dom.className = 'visual-footnote-def-container';
+          dom.setAttribute('data-footnote-def', node.attrs.label);
+
+          const isFirstFootnote = () => {
+            try {
+              const pos = getPos();
+              if (typeof pos !== 'number') return true;
+              const $pos = currentView.state.doc.resolve(pos);
+              const prevNode = $pos.nodeBefore;
+              return !prevNode || prevNode.type !== node.type;
+            } catch {
+              return true;
+            }
+          };
+
+          const areaHeader = document.createElement('div');
+          areaHeader.className = 'visual-footnote-area-header select-none mb-2 pt-6 pb-1';
+          areaHeader.innerHTML = `
+            <div class="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-950/60 border border-blue-200/60 dark:border-blue-800/60 text-blue-700 dark:text-blue-300 shadow-2xs font-semibold">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg>
+                각주 (Footnotes)
+              </span>
+              <div class="flex-1 border-t-2 border-slate-300/80 dark:border-slate-700/80"></div>
+            </div>
+          `;
+          areaHeader.style.display = isFirstFootnote() ? 'block' : 'none';
+
+          const itemCard = document.createElement('div');
+          itemCard.className = 'visual-footnote-def group flex items-start gap-2.5 px-3 py-2 my-1 rounded-md bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-700/60 hover:border-blue-400/60 dark:hover:border-blue-600/60 transition-all';
+
+          const labelSpan = document.createElement('span');
+          labelSpan.className = 'visual-footnote-badge font-bold text-blue-700 dark:text-blue-400 select-none whitespace-nowrap pt-0.5 cursor-pointer hover:underline shrink-0';
+          labelSpan.textContent = `[^${node.attrs.label}]:`;
+          labelSpan.title = `각주 [^${node.attrs.label}] 본문 위치로`;
+          labelSpan.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const targetRef = currentView.dom.querySelector(`[data-footnote-ref="${node.attrs.label}"]`);
+            if (targetRef) {
+              targetRef.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              targetRef.classList.add('ring-2', 'ring-blue-500');
+              setTimeout(() => targetRef.classList.remove('ring-2', 'ring-blue-500'), 1500);
+            }
           });
 
-          apply.addEventListener('click',()=>{const pos=getPos();if(typeof pos==='number' && currentView.editable){currentView.dispatch(closeHistory(currentView.state.tr.setNodeMarkup(pos,undefined,{source:input.value})));details.open=false;}});
-          details.append(summary,input,apply);dom.append(picture,details);
-          const render=()=>setImageMounts(previous=>[...previous.filter(item=>item.id!==id),{id,element:picture,source:node.attrs.source}]);render();
-          return {dom,ignoreMutation:()=>true,stopEvent:event=>details.contains(event.target as Node),
-            update(next){if(next.type!==node.type)return false;if(next.attrs.source!==node.attrs.source){node=next;if(document.activeElement!==input || input.value!==node.attrs.source)input.value=node.attrs.source;render();}return true;},
-            destroy(){clearTimeout(sourceTimer);queueMicrotask(()=>{if(viewRef.current)setImageMounts(previous=>previous.filter(item=>item.id!==id));});}};
+          const input = document.createElement('span');
+          input.className = 'visual-footnote-text flex-1 outline-none min-h-[1.4em] focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-blue-500/40 rounded px-1.5 py-0.5 leading-relaxed cursor-text';
+          input.contentEditable = currentView.editable ? 'true' : 'false';
+          input.textContent = node.attrs.content || '';
+          input.setAttribute('data-placeholder', '각주 설명을 입력하세요...');
+
+          itemCard.addEventListener('click', (e) => {
+            if (e.target === itemCard) {
+              input.focus();
+            }
+          });
+
+          input.addEventListener('input', () => {
+            const pos = getPos();
+            if (typeof pos !== 'number' || !currentView.editable) return;
+            const text = input.textContent || '';
+            if (text !== node.attrs.content) {
+              currentView.dispatch(currentView.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, content: text }));
+            }
+          });
+
+          const jumpBtn = document.createElement('button');
+          jumpBtn.type = 'button';
+          jumpBtn.className = 'visual-footnote-jump-btn select-none text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 p-0.5 rounded cursor-pointer transition-colors shrink-0 pt-0.5';
+          jumpBtn.title = `본문 각주 [^${node.attrs.label}] 위치로 돌아가기 (↩)`;
+          jumpBtn.innerHTML = '<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></svg>';
+          jumpBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const targetRef = currentView.dom.querySelector(`[data-footnote-ref="${node.attrs.label}"]`);
+            if (targetRef) {
+              targetRef.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              targetRef.classList.add('ring-2', 'ring-blue-500');
+              setTimeout(() => targetRef.classList.remove('ring-2', 'ring-blue-500'), 1500);
+            }
+          });
+
+          const deleteBtn = document.createElement('button');
+          deleteBtn.type = 'button';
+          deleteBtn.className = 'visual-footnote-delete-btn select-none text-slate-400 hover:text-red-500 p-0.5 rounded cursor-pointer transition-colors shrink-0 pt-0.5 opacity-0 group-hover:opacity-100 hover:opacity-100';
+          deleteBtn.title = '각주 삭제';
+          deleteBtn.innerHTML = '<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+          deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const pos = getPos();
+            if (typeof pos === 'number' && currentView.editable) {
+              currentView.dispatch(closeHistory(currentView.state.tr.delete(pos, pos + node.nodeSize)));
+              currentView.focus();
+            }
+          });
+
+          itemCard.append(labelSpan, input, jumpBtn, deleteBtn);
+          dom.append(areaHeader, itemCard);
+
+          return {
+            dom,
+            stopEvent: event => input.contains(event.target as Node) || jumpBtn.contains(event.target as Node) || deleteBtn.contains(event.target as Node),
+            ignoreMutation: mutation => mutation.target === input || input.contains(mutation.target),
+            update(next) {
+              if (next.type !== node.type) return false;
+              node = next;
+              dom.setAttribute('data-footnote-def', node.attrs.label);
+              labelSpan.textContent = `[^${node.attrs.label}]:`;
+              labelSpan.title = `각주 [^${node.attrs.label}] 본문 위치로`;
+              jumpBtn.title = `본문 각주 [^${node.attrs.label}] 위치로 돌아가기 (↩)`;
+              if (document.activeElement !== input && input.textContent !== node.attrs.content) {
+                input.textContent = node.attrs.content;
+              }
+              areaHeader.style.display = isFirstFootnote() ? 'block' : 'none';
+              return true;
+            }
+          };
+        },
+        source_block(node, currentView, getPos) {
+          const isMermaid = /^\s*```\s*mermaid(?:\s|$)/i.test(node.attrs.source);
+          const dom = document.createElement('div');
+          dom.contentEditable = 'false';
+          dom.className = isMermaid ? 'visual-source-block visual-mermaid-container' : 'visual-source-block';
+          const picture = document.createElement('div');
+          const id = ++imageSequence.current;
+          dom.append(picture);
+
+          let details: HTMLDetailsElement | null = null;
+          let input: HTMLTextAreaElement | null = null;
+          let sourceTimer: ReturnType<typeof setTimeout> | undefined;
+          let observer: MutationObserver | null = null;
+
+          if (isMermaid) {
+            details = document.createElement('details');
+            details.className = 'visual-mermaid-editor no-print text-xs';
+
+            const summary = document.createElement('summary');
+            summary.className = 'cursor-pointer select-none font-medium text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center justify-between px-4 py-2.5 bg-zinc-50/90 dark:bg-slate-800/70 hover:bg-zinc-100/90 dark:hover:bg-slate-800 transition-colors';
+            summary.innerHTML = '<span class="flex items-center gap-1.5 font-semibold"><svg class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m14 9 3 3-3 3"/></svg>머메이드(Mermaid) 코드 편집</span><span class="flex items-center gap-1 text-[11px] font-normal text-slate-500 dark:text-slate-400"><span>클릭하여 코드 펼치기 / 접기</span><svg class="w-3.5 h-3.5 transition-transform duration-200 mermaid-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>';
+
+            const body = document.createElement('div');
+            body.className = 'p-3 bg-zinc-50/40 dark:bg-slate-900/40 border-t border-zinc-200/50 dark:border-slate-800/60 flex flex-col gap-2.5';
+
+            input = document.createElement('textarea');
+            input.setAttribute('aria-label', '머메이드 블록 원문');
+            input.value = node.attrs.source;
+            input.rows = 8;
+            input.className = 'w-full font-mono text-xs p-3 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 custom-scrollbar resize-y leading-relaxed';
+            input.spellcheck = false;
+            input.disabled = !currentView.editable;
+
+            // Tab 키 입력 시 2칸 들여쓰기 공백 지원
+            input.addEventListener('keydown', (e) => {
+              if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = input!.selectionStart;
+                const end = input!.selectionEnd;
+                input!.value = input!.value.substring(0, start) + '  ' + input!.value.substring(end);
+                input!.selectionStart = input!.selectionEnd = start + 2;
+                input!.dispatchEvent(new Event('input'));
+              }
+            });
+
+            input.addEventListener('input', () => {
+              clearTimeout(sourceTimer);
+              sourceTimer = setTimeout(() => {
+                const pos = getPos();
+                if (typeof pos !== 'number' || !currentView.editable || !dom.isConnected) return;
+                if (currentView.state.doc.nodeAt(pos)?.type !== node.type) return;
+                if (input && input.value !== node.attrs.source) {
+                  currentView.dispatch(currentView.state.tr.setNodeMarkup(pos, undefined, { source: input.value }));
+                }
+              }, 250);
+            });
+
+            const actionRow = document.createElement('div');
+            actionRow.className = 'flex items-center justify-between pt-0.5 gap-2';
+
+            const deleteDrawerBtn = document.createElement('button');
+            deleteDrawerBtn.type = 'button';
+            deleteDrawerBtn.textContent = '다이어그램 삭제';
+            deleteDrawerBtn.setAttribute('aria-label', '다이어그램 삭제');
+            deleteDrawerBtn.className = 'px-2.5 py-1 text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40 rounded transition-colors cursor-pointer shrink-0';
+            deleteDrawerBtn.addEventListener('click', () => {
+              const pos = getPos();
+              if (typeof pos !== 'number' || !currentView.editable) return;
+              const tr = currentView.state.tr;
+              const nodeSize = node.nodeSize;
+              if (currentView.state.doc.childCount === 1 && pos === 0) {
+                currentView.dispatch(closeHistory(tr.replaceWith(pos, pos + nodeSize, visualSchema.nodes.paragraph.create())));
+              } else {
+                currentView.dispatch(closeHistory(tr.delete(pos, pos + nodeSize)));
+              }
+              currentView.focus();
+            });
+
+            const helper = document.createElement('span');
+            helper.className = 'text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 min-w-0 truncate';
+            helper.innerHTML = '<svg class="w-3 h-3 text-blue-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><span class="truncate">타이핑 시 다이어그램이 실시간 반영됩니다.</span>';
+
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'flex items-center gap-1.5 shrink-0';
+
+            const collapseBtn = document.createElement('button');
+            collapseBtn.type = 'button';
+            collapseBtn.textContent = '코드 접기';
+            collapseBtn.className = 'px-2.5 py-1 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 rounded transition-colors cursor-pointer';
+            collapseBtn.addEventListener('click', () => {
+              if (details) details.open = false;
+            });
+
+            const apply = document.createElement('button');
+            apply.type = 'button';
+            apply.textContent = '적용 완료';
+            apply.className = 'px-3 py-1 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded text-xs font-medium shadow-xs transition-colors cursor-pointer';
+            apply.disabled = !currentView.editable;
+
+            apply.addEventListener('click', () => {
+              const pos = getPos();
+              if (typeof pos === 'number' && currentView.editable && input) {
+                currentView.dispatch(closeHistory(currentView.state.tr.setNodeMarkup(pos, undefined, { source: input.value })));
+                if (details) details.open = false;
+              }
+            });
+
+            btnGroup.append(collapseBtn, apply);
+            actionRow.append(deleteDrawerBtn, helper, btnGroup);
+            body.append(input, actionRow);
+            details.append(summary, body);
+            dom.append(details);
+
+            // 다이어그램 상단 헤더 컨트롤 영역에 '✏️ 코드 편집' 및 '🗑️ 삭제' 토글 버튼 자동 연결
+            const syncHeaderButton = () => {
+              const controls = picture.querySelector('[data-editor-controls]');
+              if (controls && !controls.querySelector('.mermaid-header-edit-btn')) {
+                const editBtn = document.createElement('button');
+                editBtn.type = 'button';
+                editBtn.className = 'onrivi-media-control mermaid-header-edit-btn text-blue-600 dark:text-blue-400 font-medium hover:bg-blue-50 dark:hover:bg-blue-950/50';
+                editBtn.title = '다이어그램 코드 편집기 펼치기 / 접기';
+                editBtn.textContent = '✏️ 코드 편집';
+                editBtn.addEventListener('click', (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (details) {
+                    details.open = !details.open;
+                    if (details.open && input) {
+                      setTimeout(() => input?.focus(), 60);
+                    }
+                  }
+                });
+                controls.prepend(editBtn);
+              }
+
+              if (controls && !controls.querySelector('.mermaid-header-delete-btn')) {
+                const deleteBtn = document.createElement('button');
+                deleteBtn.type = 'button';
+                deleteBtn.className = 'onrivi-media-control mermaid-header-delete-btn text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 font-medium cursor-pointer';
+                deleteBtn.title = '다이어그램 블록 삭제';
+                deleteBtn.textContent = '🗑️ 삭제';
+                deleteBtn.addEventListener('click', (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const pos = getPos();
+                  if (typeof pos !== 'number' || !currentView.editable) return;
+                  const tr = currentView.state.tr;
+                  const nodeSize = node.nodeSize;
+                  if (currentView.state.doc.childCount === 1 && pos === 0) {
+                    currentView.dispatch(closeHistory(tr.replaceWith(pos, pos + nodeSize, visualSchema.nodes.paragraph.create())));
+                  } else {
+                    currentView.dispatch(closeHistory(tr.delete(pos, pos + nodeSize)));
+                  }
+                  currentView.focus();
+                });
+                controls.append(deleteBtn);
+              }
+            };
+
+            observer = new MutationObserver(() => syncHeaderButton());
+            observer.observe(picture, { childList: true, subtree: true });
+            setTimeout(syncHeaderButton, 60);
+          } else {
+            const controls = document.createElement('div');
+            controls.className = 'visual-media-controls no-print';
+            const deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.className = 'onrivi-media-control text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs font-medium cursor-pointer';
+            deleteBtn.textContent = '삭제';
+            deleteBtn.title = '블록 삭제';
+            deleteBtn.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const pos = getPos();
+              if (typeof pos === 'number' && currentView.editable) {
+                const tr = currentView.state.tr;
+                if (currentView.state.doc.childCount === 1 && pos === 0) {
+                  currentView.dispatch(closeHistory(tr.replaceWith(pos, pos + node.nodeSize, visualSchema.nodes.paragraph.create())));
+                } else {
+                  currentView.dispatch(closeHistory(tr.delete(pos, pos + node.nodeSize)));
+                }
+                currentView.focus();
+              }
+            });
+            controls.append(deleteBtn);
+            dom.append(controls);
+          }
+
+          const render = () => setImageMounts(previous => [...previous.filter(item => item.id !== id), { id, element: picture, source: node.attrs.source }]);
+          render();
+
+          return {
+            dom,
+            ignoreMutation: () => true,
+            stopEvent: event => {
+              const target = event.target as Node;
+              if (details && details.contains(target)) return true;
+              if ((target as HTMLElement)?.closest?.('[data-editor-controls], .onrivi-media-control')) return true;
+              return false;
+            },
+            update(next) {
+              if (next.type !== node.type) return false;
+              if (next.attrs.source !== node.attrs.source) {
+                node = next;
+                if (input && (document.activeElement !== input || input.value !== node.attrs.source)) {
+                  input.value = node.attrs.source;
+                }
+                render();
+              }
+              return true;
+            },
+            destroy() {
+              clearTimeout(sourceTimer);
+              observer?.disconnect();
+              queueMicrotask(() => {
+                if (viewRef.current) setImageMounts(previous => previous.filter(item => item.id !== id));
+              });
+            }
+          };
         },
       },
       dispatchTransaction(transaction) {
@@ -773,7 +1331,23 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           if (mark?.attrs?.href) href = mark.attrs.href;
         }
         href = href.trim();
-        if (!href) return false;
+        if (!href) {
+          const target = event.target as HTMLElement | null;
+          const li = target?.closest?.('li');
+          if (li && !target?.matches?.('input[type="checkbox"]')) {
+            const domSelection = document.getSelection();
+            if (domSelection && !domSelection.isCollapsed) return false;
+            const coords = { left: event.clientX, top: event.clientY };
+            const posInfo = currentView.posAtCoords(coords);
+            if (posInfo && typeof posInfo.pos === 'number') {
+              const $targetPos = currentView.state.doc.resolve(posInfo.pos);
+              currentView.dispatch(currentView.state.tr.setSelection(TextSelection.near($targetPos)));
+              currentView.focus();
+              return true;
+            }
+          }
+          return false;
+        }
 
         if (href.startsWith('<') && href.endsWith('>')) {
           href = href.slice(1, -1).trim();
@@ -1050,8 +1624,42 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     checklist:makeChecklist, quote: setQuote(null), codeblock: setBlockType(visualSchema.nodes.code_block),
     divider: blockCommands[blockCommands.length - 1][1], undo, redo,
     math: () => { executeItem('math'); return true; }, latex: () => { executeItem('math'); return true; },
+    footnote: () => { insertFootnote(); return true; }, fn: () => { insertFootnote(); return true; },
+    citation: () => { insertFootnote(); return true; }, cite: () => { insertFootnote(); return true; },
   };
   for (let level = 1; level <= 6; level++) nativeCommands[`h${level}`] = setHeadingBlock(level);
+  const insertFootnote = (removeSlash = false) => {
+    const view = viewRef.current;
+    if (!view || !view.editable) return;
+    let maxNum = 0;
+    view.state.doc.descendants(node => {
+      if (node.type.name === 'visual_footnote_ref' || node.type.name === 'visual_footnote_def') {
+        const n = parseInt(node.attrs.label, 10);
+        if (!isNaN(n) && n > maxNum) maxNum = n;
+      }
+    });
+    const label = String(maxNum + 1);
+    let tr = view.state.tr;
+    if (removeSlash && slashRange.current) {
+      tr = tr.delete(slashRange.current.from, slashRange.current.to);
+      slashRange.current = null;
+      setSlash(false);
+    }
+    const { from, to } = tr.selection;
+    const refNode = visualSchema.nodes.visual_footnote_ref.create({ label });
+    tr = tr.replaceWith(from, to, refNode);
+    const defNode = visualSchema.nodes.visual_footnote_def.create({
+      label,
+      content: '각주 내용을 입력하세요'
+    });
+    const insertPos = tr.doc.content.size;
+    tr = tr.insert(insertPos, defNode);
+    const nextPos = from + refNode.nodeSize;
+    tr = tr.setSelection(TextSelection.create(tr.doc, nextPos));
+    view.dispatch(closeHistory(tr).scrollIntoView());
+    view.focus();
+  };
+  insertFootnoteRef.current = insertFootnote;
   beginImageRef.current = (source, position, file) => {
     const view = viewRef.current;
     if (!view || !view.editable) return;
@@ -1110,6 +1718,10 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   const executeItem = (id: string, removeSlash = false) => {
     const view = viewRef.current;
     if (!view || readOnly) return;
+    if (['footnote', 'fn', 'citation', 'cite'].includes(id)) {
+      insertFootnote(removeSlash);
+      return;
+    }
     if (['youtube','map'].includes(id) && images.current.onMediaDialog) {
       if (removeSlash && slashRange.current) {view.dispatch(view.state.tr.delete(slashRange.current.from,slashRange.current.to)); slashRange.current=null; setSlash(false);}
       beginMediaRef.current(id === 'map' ? 'map' : 'video'); return;
@@ -1240,6 +1852,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       TABLE:()=>{openTableRef.current();return true;}, QUICK_TABLE:()=>{openTableRef.current();return true;}, INSERT_TABLE_ROW:tableAction('addRow'), DELETE_TABLE_ROW:tableAction('deleteRow'),
       NOW: () => { openDatePickerRef.current(); return true; }, CALENDAR: () => { openDatePickerRef.current(); return true; },
       MATH: () => { executeItemRef.current('math'); return true; }, LATEX: () => { executeItemRef.current('math'); return true; },
+      FOOTNOTE: () => { insertFootnoteRef.current?.(); return true; }, FN: () => { insertFootnoteRef.current?.(); return true; },
+      CITATION: () => { insertFootnoteRef.current?.(); return true; }, CITE: () => { insertFootnoteRef.current?.(); return true; },
     };
     for (let level = 1; level <= 6; level++) commands[`H${level}`] = setHeadingBlock(level);
     const bridge = (command: string) => {
@@ -1276,7 +1890,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       }
       if (command === 'FOCUS') { viewRef.current?.focus(); return true; }
       if (commands[command]) { run(commands[command]); return true; }
-      const aliases: Record<string, string> = { HR:'divider', CHECK:'checklist', CHECKLIST:'checklist', CITE:'citation', DOCLINK:'taglink',
+      const aliases: Record<string, string> = { HR:'divider', CHECK:'checklist', CHECKLIST:'checklist', CITE:'footnote', CITATION:'footnote', FOOTNOTE:'footnote', FN:'footnote', DOCLINK:'taglink',
         NOW:'now', CALENDAR:'now',
         VIDEO:'youtube', YOUTUBE:'youtube', ADD_REFERENCE:'add_reference', TOGGLE_CSS_STYLE:'styleSettings', AI_DRAFT:'aiHelp', CODE:'codeblock', LATEX:'math', MATH:'math' };
       const item = TOOLBAR_ITEMS.find(tool => tool.id === aliases[command] || tool.id.replace(/([A-Z])/g, '_$1').toUpperCase() === command);
@@ -1340,7 +1954,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       codecRef.current.adopt(parsed);imageTargets.current.delete(target);
       let tr=view.state.tr.setSelection(TextSelection.between(view.state.doc.resolve(target.from),view.state.doc.resolve(target.to))).replaceSelectionWith(table);
       let first=0;tr.doc.descendants((node,pos)=>{if(node===table){first=pos+4;return false;}return true;});
-      tr=tr.setSelection(TextSelection.create(tr.doc,first));view.dispatch(closeHistory(tr).scrollIntoView());view.focus();
+      const headerTextLength=table.firstChild!.firstChild!.firstChild!.content.size;
+      tr=tr.setSelection(TextSelection.create(tr.doc,first,first+headerTextLength));view.dispatch(closeHistory(tr).scrollIntoView());view.focus();
     }} />
     <LinkModal
       isOpen={linkDialog}
@@ -1391,13 +2006,14 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     <style>{`
       .custom-preview-container:has(.visual-document-editor) { overflow-anchor:none!important; scroll-behavior:auto!important; }
       .visual-document-surface { caret-color:transparent; outline:none; min-height:360px; padding:28px; white-space:pre-wrap; overflow-wrap:anywhere; color:inherit; background:inherit; font-family:inherit; font-size:inherit; line-height:1.75; }
+      .visual-document-surface > :first-child { margin-top:0!important; }
       .visual-document-surface a { color:#1d4ed8; text-decoration:underline; cursor:pointer; }
       .visual-document-surface a:hover { color:#1e40af; text-decoration:underline; }
       .custom-preview-container .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div),
       .onrivi-content-root .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div),
       .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div) { white-space:break-spaces!important; tab-size:inherit; }
-      .visual-document-surface p { margin:0 0 1em; }
-      .visual-document-surface p:empty, .visual-document-surface p:has(>br.ProseMirror-trailingBreak:only-child) { min-height:1.75em!important; }
+      .visual-document-surface p { margin:0 0 0.5em; }
+      .visual-document-surface p:empty, .visual-document-surface p:has(>br.ProseMirror-trailingBreak:only-child) { min-height:1.25em!important; margin: 0 0 0.25em!important; }
       .visual-document-surface li { margin-top:0!important; margin-bottom:0!important; padding-top:0!important; padding-bottom:0!important; }
       .visual-document-surface li p { margin-top:0!important; margin-bottom:0!important; }
       .custom-preview-container .visual-document-surface li ul, .custom-preview-container .visual-document-surface li ol, .visual-document-surface li ul, .visual-document-surface li ol { margin-top:0!important; margin-bottom:0!important; padding-top:0!important; padding-bottom:0!important; }
@@ -1446,8 +2062,81 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
 .visual-document-surface [data-alert-type="WARNING" i], .visual-document-surface [data-alert-type="주의" i] { --alert-bg:#fffbeb; --alert-border:#f59e0b; --alert-text:#b45309; }
 .visual-document-surface [data-alert-type="CAUTION" i], .visual-document-surface [data-alert-type="경고" i], .visual-document-surface [data-alert-type="위험" i] { --alert-bg:#fff1f2; --alert-border:#f43f5e; --alert-text:#be123c; }
       .visual-document-surface s { text-decoration:line-through; }
-      .visual-source-block { border:1px dashed #a1a1aa; border-radius:8px; margin:12px 0; padding:12px; color:#52525b; font-size:13px; }
-      .visual-source-block pre { max-height:160px; overflow:auto; }
+      .visual-source-block { position:relative; margin:12px 0; color:inherit; font-size:inherit; }
+      .visual-source-block:hover .visual-media-controls, .visual-source-block:focus-within .visual-media-controls { opacity:1; pointer-events:auto; }
+      .visual-source-block pre { max-height:none; overflow:auto; }
+      .visual-source-block.visual-mermaid-container {
+        margin: 1.5rem 0 !important;
+        border: 1px solid rgba(228, 228, 231, 0.8) !important;
+        border-radius: 0.5rem !important;
+        overflow: hidden !important;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+        background-color: #ffffff !important;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      }
+      .dark .visual-source-block.visual-mermaid-container {
+        border-color: rgba(51, 65, 85, 0.8) !important;
+        background-color: #0f172a !important;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3) !important;
+      }
+      .visual-source-block.visual-mermaid-container .onrivi-media-actions-frame {
+        margin: 0 !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        background-color: transparent !important;
+      }
+      .visual-mermaid-editor {
+        margin: 0 !important;
+        border: none !important;
+        border-top: 1px solid rgba(228, 228, 231, 0.8) !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        background-color: transparent !important;
+      }
+      .dark .visual-mermaid-editor {
+        border-top-color: rgba(51, 65, 85, 0.8) !important;
+      }
+      .visual-mermaid-editor summary {
+        list-style: none !important;
+      }
+      .visual-mermaid-editor summary::-webkit-details-marker {
+        display: none !important;
+      }
+      .visual-mermaid-editor[open] .mermaid-chevron {
+        transform: rotate(180deg);
+      }
+      @media print {
+        .visual-mermaid-editor {
+          display: none !important;
+        }
+      }
+      .visual-mermaid-code-input {
+        caret-color: #2563eb !important;
+      }
+      .dark .visual-mermaid-code-input {
+        caret-color: #60a5fa !important;
+      }
+      .visual-document-surface textarea,
+      .visual-document-surface input {
+        caret-color: #2563eb !important;
+      }
+      .dark .visual-document-surface textarea,
+      .dark .visual-document-surface input {
+        caret-color: #60a5fa !important;
+      }
+      .visual-footnote-ref { color: #2563eb; font-weight: 600; text-decoration: none; cursor: pointer; }
+      .visual-footnote-ref:hover { text-decoration: underline; }
+      .visual-footnote-def-container { margin: 4px 0; }
+      .visual-footnote-def { font-size: 12.5px !important; line-height: 1.55 !important; color: #475569; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+      .dark .visual-footnote-def { color: #94a3b8; }
+      .visual-footnote-text { font-size: 12.5px !important; line-height: 1.55 !important; cursor: text; caret-color: #2563eb !important; }
+      .dark .visual-footnote-text { caret-color: #60a5fa !important; }
+      .visual-footnote-text:empty::before { content: attr(data-placeholder); color: #94a3b8; pointer-events: none; }
+      .dark .visual-footnote-text:empty::before { color: #64748b; }
+      .visual-footnote-badge { font-size: 12px !important; }
+      .visual-footnote-jump-btn:hover { color: #2563eb; }
+      .visual-footnote-delete-btn:hover { color: #ef4444; }
       .visual-readonly-content table { border-collapse:collapse; width:100%; }
       .visual-readonly-content th, .visual-readonly-content td { border:1px solid #d4d4d8; padding:8px; }
       .visual-readonly-content pre { max-height:none; overflow:auto; }

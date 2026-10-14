@@ -1,5 +1,8 @@
 import { embedExportFonts } from './exportFonts';
 import { startExportProgress } from './exportProgress';
+// 🚨 @PATCH : **2026-10-14** — [내보내기(PDF/HTML/인쇄) 시 각주(Footnote) 폰트 크기/색상/줄간격 서식 프로필 연동 및 기본 12.5px 최적화]:
+//             1) generateExportCss의 footnote 태그 처리기에 .visual-footnote-def, .visual-footnote-text, .visual-footnote-badge, .visual-footnote-area-header 셀렉터 확장
+//             2) 각주 폰트 크기 미지정 시 inherit 대신 12.5px 콤팩트 크기로 기본값 설정하여 인쇄/내보내기 시 각주 비대화 결함 완전 해결
 // 🚨 @PATCH : **2026-10-01** — [내보내기(PDF/HTML/인쇄) 시 [align="right"] 및 [style*="text-align: right"] 우측 정렬 전역 보장]: generateExportCss에 우측/중앙 정렬 셀렉터를 명시하여 본문 p { text-align: left !important; }가 서명/날짜/발신인 등의 우측 정렬을 덮어쓰지 않도록 완전 보장
 // 🚨 @PATCH : **2026-10-01** — [PDF 3·4·5페이지 섹션 시작 조판 최적화 및 제목+소개+미디어 원자적 결속]: H1~H6 바로 뒤의 소개 문단/목록이 핵심 이미지나 다이어그램으로 이어질 때, 이미지가 다음 페이지로 넘어갈 경우 제목과 한 줄 소개만 앞 페이지 하단에 덩그러니 남겨지는 분리 현상을 원천 방어하도록 break-after: avoid를 결속하여 제목+소개+이미지가 다음 페이지 첫머리에서 온전히 함께 시작되도록 출판형 조판 완성
 // 🚨 @PATCH : **2026-10-01** — [PDF Mermaid 다이어그램 컨테이너 분할 분리 및 이전 페이지 빈 사각형 잔상 버그 완전 해결]: .not-prose, .not-prose > div, .mermaid-svg-container, .mermaid-block-container에 break-inside: avoid를 전면 강제 적용하여 컨테이너와 SVG가 분리되어 이전 페이지에 빈 사각형 박스가 남는 렌더링 결함을 완전히 차단하고, 도표 전체가 한 덩어리로 온전히 다음 페이지로 넘어가도록 원자적(Atomic) 조판 완결
@@ -326,25 +329,57 @@ p .onrivi-line + .onrivi-line {
       const marginBottom = ruleObj['margin-bottom'];
       const fontWeight = ruleObj['font-weight'];
 
+      const footnoteTextSelectors = [
+        '.custom-preview-container .footnotes',
+        '.custom-preview-container .footnotes p',
+        '.custom-preview-container .footnotes li',
+        '.custom-preview-container .footnotes a',
+        '.onrivi-content-root .footnotes',
+        '.onrivi-content-root .footnotes p',
+        '.onrivi-content-root .footnotes li',
+        '.onrivi-content-root .footnotes a',
+        '.custom-preview-container .visual-footnote-def',
+        '.custom-preview-container .visual-footnote-text',
+        '.onrivi-content-root .visual-footnote-def',
+        '.onrivi-content-root .visual-footnote-text'
+      ].join(', ');
+
+      const footnoteSizeSelectors = [
+        '.custom-preview-container .footnotes',
+        '.custom-preview-container .footnotes p',
+        '.custom-preview-container .footnotes li',
+        '.custom-preview-container .footnotes a',
+        '.onrivi-content-root .footnotes',
+        '.onrivi-content-root .footnotes p',
+        '.onrivi-content-root .footnotes li',
+        '.onrivi-content-root .footnotes a',
+        '.custom-preview-container .visual-footnote-def',
+        '.custom-preview-container .visual-footnote-text',
+        '.custom-preview-container .visual-footnote-badge',
+        '.onrivi-content-root .visual-footnote-def',
+        '.onrivi-content-root .visual-footnote-text',
+        '.onrivi-content-root .visual-footnote-badge'
+      ].join(', ');
+
       if (marginTop) {
-        css += `.custom-preview-container .footnotes, .onrivi-content-root .footnotes {\n  margin-top: ${marginTop} !important;\n}\n`;
+        css += `.custom-preview-container .footnotes, .onrivi-content-root .footnotes, .custom-preview-container .visual-footnote-area-header, .onrivi-content-root .visual-footnote-area-header {\n  margin-top: ${marginTop} !important;\n}\n`;
       }
       if (marginBottom) {
-        css += `.custom-preview-container .footnotes, .onrivi-content-root .footnotes {\n  margin-bottom: ${marginBottom} !important;\n}\n`;
+        css += `.custom-preview-container .footnotes, .onrivi-content-root .footnotes, .custom-preview-container .visual-footnote-def-container, .onrivi-content-root .visual-footnote-def-container {\n  margin-bottom: ${marginBottom} !important;\n}\n`;
       }
       if (color) {
-        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  color: ${color} !important;\n}\n`;
+        css += `${footnoteTextSelectors} {\n  color: ${color} !important;\n}\n`;
       }
       if (fontSize) {
-        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  font-size: ${fontSize} !important;\n}\n`;
+        css += `${footnoteSizeSelectors} {\n  font-size: ${fontSize} !important;\n}\n`;
       } else {
-        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  font-size: inherit !important;\n}\n`;
+        css += `${footnoteSizeSelectors} {\n  font-size: 12.5px !important;\n}\n`;
       }
       if (lineHeight) {
-        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  line-height: ${lineHeight} !important;\n}\n`;
+        css += `${footnoteSizeSelectors} {\n  line-height: ${lineHeight} !important;\n}\n`;
       }
       if (fontWeight) {
-        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  font-weight: ${fontWeight} !important;\n}\n`;
+        css += `${footnoteSizeSelectors} {\n  font-weight: ${fontWeight} !important;\n}\n`;
       }
       return;
     }

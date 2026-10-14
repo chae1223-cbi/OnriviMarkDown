@@ -30,6 +30,7 @@ import {
 // ====================================================================
 // 📊 [OMD-EDIT-USEEDITORHANDLERS-0014] useEditorHandlers.ts ➔ useEditorHandlers
 // 🎯 @KICK  : 에디터 주요 액션 핸들러(저장, 내보내기, 서식 삽입 등)를 통합 관리
+// 🚨 @PATCH : **2026-10-14** — [간편 표(quickTable) 생성 시 첫 번째 열 헤더("구분") 자동 선택 연동]: quickTable 호출 시 첫 번째 헤더 셀로 커서 및 선택 영역을 자동 안착시켜 즉시 편집 가능하도록 개선
 // 🚨 @PATCH : **2026-10-11** — [구글 드라이브 토큰 만료 시 비상 로컬 백업 연동 및 작성 글 100% 보존]:
 //             구글 드라이브 저장 시 토큰 만료(401)나 네트워크 실패 시에도 작성 중이던 최신 에디터 본문을 onrivi_emergency_gdrive_drafts 로컬 스냅샷으로 즉시 대피 백업하여 데이터 유실 원천 방어
 // 🚨 @PATCH : **2026-10-03** — [구글 드라이브 저장 시 브라우저 showSaveFilePicker 다이얼로그 오작동 차단 & 클라우드 직결 무음 저장 지원]: driveFileId/driveId 또는 workspaceType === 'cloud' 환경에서 브라우저 파일 다이얼로그로 누락 떨어지던 결함을 차단하고 saveDriveFileContent 직결 무음 저장 및 새 문서 프롬프트 연동
@@ -1211,7 +1212,61 @@ export const useEditorHandlers = ({
       // 표 밖일 때만 신규 표 생성 모달 열기
       setIsTableModalOpen(true);
     },
-    quickTable: () => insertAtCursor('| 구분 | 데이터 1 | 데이터 2 |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |\n'),
+    quickTable: () => {
+      const editor = editorRef?.current;
+      if (!editor) {
+        insertAtCursor('| 구분 | 데이터 1 | 데이터 2 |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |\n');
+        return;
+      }
+      const model = editor.getModel();
+      if (!model) return;
+      let selection = editor.getSelection();
+      if (!selection || (selection.isEmpty() && lastSelectionRef?.current && !lastSelectionRef.current.isEmpty())) {
+        selection = lastSelectionRef.current;
+      }
+      if (!selection) {
+        const pos = editor.getPosition?.() || { lineNumber: 1, column: 1 };
+        selection = { startLineNumber: pos.lineNumber, startColumn: pos.column, endLineNumber: pos.lineNumber, endColumn: pos.column };
+      }
+      const currentLineContent = model.getLineContent(selection.startLineNumber);
+      const prefix = currentLineContent.trim().length > 0 ? '\n' : '';
+      const text = `${prefix}| 구분 | 데이터 1 | 데이터 2 |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |\n`;
+      const monaco = (window as any).monaco;
+      const range = monaco?.Range
+        ? new monaco.Range(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn)
+        : selection;
+      editor.pushUndoStop();
+      editor.executeEdits("quickTable", [{ range, text, forceMoveMarkers: true }]);
+      editor.pushUndoStop();
+
+      let targetHeaderLine = selection.startLineNumber;
+      for (let l = selection.startLineNumber; l <= Math.min(selection.startLineNumber + 3, model.getLineCount()); l++) {
+        if (model.getLineContent(l).trim().startsWith('|')) {
+          targetHeaderLine = l;
+          break;
+        }
+      }
+
+      const applyQuickTableSelection = () => {
+        if (!editorRef?.current) return;
+        const ed = editorRef.current;
+        ed.focus();
+        const sel = monaco?.Selection
+          ? new monaco.Selection(targetHeaderLine, 3, targetHeaderLine, 5)
+          : { selectionStartLineNumber: targetHeaderLine, selectionStartColumn: 3, positionLineNumber: targetHeaderLine, positionColumn: 5 };
+        ed.setSelection(sel);
+        if (lastSelectionRef) lastSelectionRef.current = sel;
+        ed.revealLineInCenterIfOutsideViewport(targetHeaderLine);
+      };
+
+      applyQuickTableSelection();
+      setTimeout(applyQuickTableSelection, 40);
+      setTimeout(applyQuickTableSelection, 120);
+
+      if (typeof updateContent === 'function') {
+        updateContent(model.getValue(), true);
+      }
+    },
     // ====================================================================
     // 📊 [OMD-EDIT-USEEDITORHANDLERS-0005] useEditorHandlers.ts ➔ insertTableRow
     // 🎯 @KICK  : 편집 중인 표 아래에 새 행을 추가하여 데이터 입력 공간 확보

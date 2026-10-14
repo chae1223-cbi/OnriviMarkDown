@@ -103,10 +103,18 @@ const HELP_CATEGORIES: HelpCategory[] = [
       "HELP-28_라이선스_등록_및_기기_세션_동시접속_관리.md",
       "HELP-29_문제_해결과_자주_묻는_질문.md"
     ]
+  },
+  {
+    title: "PART 9. 코드·그림책·문서 도구",
+    docs: [
+      "HELP-30_코드블록_입력_편집_복사.md",
+      "HELP-31_그림책_장면_편집과_내보내기.md",
+      "HELP-32_문서_연결_달력_날짜_이모지.md"
+    ]
   }
 ];
 
-// 전체 30종 공식 문서 목록
+// 전체 33종 공식 문서 목록
 const HELP_DOCS_LIST = HELP_CATEGORIES.flatMap(c => c.docs);
 
 // 파일명에서 표시용 제목 추출

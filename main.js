@@ -2,6 +2,7 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-10-14** — [데스크톱 구글 드라이브 인증(gdrive:request-auth) 중복 호출 방어 및 활성 프로미스 싱글톤 재사용]: 이미 인증 루프백 서버 및 브라우저 Handoff가 대기 중인 상태에서 추가 호출 유입 시, 기존 요청을 취소(Reject)하지 않고 진행 중인 Promise를 안전하게 재사용(Shared Singleton)하여 '새로운 인증 요청으로 인해 이전 요청이 취소되었습니다' 에러 및 중복 브라우저 팝업 완벽 박멸
 // 🚨 @PATCH : **2026-10-10** — [file:readFromPath 도움말(/help/, HELP-*.md) 지능형 폴백 탐색 엔진 탑재]: 데스크톱 앱에서 워크스페이스 경로 결합(D:\...\help\HELP-01_...md) 또는 /help/ 경로로 유입 시 파일이 없을 때, frontend/public/help, frontend/out/help, docs/help를 자동 탐색하여 100% 정상 로드하고 '파일을 찾을 수 없습니다' 에러 완전 해결
 // 🚨 @PATCH : **2026-10-04** — [로컬 파일 읽기(file:readFromPath) 상대경로/파일명 단독 유입 시 활성 워크스페이스 지능형 재귀 탐색]: 상대경로(예: '여기는 연습1.md') 전달 시 현재 활성 워크스페이스(currentActiveWorkspacePath) 직접 결합 및 하위 재귀 탐색(findFileRecursive)을 선행하여 파일을 100% 정상 로드하고 '파일을 찾을 수 없습니다' 크래시 완전 해결
 // 🚨 @PATCH : **2026-10-04** — [데스크톱 Google OAuth 400 invalid_request 해결 & 시스템 브라우저 웹 Handoff 및 루프백 브리지 엔진 신설]: Google의 임베디드 웹뷰 및 비표준 redirect_uri 차단 정책을 준수하기 위해 gdrive:request-auth IPC 핸들러 및 임시 루프백 서버(http://127.0.0.1:port)를 가동하고, 시스템 기본 브라우저(https://onrivi.com/auth/google-drive-desktop)를 통해 GIS 인증 후 토큰을 데스크톱으로 즉각 수신하는 이중 브리지(루프백 fetch + onriviauthor:// 딥링크) 탑재
@@ -4444,28 +4445,24 @@ ipcMain.handle('mermaid:open-window', async (event, svgHtml, options = {}) => {
 // 📊 [OMD-MAIN-main-0004] main.js ➔ gdrive:request-auth
 // 🎯 @KICK  : 데스크톱 구글 드라이브 인증 루프백 서버 가동 및 외부 브라우저 Handoff 연동
 // 🛡️ @GUARD : 타임아웃(120초), 단일 1회 응답 후 서버 즉시 close, CORS 허용
+// 🚨 @PATCH : **2026-10-14** — [데스크톱 구글 드라이브 인증(gdrive:request-auth) 중복 호출 방어 및 활성 프로미스 싱글톤 재사용] 이미 인증 루프백 서버 및 브라우저 Handoff가 대기 중인 상태에서 추가 호출 유입 시 기존 요청을 취소하지 않고 현재 진행 중인 Promise를 재사용하여 오류 차단
 // 🚨 @PATCH : **2026-10-04** — 데스크톱 Google OAuth 400 invalid_request 해결을 위한 시스템 브라우저 웹 Handoff 및 루프백 브리지 엔진 신설
 // 🔗 @CALLS : http.createServer, shell.openExternal, getFreePort
 // ====================================================================
-let globalResolveGDriveAuth = null;
-let globalRejectGDriveAuth = null;
+let globalGDriveAuthPromise = null;
 let globalActiveGDriveServer = null;
 
 ipcMain.handle('gdrive:request-auth', async () => {
+  // 🛡️ [중복 호출 방어] 이미 인증 루프백 서버가 가동되어 대기 중인 경우, 기존 요청을 취소하지 않고 현재 진행 중인 Promise를 재사용하여 안전하게 대기
+  if (globalGDriveAuthPromise) {
+    console.log('[GDrive Loopback] ℹ️ 이미 활성화된 인증 요청이 대기 중입니다. 기존 요청을 공유합니다.');
+    return globalGDriveAuthPromise;
+  }
+
   const http = require('http');
   const { shell } = require('electron');
 
-  if (globalActiveGDriveServer) {
-    try { globalActiveGDriveServer.close(); } catch {}
-    globalActiveGDriveServer = null;
-  }
-  if (globalRejectGDriveAuth) {
-    globalRejectGDriveAuth(new Error('새로운 인증 요청으로 인해 이전 요청이 취소되었습니다.'));
-    globalResolveGDriveAuth = null;
-    globalRejectGDriveAuth = null;
-  }
-
-  return new Promise(async (resolve, reject) => {
+  globalGDriveAuthPromise = new Promise(async (resolve, reject) => {
     let isHandled = false;
 
     const cleanup = () => {
@@ -4473,11 +4470,10 @@ ipcMain.handle('gdrive:request-auth', async () => {
         try { globalActiveGDriveServer.close(); } catch {}
         globalActiveGDriveServer = null;
       }
-      globalResolveGDriveAuth = null;
-      globalRejectGDriveAuth = null;
+      globalGDriveAuthPromise = null;
     };
 
-    globalResolveGDriveAuth = (data) => {
+    const handleResolve = (data) => {
       if (isHandled) return;
       isHandled = true;
       cleanup();
@@ -4488,7 +4484,7 @@ ipcMain.handle('gdrive:request-auth', async () => {
       }
     };
 
-    globalRejectGDriveAuth = (err) => {
+    const handleReject = (err) => {
       if (isHandled) return;
       isHandled = true;
       cleanup();
@@ -4518,10 +4514,7 @@ ipcMain.handle('gdrive:request-auth', async () => {
             if (token) {
               res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
               res.end(JSON.stringify({ ok: true, message: 'Token received' }));
-
-              if (globalResolveGDriveAuth) {
-                globalResolveGDriveAuth({ access_token: token, expires_in: expiresIn });
-              }
+              handleResolve({ access_token: token, expires_in: expiresIn });
               return;
             }
           }
@@ -4536,13 +4529,12 @@ ipcMain.handle('gdrive:request-auth', async () => {
       globalActiveGDriveServer = server;
 
       const timer = setTimeout(() => {
-        if (globalRejectGDriveAuth) {
-          globalRejectGDriveAuth(new Error('구글 드라이브 인증 시간이 초과되었습니다 (120초).'));
-        }
+        handleReject(new Error('구글 드라이브 인증 시간이 초과되었습니다 (120초).'));
       }, 120000);
 
       server.on('close', () => {
         clearTimeout(timer);
+        globalGDriveAuthPromise = null;
       });
 
       server.listen(loopbackPort, '127.0.0.1', () => {
@@ -4555,15 +4547,13 @@ ipcMain.handle('gdrive:request-auth', async () => {
 
       server.on('error', (err) => {
         console.error('[GDrive Loopback Server Error]', err);
-        if (globalRejectGDriveAuth) {
-          globalRejectGDriveAuth(err);
-        }
+        handleReject(err);
       });
     } catch (err) {
-      if (globalRejectGDriveAuth) {
-        globalRejectGDriveAuth(err);
-      }
+      handleReject(err);
     }
   });
+
+  return globalGDriveAuthPromise;
 });
 

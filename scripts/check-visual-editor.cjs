@@ -46,8 +46,16 @@ trailingState=trailingState.apply(trailingState.tr.insert(10,visualSchema.nodes.
 const breakMD=trailingCodec.serialize(trailingState.doc);
 assert.equal(createVisualDocumentCodec(breakMD).doc.firstChild.type.name,'paragraph');
 assert.equal(createVisualDocumentCodec(breakMD).doc.firstChild.childCount,3);
-assert.ok(breakMD.includes('<br><br>'));
+assert.ok(!breakMD.includes('<br>'));
+assert.ok(!breakMD.includes('\\'));
+assert.equal(breakMD,'tail    \n\n');
+assert.ok(!trailingMD.includes('&#32;'));
 
+const headingSpacing=createVisualDocumentCodec('body\n# heading\n');
+let headingState=EditorState.create({doc:headingSpacing.doc});headingState=headingState.apply(headingState.tr.insertText('edited ',1));
+assert.match(headingSpacing.serialize(headingState.doc),/body\n\n# heading/);
+const headingCode=createVisualDocumentCodec('```markdown\n# code heading\n```');
+assert.equal(headingCode.serialize(headingCode.doc),'```markdown\n# code heading\n```');
 const sceneExample = '# 출력 A\n\n```markdown\n:::scene {cover}\n![표지](media/cover.png)\n\n# 제목\n:::\n```\n\n뒤 문단\n';
 const exampleCodec = createVisualDocumentCodec(sceneExample);
 assert.equal(exampleCodec.doc.childCount, 3);
@@ -80,7 +88,12 @@ assert.ok(changed.endsWith('[ref]: https://example.com\n'));
 assert.equal(visualSchema.nodes.source_block.spec.atom, true);
 console.log('PASS: exact source preservation, metadata, opaque blocks, targeted paragraph edits');
 const helpPath=path.join(frontend,'public/help/HELP-01_온리비_어서_소개와_시작하기.md');
-const helpSource=fs.readFileSync(helpPath,'utf8');
+const helpSource=fs.readFileSync(helpPath,'utf8').replace(/\r\n/g,'\n')+'\n\n'+[
+  '## Regression examples',
+  '| Name | Value |', '| :--- | ---: |', '| a | 1 |', '| b | 2 |', '| c | 3 |', '| d | 4 |', '',
+  '```text', 'a long code line', '```', '', '```javascript', 'const value = 1;', '```', '',
+  '> [!NOTE]', '> First alert', '', '> [!TIP]', '> Second alert', ''
+].join('\n');
 const initialSource='---\n메타영역\n#서식설정\ncss_profile: system-1\ncss_profile_name: "Onrivi 기본서식"\n---\n\n';
 const importedCodec=createVisualDocumentCodec(initialSource);
 const {history,undo,redo}=req('prosemirror-history');
@@ -122,6 +135,9 @@ async function visual() {
   fs.writeFileSync(path.join(dir, 'mediaMarkup.js'), compile(path.join(frontend, 'src/lib/mediaMarkup.ts')));
   fs.writeFileSync(path.join(dir, 'clipboard.js'), compile(path.join(frontend, 'src/lib/desktopClipboard.ts')));
   fs.writeFileSync(path.join(dir, 'caret.js'), compile(path.join(frontend, 'src/lib/visualCaret.ts')));
+  // These unrelated dialogs are not exercised by the editor/Mermaid fixture.
+  fs.writeFileSync(path.join(dir,'unrelatedModals.js'),'module.exports = () => null;');
+  fs.writeFileSync(path.join(dir, 'listCommands.js'), compile(path.join(frontend,'src/lib/visualListCommands.ts')));
   fs.writeFileSync(path.join(dir, 'tableCommands.js'), compile(path.join(frontend, 'src/lib/visualTableCommands.ts')));
   fs.writeFileSync(path.join(dir, 'icons.js'), "const React=require('react');exports.Plus=exports.X=(props)=>React.createElement('svg',props);");
   fs.writeFileSync(path.join(dir, 'tableModal.js'), compile(path.join(frontend, 'src/components/TableModal.tsx')));
@@ -171,7 +187,7 @@ async function visual() {
         React.createElement('button',{id:'toggle',onClick:()=>setVisible(!visible)},'보기 전환'),
         React.createElement('button',{id:'readonly',onClick:()=>setReadonly(!readonly)},'읽기 전용'),
         shared && floating.visible && React.createElement(Legacy,{floatingToolbar:floating,setFloatingToolbar:setFloating,commandRef:sharedCommand}),
-        visible && React.createElement(Editor,{content,onSourceScroll:offset=>{window.qaSourceScroll=offset;},onSourceCursor:offset=>{window.qaSourceCursor=offset;},onChange:setContent,readOnly:readonly,documentId:'test-document',customCommands:commands,customHotkeys:hotkeys,commandRef:sharedCommand,
+        visible && React.createElement(Editor,{content,onSourceScroll:offset=>{window.qaSourceScroll=offset;},onSourceCursor:(offset,reveal=true)=>{window.qaSourceCursor=offset;window.qaCursorReveal=reveal;},onChange:setContent,readOnly:readonly,documentId:'test-document',customCommands:commands,customHotkeys:hotkeys,commandRef:sharedCommand,
           renderImage:source=>React.createElement('img',{alt:'test preview',style:{width:320,height:160},src:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWo4AAAAASUVORK5CYII='}),
           onMediaDialog:(kind,source,insert)=>{window.qaMediaDialog={kind,source,insert};},
           onImageDialog:(source,insert)=>{window.qaImageDialog={source,insert};},
@@ -184,9 +200,15 @@ async function visual() {
     createRoot(document.getElementById('root')).render(React.createElement(App));
   `);
   const webpack = req('webpack');
+  // The read-only renderer includes KaTeX styles. Load its real CSS in the
+  // browser fixture instead of relying on the production Next.js CSS loader.
+  fs.writeFileSync(path.join(dir, 'css-loader.cjs'), `module.exports = function(source) {
+    return 'const style=document.createElement("style");style.textContent='+JSON.stringify(source)+';document.head.appendChild(style);';
+  };`);
   await new Promise((resolve, reject) => webpack({ mode: 'development', entry: path.join(dir, 'entry.js'),
+    module: { rules: [{ test: /\.css$/, use: [path.join(dir, 'css-loader.cjs')] }] },
     output: { path: dir, filename: 'bundle.js' }, resolve: { modules: [path.join(frontend, 'node_modules')],
-      alias: { 'lucide-react':path.join(dir,'icons.js'), './visualDocumentCodec':path.join(dir,'codec.js'), '@/lib/visualTableCommands':path.join(dir,'tableCommands.js'), '@/components/TableModal':path.join(dir,'tableModal.js'), '@/components/TableHeaderCell':path.join(dir,'tableHeader.js'), './mediaMarkup':path.join(dir,'mediaMarkup.js'), '@/lib/mediaMarkup':path.join(dir,'mediaMarkup.js'), '@/lib/desktopClipboard':path.join(dir,'clipboard.js'), '@/lib/visualCaret': path.join(dir, 'caret.js'), '@/lib/visualDocumentCodec': path.join(dir, 'codec.js'), '@/lib/visualMarkdownInputRules': path.join(dir, 'inputRules.js'), '@/lib/visualCommandCatalog': path.join(dir,'catalog.js'), '@/lib/toolbarConfig': path.join(dir,'toolbar.js'), '@/lib/visualMarkdownPaste':path.join(dir,'paste.js'), '@/components/VisualReadOnlyMarkdownBlock':path.join(dir,'readonly.js') } }, devtool: false,
+      alias: { '@/components/LinkModal':path.join(dir,'unrelatedModals.js'), '@/components/CalendarModal':path.join(dir,'unrelatedModals.js'), '@/components/DateTimeInsertPicker':path.join(dir,'unrelatedModals.js'), '@/lib/visualListCommands':path.join(dir,'listCommands.js'), 'lucide-react':path.join(dir,'icons.js'), './visualDocumentCodec':path.join(dir,'codec.js'), '@/lib/visualTableCommands':path.join(dir,'tableCommands.js'), '@/components/TableModal':path.join(dir,'tableModal.js'), '@/components/TableHeaderCell':path.join(dir,'tableHeader.js'), './mediaMarkup':path.join(dir,'mediaMarkup.js'), '@/lib/mediaMarkup':path.join(dir,'mediaMarkup.js'), '@/lib/desktopClipboard':path.join(dir,'clipboard.js'), '@/lib/visualCaret': path.join(dir, 'caret.js'), '@/lib/visualDocumentCodec': path.join(dir, 'codec.js'), '@/lib/visualMarkdownInputRules': path.join(dir, 'inputRules.js'), '@/lib/visualCommandCatalog': path.join(dir,'catalog.js'), '@/lib/toolbarConfig': path.join(dir,'toolbar.js'), '@/lib/visualMarkdownPaste':path.join(dir,'paste.js'), '@/components/VisualReadOnlyMarkdownBlock':path.join(dir,'readonly.js') } }, devtool: false,
   }, (error, stats) => error || stats.hasErrors() ? reject(error || new Error(stats.toString({ all: false, errors: true }))) : resolve()));
   const cssDir=path.join(frontend,'out/_next/static/css');
   const css=fs.existsSync(cssDir)?fs.readdirSync(cssDir).filter(file=>file.endsWith('.css')).map(file=>`<link rel="stylesheet" href="file:///${path.join(cssDir,file).replace(/\\/g,'/')}">`).join(''):'';
@@ -200,6 +222,27 @@ async function visual() {
     page.on('pageerror', error => { errors.push(error.message); console.error('Browser error:',error.message); });
     await page.goto('file:///' + path.join(dir, 'index.html').replace(/\\/g, '/'));
     const surface = page.locator('.visual-document-surface');
+    const checkTableModal=async()=>{
+    for(const submitWithEnter of [false,true]) {
+      await page.evaluate(()=>window.setTestSource(''));
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='');
+      await surface.locator('p').first().click();await page.keyboard.type('/table');
+      await page.getByRole('menu',{name:'슬래시 명령어'}).getByRole('button',{name:'/table',exact:true}).click();
+      await page.locator('[data-purpose="submit-button"]').waitFor();
+      if(submitWithEnter)await page.keyboard.press('Enter');
+      else await page.locator('[data-purpose="submit-button"]').click();
+      await surface.locator('th').first().waitFor();
+      assert.equal(await page.evaluate(()=>window.getSelection().toString()),'제목');
+      assert.equal(await page.evaluate(()=>window.qaView.state.selection.$from.parent.type.name),'paragraph');
+      assert.equal(await surface.evaluate(el=>el.contains(document.activeElement)),true);
+      await page.keyboard.insertText('첫 헤더');
+      assert.equal(await surface.locator('th').first().textContent(),'첫 헤더');
+      assert.equal(await surface.locator('th').nth(1).textContent(),'제목');
+    }
+    console.log('PASS: table modal button/Enter insertion selects the first header text and typing replaces only that cell');
+    };
+    if(process.argv.includes('--table')){await checkTableModal();await browser.close();return;}
+
     await surface.locator('p').first().click();
     await page.keyboard.press('End');
     await page.keyboard.insertText(' 추가');
@@ -230,7 +273,7 @@ async function visual() {
     await page.keyboard.insertText(' 한글 입력');
     await page.waitForFunction(() => document.querySelector('#source').value.includes('한글 입력'));
     assert.ok((await page.locator('#source').inputValue()).includes('| A | B |\n|---|---|\n| 1 | 2 |'));
-    await page.evaluate(() => window.setTestSource('첫 항목\n'));
+    await page.evaluate(() => window.setTestSource('첫 항목'));
     await page.waitForFunction(() => document.querySelector('.visual-document-surface').textContent === '첫 항목');
     await surface.locator('p').first().click();
     await page.getByLabel('문단 서식').selectOption({ label: '글머리 목록' });
@@ -292,16 +335,16 @@ async function visual() {
     await page.keyboard.insertText('after code');
     await page.waitForFunction(()=>document.querySelector('#source').value.includes('after code'));
     assert.equal(await surface.locator('p').last().textContent(),'after code');
-    await page.evaluate(()=>window.setTestSource('first paragraph\n\nsecond paragraph\n'));
+    await page.evaluate(()=>window.setTestSource('first paragraph\n\nsecond paragraph'));
     await surface.locator('p').last().waitFor();
     await page.locator('#source').focus();
     await page.evaluate(()=>window.dispatchEvent(new CustomEvent('onrivi:source-cursor',{detail:{offset:17}})));
     await page.waitForFunction(()=>window.qaView.state.selection.$from.parent.textContent==='second paragraph');
-    await page.evaluate(()=>window.setTestSource('paragraph\n'));
+    await page.evaluate(()=>window.setTestSource('paragraph'));
     await surface.locator('p').waitFor();await surface.locator('p').click();await page.keyboard.press('End');
     await page.keyboard.press('Tab');
     assert.equal(await page.evaluate(()=>document.activeElement===window.qaView.dom),true);
-    assert.ok((await surface.locator('p').textContent()).endsWith('\u00a0'));
+    assert.ok((await surface.locator('p').textContent()).endsWith(' '));
     await page.keyboard.press('Shift+Tab');assert.equal(await surface.locator('p').textContent(),'paragraph');
     await page.evaluate(()=>window.setTestSource('```python\nhello\n```\n'));
     await surface.locator('.visual-code-block code').waitFor();await surface.locator('.visual-code-block code').click();await page.keyboard.press('End');await page.keyboard.press('Tab');
@@ -342,15 +385,15 @@ async function visual() {
     assert.ok(nestedSource.includes('Parent\n   - [ ] Child'),nestedSource);
     await page.keyboard.press('Shift+Tab');
     assert.equal(await surface.locator('ol li ul li').count(),0);
-    await page.evaluate(()=>window.setTestSource('alpha beta\n'));
+    await page.evaluate(()=>window.setTestSource('alpha beta'));
     await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='alpha beta');
     await surface.locator('p').click();await page.keyboard.press('Home');await page.keyboard.press('Tab');
-    assert.ok((await surface.locator('p').textContent()).startsWith('\u00a0'));
+    assert.ok((await surface.locator('p').textContent()).startsWith(' '));
     await page.keyboard.press('Shift+Tab');assert.equal(await surface.locator('p').textContent(),'alpha beta');
     await page.keyboard.press('Home');for(let i=0;i<5;i++)await page.keyboard.press('ArrowRight');await page.keyboard.press('Tab');
-    assert.ok((await surface.locator('p').textContent()).includes('alpha\u00a0'));
+    assert.ok((await surface.locator('p').textContent()).includes('alpha '));
     await page.keyboard.press('Shift+Tab');assert.equal(await surface.locator('p').textContent(),'alpha beta');
-    await page.evaluate(()=>window.setTestSource('space check\n'));
+    await page.evaluate(()=>window.setTestSource('space check'));
     await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='space check');
     await page.addStyleTag({content:'.custom-preview-container p { white-space:normal!important; }'});
     await surface.locator('p').click();await page.keyboard.press('Home');for(let i=0;i<5;i++)await page.keyboard.press('ArrowRight');
@@ -368,7 +411,7 @@ async function visual() {
     assert.equal(await nestedList.evaluate(el=>getComputedStyle(el).marginTop),'0px');
     assert.equal(await nestedList.evaluate(el=>getComputedStyle(el).marginBottom),'0px');
     await surface.evaluate(el=>el.parentElement.classList.remove('custom-preview-container'));
-    await page.evaluate(()=>window.setTestSource('first paragraph\n\nsecond paragraph\n'));
+    await page.evaluate(()=>window.setTestSource('first paragraph\n\nsecond paragraph'));
     await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='first paragraphsecond paragraph');
     await surface.locator('p').last().click();
     await page.waitForFunction(()=>typeof window.qaSourceCursor==='number' && window.qaSourceCursor>=17);
@@ -389,8 +432,140 @@ async function visual() {
     assert.equal(await surface.locator('p').textContent(),'tail    ');
     await page.keyboard.press('Enter');await page.keyboard.press('Enter');
     assert.equal(await surface.locator('p').count(),1);
-    assert.ok((await page.locator('#source').inputValue()).includes('<br><br>'));
+    assert.ok(!(await page.locator('#source').inputValue()).includes('<br>'));
     await page.keyboard.insertText('next line');assert.ok((await surface.locator('p').textContent()).includes('next line'));
+    await page.evaluate(()=>window.setTestSource('Typing stability test'));
+    await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='Typing stability test');
+    await surface.locator('p').click();await page.keyboard.press('End');
+    await page.keyboard.type(' abcd');
+    await page.waitForFunction(()=>window.qaCursorReveal===false);
+    assert.equal(await surface.locator('p').textContent(),'Typing stability test abcd');
+    await page.evaluate(()=>window.setTestSource(''));
+    await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='');
+    await surface.click();await page.keyboard.type('###');
+    assert.equal(await surface.locator('h3').count(),1);
+    await page.keyboard.press('Space');await page.keyboard.insertText('Hash only heading');
+    assert.equal(await surface.locator('h3').textContent(),'Hash only heading');
+    await page.evaluate(()=>window.setTestSource('Previous body'));
+    await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='Previous body');
+    await surface.locator('p').click();await page.keyboard.press('End');await page.keyboard.press('Enter');await page.keyboard.type('###');await page.keyboard.insertText('New heading');
+    assert.equal(await surface.locator('p').first().textContent(),'Previous body');
+    assert.equal(await surface.locator('h3').textContent(),'New heading');
+    await page.evaluate(()=>window.setTestSource('1. First\n2. Second\n3. Third'));
+    await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='FirstSecondThird');
+    await surface.locator('p').first().click();await page.keyboard.press('Control+a');await page.keyboard.press('Control+Space');
+    await page.getByRole('toolbar',{name:'선택한 글 서식'}).getByRole('button',{name:'clear',exact:true}).click();
+    assert.equal(await surface.locator('li').count(),0);assert.equal(await surface.locator('p').count(),1);
+    assert.equal(await page.locator('#source').inputValue(),'First\nSecond\nThird');
+    await surface.click();await page.keyboard.press('Control+a');await page.keyboard.press('Control+Space');
+    await page.getByRole('toolbar',{name:'선택한 글 서식'}).getByRole('button',{name:'checklist',exact:true}).click();
+    assert.equal(await surface.getByRole('checkbox').count(),3);
+    assert.ok((await page.locator('#source').inputValue()).includes('- [ ] First\n- [ ] Second\n- [ ] Third'));
+    await surface.locator('p').first().click();await page.keyboard.press('Control+a');await page.keyboard.press('Control+Space');
+    await page.getByRole('toolbar',{name:'선택한 글 서식'}).getByRole('button',{name:'orderedList',exact:true}).click();
+    assert.equal(await surface.locator('ol li').count(),3);assert.equal(await surface.getByRole('checkbox').count(),0);
+    await surface.locator('p').first().click();await page.keyboard.press('Control+a');await page.keyboard.press('Control+Space');
+    await page.getByRole('toolbar',{name:'선택한 글 서식'}).getByRole('button',{name:'list',exact:true}).click();
+    assert.equal(await surface.locator('ul li').count(),3);
+    await page.evaluate(()=>window.setTestSource('1. Upper list\n\nLower line one\nLower line two'));
+    await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent.includes('Lower line two'));
+    const boundaryCss=mainSource.match(/\/\* Separate top-level lists retain the same gap as a following paragraph\. \*\/([\s\S]*?)`;/)[1];
+    await page.addStyleTag({content:'@layer onrivi-settings { .custom-preview-container ul,.custom-preview-container ol {margin-top:4px!important;margin-bottom:4px!important;} .custom-preview-container ol + p {margin-top:1.5em!important;}'+boundaryCss+'}'});
+    await surface.evaluate(el=>el.parentElement.classList.add('custom-preview-container'));
+    await surface.locator('p').last().click();await page.keyboard.press('Home');await page.keyboard.press('Control+Space');
+    await page.getByRole('toolbar',{name:'선택한 글 서식'}).getByRole('button',{name:'list',exact:true}).click();
+    const listGap=await surface.locator(':scope > ul').evaluate(el=>({margin:parseFloat(getComputedStyle(el).marginTop),font:parseFloat(getComputedStyle(el).fontSize)}));
+    assert.ok(listGap.margin>=listGap.font*1.4,JSON.stringify(listGap));
+    await surface.evaluate(el=>el.parentElement.classList.remove('custom-preview-container'));
+    for(const quoteSource of ['> Quoted body','> [!TIP]\n> Tip body']){
+      await page.evaluate(source=>window.setTestSource(source),quoteSource);
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface blockquote'));
+      await surface.locator('blockquote p').last().click();await page.keyboard.press('End');await page.keyboard.press('Control+Enter');await page.keyboard.insertText('Outside quote');
+      assert.equal(await surface.locator(':scope > p').last().textContent(),'Outside quote');
+      assert.ok(!(await surface.locator('blockquote').textContent()).includes('Outside quote'));
+    }
+    await page.evaluate(()=>window.setTestSource('> Last quote line'));
+    await page.waitForFunction(()=>document.querySelector('.visual-document-surface blockquote').textContent==='Last quote line');
+    await surface.locator('blockquote p').click();await page.keyboard.press('End');await page.keyboard.press('Enter');await page.keyboard.press('Enter');
+    assert.equal(await surface.locator(':scope > p').count(),0);
+    await page.keyboard.press('Control+Enter');await page.keyboard.insertText('After blank quote line');
+    assert.equal(await surface.locator(':scope > p').last().textContent(),'After blank quote line');
+    await page.evaluate(()=>window.setTestSource('> [!TIP]\n> Quote first line'));
+    await page.waitForFunction(()=>document.querySelector('.visual-document-surface blockquote').textContent==='Quote first line');
+    await surface.locator('blockquote p').click();await page.keyboard.press('End');await page.keyboard.press('Enter');await page.keyboard.insertText('Quote second line');
+    assert.equal(await surface.locator('blockquote p').count(),1);
+    assert.equal(await surface.locator('blockquote br:not(.ProseMirror-trailingBreak)').count(),1);
+    assert.ok((await page.locator('#source').inputValue()).includes('> Quote first line\n> Quote second line'));
+    await page.keyboard.press('Enter');await page.keyboard.press('Enter');
+    assert.equal(await surface.locator(':scope > p').count(),0);
+    await page.keyboard.insertText('Still in quote');
+    assert.ok((await surface.locator('blockquote').textContent()).includes('Still in quote'));
+    await page.keyboard.press('Control+Enter');await page.keyboard.insertText('After quote');
+    assert.equal(await surface.locator(':scope > p').last().textContent(),'After quote');
+    assert.ok((await surface.locator('blockquote').textContent()).includes('Quote second line'));
+    await page.evaluate(()=>window.setTestSource('> [!TIP]\n> Keep quote\n\n###'));
+    await page.waitForFunction(()=>document.querySelector('.visual-document-surface h3'));
+    await surface.locator('h3').click();await page.keyboard.press('Backspace');
+    assert.equal(await surface.locator('h3').count(),0);
+    assert.equal(await surface.locator(':scope > p').count(),1);
+    assert.equal(await surface.locator('blockquote h3').count(),0);
+    assert.equal(await surface.locator('blockquote').textContent(),'Keep quote');
+    assert.ok(!(await page.locator('#source').inputValue()).includes('###'));
+    await page.keyboard.insertText('Outside title');
+    assert.equal(await surface.locator(':scope > p').textContent(),'Outside title');
+    await page.evaluate(()=>window.setTestSource('> Previous quote\n\n### Title text'));
+    await page.waitForFunction(()=>document.querySelector('.visual-document-surface h3')?.textContent==='Title text');
+    await surface.locator('h3').click();await page.keyboard.press('Home');
+    await page.waitForFunction(()=>window.qaView.state.selection.$from.parent.type.name==='heading' && window.qaView.state.selection.$from.parentOffset===0);
+    await page.keyboard.press('Backspace');
+    assert.equal(await surface.locator(':scope > p').textContent(),'Title text');
+    assert.equal(await surface.locator('blockquote').textContent(),'Previous quote');
+    await page.evaluate(()=>window.setTestSource('```text\nflowchart LR\nA[Start] --> B[End]\n```'));
+    await page.getByRole('textbox',{name:'코드 블록 언어'}).waitFor();
+    await page.getByRole('textbox',{name:'코드 블록 언어'}).fill('mermaid');await page.getByRole('textbox',{name:'코드 블록 언어'}).press('Tab');
+    await surface.locator('.visual-mermaid-preview img').waitFor();
+    assert.equal(await surface.locator('.visual-code-editor-panel').evaluate(el=>el.open),false);
+    await surface.getByText('코드 편집',{exact:true}).click();
+    assert.equal(await surface.locator('.visual-code-editor-panel').evaluate(el=>el.open),true);
+    await surface.getByRole('button',{name:'편집 완료',exact:true}).click();
+    assert.equal(await surface.locator('.visual-code-editor-panel').evaluate(el=>el.open),false);
+    await page.evaluate(()=>window.setTestSource('```text\n'+ 'long_line_'.repeat(200)+'\n```\n\n```text\nsecond\n```'));
+    await surface.locator('.visual-code-block').nth(1).waitFor();
+    const codeLayout=await surface.locator('.visual-code-block').first().evaluate(el=>{
+      const pre=el.querySelector('pre');pre.scrollLeft=150;
+      return {gap:el.nextElementSibling.getBoundingClientRect().top-el.getBoundingClientRect().bottom,overflow:getComputedStyle(pre).overflowX,scrollWidth:pre.scrollWidth,width:pre.clientWidth,left:pre.scrollLeft};
+    });
+    assert.ok(codeLayout.gap>=24);assert.equal(codeLayout.overflow,'auto');assert.ok(codeLayout.scrollWidth>codeLayout.width);assert.ok(codeLayout.left>0);
+    await page.evaluate(()=>{window.qaCopiedCode=null;Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.qaCopiedCode=value;}}});});
+    await surface.locator('.visual-code-block').first().getByRole('button',{name:'코드 내용 복사'}).click();
+    assert.equal(await page.evaluate(()=>window.qaCopiedCode),'long_line_'.repeat(200));
+    assert.equal(await surface.locator('.visual-code-block').first().getByRole('button',{name:'코드 내용 복사'}).textContent(),'복사됨');
+    console.log('PASS: consecutive code cards have spacing, horizontal scroll and exact code copying');
+    const copyTableSource='| Name | Value |\n| :--- | ---: |\n| **First** | second<br>line |\n';
+    await page.evaluate(source=>window.setTestSource(source),copyTableSource);
+    await surface.locator('td').first().click();
+    await page.getByRole('button',{name:'표 복사',exact:true}).click();
+    assert.equal(await page.evaluate(()=>window.qaCopiedCode),copyTableSource);
+    console.log('PASS: table copying preserves Markdown alignment, formatting and cell line breaks');
+    await checkTableModal();
+    const mermaidPage=await browser.newPage({viewport:{width:1200,height:900}});
+    await mermaidPage.setContent('<div id="graph"></div>');
+    await mermaidPage.addScriptTag({path:path.join(frontend,'public/mermaid.min.js')});
+    const viewerSource=fs.readFileSync(path.join(frontend,'src/components/MarkdownViewer.tsx'),'utf8');
+    const initConfig=viewerSource.match(/mermaidObj\.initialize\(\{([\s\S]*?)\n          \}\);/)[1];
+    const graphResult=await mermaidPage.evaluate(async config=>{
+      const settings=Function('isDark','return ({'+config+'});')(false);
+      // React attaches a circular Fiber reference to the document root. ELK's
+      // diagnostic logging must not serialize that DOM through D3 selections.
+      document.documentElement.__reactFiber$regression={stateNode:document.documentElement};
+      window.mermaid.initialize(settings);
+      const code='flowchart LR\nV[문서 직접 편집] --> C[공통 문서 명령]\nM[마크다운 보기] --> C\nA[AI·사진·표 모달] --> C\nC --> S[탭별 문서 세션]\nS --> V\nS --> M\nS --> F[기존 MD 저장소]\nS --> R[출력 전용 렌더러]\nR --> E[PDF·EPUB 등]';
+      const rendered=await window.mermaid.render('mermaid-clean-qa',code);document.getElementById('graph').innerHTML=rendered.svg;
+      return {nodes:document.querySelectorAll('g.node').length,svg:rendered.svg};
+    },initConfig);
+    assert.equal(graphResult.nodes,8);assert.ok(graphResult.svg.includes('#eaf2ff'));assert.ok(graphResult.svg.includes('rx:16px'));
+    await mermaidPage.screenshot({path:path.join(dir,'mermaid-clean-diagram.png'),fullPage:true});await mermaidPage.close();
+    if(process.argv.includes('--mermaid')){console.log('PASS: auto Mermaid preview, collapsed code editor and real ELK renderer with rounded blue nodes');await browser.close();return;}
     // A heading's literal numeric prefix must never become an ordered list.
     await page.evaluate(() => window.setTestSource(''));
     await page.waitForFunction(() => document.querySelector('.visual-document-surface').textContent === '');
@@ -436,9 +611,10 @@ async function visual() {
     await page.waitForFunction(() => document.querySelector('.visual-document-surface').textContent === '');
     await surface.click(); await page.keyboard.type('/math');
     await page.getByRole('menu', {name:'슬래시 명령어'}).getByRole('button', {name:'/math',exact:true}).click();
-    const routed = await page.evaluate(() => window.qaSourceAction);
-    assert.equal(routed.id, 'math'); assert.ok(!routed.source.includes('/math'));
-    assert.equal(routed.from, routed.to); assert.ok(!routed.source.includes('ONRIVICURSOR'));
+    await surface.locator('.katex').first().waitFor();
+    const mathSource=await page.locator('#source').inputValue();
+    assert.ok(mathSource.includes('\\frac'));assert.ok(!mathSource.includes('/math'));
+    assert.ok(!mathSource.includes('ONRIVICURSOR'));
     await page.evaluate(() => { window.setTestSource('옛 툴바'); window.setSharedToolbar(true); });
     await page.waitForFunction(() => document.querySelector('.visual-document-surface').textContent === '옛 툴바');
     await surface.click(); await page.keyboard.press('Control+Space');
@@ -489,14 +665,18 @@ async function visual() {
     await surface.locator('table').waitFor();
     assert.equal(await surface.locator('th').first().evaluate(el=>getComputedStyle(el).textAlign),'center');
     await page.screenshot({path:path.join(dir,'full-help-paste.png'),fullPage:true});
-    const secondHelp=fs.readFileSync(path.join(frontend,'public/help/HELP-02_에디터_화면_구성과_3단_레이아웃.md'),'utf8');
+    if(process.argv.includes('--help')) {
+      console.log('PASS: current complete help document rendering, examples, links, exact clipboard source and undo/redo');
+      await browser.close();return;
+    }
+    const secondHelp=fs.readFileSync(path.join(frontend,'public/help/HELP-30_코드블록_입력_편집_복사.md'),'utf8');
     await page.evaluate(source=>window.setTestSource(source),secondHelp);
     await page.waitForFunction(source=>document.querySelector('#source').value===source,secondHelp);
     await page.waitForTimeout(50);
     await surface.locator('.visual-code-block code').first().waitFor();
     const codeElement=surface.locator('.visual-code-block code').first();
     const plainCode=await codeElement.textContent();
-    assert.ok(plainCode.includes('Monaco Editor'));
+    assert.ok(plainCode.includes('const message'));
     const beforeClick=await page.locator('#source').inputValue();
     await codeElement.click();
     assert.equal(await page.locator('#source').inputValue(),beforeClick);
@@ -508,25 +688,29 @@ async function visual() {
       return performance.now()-start;
     });
     assert.ok(timing<1500,`Code editing unexpectedly stalled for ${timing}ms`);
-    console.log(`HELP-02 code edit + two animation frames: ${timing.toFixed(1)}ms`);
+    console.log(`HELP-30 code edit + two animation frames: ${timing.toFixed(1)}ms`);
     await surface.locator('p').first().click();
     await page.keyboard.press('End');
     await page.waitForFunction(() => getComputedStyle(document.querySelector('.visual-persistent-caret')).display === 'block');
-    assert.equal(await page.locator('.visual-persistent-caret').evaluate(el => getComputedStyle(el).width), '5px');
+    assert.equal(await page.locator('.visual-persistent-caret').evaluate(el => getComputedStyle(el).width), '3px');
+    await page.evaluate(()=>{window.qaBeforeP=document.querySelector('.visual-document-surface p');window.qaBeforeCode=document.querySelector('.visual-code-block code');});
+    await page.waitForFunction(()=>window.qaView.state.selection.$from.parent.textContent===document.querySelector('.visual-document-surface p').textContent);
     const beforeRefresh=await page.evaluate(() => window.qaView.state.selection.head);
     await page.evaluate(() => window.setTestSource(document.querySelector('#source').value.replace('system-1','system-2')));
     await page.waitForTimeout(100);
     assert.equal(await page.evaluate(() => window.qaView.state.selection.head),beforeRefresh);
+    assert.equal(await page.evaluate(()=>window.qaBeforeP===document.querySelector('.visual-document-surface p')),true);
+    assert.equal(await page.evaluate(()=>window.qaBeforeCode===document.querySelector('.visual-code-block code')),true);
     assert.equal(await surface.evaluate(el => el.contains(document.activeElement)),true);
     await page.screenshot({path:path.join(dir,'code-block-display.png'),fullPage:true});
-    await page.evaluate(()=>window.setTestSource('테스트\n'));
+    await page.evaluate(()=>window.setTestSource('테스트'));
     await surface.locator('p').first().click();
     await page.keyboard.press('End');
     await page.keyboard.insertText(' /제목3');
     await page.locator('#visual-slash-menu button[data-selected="true"][aria-label="/h3"]').waitFor();
     await page.keyboard.press('Enter');
     await surface.locator('h3').waitFor();
-    await page.evaluate(()=>window.setTestSource('테스트\n'));
+    await page.evaluate(()=>window.setTestSource('테스트'));
     await surface.locator('p').first().click();
     await page.keyboard.press('End');
     await page.evaluate(()=>window.setTestCommands({bold:'strongtext'}));
@@ -535,7 +719,7 @@ async function visual() {
     await page.keyboard.press('Enter');
     await page.keyboard.insertText('강조');
     await surface.locator('strong').waitFor();
-    await page.evaluate(()=>{window.setTestSource('설정 테스트\n');window.setTestHotkeys({bold:'Ctrl+Alt+B'});});
+    await page.evaluate(()=>{window.setTestSource('설정 테스트');window.setTestHotkeys({bold:'Ctrl+Alt+B'});});
     await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent === '설정 테스트');
     await surface.locator('p').first().click();
     await page.keyboard.press('End');
@@ -584,7 +768,7 @@ async function visual() {
     assert.equal(await page.evaluate(()=>window.qaImageDialog.insert('media/stale.png','')),false);
     await page.locator('#toggle').click();
     assert.ok(!(await page.locator('#source').inputValue()).includes('stale.png'));
-    await page.evaluate(()=>window.setTestSource('미디어 테스트\n'));
+    await page.evaluate(()=>window.setTestSource('미디어 테스트'));
     await surface.locator('p').first().click(); await page.keyboard.press('End');
     await page.keyboard.insertText(' /동영상');
     await page.locator('#visual-slash-menu button[data-selected="true"][aria-label="/video"]').waitFor();
@@ -647,7 +831,7 @@ async function visual() {
     await page.getByRole('button',{name:'표 아래 본문',exact:true}).click();
     await page.keyboard.insertText('표 뒤 본문');
     await page.waitForFunction(()=>document.querySelector('#source').value.includes('표 뒤 본문'));
-    await page.evaluate(()=>window.setTestSource('취소선 일반\n'));
+    await page.evaluate(()=>window.setTestSource('취소선 일반'));
     await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent === '취소선 일반');
     await surface.locator('p').first().click();await page.keyboard.press('Home');
     for(let i=0;i<3;i++)await page.keyboard.press('Shift+ArrowRight');

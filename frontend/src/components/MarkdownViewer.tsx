@@ -3,6 +3,7 @@ import PicturebookPreview from './PicturebookPreview';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { exportContentFingerprint } from '@/lib/exportPreparation';
 import katex from 'katex';
+// 🚨 @PATCH : **2026-10-14** — [도움말 에셋(/help/assets/) 정적 자산 로드 및 로컬 미디어 오탐 방어]: 마크다운 내 /help/assets/, ./assets/, assets/ 하위 도움말 이미지 참조 시 사용자 작업장 리소스 폴더(media/)로 오탐되어 '리소스 폴더 미지정' 경고가 발생하던 결함을 방어하고, 웹 및 Electron 데스크톱 앱(app://) 정적 로더로 100% 직결하여 실시간 정상 렌더링되도록 개선
 // 🚨 @PATCH : **2026-10-13** — [수식(math/latex) 코드블록 KaTeX 실시간 렌더링 지원]: ```math 및 ```latex 코드블록을 일반 텍스트 박스가 아닌 아름다운 KaTeX 수식으로 중앙 정렬 실시간 렌더링하도록 MathBlock 컴포넌트 탑재 및 원문 보기/복사 제어 연동
 // 🚨 @PATCH : **2026-10-13** — [Mermaid 다이어그램 상단 제어 버튼 마우스 호버 시 활성화]: 다이어그램(Mermaid) 블록의 상단 액션 버튼들(코드 복사, 새 창으로 확대, 이미지 복사, 저장)이 평소에는 숨겨져 있다가 마우스가 다이어그램 영역에 위치하거나 포커스될 때만 활성화되도록 변경
 // 🚨 @PATCH : **2026-10-10** — [한글 CJK 볼드(**) 닫힘 태그 바로 뒤 조사 렌더링 방어]: CommonMark 파서가 **온리비**는 과 같이 닫는 태그 바로 뒤에 한글 조사가 붙었을 때 강조를 풀지 못하고 리터럴 문자로 깨져 노출되는 결함을 방어하기 위해 cleanContent 전처리 단계에서 닫힘 태그 뒤 공백 자동 보정 연동
@@ -238,6 +239,15 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
           return;
         }
         if (api) {
+          const pureSrcForApi = src.split('?')[0].split('#')[0];
+          const isHelpAssetApi = pureSrcForApi.includes('help/assets') || pureSrcForApi.startsWith('/help/assets/') || pureSrcForApi.startsWith('./assets/') || pureSrcForApi.startsWith('assets/');
+          if (isHelpAssetApi) {
+            const fileName = pureSrcForApi.split('/').pop() || '';
+            const webSrc = `/help/assets/${fileName}`;
+            updateImage(queryString ? (webSrc.includes('?') ? webSrc + '&' + queryString.substring(1) : webSrc + queryString) : webSrc);
+            return;
+          }
+
           let targetAbsolutePath = absolutePath;
           if (src.startsWith('media://local/serve')) {
              try {
@@ -258,17 +268,19 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
         } else if (!src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('blob:')) {
           const pureSrc = src.split('?')[0].split('#')[0];
           
-          // 🛡️ [정적 자산 우회 가드 개선]
-          // 웹서버의 public/ 하위 정적 에셋이거나 확실한 빌트인 에셋인 경우에만 
-          // 로컬 드라이브/VFS 검색을 생략하고 웹서버 정적 로더로 직결합니다.
-          const isStaticAsset = (
+          // 🛡️ [정적 자산 및 도움말 에셋 우회 가드 개선]
+          const isHelpAsset = pureSrc.includes('help/assets') || pureSrc.startsWith('/help/assets/') || pureSrc.startsWith('./assets/') || pureSrc.startsWith('assets/');
+          const isStaticAsset = isHelpAsset || (
             pureSrc.startsWith('frontend/public/') || 
             pureSrc.startsWith('public/') || 
             (pureSrc.startsWith('/') && !pureSrc.startsWith('/media/') && !pureSrc.startsWith('/assets/'))
           );
           if (isStaticAsset) {
             let webSrc = pureSrc;
-            if (webSrc.startsWith('frontend/public/')) webSrc = webSrc.replace('frontend/public/', '/');
+            if (isHelpAsset) {
+              const fileName = pureSrc.split('/').pop() || '';
+              webSrc = `/help/assets/${fileName}`;
+            } else if (webSrc.startsWith('frontend/public/')) webSrc = webSrc.replace('frontend/public/', '/');
             else if (webSrc.startsWith('public/')) webSrc = webSrc.replace('public/', '/');
             
             updateImage(queryString ? (webSrc.includes('?') ? webSrc + '&' + queryString.substring(1) : webSrc + queryString) : webSrc);
@@ -2856,7 +2868,13 @@ function MarkdownViewer({
                 // hero.png만 웰컴 에셋으로 취급하거나, 순수하게 Welcome.md가 렌더링 중일 때만
                 const isWelcomeAsset = (pureSrc === './hero.png' || pureSrc === 'hero.png') && isWelcomePage;
 
-                const isLocalMedia = !isExternal && (
+                const isHelpAsset = pureSrc.startsWith('/help/assets/') || 
+                                    pureSrc.startsWith('help/assets/') || 
+                                    pureSrc.startsWith('./assets/') || 
+                                    pureSrc.startsWith('assets/') ||
+                                    pureSrc.includes('help/assets/');
+
+                const isLocalMedia = !isExternal && !isWelcomeAsset && !isHelpAsset && (
                   pureSrc.includes('media/') || 
                   pureSrc.endsWith('.png') || 
                   pureSrc.endsWith('.jpg') || 
@@ -2865,7 +2883,14 @@ function MarkdownViewer({
                   pureSrc.endsWith('.webp')
                 );
 
-                if (isDriveWorkspace) {
+                if (isHelpAsset) {
+                  const fileName = pureSrc.split('/').pop()?.split('?')[0] || '';
+                  finalSrc = `/help/assets/${fileName}`;
+                  absolutePath = `/help/assets/${fileName}`;
+                  if (queryString) {
+                    finalSrc += queryString;
+                  }
+                } else if (isDriveWorkspace) {
                   // Cloud paths stay relative until AsyncImage resolves them through Drive.
                   absolutePath = pureSrc;
                 } else if (isLocalMedia && (api || (dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME))) {

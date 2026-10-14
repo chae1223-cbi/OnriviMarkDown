@@ -2,6 +2,13 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-vm-inputrules
+ * 🚨 @PATCH : **2026-10-14** — [인용문 내 콜아웃 태그([!Note], [!참고] 등) 직접 타이핑 시 자동 변환 지원]:
+ *             1) 인용문(blockquote) 내에서 [!Note], [!참고], [!TIP], [!WARNING] 등 태그 직접 타이핑 시 닫는 괄호(']') 입력 즉시 콜아웃 박스로 자동 전환되도록 공백 강제 제약 제거 및 유연한 정규식 개선
+ *             2) 일반 문단에서 '> [!태그]' 타이핑 시에도 즉시 해당 스타일의 콜아웃 알림 상자로 자동 생성되도록 개선
+ *             3) 영문 태그(Note, tip, warning 등) 대소문자 무관 표준 대문자(NOTE, TIP, WARNING 등) 자동 정규화
+ * 🚨 @PATCH : **2026-10-14** — [글머리기호/체크리스트/번호 리스트 직접 타이핑 시 자동 변환(Auto-List InputRule) 및 문단 분할 완벽 지원]:
+ *             1) 본문에서 '-', '*', '+', '1.', '- [ ]', '- [x]' 직접 타이핑 시 줄 시작 위치 및 줄바꿈 직후를 정밀 감지하여 bullet_list, ordered_list, task_list로 즉각 자동 변환
+ *             2) 기존 텍스트 앞머리에서 리스트 마커 입력 시 해당 문단을 리스트 항목으로 즉각 래핑하고 커서 위치를 자연스럽게 유지
  * 🚨 @PATCH : **2026-10-14** — [인라인 수식($수식$) 타이핑 시 visual_inline_math 노드 자동 변환 및 수식 옆 글쓰기 공백 보장]:
  *             본문에서 $수식$ 타이핑 시 네이티브 visual_inline_math 노드와 함께 후행 공백 텍스트 노드를 생성하고 커서를 그 뒤로 이동시켜, 인라인 수식 직후 끊김 없이 본문 글쓰기가 즉각 이어지도록 보장
  * 🚨 @PATCH : **2026-10-13** — [마크다운 링크([텍스트](url)) 및 일반 URL 타이핑 자동 변환 InputRule 추가]:
@@ -78,16 +85,142 @@ export function visualMarkdownInputRules() {
       return tr.setSelection(TextSelection.create(tr.doc,headingPos+1+title.length));
     }),
     new InputRule(/^ $/, (state,_match,start,end)=>state.selection.$from.parent.type===nodes.heading && !state.selection.$from.parent.content.size ? state.tr.delete(start,end) : null),
-    paragraphOnly(wrappingInputRule(/^\s*>\s$/, nodes.blockquote)),
-    new InputRule(/^\[!([^\]]+)\]\s$/, (state,match,start,end)=>{
-      if(insideCell(state))return null;
-      const position=state.selection.$from;
-      for(let depth=position.depth;depth>0;depth--)if(position.node(depth).type===nodes.blockquote){return state.tr.delete(start,end).setNodeMarkup(position.before(depth),undefined,{alertType:match[1]});}
+    // 인용문(blockquote) 내부에서 [!태그] 또는 [!태그]공백 입력 즉시 콜아웃(Alert)으로 자동 변환
+    new InputRule(/(?:^|\ufffc)\s*\[!([^\]]+)\](?:[ \t](.*))?$/, (state, match, start, end) => {
+      if (insideCell(state)) return null;
+      const position = state.selection.$from;
+      for (let depth = position.depth; depth > 0; depth--) {
+        if (position.node(depth).type === nodes.blockquote) {
+          const rawTag = match[1].trim();
+          if (!rawTag) return null;
+          const upper = rawTag.toUpperCase();
+          const alertType = ['NOTE', 'TIP', 'IMPORTANT', 'WARNING', 'CAUTION'].includes(upper) ? upper : rawTag;
+          const remainingText = match[2] || '';
+          const bqPos = position.before(depth);
+          let tr = state.tr;
+          if (remainingText) {
+            tr = tr.delete(start, end).insertText(remainingText, start);
+          } else {
+            tr = tr.delete(start, end);
+          }
+          return tr.setNodeMarkup(bqPos, undefined, { alertType });
+        }
+      }
       return null;
     }),
-    paragraphOnly(wrappingInputRule(/^\s*([-+*])\s$/, nodes.bullet_list, match => ({ bullet: match[1] }))),
-    paragraphOnly(wrappingInputRule(/^\s*(\d+)\.\s$/, nodes.ordered_list, match => ({ order: Number(match[1]) }),
-      (match, node) => node.childCount + node.attrs.order === Number(match[1]))),
+    // 일반 문단에서 > [!태그] 또는 > [!태그]공백 타이핑 즉시 콜아웃 박스로 즉시 변환
+    paragraphOnly(new InputRule(/(?:^|\ufffc)\s*>\s*\[!([^\]]+)\](?:[ \t](.*))?$/, (state, match, start, end) => {
+      if (insideCell(state)) return null;
+      const position = state.selection.$from;
+      const parent = position.parent;
+      if (parent.type !== nodes.paragraph) return null;
+      const rawTag = match[1].trim();
+      if (!rawTag) return null;
+      const upper = rawTag.toUpperCase();
+      const alertType = ['NOTE', 'TIP', 'IMPORTANT', 'WARNING', 'CAUTION'].includes(upper) ? upper : rawTag;
+      const remainingText = match[2] || '';
+      const blockPos = position.before();
+
+      const newParagraph = nodes.paragraph.create(null, remainingText ? state.schema.text(remainingText) : null);
+      const newBlockquote = nodes.blockquote.create({ alertType }, [newParagraph]);
+
+      const tr = state.tr.replaceWith(blockPos, blockPos + parent.nodeSize, newBlockquote);
+      return tr.setSelection(TextSelection.create(tr.doc, blockPos + 2 + remainingText.length));
+    })),
+    // 체크리스트 (- [ ] 또는 - [x]) 타이핑 즉시 task list 변환
+    new InputRule(/(?:^|\ufffc)\s*([-+*])\s+\[([ xX])\]\s$/, (state, match, start, end) => {
+      const position = state.selection.$from;
+      const parent = position.parent;
+      if (parent.type !== nodes.paragraph || insideCell(state)) return null;
+      const blockStart = position.start();
+      const blockPos = position.before();
+      const beforeContent = parent.content.cut(0, start - blockStart);
+      let cleanBefore = beforeContent;
+      if (cleanBefore.lastChild?.type === nodes.hard_break) {
+        cleanBefore = cleanBefore.cut(0, cleanBefore.size - 1);
+      }
+      const afterContent = parent.content.cut(end - blockStart);
+      const bullet = match[1];
+      const checked = match[2].toLowerCase() === 'x';
+      const listItem = nodes.list_item.create(
+        { checked },
+        nodes.paragraph.create(null, afterContent)
+      );
+      const bulletList = nodes.bullet_list.create({ bullet }, listItem);
+      let tr = state.tr;
+      if (cleanBefore.size > 0) {
+        const prevParagraph = nodes.paragraph.create(null, cleanBefore);
+        tr = tr.replaceWith(blockPos, blockPos + parent.nodeSize, [prevParagraph, bulletList]);
+        const listPos = blockPos + prevParagraph.nodeSize;
+        tr = tr.setSelection(TextSelection.near(tr.doc.resolve(listPos + 2)));
+      } else {
+        tr = tr.replaceWith(blockPos, blockPos + parent.nodeSize, bulletList);
+        tr = tr.setSelection(TextSelection.near(tr.doc.resolve(blockPos + 2)));
+      }
+      return tr;
+    }),
+    // 글머리 기호 (-, *, +) 타이핑 즉시 bullet_list 변환
+    new InputRule(/(?:^|\ufffc)\s*([-+*])\s$/, (state, match, start, end) => {
+      const position = state.selection.$from;
+      const parent = position.parent;
+      if (parent.type !== nodes.paragraph || insideCell(state)) return null;
+      const blockStart = position.start();
+      const blockPos = position.before();
+      const beforeContent = parent.content.cut(0, start - blockStart);
+      let cleanBefore = beforeContent;
+      if (cleanBefore.lastChild?.type === nodes.hard_break) {
+        cleanBefore = cleanBefore.cut(0, cleanBefore.size - 1);
+      }
+      const afterContent = parent.content.cut(end - blockStart);
+      const bullet = match[1];
+      const listItem = nodes.list_item.create(
+        null,
+        nodes.paragraph.create(null, afterContent)
+      );
+      const bulletList = nodes.bullet_list.create({ bullet }, listItem);
+      let tr = state.tr;
+      if (cleanBefore.size > 0) {
+        const prevParagraph = nodes.paragraph.create(null, cleanBefore);
+        tr = tr.replaceWith(blockPos, blockPos + parent.nodeSize, [prevParagraph, bulletList]);
+        const listPos = blockPos + prevParagraph.nodeSize;
+        tr = tr.setSelection(TextSelection.near(tr.doc.resolve(listPos + 2)));
+      } else {
+        tr = tr.replaceWith(blockPos, blockPos + parent.nodeSize, bulletList);
+        tr = tr.setSelection(TextSelection.near(tr.doc.resolve(blockPos + 2)));
+      }
+      return tr;
+    }),
+    // 번호 리스트 (1., 2. 등) 타이핑 즉시 ordered_list 변환
+    new InputRule(/(?:^|\ufffc)\s*(\d+)\.\s$/, (state, match, start, end) => {
+      const position = state.selection.$from;
+      const parent = position.parent;
+      if (parent.type !== nodes.paragraph || insideCell(state)) return null;
+      const blockStart = position.start();
+      const blockPos = position.before();
+      const beforeContent = parent.content.cut(0, start - blockStart);
+      let cleanBefore = beforeContent;
+      if (cleanBefore.lastChild?.type === nodes.hard_break) {
+        cleanBefore = cleanBefore.cut(0, cleanBefore.size - 1);
+      }
+      const afterContent = parent.content.cut(end - blockStart);
+      const order = Number(match[1]);
+      const listItem = nodes.list_item.create(
+        null,
+        nodes.paragraph.create(null, afterContent)
+      );
+      const orderedList = nodes.ordered_list.create({ order }, listItem);
+      let tr = state.tr;
+      if (cleanBefore.size > 0) {
+        const prevParagraph = nodes.paragraph.create(null, cleanBefore);
+        tr = tr.replaceWith(blockPos, blockPos + parent.nodeSize, [prevParagraph, orderedList]);
+        const listPos = blockPos + prevParagraph.nodeSize;
+        tr = tr.setSelection(TextSelection.near(tr.doc.resolve(listPos + 2)));
+      } else {
+        tr = tr.replaceWith(blockPos, blockPos + parent.nodeSize, orderedList);
+        tr = tr.setSelection(TextSelection.near(tr.doc.resolve(blockPos + 2)));
+      }
+      return tr;
+    }),
     paragraphOnly(textblockTypeInputRule(/^```([a-zA-Z0-9_-]*)\s$/, nodes.code_block, match => ({ params: match[1] }))),
     new InputRule(/^(?:---|\*\*\*)\s$/, (state, _match, start, end) => {
       if (state.selection.$from.parent.type !== nodes.paragraph || insideCell(state)) return null;

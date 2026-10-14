@@ -2,6 +2,7 @@
 // ====================================================================
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 모나코 에디터 3대 이벤트(타이핑/커서/스크롤) 단일 책임 연동
+// 🚨 @PATCH : **2026-10-14** — [마우스 단일 클릭 시 드래그 앵커 보정 간섭 차단]: onDidChangeCursorSelection에서 드래그 선택 영역이 존재할 때(!e.selection.isEmpty())에만 고속 드래그 앵커 보정이 동작하도록 가드를 보강하여 단일 클릭 시 커서 위치 왜곡 방지
 // 🚨 @PATCH : **2026-10-13** — [나란히 보기 마크다운 영역 읽기 전용 잠금·라인번호 숨김 및 배경색 시각적 경계 분리]: 나란히 보기(previewMode === 'both')에서 마크다운 영역 직접 입력/붙여넣기/드롭/커서 노출을 차단하고, 라인번호(lineNumbers: 'off')를 숨기며, 모달·문서 편집기 위임 프로그래밍 방식 편집(executeEdits)만 안전하게 통과하도록 처리하고 슬레이트 배경색(#eef2f6) 적용
 // 🚨 @PATCH : **2026-10-02** — [이미지 드래그 앤 드롭 실시간 위치 가이드라인 및 드롭 타겟 라인/커서 인디케이터 탑재]: 이미지 드래그 중 마우스 아래 삽입 위치(행 전체 하이라이트 및 실시간 커서 바/위치 뱃지)를 드롭 전에 즉시 시각적으로 확인 가능하도록 완벽 구현
 // 🚨 @PATCH : **2026-10-02** — [붙여넣기 다중 리스너 단일 인스턴스 보장]: 동일 ClipboardEvent에 대해 handledPasteEvents WeakSet 가드를 추가하여 window/container/editorDom 다중 등록으로 인한 중복 실행 원천 차단
@@ -2124,7 +2125,7 @@ export function useMonacoSetup(deps: any) {
                       setFloatingToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
                     }
                     // 💡 [고속 드래그 anchor 리셋 보정] Monaco가 mousemove 이벤트 간격 중 anchor를 잃으면 선택이 리셋되는 현상 방어
-                    if (editorMouseDown && editorMouseAnchor && e.source === 'mouse') {
+                    if (editorMouseDown && editorMouseAnchor && e.source === 'mouse' && !e.selection.isEmpty()) {
                       const sel = e.selection;
                       const anchorMatchStart = sel.startLineNumber === editorMouseAnchor.lineNumber && sel.startColumn === editorMouseAnchor.column;
                       const anchorMatchEnd = sel.endLineNumber === editorMouseAnchor.lineNumber && sel.endColumn === editorMouseAnchor.column;

@@ -9,6 +9,7 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-10-14 — [서식관리 아코디언 [5] 타이틀에 '각주' 명시 및 각주 스타일 설정 시인성 강화]: 아코디언 [5] 타이틀을 '🏺 표, 하이퍼링크, 소스코드, 인용구, 각주'로 명시하여 사용자가 각주 글자 크기, 색상, 줄간격, 상하 여백을 한눈에 찾아 설정할 수 있도록 접근성 극대화
  *   2026-10-01 — [내보내기 페이지 나누기 설정 UI 제거]: PDF/EPUB 내보내기 시 제목 기준 강제 페이지 분할 폐지에 따라 페이지 설정 탭의 '내보내기 페이지 나누기' 드롭다운 컨트롤 제거
  *   2026-09-26 — [서식 설정 전체 프리셋 및 굵기 선택 활성화 상태 전수 점검 및 일괄 개선]: 1) 코드블록(라이트/다크 배경색 감지), 2) 이미지(썸네일/폴라로이드/기본형), 3) 인용구(왼쪽띠/전체박스/그림자 복합 border 우선순위), 4) 표(가로선전용 td border-left:none 정밀 감지), 5) 인용구/링크/각주 글자굵기 select에 isFontWeightBold 연동으로 숫자 font-weight 공백 현상 방지, 6) hrStructure 개별 속성 폴백 안전화로 모든 서식의 설정 상태가 UI에 100% 명확히 표시되도록 개선
  *   2026-09-26 — [제목 하단 밑줄(border-bottom) 선 스타일 키워드 기반 활성 판별 및 색상 보존 개선]: '2px solid #ff5a00' 등 다양한 두께/색상의 border-bottom 설정 시 startsWith('1px') 실패로 인해 [실선] 버튼이 미선택으로 보이던 결함을 solid/double 키워드 기반 판별(isBorderMatch)로 전면 개선하여 H1~H6의 하단 밑줄 설정 상태를 정확하게 표시하고 변경 시 기존 색상 보존 연동
@@ -2405,10 +2406,10 @@ ${guideContent}
           </div>
         </AccordionSection>
 
-        {/* 🟢 아코디언 [5]: 표, 하이퍼링크, 소스코드, 인용구 */}
+        {/* 🟢 아코디언 [5]: 표, 하이퍼링크, 소스코드, 인용구, 각주 */}
         <AccordionSection
           id="others"
-          title="🏺 표, 하이퍼링크, 소스코드, 인용구"
+          title="🏺 표, 하이퍼링크, 소스코드, 인용구, 각주"
           isOpen={openAccordion === 'others'}
           onToggle={() => handleAccordionToggle('others')}
           sectionRef={(el) => { accordionRefs.current['others'] = el; }}

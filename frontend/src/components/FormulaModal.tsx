@@ -11,6 +11,9 @@ import katex from 'katex';
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-formula-modal
+ * 🚨 @PATCH : **2026-10-14** — [수식 에디터 실시간 미리보기 크로미움 가상 스크롤바 글리치 제거 및 행렬 개행(\\) 보존]:
+ *             1) #formula-live-preview의 중복 overflow-x-auto를 overflow-visible 및 상하 여백(py-2 px-1)으로 개선하여, 분수/루트 등 수식 우측에 회색 막대(|) 스크롤바가 노출되는 렌더링 결함 완전 해소
+ *             2) cleanLatex의 불필요한 .replace(/\\\\/g, '\\') 처리를 제거하여 행렬(pmatrix) 및 다행 수식의 줄바꿈(\\) 문법 보존
  * 🚨 @PATCH : **2026-10-14** — [수식 에디터 모달 기존 수식 편집(initialLatex) 및 인라인($)/블록($$) 모드 양방향 연동]:
  *             1) initialLatex prop을 추가하여 기존 수식 더블클릭 시 해당 LaTeX 수식을 모달에 즉각 로드
  *             2) initialLatex 형식($...$ vs $$...$$)에 따라 인라인/블록 displayMode 자동 전환 및 실시간 KaTeX 미리보기 연동
@@ -101,7 +104,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode, in
         try {
           previewEl.innerHTML = "";
           // 실시간 렌더링 구문 에러를 예방하기 위해, 수식 값이 없을 때는 기본 공식(f(x) = x^2)을 표시합니다
-          const cleanLatex = (latex.trim() || "f(x) = x^2").replace(/\\\\/g, '\\');
+          const cleanLatex = latex.trim() || "f(x) = x^2";
           katex.render(cleanLatex, previewEl, {
             throwOnError: false,
             displayMode: displayMode,
@@ -323,8 +326,8 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode, in
                 </span>
                 {!katexLoaded && <span className="text-[10px] text-orange-500 animate-pulse">수식 엔진 로딩 중...</span>}
               </div>
-              <div className="flex-1 overflow-x-auto overflow-y-hidden p-4 flex items-center justify-center min-w-0">
-                <div id="formula-live-preview" className={`${isDarkMode ? 'text-white' : 'text-zinc-900'} max-w-full overflow-x-auto`} style={{ fontSize: '1.05em', padding: '4px 0' }} />
+              <div className="flex-1 overflow-x-auto overflow-y-hidden p-4 flex items-center justify-center min-w-0 custom-scrollbar">
+                <div id="formula-live-preview" className={`${isDarkMode ? 'text-white' : 'text-zinc-900'} max-w-full overflow-visible py-2 px-1`} style={{ fontSize: '1.05em' }} />
               </div>
             </div>
 

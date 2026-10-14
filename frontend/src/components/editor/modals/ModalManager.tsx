@@ -1,7 +1,7 @@
 /**
  * 프로그램명 : OnriviAuthor
  * 프로그램 ID : oaar-modal-manager
- * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-10-14** — [표 생성 시 첫 번째 열 헤더("제목") 자동 선택 및 다단계 포커스 안착]: TableModal에서 표 생성 시 모델 내 첫 번째 헤더 라인(| 행)과 첫 번째 열("제목") 컬럼 범위를 동적으로 정밀 계산하고, 모달 언마운트 포커스 유실을 방어하기 위해 다단계(0ms, 40ms, 120ms, 250ms)로 커서 및 선택영역을 자동 안착시켜 즉시 타이핑 수정이 가능하도록 전면 개선
  * 🚨 @PATCH : **2026-10-14** — [수식 에디터 모달(FormulaModal) 기존 LaTeX(formulaModalInitialLatex) 전달 연동]: deps.formulaModalInitialLatex를 FormulaModal에 initialLatex로 주입하여 기존 수식 편집 완비
  * 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 미디어 대상 폴더 동적 경로 동기화]: resourceFolder(구글 드라이브 및 로컬)의 구분자 동적 판별 및 targetFolder media 경로 완전 동기화
  * 🚨 @PATCH : **2026-10-03** — [구글 드라이브 파일/폴더 생성 지원 및 미구현 백엔드 API 404 차단]: createFile/createFolder 시 구글 드라이브(GDRIVE) 분기 탑재 및 웹 브라우저 VFS 폴백 강화로 404 에러 원천 방어
@@ -533,45 +533,119 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         onInsert={(code: string) => {
           if (editorRef?.current) {
             const editor = editorRef.current;
-            let selection = editor.getSelection();
-            if (!selection || (selection.isEmpty() && lastSelectionRef?.current)) {
-              selection = lastSelectionRef.current;
-            }
-            if (selection) {
-              const range = new (window as any).monaco.Range(
-                selection.startLineNumber,
-                selection.startColumn,
-                selection.endLineNumber,
-                selection.endColumn
-              );
-              editor.pushUndoStop();
-              editor.executeEdits("insertTable", [{ range, text: code, forceMoveMarkers: true }]);
-              editor.pushUndoStop();
-
-              const headerLine = selection.startLineNumber + 1;
-              setTimeout(() => {
-                editor.focus();
-                // 💡 [사용자 요청] 표 생성 후 첫 번째 칼럼("제목")을 자동 선택하여 즉시 편집 가능하도록 커서/포커스 안착
-                editor.setSelection(new (window as any).monaco.Selection(
-                  headerLine,
-                  3,
-                  headerLine,
-                  5
-                ));
-                editor.revealLineInCenterIfOutsideViewport(headerLine);
-                try {
-                  const model = editor.getModel();
-                  if (model && typeof model.forceTokenization === 'function') {
-                    const lineCount = code.split('\n').length;
-                    for (let i = selection.startLineNumber; i <= headerLine + lineCount; i++) {
-                      model.forceTokenization(i);
-                    }
-                  }
-                  editor.layout();
-                } catch (_) {}
-              }, 40);
+            const model = editor.getModel();
+            if (!model) {
+              insertAtCursor(code);
               return;
             }
+
+            let selection = editor.getSelection();
+            if (!selection || (selection.isEmpty() && lastSelectionRef?.current && !lastSelectionRef.current.isEmpty())) {
+              selection = lastSelectionRef.current;
+            }
+            if (!selection) {
+              const pos = editor.getPosition?.() || { lineNumber: 1, column: 1 };
+              selection = {
+                startLineNumber: pos.lineNumber,
+                startColumn: pos.column,
+                endLineNumber: pos.lineNumber,
+                endColumn: pos.column
+              };
+            }
+
+            const currentLineContent = model.getLineContent(selection.startLineNumber);
+            let formattedCode = code;
+            // 만약 현재 커서 행이 완전히 빈 행이라면, code 시작 부분의 불필요한 빈 줄(\n)을 제거하여 해당 행부터 표 즉시 배치
+            if (currentLineContent.trim() === '' && formattedCode.startsWith('\n')) {
+              formattedCode = formattedCode.replace(/^\n/, '');
+            }
+
+            const monaco = (window as any).monaco;
+            const range = monaco?.Range
+              ? new monaco.Range(
+                  selection.startLineNumber,
+                  selection.startColumn,
+                  selection.endLineNumber,
+                  selection.endColumn
+                )
+              : selection;
+
+            editor.pushUndoStop();
+            editor.executeEdits("insertTable", [{ range, text: formattedCode, forceMoveMarkers: true }]);
+            editor.pushUndoStop();
+
+            // ─── 표 헤더 라인 동적 탐색 (삽입된 라인 기준 첫 번째 '|' 행) ───
+            let targetHeaderLine = selection.startLineNumber;
+            const totalLines = model.getLineCount();
+            for (let l = selection.startLineNumber; l <= Math.min(selection.startLineNumber + 3, totalLines); l++) {
+              const lineContent = model.getLineContent(l).trim();
+              if (lineContent.startsWith('|')) {
+                targetHeaderLine = l;
+                break;
+              }
+            }
+
+            // ─── 첫 번째 열의 헤더 텍스트("제목") 컬럼 범위 동적 계산 ───
+            const headerLineContent = model.getLineContent(targetHeaderLine);
+            let startCol = 3;
+            let endCol = 5;
+            const firstPipe = headerLineContent.indexOf('|');
+            if (firstPipe !== -1) {
+              const secondPipe = headerLineContent.indexOf('|', firstPipe + 1);
+              if (secondPipe !== -1) {
+                const cellRaw = headerLineContent.substring(firstPipe + 1, secondPipe);
+                const leadingSpaces = cellRaw.length - cellRaw.trimStart().length;
+                const cellTrimmed = cellRaw.trim();
+                if (cellTrimmed.length > 0) {
+                  startCol = (firstPipe + 1) + leadingSpaces + 1; // Monaco 1-based column
+                  endCol = startCol + cellTrimmed.length;
+                }
+              }
+            }
+
+            const applyTargetSelection = () => {
+              if (!editorRef?.current) return;
+              const ed = editorRef.current;
+              const m = ed.getModel();
+              if (!m) return;
+
+              ed.focus();
+              const targetSelection = monaco?.Selection
+                ? new monaco.Selection(targetHeaderLine, startCol, targetHeaderLine, endCol)
+                : {
+                    selectionStartLineNumber: targetHeaderLine,
+                    selectionStartColumn: startCol,
+                    positionLineNumber: targetHeaderLine,
+                    positionColumn: endCol
+                  };
+
+              ed.setSelection(targetSelection);
+              if (lastSelectionRef) {
+                lastSelectionRef.current = targetSelection;
+              }
+              ed.revealLineInCenterIfOutsideViewport(targetHeaderLine);
+            };
+
+            // 🛡️ 모달 언마운트 및 브라우저 포커스 복원 이벤트에 덮어써지지 않도록 다단계(0ms, 40ms, 120ms, 250ms)로 확실하게 안착
+            applyTargetSelection();
+            setTimeout(applyTargetSelection, 40);
+            setTimeout(applyTargetSelection, 120);
+            setTimeout(applyTargetSelection, 250);
+
+            try {
+              if (typeof model.forceTokenization === 'function') {
+                const lineCount = formattedCode.split('\n').length;
+                for (let i = selection.startLineNumber; i <= targetHeaderLine + lineCount + 1; i++) {
+                  model.forceTokenization(i);
+                }
+              }
+              editor.layout();
+            } catch (_) {}
+
+            if (typeof updateContent === 'function') {
+              updateContent(model.getValue(), true);
+            }
+            return;
           }
           insertAtCursor(code);
         }}

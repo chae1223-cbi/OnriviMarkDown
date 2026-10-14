@@ -15,6 +15,7 @@ interface TableModalProps {
 // 📊 [OMD-EDIT-TableModal-0003] TableModal ➔ TableModal
 // 🎯 @KICK  : 표 삽입 모달 - 10x10 그리드 UI로 마우스 표 크기 선택 후 마크다운 코드 생성
 // 🛡️ @GUARD : isOpen false 또는 mounted false 시 null 반환으로 조기 종료
+// 🚨 @PATCH : **2026-10-14** — [표 삽입 모달 Enter 키 즉시 생성 및 첫 번째 헤더 안착 연동]: 모달 내에서 Enter 키 입력 시 즉시 표가 생성되도록 키보드 편의성 지원
 // 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-02 - 헤더는 중앙 정렬 · 본문 열 정렬 프리셋 4종(기본 좌측, 전체 중앙, 회계형, 요약형) 선택 UI 및 마크다운 자동 생성 지원
 //             2026-07-15 - 마우스 드래그 그리드 10x10 디자인 전면 개편 및 안개 블러 제거, 라운드 4px 규격 장착
@@ -30,10 +31,7 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
     setMounted(true);
   }, []);
 
-  if (!isOpen) return null;
-  if (!mounted) return null;
-
-  const handleInsert = () => {
+  const handleInsert = React.useCallback(() => {
     const { r, c } = selectedPos;
     let header = "| " + Array(c).fill("제목").join(" | ") + " |\n";
     
@@ -55,7 +53,23 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
     
     onInsert(`\n${header}${divider}${body}\n`);
     onClose();
-  };
+  }, [selectedPos, alignPreset, onInsert, onClose]);
+
+  // ⌨️ Enter 키 입력 시 즉시 표 삽입 처리
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleInsert();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, handleInsert]);
+
+  if (!isOpen) return null;
+  if (!mounted) return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4" style={{ overflowY: "auto" }}>

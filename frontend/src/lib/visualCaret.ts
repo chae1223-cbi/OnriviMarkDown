@@ -3,6 +3,9 @@
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-vm-caret
  * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-10-14** — [머메이드 편집기(textarea) 및 각주(footnote) 입력 시 커서 완전 표시 및 visualCaret 충돌 방어]:
+ *             1) document.activeElement가 textarea, input 또는 자식 contenteditable(.visual-footnote-text 등)일 때 visualCaret을 즉각 숨김 처리하여 유령 커서 방지
+ *             2) selection.anchorNode가 각주/머메이드/코드언어 입력기 내부에 위치할 때도 visualCaret 노출을 억제하고 요소 자체의 고선명 네이티브 커서로 1:1 전환
  * 🚨 @PATCH : **2026-10-13** — [고시인성 3px 도톰한 단일 커서 최적화 및 깜빡임 애니메이션 탑재]:
  *             1) 네이티브 1px 얇은 커서와의 중복 표시(2중 커서 버그) 방어 및 고시인성 3px 코발트 블루 단일 커서로 표준화
  *             2) 1.06s 주기 깜빡임(Blink) 애니메이션 및 타이핑/조작 시 즉각 반응(리셋) 처리
@@ -49,9 +52,29 @@ export function installVisualCaret(view: EditorView) {
   const update = () => {
     frame = 0;
     caret.style.display = 'none';
+
+    // 머메이드 코드 편집기(textarea), 각주 입력기(contenteditable span), 코드 언어 입력기(input) 등
+    // 노드뷰 내부의 별도 입력 요소에 포커스가 위치한 경우 visualCaret을 숨기고 요소 자체의 네이티브 커서가 온전히 노출되도록 위임
+    const activeEl = typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
+    if (activeEl && (
+      activeEl.tagName === 'INPUT' ||
+      activeEl.tagName === 'TEXTAREA' ||
+      (activeEl.isContentEditable && activeEl !== view.dom) ||
+      activeEl.closest?.('.visual-footnote-text, .visual-footnote-def, .visual-mermaid-editor, .visual-code-language')
+    )) {
+      return;
+    }
+
     const selection = document.getSelection();
     if (!view.editable || !view.hasFocus() || !selection?.isCollapsed || !selection.anchorNode
       || !view.dom.contains(selection.anchorNode) || !view.state.selection.empty) return;
+
+    if (selection.anchorNode && (
+      (selection.anchorNode as HTMLElement).closest?.('.visual-footnote-text, .visual-footnote-def, .visual-mermaid-editor, .visual-code-language, textarea, input') ||
+      selection.anchorNode.parentElement?.closest('.visual-footnote-text, .visual-footnote-def, .visual-mermaid-editor, .visual-code-language, textarea, input')
+    )) {
+      return;
+    }
     try {
       const range = selection.getRangeAt(0);
       const domRect = range.getClientRects()[0];

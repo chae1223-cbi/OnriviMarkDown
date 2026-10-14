@@ -2,6 +2,12 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-001
+// 🚨 @PATCH : **2026-10-14** — [서식관리(CSS Profile) 각주(Footnote) 폰트 크기/색상/줄간격 실시간 연동 및 문서보기 기본 12.5px 최적화]:
+//             1) dynamicCssString의 footnote 태그 처리기에 .visual-footnote-def, .visual-footnote-text, .visual-footnote-badge 셀렉터를 추가 확장
+//             2) 각주 폰트 크기 미지정 시 inherit(16~18px)으로 팽창하던 결함을 해소하고 12.5px 콤팩트 크기로 기본값 설정
+//             3) 서식관리에서 각주 글자 크기, 글자 색상, 굵기, 줄간격, 상하 여백 조절 시 문서보기에 실시간 즉각 반영
+// 🚨 @PATCH : **2026-10-14** — [문서보기에서 태그 및 명령어 입력 시 나란히 보기(both) 강제 전환 결함 완전 해소]:
+//             1) onSourceAction에서 setPreviewMode('both') 강제 호출을 제거하여 태그/각주/명령어 실행 시 사용자가 작업 중인 현재 보기 모드(문서 직접 편집)를 100% 온전히 유지
 // 🚨 @PATCH : **2026-10-14** — [수식(visual_math) 네이티브 렌더링 및 모달 양방향 편집 지원]:
 //             1) VisualDocumentEditor의 onFormulaDialog에서 initialLatex를 수신하여 formulaModalInitialLatex 상태로 FormulaModal에 연동
 //             2) 수식 더블클릭 시 기존 LaTeX를 FormulaModal에서 즉시 수정하여 본문에 실시간 반영
@@ -6728,25 +6734,57 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         const marginBottom = ruleObj['margin-bottom'];
         const fontWeight = ruleObj['font-weight'];
 
+        const footnoteTextSelectors = [
+          '.custom-preview-container .footnotes',
+          '.custom-preview-container .footnotes p',
+          '.custom-preview-container .footnotes li',
+          '.custom-preview-container .footnotes a',
+          '.onrivi-content-root .footnotes',
+          '.onrivi-content-root .footnotes p',
+          '.onrivi-content-root .footnotes li',
+          '.onrivi-content-root .footnotes a',
+          '.custom-preview-container .visual-footnote-def',
+          '.custom-preview-container .visual-footnote-text',
+          '.onrivi-content-root .visual-footnote-def',
+          '.onrivi-content-root .visual-footnote-text'
+        ].join(', ');
+
+        const footnoteSizeSelectors = [
+          '.custom-preview-container .footnotes',
+          '.custom-preview-container .footnotes p',
+          '.custom-preview-container .footnotes li',
+          '.custom-preview-container .footnotes a',
+          '.onrivi-content-root .footnotes',
+          '.onrivi-content-root .footnotes p',
+          '.onrivi-content-root .footnotes li',
+          '.onrivi-content-root .footnotes a',
+          '.custom-preview-container .visual-footnote-def',
+          '.custom-preview-container .visual-footnote-text',
+          '.custom-preview-container .visual-footnote-badge',
+          '.onrivi-content-root .visual-footnote-def',
+          '.onrivi-content-root .visual-footnote-text',
+          '.onrivi-content-root .visual-footnote-badge'
+        ].join(', ');
+
         if (marginTop) {
-          css += `.custom-preview-container .footnotes, .onrivi-content-root .footnotes {\n  margin-top: ${marginTop} !important;\n}\n`;
+          css += `.custom-preview-container .footnotes, .onrivi-content-root .footnotes, .custom-preview-container .visual-footnote-area-header, .onrivi-content-root .visual-footnote-area-header {\n  margin-top: ${marginTop} !important;\n}\n`;
         }
         if (marginBottom) {
-          css += `.custom-preview-container .footnotes, .onrivi-content-root .footnotes {\n  margin-bottom: ${marginBottom} !important;\n}\n`;
+          css += `.custom-preview-container .footnotes, .onrivi-content-root .footnotes, .custom-preview-container .visual-footnote-def-container, .onrivi-content-root .visual-footnote-def-container {\n  margin-bottom: ${marginBottom} !important;\n}\n`;
         }
         if (color) {
-          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  color: ${color} !important;\n}\n`;
+          css += `${footnoteTextSelectors} {\n  color: ${color} !important;\n}\n`;
         }
         if (fontSize) {
-          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  font-size: ${fontSize} !important;\n}\n`;
+          css += `${footnoteSizeSelectors} {\n  font-size: ${fontSize} !important;\n}\n`;
         } else {
-          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  font-size: inherit !important;\n}\n`;
+          css += `${footnoteSizeSelectors} {\n  font-size: 12.5px !important;\n}\n`;
         }
         if (lineHeight) {
-          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  line-height: ${lineHeight} !important;\n}\n`;
+          css += `${footnoteSizeSelectors} {\n  line-height: ${lineHeight} !important;\n}\n`;
         }
         if (fontWeight) {
-          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  font-weight: ${fontWeight} !important;\n}\n`;
+          css += `${footnoteSizeSelectors} {\n  font-weight: ${fontWeight} !important;\n}\n`;
         }
         return;
       }
@@ -10620,7 +10658,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                       contentRef.current = source;
                                       updateContent(source);
                                       if (changed) setTabs(prev => prev.map(tab => tab.id === activeTabId ? { ...tab, content: source, isModified: true } : tab));
-                                      setPreviewMode('both');
                                     }} content={content} onChange={next => {
                                     contentRef.current = next;
                                     updateContent(next, false, true);

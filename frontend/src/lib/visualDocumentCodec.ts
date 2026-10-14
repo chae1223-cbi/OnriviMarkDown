@@ -2,6 +2,21 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-visual-codec
+ * 🚨 @PATCH : **2026-10-14** — [참조 링크 정의 정규식 엄격화 및 체크리스트/콜아웃 박스형(source_block) 오분기 결함 완전 해소]:
+ *             1) hasReferenceDefinitions 정규식을 각주([^^...]:)를 제외한 순수 참조 링크(/^[^\S\r\n]*\[(?!\^)[^\]]+\]:\s*\S/m)로 엄격화
+ *             2) unsupported 검사에서 체크리스트(- [ ], - [x]), 콜아웃([!NOTE]), 각주 등이 source_block(점선 박스/편집창)으로 오분기되던 현상 원천 차단
+ *             3) source_block의 toDOM에서 불필요한 'Markdown에서 편집하는 블록' 배너 텍스트 제거
+ * 🚨 @PATCH : **2026-10-14** — [각주(Footnote) 본문 참조(visual_footnote_ref) 및 정의 블록(visual_footnote_def) 네이티브 렌더링 지원]:
+ *             1) visualSchema.nodes에 visual_footnote_ref(인라인 위첨자 뱃지 노드) 및 visual_footnote_def(하단 각주 정의 블록 노드) 등록
+ *             2) visualTokenizer에서 [^1] 등 인라인 각주 참조를 footnote_ref 토큰으로 자동 분할 파싱 및 visualParser 연동
+ *             3) [^1]: 각주 설명 블록을 감지하여 visual_footnote_def 노드로 직접 렌더링하고, unsupported 검사에서 각주 정규식을 제거하여 본문/각주가 source_block(편집창)으로 오분기되는 결함 완전 해소
+ *             4) visualSerializer 및 serialize에서 각주 참조([^1])와 정의 블록([^1]: 내용)을 100% 무손실로 양방향 직렬화 보장
+ * 🚨 @PATCH : **2026-10-14** — [저장(Ctrl+S) 및 마크다운 직렬화 시 커서 아래 빈 행 강제 생성 및 최상단 유령 개행 결함 완전 해소]:
+ *             1) 문서 최상단 헤딩 편집 시 불필요하게 맨 앞에 빈 행(\n)이 자동 주입되어 저장할 때마다 상단 빈 줄이 무한 증식하던 결함 해소
+ *             2) 원본 문서의 각 블록별 후행 개행 패턴(단일 \n vs 이중 \n\n)을 rawSuffixes로 온전히 추적·보존하여, 제목(Heading)이나 본문 수정 후 저장(Ctrl+S) 시 커서 아래(헤딩-본문 간)에 원치 않는 빈 행(\n\n)이 강제 삽입되던 결함 완전 해결
+ * 🚨 @PATCH : **2026-10-14** — [프론트매터(Frontmatter) 후행 개행 정규화 및 본문 앞 유령 빈 행 누적 결함 해결]:
+ *             1) 프론트매터(---...---)와 본문(제목 등) 사이에 불필요하게 5~6줄 이상 빈 행이 계속 누적되던 현상을 해결하기 위해 프론트매터 후행 개행을 표준 1개 빈 행(\n\n)으로 정규화
+ *             2) 본문 시작점의 leadingBlank를 프론트매터 접두사(prefix)에 영구 병합하지 않고 깔끔하게 분리하여 마크다운 직렬화 시 과도한 빈 줄 생성 방어
  * 🚨 @PATCH : **2026-10-14** — [수식 블록($$...$$) 및 직후 본문 문단 독립 분할 청킹 개선]:
  *             1) $$ 블록의 시작 줄과 블록 닫힘 직후 본문 시작 줄을 starts 분할 인덱스에 명시 등록하여, $$ 수식 블록 뒤에 빈 줄 없이 본문 텍스트가 바로 이어져도 visual_math와 본문 paragraph가 각각 독립 노드로 온전히 분할 파싱되도록 개선
  *             2) 수식 블록 아래에 곧바로 일반 본문 글을 작성하거나 읽을 수 있도록 블록 경계 완벽 보장
@@ -43,7 +58,7 @@ export const visualSchema = new Schema({
     group: 'block', atom: true, selectable: true,
     attrs: { source: { default: '' } },
     toDOM: node => ['div', { class: 'visual-source-block', contenteditable: 'false' },
-      ['strong', {}, 'Markdown에서 편집하는 블록'], ['pre', {}, node.attrs.source]],
+      ['pre', {}, node.attrs.source]],
     parseDOM: [],
   }).addToEnd('visual_image', {
     group: 'block', atom: true, selectable: true, draggable: true,
@@ -65,6 +80,32 @@ export const visualSchema = new Schema({
     attrs: { latex: { default: '' } },
     toDOM: node => ['span', { class: 'visual-inline-math', 'data-latex': node.attrs.latex, contenteditable: 'false' }, `$${node.attrs.latex}$`],
     parseDOM: [{ tag: 'span[data-latex]', getAttrs: dom => ({ latex: (dom as HTMLElement).getAttribute('data-latex') || '' }) }],
+  }).addToEnd('visual_footnote_ref', {
+    group: 'inline', inline: true, atom: true, selectable: true,
+    attrs: { label: { default: '' } },
+    toDOM: node => ['sup', {
+      class: 'visual-footnote-ref',
+      'data-footnote-ref': node.attrs.label,
+      style: 'font-size: 0.75em; vertical-align: super; line-height: 0; padding: 0 3px; color: #1d4ed8; font-weight: 700; user-select: all; cursor: default;'
+    }, `[${node.attrs.label}]`],
+    parseDOM: [{ tag: 'sup[data-footnote-ref]', getAttrs: dom => ({ label: (dom as HTMLElement).getAttribute('data-footnote-ref') || '' }) }],
+  }).addToEnd('visual_footnote_def', {
+    group: 'block', atom: true, selectable: true,
+    attrs: { label: { default: '' }, content: { default: '' } },
+    toDOM: node => ['div', {
+      class: 'visual-footnote-def my-1.5 px-3 py-2 bg-slate-100/70 dark:bg-slate-800/50 border-l-4 border-blue-600 dark:border-blue-500 rounded text-sm text-slate-700 dark:text-slate-300',
+      'data-footnote-def': node.attrs.label
+    },
+      ['span', { style: 'font-weight: 700; color: #1d4ed8; margin-right: 6px;' }, `[^${node.attrs.label}]:`],
+      ['span', { class: 'visual-footnote-body' }, node.attrs.content]
+    ],
+    parseDOM: [{
+      tag: 'div[data-footnote-def]',
+      getAttrs: dom => ({
+        label: (dom as HTMLElement).getAttribute('data-footnote-def') || '',
+        content: (dom as HTMLElement).querySelector('.visual-footnote-body')?.textContent || ''
+      })
+    }],
   }).addToEnd('table', {group:'block',content:'table_row+',isolating:true,toDOM:()=>['table',{class:'visual-editable-table'},['tbody',0]],parseDOM:[{tag:'table'}]})
     .addToEnd('table_row',{content:'(table_header | table_cell)+',toDOM:()=>['tr',0],parseDOM:[{tag:'tr'}]})
     .addToEnd('table_header',{content:'paragraph',isolating:true,attrs:{align:{default:'left'}},toDOM:()=>['th',{style:'text-align:center!important'},0],parseDOM:[{tag:'th'}]})
@@ -115,8 +156,8 @@ visualTokenizer.parse = (source,environment) => {
     if(token.type==='th_close'||token.type==='td_close')result.push(new constructor('paragraph_close','p',-1));
     if (token.type === 'inline' && token.children) {
       token.children = token.children.flatMap(child => {
-        if (child.type !== 'text' || !/(<br\s*\/?\s*>|<\/?u[^>]*>|\$(?!\$)[^\n$]+(?<!\$)\$)/i.test(child.content)) return [child];
-        const parts = child.content.split(/(<br\s*\/?\s*>|<\/?u[^>]*>|\$(?!\$)[^\n$]+(?<!\$)\$)/i);
+        if (child.type !== 'text' || !/(<br\s*\/?\s*>|<\/?u[^>]*>|\$(?!\$)[^\n$]+(?<!\$)\$|\[\^[^\]]+\])/i.test(child.content)) return [child];
+        const parts = child.content.split(/(<br\s*\/?\s*>|<\/?u[^>]*>|\$(?!\$)[^\n$]+(?<!\$)\$|\[\^[^\]]+\])/i);
         const tokens = [];
         for (const part of parts) {
           if (!part) continue;
@@ -127,6 +168,11 @@ visualTokenizer.parse = (source,environment) => {
             const mathTok = new constructor('math_inline', '', 0);
             mathTok.content = part.slice(1, -1);
             tokens.push(mathTok);
+          } else if (/^\[\^([^\]]+)\]$/.test(part)) {
+            const match = part.match(/^\[\^([^\]]+)\]$/);
+            const fnTok = new constructor('footnote_ref', '', 0);
+            fnTok.content = match ? match[1] : '';
+            tokens.push(fnTok);
           } else {
             const next = new constructor('text', '', 0);
             next.content = part;
@@ -149,6 +195,7 @@ visualTokenizer.parse = (source,environment) => {
 const visualParser = new MarkdownParser(visualSchema,visualTokenizer,{
   ...defaultMarkdownParser.tokens,softbreak:{node:'hard_break'},s:{mark:'strike'},u:{mark:'underline'},
   math_inline:{node:'visual_inline_math',getAttrs:(token: any)=>({latex: token.content})},
+  footnote_ref:{node:'visual_footnote_ref',getAttrs:(token: any)=>({label: token.content})},
   table:{block:'table'},tr:{block:'table_row'},
   th:{block:'table_header',getAttrs:token=>({align:token.attrGet('style')?.match(/text-align:\s*(\w+)/)?.[1] || 'left'})},
   td:{block:'table_cell',getAttrs:token=>({align:token.attrGet('style')?.match(/text-align:\s*(\w+)/)?.[1] || 'left'})},
@@ -188,6 +235,8 @@ export const visualSerializer = new MarkdownSerializer({
   visual_media(state,node){state.write(node.attrs.source);state.closeBlock(node);},
   visual_math(state,node){state.write(`\n$$\n${(node.attrs.latex || '').trim()}\n$$\n\n`);state.closeBlock(node);},
   visual_inline_math(state,node){state.write(`$${(node.attrs.latex || '').trim()}$`);},
+  visual_footnote_ref(state,node){state.write(`[^${node.attrs.label}]`);},
+  visual_footnote_def(state,node){state.write(`[^${node.attrs.label}]: ${node.attrs.content}\n`);state.closeBlock(node);},
 },{...defaultMarkdownSerializer.marks,strike:{open:'~~',close:'~~',mixable:true,expelEnclosingWhitespace:true},underline:{open:'<u>',close:'</u>',mixable:true,expelEnclosingWhitespace:true}});
 
 function normalizeQuotes(node: DocumentNode): DocumentNode {
@@ -206,6 +255,7 @@ function normalizeQuotes(node: DocumentNode): DocumentNode {
 }
 export function createVisualDocumentCodec(markdown: string) {
   const originals = new WeakMap<DocumentNode, string>();
+  const rawSuffixes: string[] = [];
   const meta = markdown.match(/^(?:\uFEFF)?---[^\S\r\n]*\r?\n[\s\S]*?\r?\n---[^\S\r\n]*(?:\r?\n|$)/);
   let prefix = meta?.[0] || '';
   let body = markdown.slice(prefix.length);
@@ -217,7 +267,7 @@ export function createVisualDocumentCodec(markdown: string) {
   lines.forEach(line => offsets.push(offsets[offsets.length - 1] + line.length));
   const nodes: DocumentNode[] = [];
   const tokenizer = defaultMarkdownParser.tokenizer;
-  const hasReferenceDefinitions = /^\s*\[[^\]]+\]:/m.test(body);
+  const hasReferenceDefinitions = /^\s*\[(?!\^)[^\]]+\]:\s*\S/m.test(body);
   const tokens = tokenizer.parse(body, {});
   const starts = Array.from(new Set(tokens.filter(token => token.level === 0 && token.map).map(token => token.map![0])));
   lines.forEach((line, index) => { if (/^\s*\[[^\]]+\]:/.test(line) && !starts.includes(index)) starts.push(index); });
@@ -247,17 +297,23 @@ export function createVisualDocumentCodec(markdown: string) {
   for (let i = 0; i < ranges.length; i++) {
     const raw = body.slice(offsets[ranges[i]], i + 1 < ranges.length ? offsets[ranges[i + 1]] : body.length);
     let node: DocumentNode;
+    const footnoteDefMatch = raw.trim().match(/^\[\^([^\]]+)\]:[ \t]*([\s\S]*)$/);
     const mathMatch = raw.trim().match(/^\$\$([\s\S]*?)\$\$$/);
     const codeMathMatch = raw.trim().match(/^```(?:math|latex)\s*([\s\S]*?)```$/i);
-    if (mathMatch || codeMathMatch) {
+    if (footnoteDefMatch) {
+      node = visualSchema.nodes.visual_footnote_def.create({
+        label: footnoteDefMatch[1].trim(),
+        content: footnoteDefMatch[2].trim()
+      });
+    } else if (mathMatch || codeMathMatch) {
       const latexContent = (mathMatch ? mathMatch[1] : codeMathMatch![1]).trim();
       node = visualSchema.nodes.visual_math.create({ latex: latexContent });
     } else {
       const safeRaw=raw.replace(/<br\s*\/?\s*>/gi,'').replace(/<\/?u[^>]*>/gi,'');
-      const unsupported = /(^|\n)\s*(:::|\[\^[^\]]+\]:|<\/?[a-zA-Z]|\|)|\[\^[^\]]+\]|!\[/m.test(safeRaw)
-        || /^\s*\[[^\]]+\]:/m.test(safeRaw)
+      const unsupported = /(^|\n)\s*(:::|<\/?[a-zA-Z]|\|)|!\[/m.test(safeRaw)
+        || /^\s*\[(?!\^)[^\]]+\]:/m.test(safeRaw)
         || /<\/?[a-zA-Z][^>]*>|==/.test(safeRaw)
-        || (hasReferenceDefinitions && /\[[^\]]+\](?!\()/.test(safeRaw))
+        || (hasReferenceDefinitions && /(?<![-*+]\s*)\[(?!\^)(?!!)(?![ xX]\])[^\]]+\](?!\()/.test(safeRaw))
         || /^\s*```\s*mermaid/m.test(safeRaw);
       try {
         const parsed = normalizeQuotes(visualParser.parse(raw,{preserveTrailingNewlines:i===ranges.length-1}));
@@ -275,34 +331,59 @@ export function createVisualDocumentCodec(markdown: string) {
       }
     }
     originals.set(node, raw);
+    rawSuffixes.push(raw.match(/\n+$/)?.[0] || '\n');
     nodes.push(node);
   }
   // Whitespace-only documents also preserve their exact bytes until edited.
   if (!nodes.length) {
     const empty = body.trim() ? visualSchema.nodes.source_block.create({ source: body }) : visualSchema.nodes.paragraph.create();
     originals.set(empty, body);
+    rawSuffixes.push(body.match(/\n+$/)?.[0] || '\n');
     nodes.push(empty);
   }
   return {
     doc: visualSchema.nodes.doc.create({ frontmatter: prefix }, nodes),
     originalSource(node: DocumentNode) { return originals.get(node); },
-    adopt(other: { doc: DocumentNode; originalSource: (node: DocumentNode) => string | undefined }) {
-      other.doc.forEach(node => { const source = other.originalSource(node); if (source !== undefined) originals.set(node, source); });
+    rawSuffix(index: number) { return rawSuffixes[index]; },
+    adopt(other: { doc: DocumentNode; originalSource: (node: DocumentNode) => string | undefined; rawSuffix?: (index: number) => string | undefined }) {
+      other.doc.forEach((node, _offset, idx) => {
+        const source = other.originalSource(node);
+        if (source !== undefined) originals.set(node, source);
+        if (rawSuffixes[idx] === undefined && other.rawSuffix) {
+          const suffix = other.rawSuffix(idx);
+          if (suffix !== undefined) rawSuffixes[idx] = suffix;
+        }
+      });
     },
     serialize(doc: DocumentNode): string {
-      let result = doc.attrs.frontmatter || '';
-      let previousOriginal = true;
       let changed=false;doc.forEach(node=>{if(originals.get(node)===undefined)changed=true;});
+      let result = doc.attrs.frontmatter || '';
+      if(changed && result){result=result.replace(/\n{3,}$/,'\n\n');}
+      let previousOriginal = true;
+      let previousNode: DocumentNode | null = null;
       doc.forEach((node, _offset, index) => {
         const original = originals.get(node);
-        if(changed && node.type.name==='heading'){if(!result)result='\n';else if(!result.endsWith('\n\n'))result+=result.endsWith('\n')?'\n':'\n\n';}
-        if (index && !(previousOriginal && original !== undefined) && result && !result.endsWith('\n\n')) result += result.endsWith('\n') ? '\n' : '\n\n';
+        if(changed && node.type.name==='heading'){
+          if(result && !result.endsWith('\n\n')) result += result.endsWith('\n') ? '\n' : '\n\n';
+        }
+        if (index && !(previousOriginal && original !== undefined) && result) {
+          const prevSuffix = rawSuffixes[index - 1];
+          const sep = prevSuffix !== undefined ? prevSuffix : (previousNode?.type.name === 'heading' ? '\n' : '\n\n');
+          if (sep === '\n') {
+            if (!result.endsWith('\n')) result += '\n';
+          } else {
+            if (!result.endsWith('\n\n')) result += result.endsWith('\n') ? '\n' : '\n\n';
+          }
+        }
         result += original ?? (['source_block', 'visual_image', 'visual_media'].includes(node.type.name)
           ? node.attrs.source
           : node.type.name === 'visual_math'
           ? `\n$$\n${(node.attrs.latex || '').trim()}\n$$\n\n`
-          : visualSerializer.serialize(visualSchema.nodes.doc.create(null,node)) + (node.type.name==='paragraph' ? '' : '\n\n'));
+          : node.type.name === 'visual_footnote_def'
+          ? `[^${node.attrs.label}]: ${node.attrs.content}\n`
+          : visualSerializer.serialize(visualSchema.nodes.doc.create(null,node)));
         previousOriginal = original !== undefined;
+        previousNode = node;
       });
       return result;
     },
