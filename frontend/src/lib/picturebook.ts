@@ -26,6 +26,38 @@ export function normalizeBookLayout(value: unknown): CssProfile['layout'] {
 export interface BookScene { image: string; body: string; cover: boolean; start: number; end: number; opening: string; raw: string }
 export interface BookOutsideBlock { afterScene: number; startLine: number; endLine: number; text: string; location: string }
 
+type OutsideLine = { afterScene: number; line: number; text: string; literal?: boolean };
+/** Exclude document metadata without changing source offsets or scene content. */
+function outsideBodyLines(markdown: string, entries: OutsideLine[], lineOffset: number): OutsideLine[] {
+  const result = entries.map(entry => ({ ...entry }));
+  const document = extractFrontmatter(markdown);
+  if (document.content !== markdown) {
+    const prefix = markdown.slice(0, markdown.length - document.content.length);
+    const metadataLines = (prefix.match(/\n/g) || []).length;
+    result.forEach(entry => { if (entry.line <= lineOffset + metadataLines) entry.text = ''; });
+  }
+  // Recognize copied Onrivi metadata too, including a separator accidentally
+  // joined to the preceding paragraph. Keep that paragraph's actual text.
+  const marker = /^(?:>\s*)?(?:메타영역|#\s*서식설정)\s*$/;
+  const field = /^(?:>\s*)?(?:메타영역|#\s*서식설정|[A-Za-z_][\w.-]*\s*:.*)?\s*$/;
+  for (let i = 0; i < result.length; i++) {
+    if (result[i].literal || !marker.test(result[i].text.trim())) continue;
+    const previous = result[i - 1];
+    if (previous && !previous.literal && previous.line === result[i].line - 1) {
+      if (/^(?:>\s*)?(?:---)?\s*$/.test(previous.text.trim())) previous.text = '';
+      else if (/---\s*$/.test(previous.text)) previous.text = previous.text.replace(/---\s*$/, '');
+    }
+    for (let j = i; j < result.length; j++) {
+      const entry = result[j];
+      if (entry.literal || (j > i && entry.line !== result[j - 1].line + 1)) break;
+      if (/^(?:>\s*)?---\s*$/.test(entry.text.trim())) { entry.text = ''; break; }
+      if (!field.test(entry.text.trim())) break;
+      entry.text = '';
+    }
+  }
+  return result;
+}
+
 /** Explicit blocks preserve ordinary Markdown and reference definitions. */
 export function parseBookScenes(markdown: string, sourceLineOffset = 0): { scenes: BookScene[]; errors: string[]; outsideBlocks: BookOutsideBlock[] } {
   const lines = markdown.replace(/\r\n/g, '\n').split('\n');
@@ -38,13 +70,13 @@ export function parseBookScenes(markdown: string, sourceLineOffset = 0): { scene
   let start = 0;
   let opening = '';
   const outside: string[] = [];
-  const outsideLines: { afterScene: number; line: number; text: string }[] = [];
+  const outsideLines: OutsideLine[] = [];
   let lineNumber = sourceLineOffset;
   const append = (line: string) => {
     if (block) block.push(line);
     else {
       outside.push(line);
-      outsideLines.push({ afterScene: scenes.length, line: lineNumber, text: line });
+      outsideLines.push({ afterScene: scenes.length, line: lineNumber, text: line, literal: !!fence });
     }
   };
   for (const line of lines) {
@@ -75,12 +107,13 @@ export function parseBookScenes(markdown: string, sourceLineOffset = 0): { scene
   if (block) errors.push('마지막 장면의 닫는 표시 :::가 없습니다.');
   const definitions = outside.filter(line => /^\s{0,3}\[[^\]]+\]:/.test(line)).join('\n');
   const outsideBlocks: BookOutsideBlock[] = [];
+  const bodyLines = outsideBodyLines(markdown.replace(/\r\n/g, '\n'), outsideLines, sourceLineOffset);
   for (let afterScene = 0; afterScene <= scenes.length; afterScene++) {
-    const entries = outsideLines.filter(entry => entry.afterScene === afterScene && entry.text.trim() && !/^\s{0,3}\[[^\]]+\]:/.test(entry.text));
+    const entries = bodyLines.filter(entry => entry.afterScene === afterScene && entry.text.trim() && !/^\s{0,3}\[[^\]]+\]:/.test(entry.text));
     if (!entries.length) continue;
     const location = !scenes.length ? '장면으로 묶이지 않은 본문' : afterScene === 0 ? '첫 장면 앞' : afterScene === scenes.length ? `마지막 장면(장면 ${afterScene}) 뒤` : `장면 ${afterScene}과 장면 ${afterScene + 1} 사이`;
     const startLine = entries[0].line, endLine = entries[entries.length - 1].line;
-    const text = outsideLines.filter(entry => entry.afterScene === afterScene && entry.line >= startLine && entry.line <= endLine).map(entry => entry.text).join('\n');
+    const text = bodyLines.filter(entry => entry.afterScene === afterScene && entry.line >= startLine && entry.line <= endLine).map(entry => entry.text).join('\n');
     outsideBlocks.push({ afterScene, startLine, endLine, text, location });
     const excerpt = entries[0].text.trim().slice(0, 65);
     errors.push(`${location}, 원문 ${startLine}${endLine !== startLine ? `~${endLine}` : ''}행에 장면 밖 본문이 있습니다: “${excerpt}${entries[0].text.trim().length > 65 ? '…' : ''}”. 해당 글을 장면의 닫는 표시 ::: 앞에 넣거나 새 :::scene 장면으로 묶어 주세요.`);

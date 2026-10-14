@@ -72,6 +72,12 @@ function App(){
   const next=await page.evaluate(()=>window.qaSource);
   assert.ok(next.indexOf('새 장면의 내용을 입력하세요.')<next.indexOf('second text'));
   assert.ok(next.includes('updated first text'));assert.ok(next.includes('media/paste-scene.png'));
+  await page.evaluate(()=>window.setSource(window.qaSource+'\n\n실제 장면 밖 본문\n메타영역\n#서식설정\ncss_profile: profile-book-test\n---'));
+  const warning=page.locator('.book-validation');await warning.waitFor();
+  await warning.locator('summary').click();
+  assert.equal((await warning.locator('.book-issue-text').textContent()).trim(),'실제 장면 밖 본문');
+  const colors=await warning.locator('.book-issue-text').evaluate(el=>({color:getComputedStyle(el).color,background:getComputedStyle(el).backgroundColor,size:getComputedStyle(el).fontSize}));
+  assert.equal(colors.color,'rgb(23, 32, 51)');assert.equal(colors.background,'rgb(255, 255, 255)');assert.equal(colors.size,'14px');
   console.log('PASS: picture replacement, stale guards, scene edit viewport preservation and insertion immediately after selected scene');
  }finally{await browser.close();}
 })().catch(err=>{console.error(err);process.exitCode=1;});

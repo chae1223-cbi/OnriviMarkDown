@@ -161,6 +161,10 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
       .picturebook-root .book-text .markdown-viewer-root { padding:0!important; min-height:0!important; }
       .picturebook-root .book-cover-full .book-text { position:absolute; bottom:8%; left:8%; right:8%; max-height:45%; padding:16px; background:rgba(255,255,255,.9); }
       .picturebook-root [data-book-overflow] { outline:2px solid #ef4444; }
+      .picturebook-root .book-validation { background:#fff8e6!important; color:#713f12!important; font-size:14px!important; line-height:1.65!important; }
+      .picturebook-root .book-validation summary { color:#713f12!important; font-size:14px!important; font-weight:700!important; padding:6px 0!important; }
+      .picturebook-root .book-validation .book-issue-text { color:#172033!important; background:#fff!important; opacity:1!important; -webkit-text-fill-color:#172033!important; font-size:14px!important; line-height:1.7!important; border:1px solid #d6c8a3!important; padding:14px!important; }
+      .picturebook-root .book-validation button { color:#172033!important; background:#fff!important; border:1px solid #ad8c47!important; font-size:14px!important; padding:6px 12px!important; }
       @media print { .picturebook-root .book-page { zoom:1!important; margin:0!important; outline:none!important; box-shadow:none!important; break-after:page; break-inside:avoid; } .picturebook-root .book-page:last-of-type { break-after:auto; } .book-screen-only {display:none!important;} }
     `}</style>
     {editError && <p className="book-screen-only p-3 mb-3 rounded-lg bg-red-50 text-red-600 text-xs font-bold" role="alert">{editError}</p>}
@@ -245,7 +249,7 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
 
         {/* 검증 이슈 (높이 48px 제한 제거 및 가독성 확보) */}
         {allIssues.length > 0 && (
-          <div className="book-screen-only mb-3 p-3 rounded-lg border border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 text-xs font-medium space-y-1" role="status">
+          <div className="book-validation book-screen-only mb-3 p-3 rounded-lg border border-amber-300 font-medium space-y-2" role="status">
             {allIssues.map((issue, i) => (
               <div key={i} className="flex items-center gap-2">
                 <span className="text-amber-600 dark:text-amber-400 font-bold shrink-0">⚠️</span>
@@ -254,7 +258,7 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
             ))}
             {parsed.outsideBlocks.map(block => <details key={block.startLine} className="pt-2">
               <summary className="cursor-pointer">{block.location} · 원문 {block.startLine}행의 문제 본문 확인</summary>
-              <pre className="mt-2 p-2 rounded bg-white/70 whitespace-pre-wrap break-words font-sans max-h-48 overflow-auto">{block.text}</pre>
+              <pre className="book-issue-text mt-2 rounded whitespace-pre-wrap break-words font-sans max-h-72 overflow-auto">{block.text}</pre>
               {parsed.scenes.length > 0 && <button type="button" className="border rounded px-2 py-1 mt-1" onClick={() => goToScene(Math.max(0, block.afterScene - 1))}>관련 장면으로 이동</button>}
             </details>)}
           </div>

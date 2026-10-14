@@ -4,7 +4,11 @@ const code = ts.transpileModule(fs.readFileSync('frontend/src/lib/picturebook.ts
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
 }).outputText;
 const exportsObject = {};
-Function('exports','require',code)(exportsObject, () => ({}));
+const frontmatter = {};
+Function('exports', ts.transpileModule(fs.readFileSync('frontend/src/lib/frontmatter.ts','utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
+}).outputText)(frontmatter);
+Function('exports','require',code)(exportsObject, () => frontmatter);
 const { parseBookScenes } = exportsObject;
 const scene = title => `:::scene\n![그림](media/scene.png)\n${title}\n:::`;
 const clean = parseBookScenes(scene('본문') + '\n\n[image]: media/a.png');
@@ -26,4 +30,16 @@ const fenced = parseBookScenes('```\n:::scene\n```\n' + scene('정상'));
 assert.equal(fenced.scenes.length,1);
 assert.ok(fenced.outsideBlocks[0].text.includes(':::scene'));
 assert.ok(!result.outsideBlocks.some(block => block.text.includes('장면 안')));
+const metadata = '---\n메타영역\n#서식설정\ncss_profile: profile-book-123\ncss_profile_name: "그림책"\n---\n';
+assert.equal(parseBookScenes(metadata + scene('정상 본문')).outsideBlocks.length,0);
+const copied = parseBookScenes('**텍스트**' + metadata + '\n>\n메타영역\n#서식설정\ncss_profile: profile-book-123\n---\n' + scene('정상 본문'));
+assert.equal(copied.outsideBlocks.length,1);
+assert.equal(copied.outsideBlocks[0].text,'**텍스트**');
+assert.equal(copied.outsideBlocks[0].startLine,1);
+assert.ok(!copied.errors.join('').includes('css_profile'));
+const actual = parseBookScenes(metadata + '실제 밖에 있는 글\n' + scene('정상 본문'));
+assert.equal(actual.outsideBlocks[0].startLine,7);
+assert.equal(actual.outsideBlocks[0].text,'실제 밖에 있는 글');
+const literalMetadata = parseBookScenes('```\n' + metadata + '```\n' + scene('정상'));
+assert.ok(literalMetadata.outsideBlocks[0].text.includes('css_profile'));
 console.log('PASS: leading/between/trailing outside text, original line offsets, excerpts, complete paragraphs, reference definitions and fenced markers');
