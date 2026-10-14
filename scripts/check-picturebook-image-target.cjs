@@ -5,10 +5,11 @@ const ts=req('typescript'),webpack=req('webpack'),dir=path.join(root,'.tmp/pictu
 function compile(file,name){fs.writeFileSync(path.join(dir,name),ts.transpileModule(fs.readFileSync(path.join(frontend,'src',file),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.React,esModuleInterop:true}}).outputText);}
 compile('components/PicturebookPreview.tsx','preview.js');compile('lib/picturebook.ts','picturebook.js');compile('lib/frontmatter.ts','frontmatter.js');compile('constants/paperSizes.ts','paper.js');compile('lib/desktopClipboard.ts','clipboard.js');
 const nativeSource=fs.readFileSync(path.join(frontend,'src/components/VisualDocumentEditor.tsx'),'utf8');
-const resetViewport=nativeSource.split('\n').find(line=>line.includes("if(scrollContainer && !host.current.closest('[data-book-text]'))"));assert.ok(resetViewport);
-fs.writeFileSync(path.join(dir,'editor.js'),`const React=require('react');module.exports=()=>{
+const resetViewport=nativeSource.split('\n').find(line=>line.includes("if(scrollContainer && !hostEl.closest('[data-book-text]'))"));assert.ok(resetViewport);
+fs.writeFileSync(path.join(dir,'editor.js'),`const React=require('react');module.exports=props=>{
+ window.qaEditorProps=props;
  const element=React.useRef(null);React.useLayoutEffect(()=>{
-  const host={current:element.current},scrollContainer=element.current.closest('.custom-preview-container'),cached=undefined,content='';
+  const hostEl=element.current,scrollContainer=element.current.closest('.custom-preview-container'),cached=undefined,content='';
   ${resetViewport}
  },[]);
  return React.createElement('div',{ref:element,tabIndex:0,className:'visual-document-surface','data-test-editor':true},'body editor');
@@ -24,7 +25,7 @@ function App(){
  const [source,setSource]=React.useState(':::scene {cover}\\n![cover](media/old.png)\\n\\n# first title\\nfirst text\\n:::\\n\\n:::scene\\n![next](media/next.png)\\n\\nsecond text\\n:::');
  window.qaSource=source;window.setSource=setSource;
  return React.createElement('div',{className:'custom-preview-container',style:{height:500,overflow:'auto'}},React.createElement(Preview,{content:source,fingerprint:'test',profile:{pageStyle:{paperSize:'a4',orientation:'portrait',marginTop:'0px',marginRight:'0px',marginBottom:'0px',marginLeft:'0px'},layout:{cover:'image-right',imageRatio:.5,gap:'0px',imageFit:'contain'}},
- onChange:setSource,editorOptions:{documentId:'qa',onImageFile:async file=>{window.qaSaves=(window.qaSaves||0)+1;if(window.qaDelay)return new Promise(resolve=>window.qaResolve=resolve);return 'media/'+file.name;}},
+ onChange:setSource,editorOptions:{documentId:'qa',commandRef:{current:null},tabSize:4,customHotkeys:{bold:'Ctrl+B'},customCommands:{},onFloatingToolbar:()=>{},floatingToolbarVisible:false,onAction:()=>{},onImageFile:async file=>{window.qaSaves=(window.qaSaves||0)+1;if(window.qaDelay)return new Promise(resolve=>window.qaResolve=resolve);return 'media/'+file.name;}},
  renderMarkdown:part=>React.createElement('div',{'data-rendered':true},part)}));
 }createRoot(document.getElementById('root')).render(React.createElement(App));`);
 (async()=>{
@@ -60,6 +61,12 @@ function App(){
   await pages.nth(1).locator('[data-test-editor]').waitFor();
   assert.equal(await viewport.evaluate(el=>el.scrollTop),before);
   assert.equal(await page.evaluate(()=>document.activeElement.className),'visual-document-surface');
+  assert.ok(await page.evaluate(()=>!!window.qaEditorProps.commandRef && typeof window.qaEditorProps.onFloatingToolbar==='function' && window.qaEditorProps.customHotkeys.bold==='Ctrl+B' && window.qaEditorProps.documentId==='qa'));
+  await page.evaluate(()=>window.setSource('---\ncss_profile: "picturebook-custom"\n---\n\n'+window.qaSource));
+  await page.waitForFunction(()=>window.qaSource.startsWith('---'));
+  await page.evaluate(()=>window.qaEditorProps.onChange('**second text**'));
+  await page.waitForFunction(()=>window.qaSource.includes('**second text**'));
+  assert.ok((await page.evaluate(()=>window.qaSource)).startsWith('---\ncss_profile: "picturebook-custom"\n---'));
   await page.getByRole('button',{name:'표지 다음 장면 추가',exact:true}).click();
   await page.waitForFunction(()=>document.querySelectorAll('.book-page').length===3);
   const next=await page.evaluate(()=>window.qaSource);

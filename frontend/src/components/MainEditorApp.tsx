@@ -4189,9 +4189,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (isStyleModalOpen) return;
     const { data } = extractFrontmatter(content);
     if (data.css_profile) {
+      const profileId = data.css_profile.trim().replace(/^["']|["']$/g, '');
       const targetProfile = profiles.find(p => 
-        p.id === data.css_profile || 
-        p.name === data.css_profile ||
+        p.id === profileId || 
+        p.name === profileId ||
         ((data.css_profile === 'ChatGPT 스타일 콘텐츠' || data.css_profile === '온리비어서 표준 서식' || data.css_profile === 'Onrivi 기본서식') && p.id === SYSTEM_PROFILES[0].id) ||
         ((data.css_profile === 'GitHub 기술 블로그/명세서' || data.css_profile === 'system-2') && p.id === 'github-readme-style')
       );

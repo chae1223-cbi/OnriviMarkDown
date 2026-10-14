@@ -72,8 +72,8 @@ async function fetchImageBlob(url: string): Promise<Blob | null> {
 /**
  * 이미지 소스(경로, URL, DataURL, 마크다운 태그)를 OS 시스템 클립보드에 비트맵으로 직접 복사합니다.
  */
-export async function copyImageToClipboard(source: string): Promise<boolean> {
-  const cleanSource = source.trim();
+export async function copyImageToClipboard(source: string, renderedImage?: HTMLImageElement | null): Promise<boolean> {
+  const cleanSource = renderedImage?.currentSrc || renderedImage?.src || source.trim();
   const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
 
   // 1) Electron 네이티브 IPC 호출
@@ -93,7 +93,8 @@ export async function copyImageToClipboard(source: string): Promise<boolean> {
       let targetUrl = cleanSource;
       const mdMatch = targetUrl.match(/^!\[.*?\]\((.*?)\)$/);
       if (mdMatch) targetUrl = mdMatch[1].trim();
-      targetUrl = targetUrl.split('?')[0].trim();
+      // Preserve Drive IDs and signed URL query parameters.
+      targetUrl = targetUrl.replace(/^<|>$/g, '').trim();
 
       const blob = await fetchImageBlob(targetUrl);
       if (blob) {
@@ -107,12 +108,7 @@ export async function copyImageToClipboard(source: string): Promise<boolean> {
     }
   }
 
-  // 3) 최후 폴백: 텍스트 복사
-  if (api?.copyTextToClipboard) {
-    await api.copyTextToClipboard(cleanSource);
-  } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
-    await navigator.clipboard.writeText(cleanSource);
-  }
+  // An image copy must never silently replace the clipboard with its address.
   return false;
 }
 
@@ -127,6 +123,7 @@ export async function copyMediaSource(source: string) {
       const ok = await copyImageToClipboard(trimmed);
       if (ok) return;
     } catch (_) {}
+    throw new Error('이미지를 클립보드에 복사하지 못했습니다.');
   }
 
   const api = (window as any).electronAPI;

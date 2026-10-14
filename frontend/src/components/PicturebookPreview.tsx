@@ -297,7 +297,7 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
             <div className="book-image" style={{ order: scene.cover && !full ? 2 : 0 }}>
               {renderMarkdown(scene.image)}
               {scene.image && <button type="button" className="onrivi-media-control book-image-edit book-image-copy book-screen-only no-print" title="이미지 복사"
-                aria-label={`${i + 1}페이지 사진 복사`} onClick={event => { event.stopPropagation(); void copyImageToClipboard(scene.image).then((ok) => { if (ok) { setCopiedScene(i); setCopyError(''); } else { setCopyError('이미지 복사에 실패했습니다.'); } }).catch(() => setCopyError('클립보드 복사에 실패했습니다.')); }}>{copiedScene === i ? '복사됨' : '복사'}</button>}
+                aria-label={`${i + 1}페이지 사진 복사`} onClick={event => { event.stopPropagation(); void copyImageToClipboard(scene.image, event.currentTarget.closest('.book-image')?.querySelector('img')).then((ok) => { if (ok) { setCopiedScene(i); setCopyError(''); } else { setCopyError('이미지 복사에 실패했습니다.'); } }).catch(() => setCopyError('클립보드 복사에 실패했습니다.')); }}>{copiedScene === i ? '복사됨' : '복사'}</button>}
               {onImageEdit && <button type="button" className="onrivi-media-control book-image-edit book-screen-only"
                 aria-label={`${scene.cover ? '표지' : `${i + 1}페이지`} 사진 편집`}
                 onClick={event => { event.stopPropagation(); onImageEdit(i); }}>편집</button>}
@@ -308,6 +308,21 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
                 <button type="button" className="onrivi-media-control ml-2" onClick={() => returnToSceneList(i)}>↑ 장면 목록으로</button>
               </div>}
               {editingScene === i && onChange ? <VisualDocumentEditor key={`scene-${i}`} renderImage={renderMarkdown} content={sceneEditableBody(scene)}
+                documentId={editorOptions?.documentId}
+                commandRef={editorOptions?.commandRef}
+                tabSize={editorOptions?.tabSize}
+                customCommands={editorOptions?.customCommands}
+                customHotkeys={editorOptions?.customHotkeys}
+                floatingToolbarVisible={editorOptions?.floatingToolbarVisible}
+                onFloatingToolbar={editorOptions?.onFloatingToolbar}
+                onStyleSettings={() => editorOptions?.onAction?.('TOGGLE_CSS_STYLE')}
+                onImageFile={editorOptions?.onImageFile ? file => editorOptions.onImageFile!(file as File) : undefined}
+                onImageDialog={editorOptions?.onImageDialog ? (source, insert) => editorOptions.onImageDialog!(text => {
+                  const match = text.match(/!\[([^\]]*)\]\(([^\n]+)\)/);
+                  return match ? insert(match[2].replace(/^<|>$/g, ''), match[1]) : false;
+                }, source || undefined) : undefined}
+                onMediaDialog={editorOptions?.onMediaDialog ? (kind, source, insert) => editorOptions.onMediaDialog!(kind === 'map' ? 'map' : 'video', insert) : undefined}
+                onFormulaDialog={editorOptions?.onFormulaDialog ? insert => editorOptions.onFormulaDialog!(text => { insert(text); return true; }) : undefined}
                 onChange={body => {
                   try { onChange(replaceSceneBody(contentRef.current, i, body, scene.raw)); setEditError(''); }
                   catch (error) { setEditError(error instanceof Error ? error.message : '장면 수정에 실패했습니다.'); }
