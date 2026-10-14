@@ -84,6 +84,7 @@
       ]
     },
     "files": [
+      "electron/gdriveOAuth.cjs",
       "main.js",
       "preload.js",
       "frontend/out/**/*",

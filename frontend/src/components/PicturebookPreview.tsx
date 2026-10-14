@@ -36,7 +36,7 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
   const sceneList = useRef<HTMLDetailsElement>(null);
   const [scale, setScale] = useState(1);
   const [issues, setIssues] = useState<string[]>([]);
-  const parsed = useMemo(() => parseBookScenes(content), [content]);
+  const parsed = useMemo(() => parseBookScenes(content, sourceLineOffset), [content, sourceLineOffset]);
   const paper = PAPER_SIZES[profile.pageStyle.paperSize?.toLowerCase()] || PAPER_SIZES.a4;
   const landscape = profile.pageStyle.orientation === 'landscape';
   const width = landscape ? paper.height : paper.width;
@@ -252,6 +252,11 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
                 <span>{issue}</span>
               </div>
             ))}
+            {parsed.outsideBlocks.map(block => <details key={block.startLine} className="pt-2">
+              <summary className="cursor-pointer">{block.location} · 원문 {block.startLine}행의 문제 본문 확인</summary>
+              <pre className="mt-2 p-2 rounded bg-white/70 whitespace-pre-wrap break-words font-sans max-h-48 overflow-auto">{block.text}</pre>
+              {parsed.scenes.length > 0 && <button type="button" className="border rounded px-2 py-1 mt-1" onClick={() => goToScene(Math.max(0, block.afterScene - 1))}>관련 장면으로 이동</button>}
+            </details>)}
           </div>
         )}
         {/* 장면 목록 렌더링 */}

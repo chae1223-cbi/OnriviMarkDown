@@ -10782,8 +10782,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                   const original = contentRef.current;
                                   const scene = parseBookScenes(extractFrontmatter(original).content).scenes[index];
                                   if (!scene) return;
-                                  const image = scene.image.match(/!\[([^\]]*)\]\(([^\n]+)\)/);
-                                  setEditingImageInfo({path:image?.[2]?.replace(/^<|>$/g,'') || '',alt:image?.[1] || '',width:'',height:'',align:'center',range:{bookSceneIndex:index, documentId:activeTabIdRef.current, originalSceneRaw:scene.raw}});
+                                  const image = visualImageDetails(scene.image);
+                                  setEditingImageInfo({path:image.path || '',alt:image.alt || '',width:'',height:'',align:'center',range:{bookSceneIndex:index, documentId:activeTabIdRef.current, originalSceneRaw:scene.raw}});
                                   setIsImageModalOpen(true);
                                 }}
                                 onPicturebookChange={!isRestrictedUser && directEditEnabled && currentFileName !== '도움말.md' ? (next) => {

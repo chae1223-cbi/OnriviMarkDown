@@ -187,6 +187,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 29. 구글 드라이브 데스크톱 외부 브라우저 안전 인증 (Handoff 및 루프백 연동)
   requestDesktopGDriveAuth: () => ipcRenderer.invoke('gdrive:request-auth'),
+  refreshDesktopGDriveAuth: () => ipcRenderer.invoke('gdrive:refresh-auth'),
+  disconnectDesktopGDriveAuth: () => ipcRenderer.invoke('gdrive:disconnect-auth'),
 
   // 리스너 해제를 위한 유틸리티 (컴포넌트 unmount 시 메모리 누수 방지)
   removeListeners: () => {

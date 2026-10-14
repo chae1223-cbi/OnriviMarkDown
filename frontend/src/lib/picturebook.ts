@@ -24,9 +24,10 @@ export function normalizeBookLayout(value: unknown): CssProfile['layout'] {
 }
 
 export interface BookScene { image: string; body: string; cover: boolean; start: number; end: number; opening: string; raw: string }
+export interface BookOutsideBlock { afterScene: number; startLine: number; endLine: number; text: string; location: string }
 
 /** Explicit blocks preserve ordinary Markdown and reference definitions. */
-export function parseBookScenes(markdown: string): { scenes: BookScene[]; errors: string[] } {
+export function parseBookScenes(markdown: string, sourceLineOffset = 0): { scenes: BookScene[]; errors: string[]; outsideBlocks: BookOutsideBlock[] } {
   const lines = markdown.replace(/\r\n/g, '\n').split('\n');
   const scenes: BookScene[] = [];
   const errors: string[] = [];
@@ -37,14 +38,24 @@ export function parseBookScenes(markdown: string): { scenes: BookScene[]; errors
   let start = 0;
   let opening = '';
   const outside: string[] = [];
+  const outsideLines: { afterScene: number; line: number; text: string }[] = [];
+  let lineNumber = sourceLineOffset;
+  const append = (line: string) => {
+    if (block) block.push(line);
+    else {
+      outside.push(line);
+      outsideLines.push({ afterScene: scenes.length, line: lineNumber, text: line });
+    }
+  };
   for (const line of lines) {
+    lineNumber++;
     const lineStart = offset;
     offset += line.length + 1;
     const match = line.match(/^\s*(`{3,}|~{3,})/);
     if (match) {
       if (!fence) fence = match[1];
       else if (match[1][0] === fence[0] && match[1].length >= fence.length) fence = '';
-      (block || outside).push(line);
+      append(line);
       continue;
     }
     if (!fence && /^:::scene(?:\s+\{[^}]*\})?\s*$/.test(line)) {
@@ -59,12 +70,20 @@ export function parseBookScenes(markdown: string): { scenes: BookScene[]; errors
         cover: isCover, start, end: lineStart + line.length, opening, raw: content });
       block = null; continue;
     }
-    (block || outside).push(line);
+    append(line);
   }
   if (block) errors.push('마지막 장면의 닫는 표시 :::가 없습니다.');
   const definitions = outside.filter(line => /^\s{0,3}\[[^\]]+\]:/.test(line)).join('\n');
-  if (outside.some(line => line.trim() && !/^\s{0,3}\[[^\]]+\]:/.test(line))) {
-    errors.push('장면 밖의 본문이 있습니다. 모든 내용을 :::scene 블록 안에 넣어 주세요.');
+  const outsideBlocks: BookOutsideBlock[] = [];
+  for (let afterScene = 0; afterScene <= scenes.length; afterScene++) {
+    const entries = outsideLines.filter(entry => entry.afterScene === afterScene && entry.text.trim() && !/^\s{0,3}\[[^\]]+\]:/.test(entry.text));
+    if (!entries.length) continue;
+    const location = !scenes.length ? '장면으로 묶이지 않은 본문' : afterScene === 0 ? '첫 장면 앞' : afterScene === scenes.length ? `마지막 장면(장면 ${afterScene}) 뒤` : `장면 ${afterScene}과 장면 ${afterScene + 1} 사이`;
+    const startLine = entries[0].line, endLine = entries[entries.length - 1].line;
+    const text = outsideLines.filter(entry => entry.afterScene === afterScene && entry.line >= startLine && entry.line <= endLine).map(entry => entry.text).join('\n');
+    outsideBlocks.push({ afterScene, startLine, endLine, text, location });
+    const excerpt = entries[0].text.trim().slice(0, 65);
+    errors.push(`${location}, 원문 ${startLine}${endLine !== startLine ? `~${endLine}` : ''}행에 장면 밖 본문이 있습니다: “${excerpt}${entries[0].text.trim().length > 65 ? '…' : ''}”. 해당 글을 장면의 닫는 표시 ::: 앞에 넣거나 새 :::scene 장면으로 묶어 주세요.`);
   }
   for (const scene of scenes) {
     if (!scene.image) errors.push(`${scenes.indexOf(scene) + 1}번째 장면에 그림이 없습니다.`);
@@ -72,7 +91,7 @@ export function parseBookScenes(markdown: string): { scenes: BookScene[]; errors
   }
   if (scenes.some((scene, i) => scene.cover && i !== 0)) errors.push('표지 장면은 첫 번째에만 배치해 주세요.');
   if (!scenes.length) errors.push(':::scene 블록을 추가해 그림과 본문을 작성해 주세요.');
-  return { scenes, errors };
+  return { scenes, errors, outsideBlocks };
 }
 
 export function replaceBookScene(markdown: string, scene: BookScene, raw: string): string {

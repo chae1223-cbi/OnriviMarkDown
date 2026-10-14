@@ -424,7 +424,7 @@ function resolveSafeResourceFolder(folder) {
 // 🌐 [로컬 이미지 경로(/media/, media/, 파일명 등) 지능형 통합 탐색 헬퍼]
 function findLocalImageFile(rawPath) {
   if (!rawPath || typeof rawPath !== 'string') return null;
-  let cleanPath = rawPath.normalize('NFC').trim();
+  let cleanPath = rawPath.normalize('NFC').trim().replace(/^<|>$/g, '');
   const qIdx = cleanPath.indexOf('?');
   if (qIdx !== -1) cleanPath = cleanPath.substring(0, qIdx);
   const hIdx = cleanPath.indexOf('#');
@@ -4652,111 +4652,9 @@ ipcMain.handle('mermaid:open-window', async (event, svgHtml, options = {}) => {
 // 🚨 @PATCH : **2026-10-04** — 데스크톱 Google OAuth 400 invalid_request 해결을 위한 시스템 브라우저 웹 Handoff 및 루프백 브리지 엔진 신설
 // 🔗 @CALLS : http.createServer, shell.openExternal, getFreePort
 // ====================================================================
-let globalGDriveAuthPromise = null;
-let globalActiveGDriveServer = null;
-
-ipcMain.handle('gdrive:request-auth', async () => {
-  // 🛡️ [중복 호출 방어] 이미 인증 루프백 서버가 가동되어 대기 중인 경우, 기존 요청을 취소하지 않고 현재 진행 중인 Promise를 재사용하여 안전하게 대기
-  if (globalGDriveAuthPromise) {
-    console.log('[GDrive Loopback] ℹ️ 이미 활성화된 인증 요청이 대기 중입니다. 기존 요청을 공유합니다.');
-    return globalGDriveAuthPromise;
-  }
-
-  const http = require('http');
-  const { shell } = require('electron');
-
-  globalGDriveAuthPromise = new Promise(async (resolve, reject) => {
-    let isHandled = false;
-
-    const cleanup = () => {
-      if (globalActiveGDriveServer) {
-        try { globalActiveGDriveServer.close(); } catch {}
-        globalActiveGDriveServer = null;
-      }
-      globalGDriveAuthPromise = null;
-    };
-
-    const handleResolve = (data) => {
-      if (isHandled) return;
-      isHandled = true;
-      cleanup();
-      resolve(data);
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        if (mainWindow.isMinimized()) mainWindow.restore();
-        mainWindow.focus();
-      }
-    };
-
-    const handleReject = (err) => {
-      if (isHandled) return;
-      isHandled = true;
-      cleanup();
-      reject(err);
-    };
-
-    try {
-      const loopbackPort = await getFreePort(49152);
-
-      const server = http.createServer((req, res) => {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-        if (req.method === 'OPTIONS') {
-          res.writeHead(204);
-          res.end();
-          return;
-        }
-
-        try {
-          const reqUrl = new URL(req.url, `http://127.0.0.1:${loopbackPort}`);
-          if (reqUrl.pathname === '/callback' || reqUrl.pathname === '/token') {
-            const token = reqUrl.searchParams.get('token') || reqUrl.searchParams.get('access_token');
-            const expiresIn = reqUrl.searchParams.get('expires_in') || '3600';
-
-            if (token) {
-              res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-              res.end(JSON.stringify({ ok: true, message: 'Token received' }));
-              handleResolve({ access_token: token, expires_in: expiresIn });
-              return;
-            }
-          }
-        } catch (e) {
-          console.error('[GDrive Loopback Error]', e);
-        }
-
-        res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end('Invalid request');
-      });
-
-      globalActiveGDriveServer = server;
-
-      const timer = setTimeout(() => {
-        handleReject(new Error('구글 드라이브 인증 시간이 초과되었습니다 (120초).'));
-      }, 120000);
-
-      server.on('close', () => {
-        clearTimeout(timer);
-        globalGDriveAuthPromise = null;
-      });
-
-      server.listen(loopbackPort, '127.0.0.1', () => {
-        console.log(`[GDrive Loopback] Server running on http://127.0.0.1:${loopbackPort}`);
-        const isDev = !app.isPackaged && process.env.NO_SERVER !== 'true';
-        const baseUrl = isDev ? 'http://localhost:3100' : 'https://onrivi.com';
-        const bridgeUrl = `${baseUrl}/auth/google-drive-desktop?port=${loopbackPort}`;
-        shell.openExternal(bridgeUrl);
-      });
-
-      server.on('error', (err) => {
-        console.error('[GDrive Loopback Server Error]', err);
-        handleReject(err);
-      });
-    } catch (err) {
-      handleReject(err);
-    }
-  });
-
-  return globalGDriveAuthPromise;
+require('./electron/gdriveOAuth.cjs').registerDriveOAuth({
+  ipcMain, app, shell: require('electron').shell,
+  safeStorage: require('electron').safeStorage,
+  getWindow: () => mainWindow
 });
 

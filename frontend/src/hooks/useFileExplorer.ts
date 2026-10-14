@@ -272,22 +272,29 @@ export const useFileExplorer = ({
         const emergencySnapshot = getEmergencyDriveDrafts();
         const token = getSavedDriveToken();
         if (emergencySnapshot && token && emergencySnapshot.drafts?.length > 0) {
-          let syncedCount = 0;
+          const synced = new Map<string, string>();
           for (const draft of emergencySnapshot.drafts) {
-            if (draft.isModified && draft.driveFileId && draft.content) {
+            if (draft.isModified && draft.driveFileId && typeof draft.content === 'string') {
               try {
                 await saveDriveFileContent(token, draft.driveFileId, draft.content);
-                syncedCount++;
-                console.log(`[useFileExplorer] ✅ 재연결 후 비상 초안 자동 동기화 완료: ${draft.name} (${draft.driveFileId})`);
-              } catch (sErr) {
-                console.warn(`[useFileExplorer] 재연결 후 초안 동기화 실패: ${draft.name}`, sErr);
+                synced.set(draft.tabId, draft.content);
+                draft.isModified = false;
+              } catch (error) {
+                console.warn('[GDrive] 초안 재저장 실패, 로컬 보존', error);
               }
             }
           }
-          if (syncedCount > 0) {
-            clearEmergencyDriveDrafts();
-            setTabs(prev => prev.map(t => ({ ...t, isModified: false })));
-            showToast(`☁️ 구글 드라이브가 다시 연결되어 보존 중이던 작성 문서(${syncedCount}건)가 클라우드에 자동 동기화되었습니다.`, 'success');
+          if (synced.size > 0) {
+            if (emergencySnapshot.drafts.some(draft => draft.isModified)) saveEmergencyDriveDrafts(emergencySnapshot);
+            else clearEmergencyDriveDrafts();
+            setTabs(prev => prev.map(tab => synced.has(tab.id) &&
+              (tab.id === activeTabIdRef?.current ? contentRef.current : tab.content) === synced.get(tab.id)
+                ? { ...tab, isModified: false } : tab));
+            const activeId = activeTabIdRef?.current;
+            if (activeId && synced.has(activeId) && contentRef.current === synced.get(activeId)) {
+              lastSavedContentRef.current = contentRef.current;
+              setSaveStatus('saved');
+            }
           }
         }
       } catch (syncErr) {

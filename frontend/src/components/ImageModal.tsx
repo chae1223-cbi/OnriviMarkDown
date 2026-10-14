@@ -223,7 +223,7 @@ export default function ImageModal({
         if (mdMatch) extracted = mdMatch[1].trim();
         const htmlMatch = text.match(/<img[^>]+src=["']([^"']+)["']/i);
         if (htmlMatch) extracted = htmlMatch[1].trim();
-        const clean = extracted.split('?')[0].trim();
+        const clean = extracted.trim().replace(/^<|>$/g, '').split('?')[0].trim();
 
         // Data URL
         if (clean.startsWith('data:image/')) {
@@ -351,7 +351,7 @@ export default function ImageModal({
     if (srcMatch) url = srcMatch[1];
     else if (mdMatch) url = mdMatch[1];
 
-    url = url.replace(/^[\("'\s]+|[\)"'\s]+$/g, '');
+    url = url.replace(/^[<("'\s]+|[>)"'\s]+$/g, '');
     const question = url.indexOf('?');
     if (question >= 0) {
       const hash = url.indexOf('#', question);

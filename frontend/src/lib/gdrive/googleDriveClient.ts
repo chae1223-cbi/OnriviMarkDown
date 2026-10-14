@@ -300,52 +300,36 @@ export async function refreshDriveTokenSilently(): Promise<string | null> {
   if (remaining <= 1 || remaining > 180 || document.visibilityState !== 'visible' ||
       !lastDriveActivity || Date.now() - lastDriveActivity > 60000) return null;
   if (isRefreshingToken) return null;
+  const originalToken = getSavedDriveToken();
   isRefreshingToken = true;
 
   try {
-    // 1. 데스크톱(Electron) 환경
-    const electronApi = (window as any).electronAPI;
-    if (electronApi?.requestDesktopGDriveAuth) {
-      // 데스크톱 환경에서는 시스템 브라우저 창이 열리므로 백그라운드 무음 자동 팝업을 차단하고 만료 시 사용자 재인증을 유도합니다.
-      console.log('[GDrive Auto-Refresh] 데스크톱 환경 감지: 백그라운드 브라우저 자동 팝업을 방지합니다.');
-      return null;
+    const api = (window as any).electronAPI;
+    let result;
+    if (api?.refreshDesktopGDriveAuth) {
+      result = await api.refreshDesktopGDriveAuth();
+    } else if (api?.requestDesktopGDriveAuth) {
+      return null; // Older preload: restart the updated desktop application.
+    } else {
+      const response = await fetch('/api/gdrive/oauth/refresh', {
+        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}',
+        signal: AbortSignal.timeout(20000)
+      });
+      result = await response.json();
+      if (!response.ok && result.code !== 'REAUTH_REQUIRED') return null;
     }
+    if (result?.access_token) {
+      if (getSavedDriveToken() !== originalToken) return null;
+      saveDriveToken(result.access_token, Number(result.expires_in) || 3600);
+      return result.access_token;
+    }
+    if (result?.code === 'REAUTH_REQUIRED') {
+      window.dispatchEvent(new CustomEvent('onrivi:drive_auth_expired'));
+    }
+    return null;
+  } catch {
+    return null; // The scheduler retries while active and before expiry.
 
-    // 2. 웹 브라우저 환경 (GIS initTokenClient with prompt: '')
-    await loadGoogleIdentityScript();
-    const google = (window as any).google;
-    if (!google?.accounts?.oauth2) return null;
-
-    const effectiveClientId =
-      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
-      '771142699427-0krki7r9c2m30bc75etjjmm2edkj6frr.apps.googleusercontent.com';
-
-    return await new Promise<string | null>((resolve) => {
-      try {
-        const client = google.accounts.oauth2.initTokenClient({
-          client_id: effectiveClientId,
-          scope: GOOGLE_DRIVE_SCOPES,
-          prompt: '', // Silent refresh: 팝업창 없이 기존 구글 브라우저 세션으로 즉시 갱신
-          callback: (response: any) => {
-            if (response?.access_token) {
-              const expiresIn = Number(response.expires_in) || 3600;
-              saveDriveToken(response.access_token, expiresIn);
-              resolve(response.access_token);
-            } else {
-              resolve(null);
-            }
-          },
-          error_callback: (err: any) => {
-            console.warn('[GDrive Silent Refresh Error]', err);
-            resolve(null);
-          }
-        });
-        client.requestAccessToken({ prompt: '' });
-      } catch (e) {
-        console.warn('[GDrive Silent Refresh Exception]', e);
-        resolve(null);
-      }
-    });
   } finally {
     isRefreshingToken = false;
   }
@@ -454,6 +438,9 @@ export function saveWorkspaceInfo(info: GoogleDriveWorkspaceInfo): void {
  */
 export function disconnectGoogleDrive(): void {
   if (typeof window === 'undefined') return;
+  const api = (window as any).electronAPI;
+  if (api?.disconnectDesktopGDriveAuth) void api.disconnectDesktopGDriveAuth().catch(() => {});
+  else void fetch('/api/gdrive/oauth/disconnect', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
   clearAllDriveTimers();
   const token = getSavedDriveToken();
   if (token && (window as any).google?.accounts?.oauth2?.revoke) {
@@ -481,103 +468,59 @@ let activeAuthPromise: Promise<string> | null = null;
  * 구글 OAuth 인증 팝업 호출 및 Access Token 발급
  */
 export async function requestGoogleDriveAuth(clientId?: string): Promise<string> {
-  if (activeAuthPromise) {
-    console.log('[GDrive] ℹ️ 이미 진행 중인 구글 드라이브 인증 요청이 존재합니다. 기존 요청을 공유 대기합니다.');
-    return activeAuthPromise;
-  }
-
+  if (activeAuthPromise) return activeAuthPromise;
   activeAuthPromise = (async () => {
-    try {
-      // 🚀 [데스크톱 Electron 환경] 임베디드 웹뷰 및 비표준 리다이렉트 차단 방어를 위해 시스템 브라우저 웹 Handoff 브리지 호출
-      const electronApi = typeof window !== 'undefined' ? (window as any).electronAPI : null;
-      if (electronApi?.requestDesktopGDriveAuth) {
-        console.log('[GDrive] 데스크톱 환경 감지: 시스템 기본 브라우저를 통한 웹 Handoff 인증을 가동합니다.');
-        const result = await electronApi.requestDesktopGDriveAuth();
-        if (result && result.access_token) {
-          saveDriveToken(result.access_token, Number(result.expires_in) || 3600);
-          return result.access_token;
-        }
-        throw new Error('데스크톱 구글 인증 토큰 획득에 실패했습니다.');
-      }
-
-      // 🌐 [웹 브라우저 환경] 기존 Google Identity Services (GIS) 웹 전용 팝업 실행
-      await loadGoogleIdentityScript();
-
-      const effectiveClientId =
-        clientId ||
-        process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
-        '771142699427-0krki7r9c2m30bc75etjjmm2edkj6frr.apps.googleusercontent.com';
-
-      console.log('[GDrive] Requesting OAuth with client ID:', effectiveClientId);
-
-      return await new Promise<string>((resolve, reject) => {
-        try {
-          const google = (window as any).google;
-          if (!google?.accounts?.oauth2) {
-            return reject(new Error('Google Identity Services 로드에 실패했습니다.'));
-          }
-
-          let isFinished = false;
-
-          const client = google.accounts.oauth2.initTokenClient({
-            client_id: effectiveClientId,
-            scope: GOOGLE_DRIVE_SCOPES,
-            callback: (response: any) => {
-              if (isFinished) return;
-              isFinished = true;
-              if (response.error) {
-                const code = String(response.error);
-                const detail = response.error_description || code;
-                const guidance = code === 'access_denied'
-                  ? 'Google OAuth 앱이 테스트 상태이면 해당 계정을 테스트 사용자로 등록해야 합니다. 조직 계정은 관리자의 앱 접근 정책도 확인해 주세요.'
-                  : /origin_mismatch|redirect_uri_mismatch/.test(code)
-                    ? `Google Cloud의 OAuth 클라이언트에 현재 출처(${window.location.origin})가 등록되어 있는지 확인해 주세요.`
-                    : '';
-                return reject(new Error(`구글 로그인 실패 (${code}): ${detail}${guidance ? '\n' + guidance : ''}`));
-              }
-              if (response.scope) {
-                console.log('[GDrive] Granted scopes:', response.scope);
-                if (!response.scope.split(/\s+/).includes('https://www.googleapis.com/auth/drive')) {
-                  return reject(
-                    new Error(
-                      '전체 드라이브 접근 권한이 필요합니다. 로그인 화면에서 Google Drive 파일 보기, 수정, 생성, 삭제 권한에 동의해 주세요.'
-                    )
-                  );
-                }
-              }
-              if (response.access_token) {
-                saveDriveToken(response.access_token, Number(response.expires_in) || 3600);
-                resolve(response.access_token);
-              } else {
-                reject(new Error('구글 인증 토큰이 반환되지 않았습니다.'));
-              }
-            },
-            error_callback: (nonOAuthError: any) => {
-              console.error('[GDrive OAuth error_callback]', nonOAuthError);
-              if (isFinished) return;
-              isFinished = true;
-              const type = nonOAuthError?.type || '';
-              if (type === 'popup_closed') {
-                reject(new Error('로그인 팝업창이 닫혔습니다.'));
-              } else if (type === 'popup_failed_to_open') {
-                reject(new Error('로그인 팝업창을 열지 못했습니다. 브라우저 주소창의 팝업 차단을 허용해주세요.'));
-              } else {
-                reject(new Error(`구글 로그인 오류: ${type || nonOAuthError?.message || JSON.stringify(nonOAuthError)}`));
-              }
-            }
-          });
-
-          // 팝업 표시 (계정 선택창 활성화)
-          client.requestAccessToken({ prompt: 'select_account' });
-        } catch (err) {
-          reject(err);
-        }
-      });
-    } finally {
-      activeAuthPromise = null;
+    const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+    if (api?.requestDesktopGDriveAuth) {
+      const result = await api.requestDesktopGDriveAuth();
+      if (!result?.access_token) throw new Error('데스크톱 Google Drive 인증에 실패했습니다.');
+      saveDriveToken(result.access_token, Number(result.expires_in) || 3600);
+      return result.access_token;
     }
-  })();
-
+    return new Promise<string>((resolve, reject) => {
+      // Open synchronously from the user's click, before awaiting any request.
+      const browserState = btoa(Array.from(crypto.getRandomValues(new Uint8Array(32)), byte => String.fromCharCode(byte)).join('')).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      const popup = window.open('/api/gdrive/oauth/start?browser_state=' + browserState, 'onrivi-drive-oauth', 'popup,width=560,height=720');
+      if (!popup) { reject(new Error('Google Drive 로그인 창을 열 수 없습니다. 팝업을 허용해 주세요.')); return; }
+      let finished = false;
+      let polling = false;
+      const cleanup = () => {
+        window.removeEventListener('message', receive);
+        clearInterval(closed); clearTimeout(timeout);
+      };
+      const receive = (event: MessageEvent) => {
+        if (finished || event.origin !== window.location.origin || event.source !== popup || event.data?.type !== 'onrivi:drive-oauth') return;
+        if (typeof event.data.access_token !== 'string' || !event.data.access_token) return;
+        finished = true; cleanup();
+        saveDriveToken(event.data.access_token, Number(event.data.expires_in) || 3600);
+        resolve(event.data.access_token);
+      };
+      window.addEventListener('message', receive);
+      // Google may sever window.opener through COOP. Poll the server cookie
+      // with a per-attempt nonce; an older connection cannot finish this login.
+      const closed = setInterval(async () => {
+        if (finished || polling) return;
+        polling = true;
+        try {
+          const response = await fetch('/api/gdrive/oauth/status', {
+            method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ state: browserState }), signal: AbortSignal.timeout(10000)
+          });
+          if (response.status !== 200 || finished) return;
+          const result = await response.json();
+          if (finished || !result.access_token) return;
+          finished = true; cleanup();
+          saveDriveToken(result.access_token, Number(result.expires_in) || 3600);
+          resolve(result.access_token);
+        } catch { /* Wait for the callback until the login timeout. */ }
+        finally { polling = false; }
+      }, 2000);
+      const timeout = setTimeout(() => {
+        if (finished) return;
+        finished = true; cleanup(); popup.close(); reject(new Error('Google Drive 인증 시간이 초과되었습니다.'));
+      }, 300000);
+    });
+  })().finally(() => { activeAuthPromise = null; });
   return activeAuthPromise;
 }
 
