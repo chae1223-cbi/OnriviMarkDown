@@ -2,6 +2,13 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-visual-editor
+ * 🚨 @PATCH : **2026-10-14** — [문서 보기(VisualDocumentEditor) 개요(TOC) 및 검색 점프·하이라이트 1:1 연동]:
+ *             1) onrivi:source-cursor 이벤트에 detail.force, detail.term, detail.highlight 옵션을 추가하여 좌측 사이드바 개요/검색 클릭 시 포커스 상태와 무관하게 100% 점프 보장
+ *             2) 검색어(term) 전달 시 ProseMirror 텍스트 선택 범위를 검색어 구간으로 정확히 지정하고 scrollIntoView 실행
+ *             3) detail.highlight 활성화 시 domAtPos를 통해 해당 블록 엘리먼트(.preview-highlight-line) 펄스 하이라이트 부여
+ * 🚨 @PATCH : **2026-10-14** — [useLayoutEffect DOM ref 클린업 안정화 (ESLint react-hooks 경고 해소)]:
+ *             1) useLayoutEffect 진입 시점에 host.current를 로컬 변수 hostEl로 캡처하여 언마운트 및 클린업 시점의 ref 불일치 방지
+ *             2) cleanup 함수에서 hostEl.removeEventListener('mouseleave')를 안전하게 호출하도록 수정하여 react-hooks/exhaustive-deps 빌드 경고 완전 해소
  * 🚨 @PATCH : **2026-10-14** — [시각 에디터 이미지 비트맵 클립보드 복사(copyImageToClipboard) 연동]: 이미지 컨트롤 '복사' 버튼 클릭 시 마크다운 텍스트 주소가 아닌 실제 이미지 바이너리/비트맵을 클립보드에 복사하여 붙여넣기 호환성 완벽 보장
  * 🚨 @PATCH : **2026-10-14** — [이미지 Alt 기본값 강제 폴백 제거]: 이미지 드롭 및 삽입 시 alt가 비어있을 때 'image'로 강제 대체하지 않고 빈 문자열("") 그대로 삽입되도록 개선
  * 🚨 @PATCH : **2026-10-14** — [구글 이미지 검색/외부 웹 이미지 드래그 앤 드롭 새 창 팝업 원천 차단 및 CORS 우회 다운로드·정밀 커서 삽입 완벽 구현]:
@@ -640,6 +647,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
 
   useLayoutEffect(() => {
     if (!host.current) return;
+    const hostEl = host.current;
     const pendingImages = imageTargets.current;
     const cached = documentId ? sessions.get(documentId) : undefined;
     let codec = cached?.source === content ? cached.codec : createVisualDocumentCodec(content);
@@ -692,7 +700,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           };
     };
 
-    host.current.style.position = 'relative';
+    hostEl.style.position = 'relative';
 
     // 1. 도톰하고 선명한 세로 막대 텍스트 커서 (3.5px 코발트 블루, 깜빡임 애니메이션 및 I-Beam 서리프)
     const dropCaretVertical = document.createElement('div');
@@ -770,7 +778,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     };
 
     const updateDropIndicator = (currentView: EditorView, e: DragEvent) => {
-      if (!host.current || !currentView.dom) return;
+      if (!hostEl || !currentView.dom) return;
       const target = resolveDropTarget(currentView, e.clientX, e.clientY);
       lastDropTargetRef.current = target;
 
@@ -784,7 +792,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         }
       }
 
-      const isDark = document.documentElement.classList.contains('dark') || host.current.closest('.dark');
+      const isDark = document.documentElement.classList.contains('dark') || hostEl.closest('.dark');
       dropCaretVertical.style.background = isDark ? '#38bdf8' : '#1d4ed8';
       dropCaretVertical.style.boxShadow = isDark ? '0 0 12px rgba(56, 189, 248, 0.95), 0 0 3px #ffffff' : '0 0 12px rgba(29, 78, 216, 0.95), 0 0 3px #ffffff';
       dropCaretBadge.style.background = isDark ? '#0284c7' : '#1d4ed8';
@@ -844,7 +852,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       if (!types || !Array.from(types).some(t => t === 'Files' || t === 'text/html' || t === 'text/uri-list' || t === 'text/plain')) {
         return;
       }
-      const container = host.current?.closest('.custom-preview-container') || host.current;
+      const container = hostEl.closest('.custom-preview-container') || hostEl;
       if (container) {
         const rect = container.getBoundingClientRect();
         if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
@@ -862,7 +870,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       clearDropIndicator();
       const view = viewRef.current;
       if (!view || !view.editable) return;
-      const container = host.current?.closest('.custom-preview-container') || host.current;
+      const container = hostEl.closest('.custom-preview-container') || hostEl;
       if (container) {
         const rect = container.getBoundingClientRect();
         if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
@@ -881,7 +889,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     window.addEventListener('drop', handleWindowDrop, true);
     window.addEventListener('dragleave', handleWindowDragLeave, true);
     window.addEventListener('mouseup', handleWindowDragEnd, true);
-    if (host.current) host.current.addEventListener('mouseleave', handleWindowDragEnd);
+    hostEl.addEventListener('mouseleave', handleWindowDragEnd);
 
     const executeDropImageInsertion = async (currentView: EditorView, e: DragEvent): Promise<boolean> => {
       const dt = e.dataTransfer;
@@ -1095,7 +1103,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       }
     });
 
-    const view = new EditorView(host.current, {
+    const view = new EditorView(hostEl, {
       state: cached?.source === content ? cached.state : EditorState.create({ doc: codec.doc, plugins: [history(), visualMarkdownInputRules(), createFootnoteHeaderPlugin(), keymap({
         Backspace: chainCommands(removeHeadingAtStart, backspaceInCodeBlock, undoInputRule, baseKeymap.Backspace),
         Delete: chainCommands(deleteInCodeBlock, baseKeymap.Delete),
@@ -1728,7 +1736,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           if (target.source && (from.deleted || to.deleted)) target.valid = false;
           target.from = from.pos; target.to = Math.max(from.pos, to.pos);
         });
-        const viewport=host.current?.closest('.custom-preview-container') as HTMLElement|null;
+        const viewport=hostEl.closest('.custom-preview-container') as HTMLElement|null;
         const topBefore=viewport?.scrollTop;
         view.updateState(view.state.apply(transaction));
         if(transaction.docChanged && viewport && topBefore!==undefined && viewport.scrollTop!==topBefore){
@@ -2050,10 +2058,10 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     });
     viewRef.current = view;
     caretRef.current = installVisualCaret(view);
-    const scrollContainer=host.current.closest('.custom-preview-container') as HTMLElement|null;
+    const scrollContainer=hostEl.closest('.custom-preview-container') as HTMLElement|null;
     // A scene editor mounts inside an already-scrolled picturebook. Resetting
     // the shared document viewport here jumps back to the scene list.
-    if(scrollContainer && !host.current.closest('[data-book-text]')){scrollContainer.scrollTop=cached?.source===content ? cached.scrollTop || 0 : 0;scrollContainer.scrollLeft=cached?.source===content ? cached.scrollLeft || 0 : 0;}
+    if(scrollContainer && !hostEl.closest('[data-book-text]')){scrollContainer.scrollTop=cached?.source===content ? cached.scrollTop || 0 : 0;scrollContainer.scrollLeft=cached?.source===content ? cached.scrollLeft || 0 : 0;}
     // Codec belongs to this editor instance, keeping unchanged source node bytes.
     (view as EditorView & { replaceSource?: (source: string) => void }).replaceSource = source => {
       imageTargets.current.forEach(target => { target.valid = false; });
@@ -2091,7 +2099,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       window.removeEventListener('drop', handleWindowDrop, true);
       window.removeEventListener('dragleave', handleWindowDragLeave, true);
       window.removeEventListener('mouseup', handleWindowDragEnd, true);
-      if (host.current) host.current.removeEventListener('mouseleave', handleWindowDragEnd);
+      hostEl.removeEventListener('mouseleave', handleWindowDragEnd);
       if (dropCaretVertical.parentNode) {
         dropCaretVertical.parentNode.removeChild(dropCaretVertical);
       }
@@ -2116,14 +2124,38 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   }, [content]);
   useEffect(()=>{
     const sync=(event:Event)=>{
-      const offset=(event as CustomEvent).detail?.offset,view=viewRef.current,codec=codecRef.current;
-      if(!view || !codec || typeof offset!=='number' || view.hasFocus())return;
+      const detail=(event as CustomEvent).detail;
+      const offset=detail?.offset,view=viewRef.current,codec=codecRef.current;
+      if(!view || !codec || typeof offset!=='number' || (!detail?.force && view.hasFocus()))return;
       const token='ONRIVICURSORMAP';let low=0,high=view.state.doc.content.size,best=1;
       while(low<=high){const mid=Math.floor((low+high)/2);const selection=TextSelection.near(view.state.doc.resolve(mid));const pos=selection.head;
         const marked=codec.serialize(view.state.tr.insertText(token,pos).doc);const index=marked.indexOf(token);
         if(index<0)break;best=pos;if(index===offset)break;if(index<offset)low=mid+1;else high=mid-1;
       }
-      view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(best))).scrollIntoView());
+      let targetSelection: Selection = TextSelection.near(view.state.doc.resolve(best));
+      const term = detail?.term;
+      if (term && typeof term === 'string' && term.trim()) {
+        const docText = view.state.doc.textBetween(Math.max(0, best - 20), Math.min(view.state.doc.content.size, best + term.length + 50));
+        const relIdx = docText.toLowerCase().indexOf(term.toLowerCase());
+        if (relIdx !== -1) {
+          const actualFrom = Math.max(0, best - 20) + relIdx;
+          targetSelection = TextSelection.create(view.state.doc, actualFrom, actualFrom + term.length);
+        }
+      }
+      view.dispatch(view.state.tr.setSelection(targetSelection).scrollIntoView());
+      if (detail?.highlight) {
+        try {
+          const domPos = view.domAtPos(best);
+          const node = domPos.node instanceof HTMLElement ? domPos.node : domPos.node.parentElement;
+          const block = node?.closest('p, h1, h2, h3, h4, h5, h6, li, tr, pre, blockquote, figure') as HTMLElement | null;
+          if (block) {
+            block.classList.remove('preview-highlight-line');
+            void block.offsetWidth;
+            block.classList.add('preview-highlight-line');
+            setTimeout(() => block.classList.remove('preview-highlight-line'), 3000);
+          }
+        } catch (_) {}
+      }
     };
     window.addEventListener('onrivi:source-cursor',sync);return()=>window.removeEventListener('onrivi:source-cursor',sync);
   },[]);

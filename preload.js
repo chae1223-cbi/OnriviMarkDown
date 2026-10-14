@@ -2,6 +2,8 @@
 // 📊 [OMD-PRELOAD-0001] preload.js ➔ Desktop GDrive Auth Bridge & Secure APIs
 // 🎯 @KICK  : Electron contextBridge API 노출 및 안전한 IPC 통신 채널 제공
 // 🛡️ @GUARD : contextIsolation 및 nodeIntegration 보안 원칙 준수
+// 🚨 @PATCH : **2026-10-14** — [클립보드 네이티브 비트맵 이미지 복사 API(copyImageToClipboard) 노출]: clipboard:writeImage IPC 연동을 통해 이미지 경로/URL/DataURL을 OS 시스템 클립보드에 비트맵으로 직접 복사하는 브리지 API 노출
+// 🚨 @PATCH : **2026-10-14** — [외부 웹 이미지 바이너리 안전 다운로드 브리지(fetchExternalImage) 노출]: net:fetchImageBlob IPC 연동을 통해 CORS 제약 없이 웹 이미지 바이너리를 다운로드할 수 있도록 API 노출
 // 🚨 @PATCH : **2026-10-04** — [구글 드라이브 데스크톱 외부 브라우저 안전 인증]: requestDesktopGDriveAuth IPC 호출 브리지 API(gdrive:request-auth) 추가
 // ====================================================================
 const { contextBridge, ipcRenderer } = require('electron');
@@ -153,9 +155,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 22. 로컬 이미지 파일 Base64 변환 읽기 API
   readImageAsBase64: (filePath) => ipcRenderer.invoke('file:readImageAsBase64', filePath),
+  // 22.5. 외부 웹 이미지 바이너리 안전 다운로드 API (CORS 우회)
+  fetchExternalImage: (url) => ipcRenderer.invoke('net:fetchImageBlob', url),
 
   // 23. 파일명 클립보드 복사 API
   copyTextToClipboard: (text) => ipcRenderer.invoke('clipboard:copyText', text),
+  // 23.5. 클립보드 네이티브 이미지 복사 API
+  copyImageToClipboard: (source) => ipcRenderer.invoke('clipboard:writeImage', source),
 
   // 24. 클립보드 네이티브 이미지 읽기 API
   readClipboardImage: () => ipcRenderer.invoke('clipboard:readImage'),

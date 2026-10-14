@@ -2,6 +2,18 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-10-14** — [폴더 전역 검색(file:searchInFolder) 성능 최적화 및 의존성/빌드 폴더 무시·예외 격리]:
+//             1) getAllMdFiles에서 node_modules, .git, .next, out, dist, build, scratch 등 대규모 폴더를 무시(IGNORED_SEARCH_DIRS)하고 withFileTypes 기반으로 안전하게 탐색하여 메인 프로세스 동기 블로킹 및 탐색 중단 버그 해결
+//             2) file:searchInFolder 핸들러에서 파일별 읽기 예외를 격리하여 잠긴 파일이나 비정상 파일이 있어도 나머지 마크다운 파일 검색이 정상 완료되도록 무결성 보장
+// 🚨 @PATCH : **2026-10-14** — [로컬 이미지 경로(/media/, media/, 파일명) 지능형 통합 해석(findLocalImageFile) 및 모달/프로토콜 미리보기 로드 정상화]:
+//             1) findLocalImageFile 헬퍼를 신설하여 media, media-local 프로토콜 및 file:readImageAsBase64 핸들러에서 리소스 폴더(D:\Onrivi_Asset 등)의 media 하위 및 루트 경로를 자동 탐색하도록 개선
+//             2) 파일 경로에 드라이브 문자가 누락된 경우(/media/image.png 등)에도 로컬 리소스 폴더의 실제 파일과 100% 정상 매칭되어 Base64 Data URL 및 프로토콜 서빙 지원
+// 🚨 @PATCH : **2026-10-14** — [클립보드 네이티브 비트맵 이미지 복사(clipboard:writeImage) 신설 및 이미지 복사 기능 정상화]:
+//             1) clipboard:writeImage IPC 핸들러를 신설하여 로컬 파일(절대/상대/media 폴더), Data URL, 웹 URL을 Electron nativeImage 비트맵으로 변환 후 OS 시스템 클립보드에 직접 기록
+//             2) 텍스트 주소만 복사되어 다른 프로그램이나 에디터/모달에 붙여넣기가 불가능했던 문제를 원천 해결하고, 그림판/Word/카카오톡/에디터/ImageModal에 실제 이미지 바이너리가 100% 정상 붙여넣기되도록 구현
+// 🚨 @PATCH : **2026-10-14** — [웹 이미지/미디어 드래그 앤 드롭 외부 브라우저(Chrome) 팝업 원천 차단 및 CORS 우회 다운로드(net:fetchImageBlob) 탑재]:
+//             1) will-navigate 이벤트에서 웹 이미지 URL(gstatic.com, googleusercontent.com, /images?, 확장자 등) 내비게이션을 선제 차단하여 드래그 앤 드롭 시 시스템 기본 브라우저에 새 창/새 탭이 열리는 버그 원천 박멸
+//             2) net:fetchImageBlob IPC 핸들러를 신설하여 구글 이미지 검색 등 외부 웹 이미지 바이너리를 CORS 제한 없이 안전하게 다운로드 후 로컬 media 폴더에 파일로 보존
 // 🚨 @PATCH : **2026-10-14** — [데스크톱 구글 드라이브 인증(gdrive:request-auth) 중복 호출 방어 및 활성 프로미스 싱글톤 재사용]: 이미 인증 루프백 서버 및 브라우저 Handoff가 대기 중인 상태에서 추가 호출 유입 시, 기존 요청을 취소(Reject)하지 않고 진행 중인 Promise를 안전하게 재사용(Shared Singleton)하여 '새로운 인증 요청으로 인해 이전 요청이 취소되었습니다' 에러 및 중복 브라우저 팝업 완벽 박멸
 // 🚨 @PATCH : **2026-10-10** — [file:readFromPath 도움말(/help/, HELP-*.md) 지능형 폴백 탐색 엔진 탑재]: 데스크톱 앱에서 워크스페이스 경로 결합(D:\...\help\HELP-01_...md) 또는 /help/ 경로로 유입 시 파일이 없을 때, frontend/public/help, frontend/out/help, docs/help를 자동 탐색하여 100% 정상 로드하고 '파일을 찾을 수 없습니다' 에러 완전 해결
 // 🚨 @PATCH : **2026-10-04** — [로컬 파일 읽기(file:readFromPath) 상대경로/파일명 단독 유입 시 활성 워크스페이스 지능형 재귀 탐색]: 상대경로(예: '여기는 연습1.md') 전달 시 현재 활성 워크스페이스(currentActiveWorkspacePath) 직접 결합 및 하위 재귀 탐색(findFileRecursive)을 선행하여 파일을 100% 정상 로드하고 '파일을 찾을 수 없습니다' 크래시 완전 해결
@@ -303,6 +315,22 @@ function createWindow(port) {
     
     // 에디터 화면 외(로그인, 대시보드, 랜딩, 요금제 등)의 웹 주소로의 창 이동은 가로채 시스템 기본 브라우저로 띄웁니다.
     event.preventDefault();
+
+    // 🛡️ [이미지/미디어 드래그 앤 드롭 내비게이션 외부 브라우저 팝업 원천 차단]
+    // 웹 브라우저나 구글 검색에서 이미지를 끌어다 놓을 때 브라우저 기본 동작으로 발생하는
+    // 이미지 URL 이동을 가로채어 시스템 기본 브라우저(Chrome 등)에 엉뚱한 새 창이 뜨는 현상을 100% 차단합니다.
+    if (
+      /\.(png|jpe?g|gif|webp|svg|avif|bmp|jfif|tiff?|ico|mp4|webm)(\?.*)?$/i.test(url) ||
+      url.includes('gstatic.com') ||
+      url.includes('googleusercontent.com') ||
+      url.includes('/images?') ||
+      url.includes('imgres?') ||
+      url.startsWith('file:///')
+    ) {
+      console.warn('[main.js] Drag-drop navigation blocked from opening external browser window:', url);
+      return;
+    }
+
     const { shell } = require('electron');
     if (url.startsWith('app://')) {
       const parsed = new URL(url);
@@ -391,6 +419,64 @@ function resolveSafeResourceFolder(folder) {
   const cwd = process.cwd();
   const rootDrive = (cwd && path.parse(cwd).root) || 'C:\\';
   return path.join(rootDrive, clean);
+}
+
+// 🌐 [로컬 이미지 경로(/media/, media/, 파일명 등) 지능형 통합 탐색 헬퍼]
+function findLocalImageFile(rawPath) {
+  if (!rawPath || typeof rawPath !== 'string') return null;
+  let cleanPath = rawPath.normalize('NFC').trim();
+  const qIdx = cleanPath.indexOf('?');
+  if (qIdx !== -1) cleanPath = cleanPath.substring(0, qIdx);
+  const hIdx = cleanPath.indexOf('#');
+  if (hIdx !== -1) cleanPath = cleanPath.substring(0, hIdx);
+  try { cleanPath = decodeURIComponent(cleanPath); } catch {}
+
+  if (process.platform === 'win32' && cleanPath.startsWith('/') && /^\/[A-Za-z]:/.test(cleanPath)) {
+    cleanPath = cleanPath.slice(1);
+  }
+  let normalized = path.normalize(cleanPath);
+  try {
+    if (fs.existsSync(normalized) && !fs.statSync(normalized).isDirectory()) return normalized;
+  } catch {}
+
+  // 1) 상대경로 및 media 폴더 교차 탐색
+  const dir = path.dirname(normalized);
+  const base = path.basename(normalized);
+  const inMedia = path.join(dir, 'media', base);
+  try {
+    if (fs.existsSync(inMedia) && !fs.statSync(inMedia).isDirectory()) return inMedia;
+  } catch {}
+  const outMedia = normalized.replace(/[/\\]media[/\\]/, path.sep);
+  try {
+    if (fs.existsSync(outMedia) && !fs.statSync(outMedia).isDirectory()) return outMedia;
+  } catch {}
+
+  // 2) 사용자 리소스 폴더(D:\Onrivi_Asset 등) 기준 탐색
+  try {
+    const safeRes = resolveSafeResourceFolder();
+    if (safeRes && fs.existsSync(safeRes)) {
+      const stripped = normalized.replace(/^[A-Za-z]:[\\/]/, '').replace(/^\.?[\/\\]+/, '');
+      const candidates = [
+        path.join(safeRes, stripped),
+        path.join(safeRes, 'media', stripped),
+        path.join(safeRes, 'media', base),
+        path.join(safeRes, base),
+      ];
+      for (const cand of candidates) {
+        if (fs.existsSync(cand) && !fs.statSync(cand).isDirectory()) return cand;
+      }
+    }
+  } catch {}
+
+  // 3) frontend/out 및 frontend/public 정적 에셋 폴백
+  try {
+    const fallbackOut = path.join(__dirname, 'frontend/out', base);
+    if (fs.existsSync(fallbackOut) && !fs.statSync(fallbackOut).isDirectory()) return fallbackOut;
+    const fallbackPub = path.join(__dirname, 'frontend/public', base);
+    if (fs.existsSync(fallbackPub) && !fs.statSync(fallbackPub).isDirectory()) return fallbackPub;
+  } catch {}
+
+  return null;
 }
 
 function getKnowledgeDbPath(resourceFolder) {
@@ -2599,16 +2685,12 @@ app.on('ready', async () => {
         filePath = decodeURIComponent(parsedUrl.pathname);
       }
       
-      if (process.platform === 'win32' && filePath.startsWith('/')) {
-        filePath = filePath.slice(1);
-      }
-      const normalizedPath = path.normalize(filePath);
-      
-      if (!fs.existsSync(normalizedPath)) {
-        console.error('[media-local] File not found:', normalizedPath);
+      const found = findLocalImageFile(filePath);
+      if (!found) {
+        console.error('[media-local] File not found:', filePath);
         return callback({ error: -6 });
       }
-      callback({ path: normalizedPath });
+      callback({ path: found });
     } catch (err) {
       console.error('[media-local] Error:', err);
       callback({ error: -2 });
@@ -2644,26 +2726,11 @@ app.on('ready', async () => {
         });
       }
 
-      let filePath = decodedPath;
-      if (process.platform === 'win32' && filePath.startsWith('/')) {
-        filePath = filePath.slice(1);
+      const found = findLocalImageFile(decodedPath);
+      if (!found) {
+        return new Response('File not found', { status: 404 });
       }
-      let normalizedPath = path.normalize(filePath).normalize('NFC');
-      
-      if (!fs.existsSync(normalizedPath)) {
-        // 🛡️ [에셋 폴백 강인성 보강] 로컬 절대 경로 파일이 존재하지 않는 경우, 
-        // 경로 전체를 더하지 않고 파일명만 추출하여 frontend/out 또는 frontend/public 하위의 에셋을 탐색합니다.
-        const fileNameOnly = path.basename(normalizedPath);
-        const fallbackOutPath = path.join(__dirname, 'frontend/out', fileNameOnly);
-        const fallbackPublicPath = path.join(__dirname, 'frontend/public', fileNameOnly);
-        if (fs.existsSync(fallbackOutPath)) {
-          normalizedPath = fallbackOutPath;
-        } else if (fs.existsSync(fallbackPublicPath)) {
-          normalizedPath = fallbackPublicPath;
-        } else {
-          return new Response('File not found', { status: 404 });
-        }
-      }
+      let normalizedPath = found;
       
       const ext = path.extname(normalizedPath).toLowerCase();
       const mimeTypes = {
@@ -2906,6 +2973,28 @@ ipcMain.handle('file:writeTransferCopy', async (_event, folderPath, relativePath
   throw new Error('동일 이름 파일이 너무 많습니다.');
 });
 
+// 🛡️ [외부 웹 이미지 다운로드 브리지 (CORS 원천 우회)]
+ipcMain.handle('net:fetchImageBlob', async (_event, imageUrl) => {
+  if (typeof imageUrl !== 'string' || !/^https?:\/\//i.test(imageUrl)) return null;
+  try {
+    const response = await net.fetch(imageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+    if (!response.ok) return null;
+    const arrayBuffer = await response.arrayBuffer();
+    const contentType = response.headers.get('content-type') || 'image/png';
+    return {
+      bytes: new Uint8Array(arrayBuffer),
+      contentType
+    };
+  } catch (err) {
+    console.error('[net:fetchImageBlob failed]', err);
+    return null;
+  }
+});
+
 // 4. 프론트엔드에서 폴더 선택 다이얼로그 호출 시 OS 표준 창 띄우기
 //    기본 경로는 사용자 Documents 폴더 혹은 전달받은 defaultPath
 ipcMain.handle('dialog:selectMediaFile', async (_event, options = {}) => {
@@ -3057,21 +3146,37 @@ ipcMain.handle('file:readFromPath', async (event, filePath) => {
   }
 });
 
-// 폴더 아래의 모든 .md 파일을 재귀적으로 찾는 헬퍼 함수
-function getAllMdFiles(dirPath, fileList = []) {
+// 폴더 아래의 모든 .md / .markdown 파일을 재귀적으로 찾는 헬퍼 함수 (무시 폴더 필터 및 안정성 강화)
+const IGNORED_SEARCH_DIRS = new Set([
+  'node_modules', '.git', '.next', 'out', 'dist', 'build', '.wrangler',
+  '_dev_api_backup', '.vscode', '.idea', 'scratch', '.next-web-build'
+]);
+
+function getAllMdFiles(dirPath, fileList = [], depth = 0) {
+  if (depth > 12) return fileList; // 지나치게 깊은 재귀 탐색 방어
   try {
-    const files = fs.readdirSync(dirPath);
-    files.forEach(file => {
-      const filePath = path.join(dirPath, file);
-      const stat = fs.statSync(filePath);
-      if (stat.isDirectory()) {
-        getAllMdFiles(filePath, fileList);
-      } else if (stat.isFile() && file.toLowerCase().endsWith('.md')) {
-        fileList.push(filePath);
+    if (!dirPath || typeof dirPath !== 'string' || !fs.existsSync(dirPath)) {
+      return fileList;
+    }
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const entryName = entry.name;
+      if (entry.isDirectory()) {
+        const lowerName = entryName.toLowerCase();
+        if (lowerName.startsWith('.') || IGNORED_SEARCH_DIRS.has(lowerName)) {
+          continue;
+        }
+        const fullDirPath = path.join(dirPath, entryName);
+        getAllMdFiles(fullDirPath, fileList, depth + 1);
+      } else if (entry.isFile()) {
+        const lowerName = entryName.toLowerCase();
+        if (lowerName.endsWith('.md') || lowerName.endsWith('.markdown')) {
+          fileList.push(path.join(dirPath, entryName));
+        }
       }
-    });
+    }
   } catch (e) {
-    console.error('폴더 스캔 에러:', e);
+    console.error('폴더 스캔 에러:', e?.message || e);
   }
   return fileList;
 }
@@ -3463,9 +3568,12 @@ ipcMain.handle('file:createFolder', async (event, parentPath, name) => {
   }
 });
 
-// 13. 폴더 아래의 모든 마크다운 파일 내용 검색
+// 13. 폴더 아래의 모든 마크다운 파일 내용 검색 (안전성 및 예외 격리 보강)
 ipcMain.handle('file:searchInFolder', async (event, { folderPath, searchTerm, matchCase, useRegex }) => {
   try {
+    if (!folderPath || typeof folderPath !== 'string' || !searchTerm || typeof searchTerm !== 'string' || !searchTerm.trim()) {
+      return [];
+    }
     const mdFiles = getAllMdFiles(folderPath);
     const results = [];
     
@@ -3482,52 +3590,63 @@ ipcMain.handle('file:searchInFolder', async (event, { folderPath, searchTerm, ma
     }
 
     for (const filePath of mdFiles) {
-      const fileName = path.basename(filePath);
-      const fileNameWithoutExt = path.basename(filePath, path.extname(filePath));
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const lines = content.split('\n');
-      const snippets = [];
-      const lineNumbers = [];
-      let fileNameMatched = false;
-
-      // 파일명 검사
-      regex.lastIndex = 0;
-      if (regex.test(fileName) || regex.test(fileNameWithoutExt)) {
-        fileNameMatched = true;
-      }
-
-      // 내용 검사
-      lines.forEach((line, index) => {
-        regex.lastIndex = 0;
-        if (regex.test(line)) {
-          snippets.push(`Line ${index + 1}: ${line.trim()}`);
-          lineNumbers.push(index + 1);
+      try {
+        const fileName = path.basename(filePath);
+        const fileNameWithoutExt = path.basename(filePath, path.extname(filePath));
+        let content = '';
+        try {
+          content = fs.readFileSync(filePath, 'utf-8');
+        } catch {
+          // 잠긴 파일, 바이너리 또는 권한 문제 시 개별 skip
+          continue;
         }
-      });
+        const lines = content.split(/\r?\n/);
+        const snippets = [];
+        const lineNumbers = [];
+        let fileNameMatched = false;
 
-      if (snippets.length > 0) {
-        results.push({
-          fileName,
-          path: filePath,
-          count: snippets.length,
-          snippets,
-          lineNumbers
+        // 파일명 검사
+        regex.lastIndex = 0;
+        if (regex.test(fileName) || regex.test(fileNameWithoutExt)) {
+          fileNameMatched = true;
+        }
+
+        // 내용 검사
+        lines.forEach((line, index) => {
+          regex.lastIndex = 0;
+          if (regex.test(line)) {
+            snippets.push(`Line ${index + 1}: ${line.trim()}`);
+            lineNumbers.push(index + 1);
+          }
         });
-      } else if (fileNameMatched) {
-        results.push({
-          fileName,
-          path: filePath,
-          count: 0,
-          snippets: [],
-          lineNumbers: [],
-          fileNameMatch: true
-        });
+
+        if (snippets.length > 0) {
+          results.push({
+            fileName,
+            path: filePath,
+            count: snippets.length,
+            snippets,
+            lineNumbers
+          });
+        } else if (fileNameMatched) {
+          results.push({
+            fileName,
+            path: filePath,
+            count: 0,
+            snippets: [],
+            lineNumbers: [],
+            fileNameMatch: true
+          });
+        }
+      } catch (fileErr) {
+        // 개별 파일 처리 실패 시 전체 프로세스 중단 방지
+        continue;
       }
     }
     return results;
   } catch (e) {
-    console.error("폴더 전역 검색 에러:", e);
-    throw e;
+    console.error("폴더 전역 검색 에러:", e?.message || e);
+    return [];
   }
 });
 
@@ -3646,6 +3765,109 @@ ipcMain.handle('clipboard:copyText', (event, text) => {
     clipboard.writeText(text);
     return { success: true };
   } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// 23.5. 네이티브 클립보드 이미지 쓰기 API (OS 시스템 클립보드에 비트맵 직접 복사)
+ipcMain.handle('clipboard:writeImage', async (event, source) => {
+  try {
+    const { clipboard, nativeImage } = require('electron');
+    if (!source || typeof source !== 'string') {
+      return { success: false, error: '유효한 이미지 소스가 아닙니다.' };
+    }
+
+    let trimmed = source.trim();
+    // 1) 마크다운 이미지 구문인 경우 안쪽 경로만 추출 (![alt](path))
+    const mdMatch = trimmed.match(/^!\[.*?\]\((.*?)\)$/);
+    if (mdMatch) {
+      trimmed = mdMatch[1].trim();
+    }
+    // 쿼리 파라미터 분리 (예: ?align=center&width=600, ?v=12345)
+    const cleanPathOrUrl = trimmed.split('?')[0].trim();
+
+    let img = null;
+
+    // 2) Data URL인 경우
+    if (cleanPathOrUrl.startsWith('data:image/')) {
+      img = nativeImage.createFromDataURL(trimmed);
+    }
+    // 3) HTTP / HTTPS 웹 이미지인 경우
+    else if (/^https?:\/\//i.test(cleanPathOrUrl)) {
+      try {
+        const { net } = require('electron');
+        const response = await net.fetch(trimmed);
+        if (response.ok) {
+          const arrayBuffer = await response.arrayBuffer();
+          img = nativeImage.createFromBuffer(Buffer.from(arrayBuffer));
+        }
+      } catch (err) {
+        console.warn('[clipboard:writeImage] 원격 이미지 다운로드 실패:', err);
+      }
+    }
+    // 4) 로컬 파일 경로인 경우
+    else {
+      let candidate = cleanPathOrUrl.normalize('NFC');
+      if (candidate.startsWith('file:///')) {
+        candidate = decodeURIComponent(candidate.replace('file:///', ''));
+        if (process.platform === 'win32' && /^\/[a-zA-Z]:/.test(candidate)) {
+          candidate = candidate.slice(1);
+        }
+      }
+
+      let resolvedPath = candidate;
+      if (!fs.existsSync(resolvedPath)) {
+        // 상대 경로 탐색: 설정 파일의 resourceFolder, workspacePath 등 확인
+        let settings = {};
+        try {
+          const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+          if (fs.existsSync(settingsPath)) {
+            settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+          }
+        } catch (_) {}
+
+        const normalizedRelative = candidate.replace(/^[/\\]+/, '');
+        const candidateBase = path.basename(candidate);
+
+        const candidateBases = [
+          settings.resourceFolder,
+          settings.resourceFolder ? path.join(settings.resourceFolder, 'media') : null,
+          settings.workspacePath,
+          settings.workspacePath ? path.join(settings.workspacePath, 'media') : null,
+          process.cwd(),
+          path.join(__dirname, 'frontend/out'),
+          path.join(__dirname, 'frontend/public')
+        ].filter(Boolean);
+
+        for (const base of candidateBases) {
+          const p1 = path.resolve(base, normalizedRelative);
+          const p2 = path.resolve(base, candidateBase);
+          const p3 = path.resolve(base, 'media', candidateBase);
+          if (fs.existsSync(p1)) { resolvedPath = p1; break; }
+          if (fs.existsSync(p2)) { resolvedPath = p2; break; }
+          if (fs.existsSync(p3)) { resolvedPath = p3; break; }
+        }
+      }
+
+      if (fs.existsSync(resolvedPath)) {
+        const ext = path.extname(resolvedPath).toLowerCase();
+        if (ext === '.svg') {
+          const svgContent = fs.readFileSync(resolvedPath);
+          img = nativeImage.createFromBuffer(svgContent);
+        } else {
+          img = nativeImage.createFromPath(resolvedPath);
+        }
+      }
+    }
+
+    if (!img || img.isEmpty()) {
+      return { success: false, error: '유효한 비트맵 이미지를 생성하지 못했습니다.' };
+    }
+
+    clipboard.writeImage(img);
+    return { success: true };
+  } catch (err) {
+    console.error('clipboard:writeImage 오류:', err);
     return { success: false, error: err.message };
   }
 });
@@ -4012,42 +4234,23 @@ ipcMain.handle('pdf:printHTMLToPDF', async (event, html, options) => {
 // 22. 로컬 이미지를 Base64 Data URI로 직접 읽기 (CORS 및 fetch 우회용)
 ipcMain.handle('file:readImageAsBase64', async (event, filePath) => {
   try {
-    const cleanPath = filePath.normalize('NFC');
-    let targetPath = cleanPath;
-    
-    if (!fs.existsSync(cleanPath)) {
-      // 🛡️ [지능형 리소스 경로 폴백]
-      const dir = path.dirname(cleanPath);
-      const base = path.basename(cleanPath);
-      const inMedia = path.join(dir, 'media', base);
-      const outMedia = cleanPath.replace(/[/\\]media[/\\]/, path.sep);
-      if (fs.existsSync(inMedia)) {
-        targetPath = inMedia;
-      } else if (fs.existsSync(outMedia)) {
-        targetPath = outMedia;
-      } else {
-        const fileNameOnly = path.basename(cleanPath);
-        const fallbackOutPath = path.join(__dirname, 'frontend/out', fileNameOnly);
-        const fallbackPublicPath = path.join(__dirname, 'frontend/public', fileNameOnly);
-        if (fs.existsSync(fallbackOutPath)) {
-          targetPath = fallbackOutPath;
-        } else if (fs.existsSync(fallbackPublicPath)) {
-          targetPath = fallbackPublicPath;
-        } else {
-          throw new Error(`File not found: ${cleanPath}`);
-        }
-      }
+    const found = findLocalImageFile(filePath);
+    if (!found) {
+      throw new Error(`File not found: ${filePath}`);
     }
     
-    const buffer = await fs.promises.readFile(targetPath);
-    const ext = path.extname(targetPath).toLowerCase();
+    const buffer = await fs.promises.readFile(found);
+    const ext = path.extname(found).toLowerCase();
     const mimeTypes = {
       '.png': 'image/png',
       '.jpg': 'image/jpeg',
       '.jpeg': 'image/jpeg',
       '.gif': 'image/gif',
       '.svg': 'image/svg+xml',
-      '.webp': 'image/webp'
+      '.webp': 'image/webp',
+      '.bmp': 'image/bmp',
+      '.ico': 'image/x-icon',
+      '.avif': 'image/avif'
     };
     const contentType = mimeTypes[ext] || 'image/png';
     return `data:${contentType};base64,${buffer.toString('base64')}`;

@@ -38,7 +38,12 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const onRejection = (event: PromiseRejectionEvent) => reportClientLog(event.reason instanceof Error ? event.reason.message : '처리되지 않은 비동기 오류', 'ERROR', 'UNHANDLED_REJECTION');
     window.addEventListener('error', onError);
     window.addEventListener('unhandledrejection', onRejection);
-    return () => { window.removeEventListener('error', onError); window.removeEventListener('unhandledrejection', onRejection); };
+    window.addEventListener('onrivi:drive_token_updated', dismissDriveAuthNotices);
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onRejection);
+      window.removeEventListener('onrivi:drive_token_updated', dismissDriveAuthNotices);
+    };
   }, []);
   // 💡 [ ToastProvider 정밀 리팩토링 ]
   // 기존의 꼬이기 쉬운 리액트 상태 JSX 코드를 아예 모두 삭제하여 순도를 높이고,

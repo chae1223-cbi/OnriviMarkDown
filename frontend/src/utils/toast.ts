@@ -13,7 +13,10 @@ import { reportClientLog } from '@/lib/clientLogs';
 // ====================================================================
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
+let driveAuthNoticeShown = false;
+
 export const dismissDriveAuthNotices = () => {
+  driveAuthNoticeShown = false;
   if (typeof document === 'undefined') return;
   document.querySelectorAll('[data-toast-group="drive-auth"]').forEach(element=>element.remove());
 };
@@ -56,7 +59,8 @@ export const showToast = (message: string, type: ToastType = 'info') => {
   const driveAuthNotice = (type==='error' || type==='warning') && /구글\s*드라이브|Google Drive/i.test(message)
     && /인증.*만료|연결.*갱신|재인증/.test(message);
   if (driveAuthNotice) {
-    if(document.querySelector('[data-toast-group="drive-auth"]'))return;
+    if (driveAuthNoticeShown) return;
+    driveAuthNoticeShown = true;
     message='구글 드라이브 인증을 갱신해 주세요. 연결 해제 없이 파일 메뉴의 [내 구글 드라이브 연결]에서 다시 인증할 수 있습니다.';
     type='warning';
   }

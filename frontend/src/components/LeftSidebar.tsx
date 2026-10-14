@@ -1,5 +1,7 @@
 // ====================================================================
 // 📊 [OMD-UI-LeftSidebar-0001] LeftSidebar.tsx ➔ 에디터 좌측 탐색기 사이드바
+// 🚨 @PATCH : **2026-10-14** — [전역 검색(GlobalSearch) 작업장 경로 3중 연동 및 실시간 하이브리드 검색 지원]:
+//             1) GlobalSearch에 rootFolder.name 부재 시 localStorage의 onrivi_workspace_path를 자동 연계하여 데스크톱 작업장 검색 무결성 보장
 // 🚨 @PATCH : **2026-10-13** — [React Hooks exhaustive-deps 린트 경고 완전 해소 및 의존성 최적화]:
 //             1) openImportPicker 및 chooseImportDestination을 useCallback으로 메모이제이션하고 루트 액션 트리거 상단으로 스코프 재배치
 //             2) triggerImportRoot의 useCallback 및 TRIGGER_IMPORT 이벤트 리스너의 useEffect 의존성 배열에 openImportPicker를 안전하게 주입하여 Next.js ESLint 경고 완전 제거
@@ -53,6 +55,11 @@ import { copyImageToClipboard } from '@/lib/mediaMarkup';
 // ====================================================================
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
+// 🚨 @PATCH : **2026-10-14** — [좌측 사이드바 개요(TOC) 및 검색(GlobalSearch) 결과 클릭 시 문서 보기(VisualDocumentEditor) 1:1 연동 및 양방향 스크롤·하이라이트 완비]:
+//             1) 개요(TOC) 클릭 시 VisualDocumentEditor 내의 h1~h6 헤딩 요소를 텍스트 및 인덱스 기반으로 정밀 매핑하여 previewContainer 스크롤 및 .preview-highlight-line 펄스 하이라이트 적용
+//             2) 검색(GlobalSearch) 결과 클릭 시 VisualDocumentEditor(ProseMirror) 블록 내의 검색어 및 텍스트를 감지하여 해당 위치로 중앙 스크롤, .preview-highlight-line 및 CSS Custom Highlight API 검색어 인라인 하이라이트 동시 적용
+//             3) onrivi:source-cursor 커스텀 이벤트를 발송하여 문서 보기 내부 ProseMirror 캐럿(Cursor) 및 텍스트 선택 영역을 실시간 동기화
+//             4) 문서 보기 스크롤 시 개요(TOC) 탭의 활성 헤딩 자동 추적(Auto-follow) 및 부모 헤딩 자동 펼침 연동
 // 🚨 @PATCH : **2026-10-14** — [탐색기/리소스 폴더 이미지 파일 복사 시 네이티브 비트맵 클립보드 동기화(copyImageToClipboard)]: 탐색기에서 이미지 파일(.png, .jpg 등) 복사(Ctrl+C 또는 복사하기) 시 인메모리 노드 복사뿐만 아니라 OS 시스템 클립보드에도 실제 비트맵 이미지를 직접 기록하여 그림판/Word/카카오톡/ImageModal/에디터에 100% 정상 붙여넣기 지원
 // 🚨 @PATCH : **2026-09-30** — [미리보기 폴더 링크 클릭 시 탐색기 증발 결함 수정 및 트리 자동 전개 완비]: handleFocusTreeFolder에서 탐색기 탭 ID('explorer') 오기입('files' -> 'explorer')으로 인해 트리 영역이 hidden 처리되던 결함을 수정하고, 웹 환경에서 루트 폴더명이 접두어로 붙은 상대 경로(relativeToRoot)를 자동 분리하여 onrivi_expanded_paths에 동시 등록함으로써 하위/상위 폴더가 즉시 펼쳐지고 부드러운 스크롤 및 코발트 블루 링 하이라이트가 100% 완벽 연동되도록 조치
 // 🚨 @PATCH : **2026-09-18** — [폴더 삭제 되돌리기(Undo) 전면 지원 및 탐색기 덜렁거림·깜빡임 완전 해소]:
@@ -381,6 +388,123 @@ export default function LeftSidebar() {
 
             previewSuccess = true;
           }
+        } else {
+          // B. VisualDocumentEditor ("문서 보기" / ProseMirror 기반)
+          const proseMirror = (previewContainer.querySelector('.ProseMirror') || previewContainer.querySelector('.visual-document-editor')) as HTMLElement | null;
+          if (proseMirror) {
+            const lines = (content || '').split(/\r?\n/);
+            const lineIdx = Math.max(0, Math.min(lines.length - 1, targetLine - 1));
+            const lineContent = lines[lineIdx] || '';
+            let offset = 0;
+            for (let l = 0; l < lineIdx; l++) {
+              offset += lines[l].length + 1;
+            }
+            if (term && term.trim()) {
+              const termIdx = lineContent.toLowerCase().indexOf(term.trim().toLowerCase());
+              if (termIdx !== -1) {
+                offset += termIdx;
+              }
+            }
+
+            // ProseMirror 커서/선택영역 동기화
+            window.dispatchEvent(new CustomEvent('onrivi:source-cursor', { 
+              detail: { offset, term, force: true, highlight: true } 
+            }));
+
+            let targetBlock: HTMLElement | null = null;
+            const trimmedTerm = term?.trim();
+
+            // 1) 검색어 텍스트 노드가 포함된 블록 검색
+            if (trimmedTerm) {
+              const lowerTerm = trimmedTerm.toLowerCase();
+              const walker = document.createTreeWalker(proseMirror, NodeFilter.SHOW_TEXT);
+              let currNode: Node | null;
+              while ((currNode = walker.nextNode())) {
+                if ((currNode.nodeValue || '').toLowerCase().includes(lowerTerm)) {
+                  targetBlock = (currNode.parentElement?.closest('p, h1, h2, h3, h4, h5, h6, li, tr, pre, blockquote, figure') || currNode.parentElement) as HTMLElement;
+                  break;
+                }
+              }
+            }
+
+            // 2) 줄 내용 기반 블록 검색
+            if (!targetBlock && lineContent.trim()) {
+              const cleanLineText = lineContent.replace(/^[#>*+\-\d.\s\[\]xX]+/, '').trim().toLowerCase();
+              if (cleanLineText.length > 1) {
+                const blocks = Array.from(proseMirror.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, tr, pre, blockquote, figure')) as HTMLElement[];
+                targetBlock = blocks.find(b => (b.textContent || '').toLowerCase().includes(cleanLineText)) || null;
+              }
+            }
+
+            if (searchHighlightTimeoutRef.current) {
+              clearTimeout(searchHighlightTimeoutRef.current);
+              searchHighlightTimeoutRef.current = null;
+            }
+
+            // 이전 하이라이트 제거
+            previewContainer.querySelectorAll('.preview-highlight-line').forEach(el => el.classList.remove('preview-highlight-line'));
+            if (typeof CSS !== 'undefined' && (CSS as any).highlights) {
+              try { (CSS as any).highlights.delete('onrivi-search-text-highlight'); } catch (e) {}
+            }
+
+            if (targetBlock) {
+              targetBlock.classList.add('preview-highlight-line');
+
+              const containerRect = previewContainer.getBoundingClientRect();
+              const elRect = targetBlock.getBoundingClientRect();
+              const targetScrollTop = previewContainer.scrollTop + (elRect.top - containerRect.top) - (containerRect.height / 2) + (elRect.height / 2);
+              previewContainer.scrollTo({
+                top: Math.max(0, targetScrollTop),
+                behavior: 'smooth'
+              });
+
+              if (trimmedTerm && typeof CSS !== 'undefined' && (CSS as any).highlights && typeof (window as any).Highlight !== 'undefined') {
+                const walker = document.createTreeWalker(targetBlock, NodeFilter.SHOW_TEXT);
+                let currNode: Node | null;
+                const ranges: Range[] = [];
+                const lowerTerm = trimmedTerm.toLowerCase();
+                while ((currNode = walker.nextNode())) {
+                  const text = currNode.nodeValue || '';
+                  const lowerText = text.toLowerCase();
+                  let startIdx = 0;
+                  while ((startIdx = lowerText.indexOf(lowerTerm, startIdx)) !== -1) {
+                    try {
+                      const range = new Range();
+                      range.setStart(currNode, startIdx);
+                      range.setEnd(currNode, startIdx + trimmedTerm.length);
+                      ranges.push(range);
+                    } catch (e) {}
+                    startIdx += trimmedTerm.length;
+                  }
+                }
+                if (ranges.length > 0) {
+                  try {
+                    const highlight = new (window as any).Highlight(...ranges);
+                    (CSS as any).highlights.set('onrivi-search-text-highlight', highlight);
+                  } catch (e) {}
+                }
+              }
+
+              searchHighlightTimeoutRef.current = setTimeout(() => {
+                targetBlock?.classList.remove('preview-highlight-line');
+                if (typeof CSS !== 'undefined' && (CSS as any).highlights) {
+                  try { (CSS as any).highlights.delete('onrivi-search-text-highlight'); } catch (e) {}
+                }
+              }, 4000);
+
+              previewSuccess = true;
+            } else {
+              // 폴백: 줄 비율 기반 스크롤
+              const totalLines = Math.max(1, lines.length);
+              const ratio = Math.max(0, Math.min(1, targetLine / totalLines));
+              const targetScrollTop = (previewContainer.scrollHeight - previewContainer.clientHeight) * ratio;
+              previewContainer.scrollTo({
+                top: Math.max(0, targetScrollTop),
+                behavior: 'smooth'
+              });
+              previewSuccess = true;
+            }
+          }
         }
       }
 
@@ -395,7 +519,7 @@ export default function LeftSidebar() {
     };
 
     requestAnimationFrame(doJump);
-  }, [editorRef, previewRef, isScrollingRef, scrollTimeoutRef, previewMode]);
+  }, [editorRef, previewRef, isScrollingRef, scrollTimeoutRef, previewMode, content]);
 
   const isRestrictedUser = !!(
     licenseStatus?.isExpired ||
@@ -1843,8 +1967,12 @@ export default function LeftSidebar() {
         const containerTop = previewContainer.getBoundingClientRect().top;
 
         // 아래에서 위로 스크롤하며, 화면 상단에 가장 가까운 헤딩을 찾음
+        const headings = Array.from(previewContainer.querySelectorAll('h1, h2, h3, h4, h5, h6')) as HTMLElement[];
         for (let i = toc.length - 1; i >= 0; i--) {
-          const el = document.getElementById(toc[i].id);
+          let el = document.getElementById(toc[i].id);
+          if (!el && headings[i]) {
+            el = headings[i];
+          }
           if (el) {
             const rect = el.getBoundingClientRect();
             // 약간의 오프셋(예: 150px)을 주어 제목이 상단에 닿기 직전에 하이라이트되도록 함
@@ -3126,61 +3254,75 @@ export default function LeftSidebar() {
                           : 'hover:bg-zinc-200/70 dark:hover:bg-zinc-800/50 hover:text-blue-600 dark:hover:text-blue-400 text-zinc-600 dark:text-zinc-300 border border-transparent'
                       }`}
                       onClick={() => {
-                        const isPreviewOnly = previewMode === 'preview';
+                        if (previewMode === 'css-style' || previewMode === 'edit') {
+                          setPreviewMode('preview');
+                        }
 
-                        if (isPreviewOnly) {
-                          // A. [미리보기 전용 모드] - 동기화 락 없이 즉시 미리보기 스크롤 이동
-                          const el = document.getElementById(item.id);
-                          if (el && previewRef.current) {
-                            const container = previewRef.current;
-                            const containerRect = container.getBoundingClientRect();
-                            const elRect = el.getBoundingClientRect();
-                            const relativeTop = elRect.top - containerRect.top + container.scrollTop;
-
-                            container.scrollTo({
-                              top: relativeTop - 20, // 상단 20px 보정 마진
-                              behavior: 'smooth'
-                            });
-
-                            // 줄 하이라이트 시각 효과
-                            const elements = Array.from(container.querySelectorAll('[data-line]'));
-                            elements.forEach(e => e.classList.remove('preview-highlight-line'));
-                            el.classList.add('preview-highlight-line');
+                        // 1. 대상 헤딩 DOM 요소 탐색 (MarkdownViewer id 또는 VisualDocumentEditor h1~h6 매핑)
+                        let el: HTMLElement | null = document.getElementById(item.id);
+                        if (!el && previewRef.current) {
+                          const container = previewRef.current;
+                          const headings = Array.from(container.querySelectorAll('h1, h2, h3, h4, h5, h6')) as HTMLElement[];
+                          const cleanTarget = (item.text || '').replace(/\s+/g, '').toLowerCase().normalize('NFC');
+                          el = headings.find(h => {
+                            const tagLevel = parseInt(h.tagName.replace(/^H/i, ''), 10);
+                            const hText = (h.textContent || '').replace(/\s+/g, '').toLowerCase().normalize('NFC');
+                            return (tagLevel === item.level || !item.level) && (hText === cleanTarget || (cleanTarget.length > 2 && hText.includes(cleanTarget)));
+                          }) || null;
+                          if (!el) {
+                            el = headings.find(h => {
+                              const hText = (h.textContent || '').replace(/\s+/g, '').toLowerCase().normalize('NFC');
+                              return hText === cleanTarget || (cleanTarget.length > 2 && (hText.includes(cleanTarget) || cleanTarget.includes(hText)));
+                            }) || null;
                           }
-                          // 백그라운드 에디터 커서 이동
-                          scrollToLine(item.lineNumber);
-                        } else {
-                          // B. [분할/에디터 모드] - 동기화 스크롤 간섭 락킹 후 순차 스크롤 연동
-                          if (isScrollingRef && scrollTimeoutRef) {
-                            isScrollingRef.current = 'preview';
-                            if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                          if (!el && typeof i === 'number' && headings[i]) {
+                            el = headings[i];
                           }
+                        }
 
-                          const el = document.getElementById(item.id);
-                          if (el && previewRef.current) {
-                            const container = previewRef.current;
-                            const containerRect = container.getBoundingClientRect();
-                            const elRect = el.getBoundingClientRect();
-                            const relativeTop = elRect.top - containerRect.top + container.scrollTop;
+                        // 2. 미리보기 / 문서 보기 스크롤 이동 및 펄스 하이라이트
+                        if (el && previewRef.current) {
+                          const container = previewRef.current;
+                          const containerRect = container.getBoundingClientRect();
+                          const elRect = el.getBoundingClientRect();
+                          const relativeTop = elRect.top - containerRect.top + container.scrollTop;
 
-                            container.scrollTo({
-                              top: relativeTop - 20,
-                              behavior: 'smooth'
-                            });
+                          container.scrollTo({
+                            top: Math.max(0, relativeTop - 30),
+                            behavior: 'smooth'
+                          });
 
-                            const elements = Array.from(container.querySelectorAll('[data-line]'));
-                            elements.forEach(e => e.classList.remove('preview-highlight-line'));
-                            el.classList.add('preview-highlight-line');
+                          container.querySelectorAll('.preview-highlight-line').forEach(e => e.classList.remove('preview-highlight-line'));
+                          el.classList.remove('preview-highlight-line');
+                          void el.offsetWidth;
+                          el.classList.add('preview-highlight-line');
+                          setTimeout(() => {
+                            el?.classList.remove('preview-highlight-line');
+                          }, 3000);
+                        }
+
+                        // 3. 문서 보기(VisualDocumentEditor) ProseMirror 커서 동기화
+                        if (content && typeof item.lineNumber === 'number' && item.lineNumber > 0) {
+                          const lines = content.split(/\r?\n/);
+                          let offset = 0;
+                          for (let l = 0; l < item.lineNumber - 1 && l < lines.length; l++) {
+                            offset += lines[l].length + 1;
                           }
+                          window.dispatchEvent(new CustomEvent('onrivi:source-cursor', { 
+                            detail: { offset, headingText: item.text, force: true, highlight: true } 
+                          }));
+                        }
 
-                          // Monaco 에디터 줄 이동
-                          scrollToLine(item.lineNumber);
+                        // 4. Monaco 에디터 줄 이동 (나란히 보기 동기화)
+                        scrollToLine(item.lineNumber);
+                        setActiveTocId(item.id);
 
-                          if (isScrollingRef && scrollTimeoutRef) {
-                            scrollTimeoutRef.current = setTimeout(() => {
-                              isScrollingRef.current = null;
-                            }, 500);
-                          }
+                        if (isScrollingRef && scrollTimeoutRef) {
+                          isScrollingRef.current = 'preview';
+                          if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                          scrollTimeoutRef.current = setTimeout(() => {
+                            if (isScrollingRef) isScrollingRef.current = null;
+                          }, 500);
                         }
                       }}
                     >
@@ -3248,7 +3390,7 @@ export default function LeftSidebar() {
             currentFileName={currentFileName}
             tabs={tabs}
             fileList={fileList}
-            workspacePath={rootFolder?.name && rootFolder.name !== BROWSER_STORAGE_NAME ? rootFolder.name : undefined}
+            workspacePath={rootFolder?.name && rootFolder.name !== BROWSER_STORAGE_NAME ? rootFolder.name : (typeof window !== 'undefined' ? localStorage.getItem('onrivi_workspace_path') || undefined : undefined)}
             rootFolderHandle={rootFolder?.handle}
             workspaceType={workspaceType}
             onSelectFolder={onSelectRootFolder}
@@ -3261,8 +3403,8 @@ export default function LeftSidebar() {
 // 🔗 @CALLS : executeJumpAndHighlight, openFile, switchTab, findNodeRecursively
 // ====================================================================
             onFileOpenAndJump={async (filePath, lineNumber, term) => {
-              // 서식설정이 켜져 있다면 일반 뷰어로 강제 원복
-              if (previewMode === 'css-style') {
+              // 서식설정 또는 편집 전용 모드인 경우 문서 보기로 전환
+              if (previewMode === 'css-style' || previewMode === 'edit') {
                 setPreviewMode('preview');
               }
 

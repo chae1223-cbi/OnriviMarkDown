@@ -190,55 +190,52 @@ export const useFileExplorer = ({
   // ☁️ [구글 드라이브 라이프사이클 & 데이터 보존 안전망 리스너]
   useEffect(() => {
     // 1. 토큰 만료 2분 전: 작업 중인 문서를 구글 드라이브에 안전하게 사전 자동 저장(플러시)
-    const handleTokenAboutToExpire = async (e: any) => {
-      try {
-        const remaining = e?.detail?.remainingSeconds ?? 120;
-        console.log(`[useFileExplorer] ⏱️ 구글 드라이브 토큰 만료 임박 (${remaining}초 남음) 감지: 미저장 문서를 자동 저장합니다.`);
-        const token = getSavedDriveToken();
-        const activeId = activeTabIdRef?.current;
-        const currentVal = contentRef.current;
-        const isCurrentModified = activeId && (currentVal !== lastSavedContentRef.current);
-        let savedCount = 0;
-        if (token) {
-          for (const tab of tabsRef.current) {
-            const isTabModified = tab.isModified || (tab.id === activeId && isCurrentModified);
-            const driveId = (tab as any).driveFileId || (tab as any).driveId || (tab.node as any)?.driveFileId || (tab.node as any)?.driveId;
-            if (isTabModified && driveId) {
-              const tabContent = tab.id === activeId ? currentVal : tab.content;
-              try {
-                await saveDriveFileContent(token, driveId, tabContent);
-                savedCount++;
-                console.log(`[useFileExplorer] ✅ 만료 직전 문서 자동 플러시 완료: ${tab.name} (${driveId})`);
-              } catch (driveErr) {
-                console.warn(`[useFileExplorer] 만료 직전 문서 자동 플러시 실패: ${tab.name}`, driveErr);
-              }
-            }
-          }
-          if (savedCount > 0) {
-            lastSavedContentRef.current = currentVal;
-            setTabs(prev => prev.map(t => ({ ...t, isModified: false })));
-            setSaveStatus('saved');
-            showToast(`☁️ 구글 드라이브 토큰 만료 직전으로 작업 중인 문서(${savedCount}건)가 안전하게 자동 저장되었습니다.`, 'info');
-          }
+    let pendingExpirySave: Promise<void> | null = null;
+    const preserveAndSave = async () => {
+      const activeId = activeTabIdRef?.current;
+      const currentVal = contentRef.current;
+      const drafts = tabsRef.current.map(t => ({
+        tabId: t.id,
+        driveFileId: (t as any).driveFileId || (t as any).driveId || (t.node as any)?.driveFileId || (t.node as any)?.driveId,
+        name: t.name, path: t.path,
+        content: t.id === activeId ? currentVal : t.content,
+        isModified: t.isModified || (t.id === activeId && currentVal !== lastSavedContentRef.current),
+        savedAt: new Date().toISOString()
+      }));
+      // Preserve first, including new documents that have no cloud file yet.
+      const snapshot = { timestamp: Date.now(), activeTabId: activeId, drafts };
+      saveEmergencyDriveDrafts(snapshot);
+      const token = getSavedDriveToken();
+      const saved = new Map<string, string>();
+      let failed = false;
+      for (const draft of drafts) {
+        if (!draft.isModified || !draft.driveFileId) continue;
+        try {
+          if (!token) throw new Error('Drive token unavailable');
+          await saveDriveFileContent(token, draft.driveFileId, draft.content);
+          saved.set(draft.tabId, draft.content);
+          draft.isModified = false;
+        } catch (error) {
+          failed = true;
+          console.warn('[GDrive] 만료 전 저장 실패, 로컬 초안 유지', error);
         }
-        // 만일에 대비하여 로컬에도 100% 비상 스냅샷 생성
-        const snapshot: EmergencyDriveSnapshot = {
-          timestamp: Date.now(),
-          activeTabId: activeId,
-          drafts: tabsRef.current.map(t => ({
-            tabId: t.id,
-            driveFileId: (t as any).driveFileId || (t as any).driveId || (t.node as any)?.driveFileId || (t.node as any)?.driveId,
-            name: t.name,
-            path: t.path,
-            content: t.id === activeId ? currentVal : t.content,
-            isModified: false,
-            savedAt: new Date().toISOString()
-          }))
-        };
-        saveEmergencyDriveDrafts(snapshot);
-      } catch (err) {
-        console.error('[useFileExplorer] 토큰 만료 직전 자동 저장 중 예외:', err);
       }
+      // Do not clear dirty state for failed saves or edits made during the request.
+      saveEmergencyDriveDrafts(snapshot);
+      if (activeId && saved.has(activeId) && contentRef.current === saved.get(activeId)) {
+        lastSavedContentRef.current = currentVal;
+        setSaveStatus('saved');
+      }
+      setTabs(prev => prev.map(t => saved.has(t.id) &&
+        (t.id === activeTabIdRef?.current ? contentRef.current : t.content) === saved.get(t.id)
+          ? { ...t, isModified: false } : t));
+      if (failed) throw new Error('일부 문서를 저장하지 못했습니다. 로컬 초안을 보존했습니다.');
+    };
+    const handleTokenAboutToExpire = (e: any) => {
+      if (!pendingExpirySave) pendingExpirySave = preserveAndSave().finally(() => { pendingExpirySave = null; });
+      void pendingExpirySave.then(() => e?.detail?.complete?.(), error => {
+        e?.detail?.complete?.(error);
+      });
     };
 
     // 2. 토큰 만료 또는 401 오류 발생 시: 현재 작업 중이던 모든 탭과 에디터 버퍼를 로컬에 긴급 백업 (탭 유지)

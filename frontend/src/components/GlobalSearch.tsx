@@ -38,6 +38,10 @@ interface GlobalSearchProps {
 // ====================================================================
 // 📊 [OMD-FILE-GlobalSearch-0001 ✅ FIXED] GlobalSearch ➔ GlobalSearch
 // 🎯 @KICK  : 현재 지정된 작업장 실폴더(Workspace) 내에서 md 파일 및 문서 전체 검색 후 클릭 시 해당 줄로 점프
+// 🚨 @PATCH : 2026-10-14 — [하이브리드 실시간 검색 엔진(메모리+탭+디스크 통합) 탑재 & 검색 결과 0건 버그 완전 해결]
+//             1) 현재 활성 문서(content) 및 열려 있는 모든 탭(tabs)의 미저장 최신 내용을 최우선 실시간 메모리 검색하여 방금 작성한 글도 즉시 검색 결과 상단 노출
+//             2) Electron 디스크 검색(searchInFolder) 결과와 메모리 검색 결과를 지능적으로 병합(중복 제거 및 최신 메모리 상태 오버레이)
+//             3) workspacePath 부재 시 localStorage의 onrivi_workspace_path 자동 연동 및 fileList/Electron fallback 3중 무결성 방어
 // 🚨 @PATCH : 2026-09-16 — [검색 결과 긴 문장 전체 노출 및 고대비 시인성 강화] 1) truncate 해제 및 whitespace-normal break-words 적용으로 긴 문장 자연 줄바꿈 전문 표시, 2) 호버 툴팁(title)에 행 번호 및 전체 문장 전문 노출, 3) 규칙 8 준수 고대비 텍스트(text-slate-900/zinc-100) 및 선명한 앰버 검색어 하이라이트(bg-amber-300/400 font-extrabold) 적용
 //             2026-09-16 — [워크스페이스 검색 점프 및 검색어 하이라이트 연동] onFileOpenAndJump 시그니처에 searchTerm 파라미터를 추가 전달하여 파일 열기 및 줄 이동 시 일치하는 검색어 텍스트가 하이라이트되도록 연동
 //             2026-09-12 — [작업장 실폴더 한정 검색 보장 & 고대비 UI] searchFolder가 현재 선택된 작업장(workspacePath)과 항상 자동 동기화되도록 수정하고, 작업장 내 검색 안내 뱃지 및 Modern Technical Editorial 디자인 시스템 적용
@@ -45,8 +49,14 @@ interface GlobalSearchProps {
 // ====================================================================
 export default function GlobalSearch({ isDarkMode, content, currentFileName, onFileOpenAndJump, workspacePath, rootFolderHandle, onSelectFolder, tabs, workspaceType, fileList }: GlobalSearchProps) {
   const [searchTerm, setSearchTerm] = useState("");
-  // 현재 작업장 폴더 경로와 항상 동기화
-  const [searchFolder, setSearchFolder] = useState<string | null>(workspacePath || null);
+  // 현재 작업장 폴더 경로와 항상 동기화 (로컬스토리지 보조 연동)
+  const [searchFolder, setSearchFolder] = useState<string | null>(() => {
+    if (workspacePath) return workspacePath;
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('onrivi_workspace_path') || null;
+    }
+    return null;
+  });
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [matchCase, setMatchCase] = useState(false);
@@ -55,6 +65,9 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
   useEffect(() => {
     if (workspacePath) {
       setSearchFolder(workspacePath);
+    } else if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('onrivi_workspace_path');
+      if (stored) setSearchFolder(stored);
     }
   }, [workspacePath]);
 
@@ -131,16 +144,18 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
   };
 
   // 검색 실행
+  // 검색 실행
   // ====================================================================
   // 📊 [OMD-FILE-GlobalSearch-0003] GlobalSearch ➔ useEffect (searchLogic)
-  // 🎯 @KICK  : 검색어 입력 시 fileList/tabs/단일문서 순서로 검색
-  // 🛡️ @GUARD : 150ms 디바운스, 검색어 미입력 시 결과 초기화
-  // 🚨 @PATCH : 2026-06-23 — fileList 기반 검색으로 변경 (탐색기와 동일한 파일 목록 사용)
-  // 🔗 @CALLS : electronAPI.searchInFolder, fetch, getApiUrl
+  // 🎯 @KICK  : 실시간 하이브리드 검색: 활성 문서(content) & 열린 탭(tabs) 메모리 최우선 반영 + 디스크 전체 검색 병합
+  // 🛡️ @GUARD : 150ms 디바운스, Electron/웹 다중 환경 무결성 보장, 미저장 편집본 실시간 검색 지원
+  // 🚨 @PATCH : 2026-10-14 — [하이브리드 실시간 검색 엔진] 1) content 및 tabs 메모리 검색 결과를 최우선 배치하여 방금 작성한 글도 즉각 검색 2) Electron searchInFolder 결과와 지능적 병합 3) fileList fallback 보강
+  // 🔗 @CALLS : electronAPI.searchInFolder, searchFile, flattenMdFiles
   // ====================================================================
   useEffect(() => {
     if (!searchTerm.trim()) {
       setResults([]);
+      setIsLoading(false);
       return;
     }
 
@@ -149,46 +164,114 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
       try {
         const escaped = searchTerm.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
         const regex = new RegExp(escaped, matchCase ? 'g' : 'gi');
-        let results: SearchResult[] = [];
 
-        // A. Electron → 메인 프로세스
-        const effectiveFolder = searchFolder || (workspacePath ? workspacePath : null);
-        if (effectiveFolder && typeof window !== 'undefined' && (window as any).electronAPI) {
-          const data = await (window as any).electronAPI.searchInFolder({
-            folderPath: effectiveFolder, searchTerm, matchCase, useRegex: false
-          });
-          setResults(data || []);
-          return;
-        }
+        // 1. 메모리 상의 활성 문서 및 열린 탭 최우선 검색 (미저장 편집본 실시간 반영)
+        const memoryResults: SearchResult[] = [];
+        const seenFileIdentifiers = new Set<string>();
 
-        // B. fileList 기반 검색 (탐색기와 동일한 파일 목록)
-        const mdFiles = flattenMdFiles(fileList || []);
-        for (const file of mdFiles) {
-          try {
-            const matchedTab = tabs?.find(t => t.path === file.path || t.name === file.name);
-            const text = matchedTab ? matchedTab.content : await (await file.handle!.getFile()).text();
-            const r = searchFile(text, file.name, file.path || file.name, regex);
-            if (r) results.push(r);
-          } catch (e) { /* 파일 읽기 실패 시 skip */ }
-        }
-
-        // C. fileList에 없는 열린 탭 추가 검색
-        if (tabs && tabs.length > 0) {
-          const searchPaths = new Set(results.map(r => r.fileName));
-          for (const tab of tabs) {
-            if (searchPaths.has(tab.name)) continue;
-            const r = searchFile(tab.content, tab.name, tab.path || tab.name, regex);
-            if (r) { results.push(r); searchPaths.add(tab.name); }
+        // 1-A. 현재 열려 있는 활성 문서 (content)
+        if (content && currentFileName) {
+          const currentResult = searchFile(content, currentFileName, 'current', regex);
+          if (currentResult) {
+            memoryResults.push(currentResult);
+            seenFileIdentifiers.add(currentFileName.toLowerCase());
+            const noExt = currentFileName.replace(/\.md$/i, '').toLowerCase();
+            seenFileIdentifiers.add(noExt);
+            seenFileIdentifiers.add('current');
           }
         }
 
-        // D. 단일 문서 (결과가 없을 때만)
-        if (results.length === 0) {
-          const r = searchFile(content, currentFileName, 'current', regex);
-          if (r) results = [r];
+        // 1-B. 열려 있는 다른 탭들 (tabs)
+        if (tabs && tabs.length > 0) {
+          for (const tab of tabs) {
+            if (!tab || !tab.content) continue;
+            const tabNameLower = tab.name.toLowerCase();
+            if (seenFileIdentifiers.has(tabNameLower)) continue;
+
+            const tabResult = searchFile(tab.content, tab.name, tab.path || tab.name, regex);
+            if (tabResult) {
+              memoryResults.push(tabResult);
+              seenFileIdentifiers.add(tabNameLower);
+              const noExt = tab.name.replace(/\.md$/i, '').toLowerCase();
+              seenFileIdentifiers.add(noExt);
+              if (tab.path) seenFileIdentifiers.add(tab.path.toLowerCase().replace(/\\/g, '/'));
+            }
+          }
         }
 
-        setResults(results);
+        // 2. 디스크 워크스페이스 검색 (Electron 환경)
+        let diskResults: SearchResult[] = [];
+        const effectiveFolder = searchFolder || (workspacePath ? workspacePath : null) || (typeof window !== 'undefined' ? (localStorage.getItem('onrivi_workspace_path') || null) : null);
+
+        if (effectiveFolder && typeof window !== 'undefined' && (window as any).electronAPI?.searchInFolder) {
+          try {
+            const data = await (window as any).electronAPI.searchInFolder({
+              folderPath: effectiveFolder,
+              searchTerm,
+              matchCase,
+              useRegex: false
+            });
+            if (Array.isArray(data)) {
+              diskResults = data;
+            }
+          } catch (electronErr) {
+            console.warn('[GlobalSearch] searchInFolder error:', electronErr);
+          }
+        }
+
+        // 3. 브라우저 VFS 또는 fileList 검색 (디스크 검색 결과가 없거나 웹 환경인 경우)
+        if (diskResults.length === 0 && fileList && fileList.length > 0) {
+          const mdFiles = flattenMdFiles(fileList);
+          for (const file of mdFiles) {
+            try {
+              const fileNameLower = file.name.toLowerCase();
+              const normPath = file.path ? file.path.toLowerCase().replace(/\\/g, '/') : '';
+              if (seenFileIdentifiers.has(fileNameLower) || (normPath && seenFileIdentifiers.has(normPath))) {
+                continue;
+              }
+
+              let text = '';
+              const matchedTab = tabs?.find(t => t.path === file.path || t.name === file.name);
+              if (matchedTab) {
+                text = matchedTab.content;
+              } else if (file.handle && typeof file.handle.getFile === 'function') {
+                text = await (await file.handle.getFile()).text();
+              } else if (typeof window !== 'undefined' && (window as any).electronAPI?.readFromPath && file.path) {
+                try {
+                  const res = await (window as any).electronAPI.readFromPath(file.path);
+                  text = typeof res === 'string' ? res : (res?.content || '');
+                } catch {}
+              }
+
+              if (text) {
+                const r = searchFile(text, file.name, file.path || file.name, regex);
+                if (r) {
+                  diskResults.push(r);
+                  seenFileIdentifiers.add(fileNameLower);
+                }
+              }
+            } catch {
+              // skip
+            }
+          }
+        }
+
+        // 4. 최종 결과 병합: 메모리(현재 문서 + 열린 탭) 최우선 + 디스크 파일
+        const mergedResults: SearchResult[] = [...memoryResults];
+
+        for (const diskRes of diskResults) {
+          const fileNameLower = diskRes.fileName.toLowerCase();
+          const normPath = diskRes.path ? diskRes.path.toLowerCase().replace(/\\/g, '/') : '';
+
+          // 이미 메모리(현재 문서나 열린 탭)로 등록된 파일은 메모리 최신 결과를 유지
+          if (seenFileIdentifiers.has(fileNameLower) || (normPath && seenFileIdentifiers.has(normPath))) {
+            continue;
+          }
+
+          mergedResults.push(diskRes);
+        }
+
+        setResults(mergedResults);
       } catch (e) {
         msg.error("검색 처리 오류", e);
       } finally {
@@ -300,6 +383,11 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
                 <span className="text-[12px] font-bold text-slate-900 dark:text-zinc-100 truncate" title={result.path}>
                   {result.fileName}
                 </span>
+                {(result.path === 'current' || result.fileName === currentFileName) && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-900/50 text-[#1d4ed8] dark:text-blue-300 font-extrabold shrink-0 border border-blue-200 dark:border-blue-800/60">
+                    현재 문서
+                  </span>
+                )}
               </div>
               {!result.fileNameMatch && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#1d4ed8]/10 text-[#1d4ed8] dark:bg-[#1d4ed8]/20 dark:text-blue-300 font-extrabold shrink-0">

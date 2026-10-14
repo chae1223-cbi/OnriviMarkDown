@@ -50,6 +50,7 @@
 
 import { getResourceSettings, saveResourceSettings } from '@/lib/resourceSettings';
 import CryptoJS from 'crypto-js';
+import { startActiveTokenRenewal } from './activeTokenRenewal';
 import { SYSTEM_PROFILES, isSystemProfileId } from '@/constants/cssProfile';
 
 export const GOOGLE_DRIVE_SCOPES = [
@@ -215,6 +216,29 @@ export async function loadGoogleIdentityScript(): Promise<void> {
 }
 
 let refreshTimerId: any = null;
+let stopActiveRenewal: (() => void) | null = null;
+let lastDriveActivity = 0;
+let activityTrackingStarted = false;
+function trackDriveActivity() {
+  if (activityTrackingStarted) return;
+  activityTrackingStarted = true;
+  for (const name of ['keydown', 'pointerdown', 'wheel', 'input', 'touchstart']) {
+    window.addEventListener(name, (event) => {
+      if (event.isTrusted && document.visibilityState === 'visible') lastDriveActivity = Date.now();
+    }, { capture: true, passive: true });
+  }
+}
+function saveBeforeDriveRenewal(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('문서 저장 완료를 확인하지 못했습니다.')), 15000);
+    window.dispatchEvent(new CustomEvent('onrivi:drive_token_about_to_expire', {
+      detail: { remainingSeconds: getDriveTokenRemainingSeconds(), complete: (error?: unknown) => {
+        clearTimeout(timeout);
+        if (error) reject(error); else resolve();
+      } }
+    }));
+  });
+}
 let preExpiryFlushTimerId: any = null;
 let expiryTimerId: any = null;
 
@@ -222,6 +246,8 @@ let expiryTimerId: any = null;
  * 모든 구글 드라이브 토큰 관련 타이머 일괄 해제
  */
 export function clearAllDriveTimers(): void {
+  stopActiveRenewal?.();
+  stopActiveRenewal = null;
   if (refreshTimerId) {
     clearTimeout(refreshTimerId);
     refreshTimerId = null;
@@ -238,56 +264,30 @@ export function clearAllDriveTimers(): void {
 let isRefreshingToken = false;
 
 /**
- * ⏱️ 만료 5분(300초) 전 백그라운드 자동 갱신 & 만료 2분(120초) 전 사전 자동 저장(플러시) & 만료(0초) 종합 스케줄러
+ * 만료 3분 전부터 최근 활동이 있을 때 저장 완료 후 갱신을 시도한다.
  */
 export function scheduleDriveTokenRefresh(expiresIn: number): void {
   if (typeof window === 'undefined') return;
   clearAllDriveTimers();
 
-  // 1. 만료 5분(300초) 전 무음 갱신 시도 (최소 15초 후)
-  const refreshDelayMs = Math.max(15000, (expiresIn - 300) * 1000);
-  console.log(`[GDrive Auto-Refresh] ⏱️ 다음 토큰 자동 갱신 예약: ${Math.round(refreshDelayMs / 1000 / 60)}분 후 (총 유효시간: ${Math.round(expiresIn / 60)}분)`);
-
-  refreshTimerId = setTimeout(async () => {
-    try {
-      console.log('[GDrive Auto-Refresh] 🔄 백그라운드 구글 토큰 자동 갱신 시도 중...');
-      const newToken = await refreshDriveTokenSilently();
-      if (newToken) {
-        console.log('[GDrive Auto-Refresh] ✅ 토큰 자동 갱신 성공! 무중단 연결이 유지됩니다.');
-      } else {
-        console.warn('[GDrive Auto-Refresh] ⚠️ 백그라운드 갱신 응답 없음. 만료 2분 전 작업 문서 자동 저장이 대기 중입니다.');
-      }
-    } catch (err) {
-      console.warn('[GDrive Auto-Refresh] 갱신 중 예외 발생:', err);
-    }
-  }, refreshDelayMs);
-
-  // 2. 만료 2분(120초) 전 작업 중인 문서 클라우드 사전 자동 저장(플러시) 이벤트
-  //    토큰이 살아있는 마지막 2분 골든 타임에 활성/수정된 탭을 구글 드라이브에 확정 저장합니다.
-  if (expiresIn > 120) {
-    const preFlushDelayMs = Math.max(5000, (expiresIn - 120) * 1000);
-    console.log(`[GDrive Auto-Save] ⏱️ 토큰 만료 2분 전 자동 플러시 예약: ${Math.round(preFlushDelayMs / 1000 / 60)}분 후`);
-
-    preExpiryFlushTimerId = setTimeout(() => {
-      const remaining = getDriveTokenRemainingSeconds();
-      console.log(`[GDrive Auto-Save] ⏱️ 구글 드라이브 토큰 만료 임박 (${remaining}초 남음): 작성 중인 문서 자동 저장 플러시 이벤트를 발송합니다.`);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('onrivi:drive_token_about_to_expire', {
-          detail: { remainingSeconds: remaining }
-        }));
-      }
-    }, preFlushDelayMs);
-  }
-
-  // 3. 토큰 만료 시점(0초) 만료 알림 및 비상 로컬 스냅샷 백업 확정 이벤트 발송
-  const expiryDelayMs = Math.max(1000, expiresIn * 1000);
+  trackDriveActivity();
+  const expiresAt = Date.now() + expiresIn * 1000;
+  stopActiveRenewal = startActiveTokenRenewal({
+    expiresAt, now: Date.now,
+    isActive: () => document.visibilityState === 'visible' && lastDriveActivity > 0 && Date.now() - lastDriveActivity <= 60000,
+    save: saveBeforeDriveRenewal,
+    renew: refreshDriveTokenSilently,
+    // Browser timer methods must keep Window as their receiver.
+    schedule: (callback, delay) => window.setTimeout(callback, delay),
+    cancel: timer => window.clearTimeout(timer),
+  });
+  // Save even if idle; inactivity must never prevent preserving unsaved work.
+  preExpiryFlushTimerId = setTimeout(() => {
+    void saveBeforeDriveRenewal().catch(error => console.warn('[GDrive] 만료 전 저장 확인 실패', error));
+  }, Math.max(0, (expiresIn - 180) * 1000));
   expiryTimerId = setTimeout(() => {
-    console.warn('[GDrive Guard] ⚠️ 구글 드라이브 토큰 수명 만료 도달: 비상 로컬 백업 및 만료 이벤트를 발송합니다.');
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('onrivi:drive_token_expired'));
-      window.dispatchEvent(new CustomEvent('onrivi:drive_auth_expired'));
-    }
-  }, expiryDelayMs);
+    window.dispatchEvent(new CustomEvent('onrivi:drive_auth_expired'));
+  }, Math.max(1000, expiresIn * 1000));
 }
 
 /**
@@ -296,6 +296,9 @@ export function scheduleDriveTokenRefresh(expiresIn: number): void {
  */
 export async function refreshDriveTokenSilently(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
+  const remaining = getDriveTokenRemainingSeconds();
+  if (remaining <= 1 || remaining > 180 || document.visibilityState !== 'visible' ||
+      !lastDriveActivity || Date.now() - lastDriveActivity > 60000) return null;
   if (isRefreshingToken) return null;
   isRefreshingToken = true;
 
@@ -358,19 +361,7 @@ export function initDriveTokenAutoRefresh(): void {
   if (!token || !expiry) return;
 
   const remainingSeconds = Math.round((expiry - Date.now()) / 1000);
-  if (remainingSeconds > 120) {
-    scheduleDriveTokenRefresh(remainingSeconds);
-  } else if (remainingSeconds > 0) {
-    // 만료 2분 이내: 즉시 사전 자동 저장 이벤트 발송 후 갱신 시도
-    window.dispatchEvent(new CustomEvent('onrivi:drive_token_about_to_expire', {
-      detail: { remainingSeconds }
-    }));
-    scheduleDriveTokenRefresh(remainingSeconds);
-    void refreshDriveTokenSilently();
-  } else {
-    // 이미 만료됨: 즉시 조용히 갱신 시도
-    void refreshDriveTokenSilently();
-  }
+  if (remainingSeconds > 0) scheduleDriveTokenRefresh(remainingSeconds);
 }
 
 /**
@@ -381,20 +372,6 @@ export function getSavedDriveToken(): string | null {
   const token = localStorage.getItem(STORAGE_KEY_TOKEN) || sessionStorage.getItem(STORAGE_KEY_TOKEN);
   if (!token) return null;
 
-  const expiry = Number(localStorage.getItem(STORAGE_KEY_EXPIRY));
-  if (expiry && Date.now() >= expiry) {
-    // 만료되었을 때 자동 갱신 백그라운드 비동기 트리거
-    if (!refreshTimerId && !isRefreshingToken) {
-      void refreshDriveTokenSilently();
-    }
-    // 토큰이 스토리지에 남아있으면 시도 가능하도록 반환 (401 시 자동 정제)
-    return token;
-  }
-
-  // 만료 5분(300초) 이내로 임박했을 때 백그라운드 사전 갱신 트리거
-  if (expiry && expiry - Date.now() < 300000 && !refreshTimerId && !isRefreshingToken) {
-    void refreshDriveTokenSilently();
-  }
 
   return token;
 }
@@ -420,9 +397,9 @@ export function hasValidDriveToken(): boolean {
 export function saveDriveToken(token: string, expiresIn: number = 3600): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(STORAGE_KEY_TOKEN, token);
-  localStorage.setItem(STORAGE_KEY_EXPIRY, String(Date.now() + Math.max(0, expiresIn - 30) * 1000));
+  localStorage.setItem(STORAGE_KEY_EXPIRY, String(Date.now() + Math.max(0, expiresIn) * 1000));
 
-  // 토큰 만료 5분 전 자동 갱신 타이머 가동
+  // 토큰 만료 3분 전부터 활동 여부에 따라 갱신한다.
   scheduleDriveTokenRefresh(expiresIn);
   window.dispatchEvent(new CustomEvent('onrivi:drive_token_updated', { detail: { token } }));
 }
@@ -664,8 +641,12 @@ export async function fetchGoogleUserInfo(token?: string): Promise<GoogleDriveUs
 /**
  * 구글 드라이브 API 응답 오류 상세 분석 헬퍼
  */
-async function parseDriveError(res: Response, defaultAction: string): Promise<Error> {
+async function parseDriveError(res: Response, defaultAction: string, requestToken?: string): Promise<Error> {
   if (res.status === 401) {
+    const currentToken = localStorage.getItem(STORAGE_KEY_TOKEN) || sessionStorage.getItem(STORAGE_KEY_TOKEN);
+    if (requestToken && currentToken && currentToken !== requestToken) {
+      return new Error('이전 연결의 요청이 만료되었습니다. 다시 시도해 주세요.');
+    }
     localStorage.removeItem(STORAGE_KEY_TOKEN);
     sessionStorage.removeItem(STORAGE_KEY_TOKEN);
     if (typeof window !== 'undefined') {
@@ -1168,7 +1149,7 @@ export async function listDriveChildren(token?: string, parentFolderId?: string,
     const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
       headers: { Authorization: `Bearer ${authToken}` },
     });
-    if (!res.ok) throw await parseDriveError(res, '구글 드라이브 파일 목록 조회');
+    if (!res.ok) throw await parseDriveError(res, '구글 드라이브 파일 목록 조회', authToken);
     const data = await res.json();
     rawList.push(...(data.files || []));
     pageToken = data.nextPageToken;
@@ -1194,14 +1175,8 @@ export async function readDriveFileContent(token?: string, fileId?: string): Pro
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${authToken}` },
   });
-  if (res.status === 401) {
-    console.warn('[readDriveFileContent] 401 Unauthorized - 만료된 토큰 정리');
-    localStorage.removeItem(STORAGE_KEY_TOKEN);
-    localStorage.removeItem(STORAGE_KEY_EXPIRY);
-    sessionStorage.removeItem(STORAGE_KEY_TOKEN);
-  }
   if (!res.ok) {
-    throw await parseDriveError(res, '파일 읽기');
+    throw await parseDriveError(res, '파일 읽기', authToken);
   }
   return await res.text();
 }
@@ -1223,7 +1198,7 @@ export async function saveDriveFileContent(token?: string, fileId?: string, cont
   });
 
   if (!res.ok) {
-    throw await parseDriveError(res, '파일 저장');
+    throw await parseDriveError(res, '파일 저장', authToken);
   }
   return true;
 }
@@ -1270,7 +1245,7 @@ export async function createDriveMarkdownFile(
   });
 
   if (!res.ok) {
-    throw await parseDriveError(res, '새 마크다운 파일 생성');
+    throw await parseDriveError(res, '새 마크다운 파일 생성', authToken);
   }
 
   const data = await res.json();
@@ -1351,7 +1326,7 @@ async function uploadUniqueDriveImage(
   });
 
   if (!res.ok) {
-    throw await parseDriveError(res, '이미지 업로드');
+    throw await parseDriveError(res, '이미지 업로드', authToken);
   }
 
   const data = await res.json();
@@ -1516,7 +1491,7 @@ export async function moveDriveItem(
       body: JSON.stringify({}),
     }
   );
-  if (!res.ok) throw await parseDriveError(res, '파일/폴더 이동');
+  if (!res.ok) throw await parseDriveError(res, '파일/폴더 이동', authToken);
   return true;
 }
 
@@ -1548,7 +1523,7 @@ export async function copyDriveFile(
       body: JSON.stringify(body),
     }
   );
-  if (!res.ok) throw await parseDriveError(res, '파일 복사');
+  if (!res.ok) throw await parseDriveError(res, '파일 복사', authToken);
   const data = await res.json();
   return data.id;
 }
