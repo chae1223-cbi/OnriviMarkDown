@@ -1,8 +1,17 @@
+// 🚨 @PATCH : **2026-10-14** — [이미지 미리보기 실패 원인(임시 상대경로 주입/로드에러 영구고착/경로 해석 실패) 근본 해결 및 실시간 프리뷰 정상화]:
+//             1) handlePasteEvent에서 이미지 텍스트/경로 붙여넣기 시 tempPreviewUrl에 상대경로(/media/...)가 들어가 404 및 로드 실패를 유발하던 버그 원천 제거 (Base64/Blob/외부URL만 tempPreviewUrl 허용)
+//             2) 이미지 로드 실패 시 imageLoadError 상태가 영구 고착되던 문제 해결: cleanImagePath 또는 previewSrc 변경 시 에러 상태 자동 초기화(false)
+//             3) 데스크톱(Electron) 환경에서 cleanImagePath 변경 시 api.readImageAsBase64를 통해 로컬 이미지를 Data URL로 비동기 선행 추출하여 CORS/샌드박스 없는 즉각적인 100% 무결점 미리보기 제공
+//             4) previewSrc의 media://local/serve 경로 결합 시 media/ 하위폴더 중복 및 누락 방지 정규화 적용, 리소스 폴더 미존재 파일에 대한 친절한 안내 메시지 강화
+// 🚨 @PATCH : **2026-10-14** — [e.clipboardData.getData 함수 부재로 인한 TypeError 방어 및 클립보드 텍스트 안전 추출]: handlePasteEvent 호출 시 합성 이벤트 객체에 getData 함수가 없는 경우 발생하는 런타임 오류를 원천 방어하고, getSafeClipboardText 헬퍼를 통해 e.clipboardData 및 navigator.clipboard.readText를 안전하게 2중 폴백 추출하도록 개선
+// 🚨 @PATCH : **2026-10-14** — [클립보드 이미지/주소/마크다운 태그 붙여넣기 인식 고도화]: 클립보드 내 실제 이미지 바이너리뿐만 아니라 이미지 주소, 마크다운 이미지(![...]), 로컬 파일 경로, 웹 URL 붙여넣기 시 자동으로 이미지를 해석·로드하여 ImageModal에 정상 반영되도록 구현
+// 🚨 @PATCH : **2026-10-14** — [이미지 설명(Alt) 초기값 및 강제 폴백 제거]: 설명 입력란 초기값('이미지 설명')을 빈 값("")으로 변경하고, 내용 삭제 시 임의의 기본값으로 원복되지 않도록 개선
 // 🚨 @PATCH : **2026-10-07** — [환경설정 리소스 폴더(참조파일 등) media 하위폴더 직결 바인딩]: 구글 드라이브 업로드 시 cloudSettings.mediaFolderId 우선 참조 및 부모 리소스 폴더 하위 탐색으로 환경설정에 지정된 리소스 폴더에 안전 저장
 // 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 전역 미디어 실시간 연동 강화]: getEffectiveResourceFolder 연동 및 구글 드라이브(OnriviAuthor/참조파일/media) 업로드 지원
 "use client";
 import { pickResourceMedia } from '@/lib/resourceMediaPicker';
 import { saveResourceMedia, importResourceMedia } from '@/lib/resourceMedia';
+import { imageResourceName } from '@/lib/imageResourceName';
 import { desktopClipboardImage } from '@/lib/desktopClipboard';
 
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
@@ -41,6 +50,7 @@ interface ImageModalProps {
 // ====================================================================
 // 📊 [OMD-EDIT-ImageModal-0007] ImageModal ➔ ImageModal
 // 🎯 @KICK  : 이미지 삽입 모달 - URL/파일/클립보드 이미지 경로 입력 및 크기/정렬 설정
+// 🚨 @PATCH : **2026-10-14** — [이미지 설명(Alt) 초기값 및 강제 폴백 제거]: 설명 입력란 초기값('이미지 설명')을 빈 값("")으로 변경하고, 삭제 시 빈 값 유지
 // 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 미디어 저장 연동 동기화]: 구글 드라이브(OnriviAuthor/참조파일/media) 및 로컬/웹 환경에서 리소스 폴더 변경 시 최신 media 폴더로 이미지 자동 저장 및 연동
 // 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-11** — 클립보드 스크린샷 캡처 이미지 붙여넣기 시 Electron api.readClipboardImage 네이티브 폴백 및 인라인 바이너리 변환 지원
@@ -66,12 +76,13 @@ export default function ImageModal({
   const [imagePath, setImagePath] = useState("");
   const [clipboardMessage, setClipboardMessage] = useState('');
   const [appliedPath, setAppliedPath] = useState("");
-  const [imageAlt, setImageAlt] = useState("이미지 설명");
+  const [imageAlt, setImageAlt] = useState("");
   const [imageWidth, setImageWidth] = useState("");
   const [imageHeight, setImageHeight] = useState("");
   const [imageAlign, setImageAlign] = useState<MediaAlign>('center');
   const [localBlobUrl, setLocalBlobUrl] = useState("");
   const [tempPreviewUrl, setTempPreviewUrl] = useState("");
+  const [desktopPreviewUrl, setDesktopPreviewUrl] = useState("");
   const [imageLoadError, setImageLoadError] = useState(false);
   const [mounted, setMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -85,7 +96,7 @@ export default function ImageModal({
       const file = await pickResourceMedia('image',workspaceType,resourceFolderHandle);
       if(!file)return;
       const path = await saveResourceMedia(file,file.name,resourceFolderHandle);
-      setImagePath(path);setAppliedPath(path);setTempPreviewUrl('');setImageLoadError(false);
+      setImagePath(path);setAppliedPath(path);setTempPreviewUrl('');setDesktopPreviewUrl('');setImageLoadError(false);
       showToast?.('선택한 사진을 현재 리소스 폴더에 복사했습니다.','success');
     }catch(e){showToast?.(e instanceof Error?e.message:'파일 선택 실패','error');}
     finally{setBrowsingDrive(false);}
@@ -107,15 +118,17 @@ export default function ImageModal({
       setClipboardMessage('');
       setAppliedPath("");
       setTempPreviewUrl("");
+      setDesktopPreviewUrl("");
+      setImageLoadError(false);
       if (initialData) {
         setImagePath(initialData.path);
-        setImageAlt(initialData.alt);
+        setImageAlt(initialData.alt ?? "");
         setImageWidth(initialData.width);
         setImageHeight(initialData.height || "");
         setImageAlign((['left', 'center', 'right'].includes(initialData.align) ? initialData.align : 'center') as MediaAlign);
       } else {
         setImagePath("");
-        setImageAlt("이미지 설명");
+        setImageAlt("");
         setImageWidth("");
         setImageHeight("");
         setImageAlign("center");
@@ -123,6 +136,11 @@ export default function ImageModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
+
+  // 🔄 [경로 변경 시 로드 에러 자동 초기화]
+  useEffect(() => {
+    setImageLoadError(false);
+  }, [imagePath, tempPreviewUrl, desktopPreviewUrl]);
 
   const handleLocalImageSave = async (_base64Data: string, fileName: string, imageFile: File) => {
     try {
@@ -135,20 +153,36 @@ export default function ImageModal({
     }
   };
 
+  const getSafeClipboardText = async (e?: any): Promise<string> => {
+    try {
+      if (e?.clipboardData && typeof e.clipboardData.getData === 'function') {
+        const t = e.clipboardData.getData('text/plain') || e.clipboardData.getData('text');
+        if (t) return t.trim();
+      }
+    } catch {}
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.readText === 'function') {
+        const t = await navigator.clipboard.readText();
+        if (t) return t.trim();
+      }
+    } catch {}
+    return '';
+  };
+
   const resolveClipboardFile = async (e: React.ClipboardEvent<HTMLDivElement>): Promise<File | null> => {
-    const items = e.clipboardData?.items;
+    const items = e?.clipboardData?.items;
     if (items) {
       for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf('image') !== -1) {
+        if (items[i].type && items[i].type.indexOf('image') !== -1) {
           const file = items[i].getAsFile();
           if (file) return file;
         }
       }
     }
-    const files = e.clipboardData?.files;
-    if (files && files.length > 0 && files[0].type.startsWith('image/')) return files[0];
+    const files = e?.clipboardData?.files;
+    if (files && files.length > 0 && files[0].type && files[0].type.startsWith('image/')) return files[0];
+    const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
     try {
-      const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
       if (api && api.readClipboardImage) {
         const dataUrl = await api.readClipboardImage();
         if (dataUrl) {
@@ -179,21 +213,114 @@ export default function ImageModal({
         }
       }
     } catch {}
+
+    // 5) 클립보드 텍스트 분석 (이미지 경로/URL/마크다운 태그/DataURL 감지)
+    try {
+      const text = await getSafeClipboardText(e);
+      if (text) {
+        let extracted = text;
+        const mdMatch = text.match(/!\[.*?\]\((.*?)\)/);
+        if (mdMatch) extracted = mdMatch[1].trim();
+        const htmlMatch = text.match(/<img[^>]+src=["']([^"']+)["']/i);
+        if (htmlMatch) extracted = htmlMatch[1].trim();
+        const clean = extracted.split('?')[0].trim();
+
+        // Data URL
+        if (clean.startsWith('data:image/')) {
+          const parts = clean.split(',');
+          const mimeMatch = parts[0].match(/:(.*?);/);
+          const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+          const bstr = atob(parts[1]);
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) u8arr[n] = bstr.charCodeAt(n);
+          return new File([new Blob([u8arr], { type: mime })], `pasted_${Date.now()}.png`, { type: mime });
+        }
+
+        // 이미지 확장자 또는 웹 URL
+        const isImgExt = /\.(png|jpe?g|gif|webp|svg|bmp|avif|ico)$/i.test(clean);
+        if (isImgExt || clean.startsWith('http://') || clean.startsWith('https://')) {
+          if (clean.startsWith('http://') || clean.startsWith('https://')) {
+            try {
+              if (api?.fetchExternalImage) {
+                const res = await api.fetchExternalImage(clean);
+                if (res?.success && res?.base64) {
+                  const bstr = atob(res.base64);
+                  let n = bstr.length;
+                  const u8arr = new Uint8Array(n);
+                  while (n--) u8arr[n] = bstr.charCodeAt(n);
+                  return new File([new Blob([u8arr], { type: res.mimeType || 'image/png' })], `web_${Date.now()}.png`, { type: res.mimeType || 'image/png' });
+                }
+              }
+              const resp = await fetch(clean);
+              if (resp.ok) {
+                const blob = await resp.blob();
+                return new File([blob], `web_${Date.now()}.png`, { type: blob.type || 'image/png' });
+              }
+            } catch (_) {}
+          } else if (api?.readImageAsBase64) {
+            try {
+              let target = clean;
+              if (!/^[A-Za-z]:[\\/]/.test(clean)) {
+                const folder = getEffectiveResourceFolder(resourceFolder);
+                if (folder) {
+                  const sep = folder.includes('\\') ? '\\' : '/';
+                  const stripped = clean.replace(/^\.?[\/\\]/, '');
+                  target = (stripped.startsWith('media/') || stripped.startsWith('media\\'))
+                    ? (folder + sep + stripped)
+                    : (folder + sep + 'media' + sep + stripped);
+                }
+              }
+              const dataUrl = await api.readImageAsBase64(target).catch(() => api.readImageAsBase64(clean));
+              if (dataUrl) {
+                const parts = dataUrl.split(',');
+                const mimeMatch = parts[0].match(/:(.*?);/);
+                const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+                const bstr = atob(parts[1]);
+                let n = bstr.length;
+                const u8arr = new Uint8Array(n);
+                while (n--) u8arr[n] = bstr.charCodeAt(n);
+                const fileName = clean.split(/[/\\]/).pop() || `local_${Date.now()}.png`;
+                return new File([new Blob([u8arr], { type: mime })], fileName, { type: mime });
+              }
+            } catch (_) {}
+          }
+        }
+      }
+    } catch {}
+
     return null;
   };
 
   const handlePasteEvent = async (e: React.ClipboardEvent<HTMLDivElement>, reportEmpty = false) => {
-    const directImage = Array.from(e.clipboardData?.items || []).some(item => item.type.startsWith('image/'))
-      || Array.from(e.clipboardData?.files || []).some(file => file.type.startsWith('image/'));
-    if (directImage) { e.preventDefault(); e.stopPropagation(); }
+    const directImage = Array.from(e?.clipboardData?.items || []).some(item => item.type && item.type.startsWith('image/'))
+      || Array.from(e?.clipboardData?.files || []).some(file => file.type && file.type.startsWith('image/'));
+    if (directImage && e && typeof e.preventDefault === 'function') { e.preventDefault(); e.stopPropagation(); }
     const imageFile = await resolveClipboardFile(e);
     if (!imageFile) {
+      const text = await getSafeClipboardText(e);
+      const mdMatch = text.match(/!\[.*?\]\((.*?)\)/);
+      const cleanText = (mdMatch ? mdMatch[1] : text).split('?')[0].trim();
+      if (/\.(png|jpe?g|gif|webp|svg|bmp|avif|ico)$/i.test(cleanText) || cleanText.startsWith('http://') || cleanText.startsWith('https://')) {
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+        setImagePath(cleanText);
+        setAppliedPath("");
+        setImageLoadError(false);
+        if (cleanText.startsWith('http://') || cleanText.startsWith('https://') || cleanText.startsWith('data:') || cleanText.startsWith('blob:')) {
+          setTempPreviewUrl(cleanText);
+        } else {
+          setTempPreviewUrl('');
+        }
+        setClipboardMessage('이미지 주소를 불러왔습니다. 아래 이미지 삽입 버튼으로 적용해 주세요.');
+        return;
+      }
       if (reportEmpty) setClipboardMessage('클립보드에 이미지가 없습니다. 그림을 우클릭하여 ‘이미지 복사’하거나 캡처한 뒤 다시 눌러 주세요.');
       return;
     }
     setClipboardMessage('이미지를 읽고 저장하고 있습니다…');
-    e.preventDefault();
-    e.stopPropagation();
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
 
     const reader = new FileReader();
     reader.onload = async () => {
@@ -205,21 +332,7 @@ export default function ImageModal({
         if (showToast) showToast('이미지 데이터를 읽을 수 없습니다.', 'error');
         return;
       }
-      let fileName = `image_${Date.now()}.png`;
-      try {
-        const binaryString = atob(base64Data);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-        }
-        const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
-        fileName = `img_${hashHex}.png`;
-      } catch (e) {
-        console.warn('해시 생성 실패, 기본 시간 기반 이름 사용', e);
-      }
+      const fileName = await imageResourceName(imageFile!, true);
       const saved = await handleLocalImageSave(base64Data, fileName, imageFile!);
       setClipboardMessage(saved ? '이미지를 불러왔습니다. 아래 이미지 삽입 버튼으로 적용해 주세요.' : '이미지 저장에 실패했습니다. 리소스 폴더 연결과 오류 알림을 확인해 주세요.');
     };
@@ -263,40 +376,104 @@ export default function ImageModal({
   }, [imagePath]);
 
   useEffect(() => {
-    let active=true;let createdBlob='';setLocalBlobUrl('');
-    if(!cleanImagePath || /^(https?:|data:|blob:|media:|media-local:)/.test(cleanImagePath))return;
-    const load=async()=>{
+    let active = true;
+    let createdBlob = '';
+    setLocalBlobUrl('');
+    setDesktopPreviewUrl('');
+    setImageLoadError(false);
+
+    if (!cleanImagePath || /^(https?:|data:|blob:)/.test(cleanImagePath)) return;
+
+    const load = async () => {
       try {
-        const settings=requireResourceSettings();
-        if(settings.kind==='drive') {
-          const token=getSavedDriveToken();if(!token || !settings.mediaFolderId)throw new Error('드라이브 연결을 확인해 주세요.');
-          const url=await getDriveMediaImageBlobUrl(token,settings.mediaFolderId,cleanImagePath);if(!url)throw new Error('리소스 폴더에서 이미지를 찾지 못했습니다.');
-          if(active)setLocalBlobUrl(url);return;
+        const settings = getResourceSettings();
+        if (settings?.kind === 'drive') {
+          const token = getSavedDriveToken();
+          if (!token || !settings.mediaFolderId) throw new Error('드라이브 연결을 확인해 주세요.');
+          const url = await getDriveMediaImageBlobUrl(token, settings.mediaFolderId, cleanImagePath);
+          if (!url) throw new Error('리소스 폴더에서 이미지를 찾지 못했습니다.');
+          if (active) setLocalBlobUrl(url);
+          return;
         }
-        if((window as any).electronAPI)return;
-        if(!resourceFolderHandle || resourceFolderHandle.name!==settings.path)throw new Error('리소스 폴더 접근 권한을 다시 설정해 주세요.');
-        const parts=decodeURIComponent(cleanImagePath.split('?')[0]).replace(/^\.?\//,'').split('/').filter(Boolean);
-        let dir=resourceFolderHandle;for(const part of parts.slice(0,-1))dir=await dir.getDirectoryHandle(part);
-        const file=await (await dir.getFileHandle(parts[parts.length-1])).getFile();createdBlob=URL.createObjectURL(file);if(active)setLocalBlobUrl(createdBlob);
-      }catch(error){if(active)setImageLoadError(true);}
+
+        const api = (window as any).electronAPI;
+        if (api?.readImageAsBase64) {
+          const folder = getEffectiveResourceFolder(resourceFolder);
+          const relative = decodeURIComponent(cleanImagePath.split('?')[0]).replace(/^\.?[\\/]/, '');
+          const sep = folder.includes('\\') ? '\\' : '/';
+          const cleanFolder = folder.endsWith(sep) ? folder.slice(0, -1) : folder;
+          let candidatePath = relative;
+          if (!/^[A-Za-z]:[\\/]/.test(relative)) {
+            if (!relative.startsWith('media/') && !relative.startsWith('media\\') && !cleanFolder.endsWith(`${sep}media`)) {
+              candidatePath = cleanFolder + sep + 'media' + sep + relative;
+            } else {
+              candidatePath = cleanFolder + sep + relative;
+            }
+          }
+          try {
+            const dataUrl = await api.readImageAsBase64(candidatePath);
+            if (active && dataUrl) {
+              setDesktopPreviewUrl(dataUrl);
+              return;
+            }
+          } catch {
+            try {
+              const dataUrl2 = await api.readImageAsBase64(cleanImagePath);
+              if (active && dataUrl2) {
+                setDesktopPreviewUrl(dataUrl2);
+                return;
+              }
+            } catch {
+              if (active) setImageLoadError(true);
+            }
+          }
+          return;
+        }
+
+        if (resourceFolderHandle && settings?.path && resourceFolderHandle.name === settings.path) {
+          const parts = decodeURIComponent(cleanImagePath.split('?')[0]).replace(/^\.?\//, '').split('/').filter(Boolean);
+          let dir = resourceFolderHandle;
+          for (const part of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(part);
+          const file = await (await dir.getFileHandle(parts[parts.length - 1])).getFile();
+          createdBlob = URL.createObjectURL(file);
+          if (active) setLocalBlobUrl(createdBlob);
+        }
+      } catch (error) {
+        if (active) setImageLoadError(true);
+      }
     };
-    void load();return()=>{active=false;if(createdBlob)URL.revokeObjectURL(createdBlob);};
-  },[cleanImagePath,resourceFolder,resourceFolderHandle]);
+
+    void load();
+    return () => {
+      active = false;
+      if (createdBlob) URL.revokeObjectURL(createdBlob);
+    };
+  }, [cleanImagePath, resourceFolder, resourceFolderHandle]);
 
   const previewSrc = useMemo(() => {
-    if(tempPreviewUrl)return tempPreviewUrl;
-    if(!cleanImagePath)return '';
-    if(/^(https?:|data:|blob:|media:|media-local:)/.test(cleanImagePath))return cleanImagePath;
-    const settings=getResourceSettings();if(!settings)return '';
-    if(settings.kind==='drive')return localBlobUrl;
-    if((window as any).electronAPI) {
-      const folder=getEffectiveResourceFolder(resourceFolder);
-      const relative=decodeURIComponent(cleanImagePath.split('?')[0]).replace(/^\.?[\\/]/,'');
-      const absolute=/^[A-Za-z]:[\\/]/.test(relative)?relative:folder.replace(/[\\/]$/,'')+'/'+relative;
-      return `media-local://serve?url=${encodeURIComponent(absolute)}`;
+    if (tempPreviewUrl) return tempPreviewUrl;
+    if (desktopPreviewUrl) return desktopPreviewUrl;
+    if (!cleanImagePath) return '';
+    if (/^(https?:|data:|blob:|media:|media-local:)/.test(cleanImagePath)) return cleanImagePath;
+    const settings = getResourceSettings();
+    if (settings?.kind === 'drive') return localBlobUrl;
+    if ((window as any).electronAPI) {
+      const folder = getEffectiveResourceFolder(resourceFolder);
+      const relative = decodeURIComponent(cleanImagePath.split('?')[0]).replace(/^\.?[\\/]/, '');
+      const sep = folder.includes('\\') ? '\\' : '/';
+      const cleanFolder = folder.endsWith(sep) ? folder.slice(0, -1) : folder;
+      let absolute = relative;
+      if (!/^[A-Za-z]:[\\/]/.test(relative)) {
+        if (!relative.startsWith('media/') && !relative.startsWith('media\\') && !cleanFolder.endsWith(`${sep}media`)) {
+          absolute = cleanFolder + sep + 'media' + sep + relative;
+        } else {
+          absolute = cleanFolder + sep + relative;
+        }
+      }
+      return `media://local/serve?url=${encodeURIComponent(absolute)}`;
     }
     return localBlobUrl;
-  },[cleanImagePath,localBlobUrl,resourceFolder,tempPreviewUrl]);
+  }, [cleanImagePath, desktopPreviewUrl, localBlobUrl, resourceFolder, tempPreviewUrl]);
 
   const handleInsert = async () => {
     if (saving) return;
@@ -316,7 +493,7 @@ export default function ImageModal({
       onInsert(finalPath, imageAlt, initialData?.range);
       setImagePath("");
       setAppliedPath("");
-      setImageAlt("이미지 설명");
+      setImageAlt("");
       setImageWidth("");
       setImageHeight("");
       setImageAlign("center");
@@ -340,7 +517,6 @@ export default function ImageModal({
         setTempPreviewUrl(localMediaUrl);
 
         await handleLocalImageSave('',file.name,file);
-        setImageAlt('이미지 설명');
         return;
       }
 
@@ -354,7 +530,6 @@ export default function ImageModal({
 
         const fileName = file.name ? file.name : `image_${Date.now()}.png`;
         await handleLocalImageSave(base64Data, fileName, file);
-        setImageAlt("이미지 설명");
       };
       reader.readAsDataURL(file);
     }
@@ -369,7 +544,7 @@ export default function ImageModal({
       if (!file) return;
       event.preventDefault();
       event.stopPropagation();
-      void handlePasteEvent({ clipboardData:{ items:[], files:[file] }, preventDefault(){}, stopPropagation(){} } as any);
+      void handlePasteEvent({ clipboardData:{ items:[], files:[file], getData:()=>'' }, preventDefault(){}, stopPropagation(){} } as any);
     }}>
       <div className="absolute inset-0 bg-black/65" onClick={onClose} />
 
@@ -469,7 +644,7 @@ export default function ImageModal({
             <button
               type="button"
               onPaste={event => { void handlePasteEvent(event as any); }}
-              onClick={() => { void handlePasteEvent({clipboardData:{items:[],files:[]},preventDefault(){},stopPropagation(){}} as any, true); }}
+              onClick={() => { void handlePasteEvent({clipboardData:{items:[],files:[],getData:()=>''},preventDefault(){},stopPropagation(){}} as any, true); }}
               className={`group flex items-center gap-3 px-4 py-2.5 rounded-lg border border-dashed cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${
                 isDarkMode
                   ? 'bg-zinc-900 border-zinc-700 hover:border-indigo-500 hover:bg-zinc-800'
@@ -497,7 +672,7 @@ export default function ImageModal({
                     type="text"
                     value={imageAlt}
                     onChange={(e) => setImageAlt(e.target.value)}
-                    placeholder="이미지 설명"
+                    placeholder="설명 (Alt) - 선택사항"
                     className={`w-full text-xs border rounded px-3 py-2.5 outline-none focus:ring-1 transition-all ${
                       isDarkMode
                         ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-600 focus:border-indigo-500 focus:ring-indigo-500/30'
@@ -554,8 +729,11 @@ export default function ImageModal({
                       />
                     ) : (
                       <div className="text-center p-8 text-slate-400 dark:text-zinc-500">
-                        <ImageIcon size={28} className="mx-auto mb-2 opacity-50" />
-                        <p className="text-xs font-bold">이미지를 불러올 수 없습니다</p>
+                        <ImageIcon size={28} className="mx-auto mb-2 opacity-50 text-amber-500" />
+                        <p className="text-xs font-bold text-slate-700 dark:text-zinc-300">이미지를 불러올 수 없습니다</p>
+                        <p className="text-[11px] mt-1 text-slate-400 dark:text-zinc-500 leading-relaxed">
+                          입력한 경로를 확인하거나,<br />리소스 폴더(media)에 실제 파일이 있는지 확인해 주세요.
+                        </p>
                       </div>
                     )}
                     {/* 메타데이터 오버레이 */}

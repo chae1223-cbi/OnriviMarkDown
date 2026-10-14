@@ -1,7 +1,19 @@
 /**
  * 프로그램명 : OnriviAuthor 
- * 버전 정보 : 1.0.1
- * 프로그램 ID : oaar-001
+// 🚨 @PATCH : **2026-10-14** — [구글 이미지 검색/외부 웹 이미지 드래그 앤 드롭 새 창 팝업 원천 차단 및 CORS 우회 다운로드 연동]:
+//             1) window 및 document capture 단계에서 dragenter, dragover, drop을 가로채 e.preventDefault() 및 dropEffect='copy'를 강제 적용하여 브라우저/Electron의 파일 URL 새 창 내비게이션 완전 차단
+//             2) parseDroppedDataToBlob 및 fetchExternalImageFile(Electron net.fetch 연동)을 통해 구글 이미지 검색(encrypted-tbn0.gstatic.com 등) 및 웹 이미지 드롭 시 바이너리를 media 폴더에 파일로 자동 다운로드 저장
+//             3) 다운로드 실패 시에도 웹 이미지 URL을 마크다운으로 직접 안전 삽입하여 드롭 실패 및 새 창 팝업 원천 방어
+// 🚨 @PATCH : **2026-10-14** — [웹 SVG/Data URL 드래그 앤 드롭 새창 팝업 원천 차단 및 Base64 배제·바이너리 리소스 저장 연동]:
+//             1) window 및 document capture 단계에서 dragenter, dragover, drop을 가로채 e.preventDefault() 및 dropEffect='copy'를 강제 적용하여 브라우저/Electron의 파일 URL 새 창 내비게이션 완전 차단
+//             2) parseDroppedDataToBlob 정규화 엔진을 연결하여 웹 SVG, Base64 Data URL, HTML <img>/<svg>/<a> 태그 드롭 시 Base64 마크다운 오염 없이 활성 리소스 폴더(media/)에 바이너리 파일로 안전 저장 후 상대 경로 삽입
+//             3) .custom-preview-container onDrop 진입 즉시 e.preventDefault() 및 e.stopPropagation() 발화 및 visualCommandRef(INSERT_SAVED_IMAGE) 연결 보장
+// 🚨 @PATCH : **2026-10-14** — [문서보기(VisualDocumentEditor) 서식관리(TOGGLE_CSS_STYLE) 활성화 및 연동]:
+//             1) dispatchCommand에서 'TOGGLE_CSS_STYLE'을 visualCommandRef 가로채기 전에 최우선 처리하여 문서보기에서도 툴바/단축키/메뉴를 통해 서식관리(CssStyleModal)가 즉시 활성화되도록 개선
+//             2) VisualDocumentEditor에 onStyleSettings={() => setIsStyleModalOpen(true)}를 연결하여 슬래시 명령어(/style, /서식) 및 서식 관리 모달 양방향 연동
+// 🚨 @PATCH : **2026-10-14** — [각주 정리(ORGANIZE_FOOTNOTES) 문서보기 지원 및 도구 메뉴 연동]:
+//             1) dispatchCommand에서 'ORGANIZE_FOOTNOTES'를 visual editor 차단 목록에서 해제하고 VisualDocumentEditor 및 Monaco 양방향 지원
+//             2) VisualDocumentEditor에 onToast={showToast}를 연결하여 각주 정리 결과(성공/미변경/각주없음) 피드백 제공
 // 🚨 @PATCH : **2026-10-14** — [서식관리(CSS Profile) 각주(Footnote) 폰트 크기/색상/줄간격 실시간 연동 및 문서보기 기본 12.5px 최적화]:
 //             1) dynamicCssString의 footnote 태그 처리기에 .visual-footnote-def, .visual-footnote-text, .visual-footnote-badge 셀렉터를 추가 확장
 //             2) 각주 폰트 크기 미지정 시 inherit(16~18px)으로 팽창하던 결함을 해소하고 12.5px 콤팩트 크기로 기본값 설정
@@ -286,7 +298,8 @@ import MarkdownViewer from '@/components/MarkdownViewer'; // 마크다운 뷰어
 import { createPortal } from 'react-dom';
 import VisualDocumentEditor from '@/components/VisualDocumentEditor';
 import { mediaSourceRange } from '@/lib/mediaSourceRange';
-import { saveResourceMedia } from '@/lib/resourceMedia';
+import { saveResourceMedia, parseDroppedDataToBlob, fetchExternalImageFile } from '@/lib/resourceMedia';
+import { imageResourceName, picturebookImageReference } from '@/lib/imageResourceName';
 import { visualImageDetails } from '@/lib/visualDocumentCodec';
 import { syncPreviewInterpolated } from '@/lib/syncEngine'; // 구간 선형 보간 동기화 엔진
 import Script from 'next/script'; // 넥스트 스크립트 - 
@@ -4948,7 +4961,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : editor.executeEdits, editor.setPosition, editor.focus
   // ====================================================================
   const insertEmojiAtCursor = (emoji: string) => {
-    if (previewRef.current?.querySelector('.visual-document-editor') && visualCommandRef.current?.(`INSERT_TEXT:${emoji}`)) return;
+    if (previewRef.current?.querySelector('.visual-document-editor, .picturebook-scene-input') && visualCommandRef.current?.(`INSERT_TEXT:${emoji}`)) return;
     if (!editorRef.current) return;
     const editor = editorRef.current;
     const monaco = (window as any).monaco;
@@ -5925,12 +5938,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   const handlePasteImageFile = async (fileOrBlob: Blob, onSaved: (path: string) => void = insertImageMarkdown): Promise<void> => {
     try {
-      let name = fileOrBlob instanceof File && /\.[a-z0-9]+$/i.test(fileOrBlob.name) ? fileOrBlob.name : '';
-      if (!name) {
-        const extension = ({'image/jpeg':'jpg','image/webp':'webp','image/gif':'gif','image/svg+xml':'svg'} as Record<string,string>)[fileOrBlob.type] || 'png';
-        const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256',await fileOrBlob.arrayBuffer()));
-        name = 'img_' + Array.from(bytes).map(byte => byte.toString(16).padStart(2,'0')).join('').slice(0,12) + '.' + extension;
-      }
+      const name = await imageResourceName(fileOrBlob);
       const path = await saveResourceMedia(fileOrBlob,name,resourceFolderHandle);
       onSaved(path);
       showToast('현재 리소스 폴더에 저장했습니다. 같은 이름의 파일은 덮어씁니다.','success');
@@ -7734,11 +7742,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       setIsMonacoDatePickerOpen(true);
       return;
     }
-    if (!executingVisualSourceActionRef.current && previewRef.current?.querySelector('.visual-document-editor') && visualCommandRef.current?.(type)) return;
+    if (type === 'TOGGLE_CSS_STYLE') {
+      setIsStyleModalOpen(true);
+      return;
+    }
+    if (!executingVisualSourceActionRef.current && previewRef.current?.querySelector('.visual-document-editor, .picturebook-scene-input') && visualCommandRef.current?.(type)) return;
     if (!executingVisualSourceActionRef.current && previewRef.current?.querySelector('.visual-document-editor') && [
       'UNDERLINE', 'STRIKETHROUGH', 'IMAGE', 'VIDEO', 'MAP', 'TABLE', 'QUICK_TABLE',
       'INSERT_TABLE_ROW', 'DELETE_TABLE_ROW', 'CHART', 'CODE', 'CHECK',
-      'REMOVE_PREFIX', 'CLEAN_DOC', 'DOC_LINK', 'SIGNATURE', 'MERGE', 'ORGANIZE_FOOTNOTES',
+      'REMOVE_PREFIX', 'CLEAN_DOC', 'DOC_LINK', 'SIGNATURE', 'MERGE',
     ].includes(type)) {
       showToast('이 기능은 현재 마크다운 보기에서 사용할 수 있습니다.', 'info');
       return;
@@ -7989,8 +8001,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'BOLD': handlers.bold(); break;
       case 'FOOTNOTE': handlers.footnote(); break;
       case 'ORGANIZE_FOOTNOTES':
-        if (previewModeRef.current === 'preview') {
-          showToast("미리보기 모드에서는 각주 정리를 사용할 수 없습니다.", 'warning');
+        if (previewRef.current?.querySelector('.visual-document-editor') && visualCommandRef.current?.('ORGANIZE_FOOTNOTES')) {
           break;
         }
         handlers.organizeFootnotes();
@@ -8367,6 +8378,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       // The visual editor owns selection, IME and editing shortcuts. Saving
       // still uses the common file handler and its immediately updated source.
+      if ((e.target as HTMLElement)?.closest?.('.picturebook-scene-input')) {
+        const item=configuredHotkeyItem(e,customHotkeys);
+        if(item && ['save','saveAs'].includes(item.id)){
+          e.preventDefault();e.stopPropagation();dispatchCommand(mapIdToCommandType(item.id));
+        }
+        return;
+      }
       if ((e.target as HTMLElement)?.closest?.('.visual-document-editor')) {
         const item = configuredHotkeyItem(e, customHotkeys);
         if (item) {
@@ -8695,16 +8713,27 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, [customHotkeys, dispatchCommand, mapIdToCommandType, floatingToolbar.visible, setFloatingToolbar, floatingQuoteDropdown.open, isRestrictedUser, setFontSize, isEmojiPanelOpen]);
 
   // 🛡️ [데스크톱/브라우저 전역 파일 드롭 방어]
-  // 에디터나 미리보기 컨테이너 외부(사이드바, 타이틀바 등)에 파일 드롭 시 Electron/브라우저가 파일 URL로 페이지 이동하는 것 원천 방어
+  // 에디터나 미리보기 컨테이너 외부(사이드바, 타이틀바 등)에 파일 드롭 시 Electron/브라우저가 파일 URL로 새창을 띄우거나 페이지 이동하는 것 100% 원천 차단
   useEffect(() => {
     const preventDrag = (e: DragEvent) => {
       e.preventDefault();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
     };
-    window.addEventListener('dragover', preventDrag);
-    window.addEventListener('drop', preventDrag);
+    window.addEventListener('dragenter', preventDrag, true);
+    window.addEventListener('dragover', preventDrag, true);
+    window.addEventListener('drop', preventDrag, true);
+    document.addEventListener('dragenter', preventDrag, true);
+    document.addEventListener('dragover', preventDrag, true);
+    document.addEventListener('drop', preventDrag, true);
     return () => {
-      window.removeEventListener('dragover', preventDrag);
-      window.removeEventListener('drop', preventDrag);
+      window.removeEventListener('dragenter', preventDrag, true);
+      window.removeEventListener('dragover', preventDrag, true);
+      window.removeEventListener('drop', preventDrag, true);
+      document.removeEventListener('dragenter', preventDrag, true);
+      document.removeEventListener('dragover', preventDrag, true);
+      document.removeEventListener('drop', preventDrag, true);
     };
   }, []);
 
@@ -10333,24 +10362,77 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         onMouseEnter={() => { isPreviewHovered.current = true; }}
                         onMouseLeave={() => { isPreviewHovered.current = false; }}
                         onDragOver={(e) => {
-                          if (e.dataTransfer?.types?.some(t => t === 'Files' || t === 'text/html' || t === 'text/uri-list')) {
+                          if (e.dataTransfer?.types?.some(t => t === 'Files' || t === 'text/html' || t === 'text/uri-list' || t === 'text/plain')) {
                             e.preventDefault();
                             e.dataTransfer.dropEffect = 'copy';
                           }
                         }}
                         onDrop={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
                           const dt = e.dataTransfer;
                           if (!dt) return;
+
+                          // 1) parseDroppedDataToBlob 정규화 엔진 우선 실행 (OS 파일, DataTransfer items, Base64 Data URL, Web SVG, 구글/웹 이미지 등)
+                          const parsed = parseDroppedDataToBlob(dt);
+                          if (parsed) {
+                            if (parsed.file) {
+                              await handlePasteImageFile(parsed.file, (savedPath) => {
+                                if (visualCommandRef.current) {
+                                  visualCommandRef.current(`INSERT_SAVED_IMAGE:${savedPath}`);
+                                } else {
+                                  insertImageMarkdown(savedPath);
+                                }
+                              });
+                              return;
+                            } else if (parsed.webUrl) {
+                              let fetchedFile: File | null = null;
+                              try {
+                                fetchedFile = await fetchExternalImageFile(parsed.webUrl, parsed.name);
+                              } catch (_) {}
+
+                              if (fetchedFile) {
+                                await handlePasteImageFile(fetchedFile, (savedPath) => {
+                                  if (visualCommandRef.current) {
+                                    visualCommandRef.current(`INSERT_SAVED_IMAGE:${savedPath}`);
+                                  } else {
+                                    insertImageMarkdown(savedPath);
+                                  }
+                                });
+                                return;
+                              }
+
+                              // 다운로드 실패 시(CORS 제약 등)에도 웹 이미지 링크 직접 안전 삽입
+                              if (visualCommandRef.current) {
+                                visualCommandRef.current(`INSERT_SAVED_IMAGE:${parsed.webUrl}`);
+                              } else {
+                                insertAtCursor(`\n![](${parsed.webUrl})\n`);
+                                if (editorRef.current) {
+                                  updateContent(editorRef.current.getValue(), true);
+                                  editorRef.current.focus();
+                                }
+                              }
+                              return;
+                            }
+                          }
+
+                          // 2) OS 다중 파일 드롭 처리
                           const files = dt.files ? Array.from(dt.files) : [];
                           const imageFiles = files.filter(isImageLikeFile);
                           if (imageFiles.length > 0) {
-                            e.preventDefault();
-                            e.stopPropagation();
                             for (const imgFile of imageFiles) {
-                              await handlePasteImageFile(imgFile);
+                              await handlePasteImageFile(imgFile, (savedPath) => {
+                                if (visualCommandRef.current) {
+                                  visualCommandRef.current(`INSERT_SAVED_IMAGE:${savedPath}`);
+                                } else {
+                                  insertImageMarkdown(savedPath);
+                                }
+                              });
                             }
                             return;
                           }
+
+                          // 3) 외부 웹 이미지 URL (다운로드 및 리소스 폴더 저장)
                           const html = dt.getData('text/html');
                           const uriList = dt.getData('text/uri-list');
                           const plainText = dt.getData('text/plain');
@@ -10369,29 +10451,32 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                               imgSrc = trimmed;
                             }
                           }
-                          if (imgSrc) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (imgSrc.startsWith('data:image/')) {
+                          if (imgSrc && !imgSrc.startsWith('data:image/')) {
+                            if (imgSrc.startsWith('http://') || imgSrc.startsWith('https://')) {
                               try {
-                                const arr = imgSrc.split(',');
-                                const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
-                                const bstr = atob(arr[1]);
-                                let n = bstr.length;
-                                const u8arr = new Uint8Array(n);
-                                while (n--) {
-                                  u8arr[n] = bstr.charCodeAt(n);
+                                const resp = await fetch(imgSrc);
+                                if (resp.ok) {
+                                  const blob = await resp.blob();
+                                  await handlePasteImageFile(blob, (savedPath) => {
+                                    if (visualCommandRef.current) {
+                                      visualCommandRef.current(`INSERT_SAVED_IMAGE:${savedPath}`);
+                                    } else {
+                                      insertImageMarkdown(savedPath);
+                                    }
+                                  });
+                                  return;
                                 }
-                                const blob = new Blob([u8arr], { type: mime });
-                                await handlePasteImageFile(blob);
-                                return;
                               } catch (_) {}
                             }
-                            const markdownImg = `\n![](${imgSrc})\n`;
-                            insertAtCursor(markdownImg);
-                            if (editorRef.current) {
-                              updateContent(editorRef.current.getValue(), true);
-                              editorRef.current.focus();
+                            if (visualCommandRef.current) {
+                              visualCommandRef.current(`INSERT_SAVED_IMAGE:${imgSrc}`);
+                            } else {
+                              const markdownImg = `\n![](${imgSrc})\n`;
+                              insertAtCursor(markdownImg);
+                              if (editorRef.current) {
+                                updateContent(editorRef.current.getValue(), true);
+                                editorRef.current.focus();
+                              }
                             }
                           }
                         }}
@@ -10610,7 +10695,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                   </button>
                                 </div>
                                 {directEditEnabled && !isRestrictedUser && activeTabId && currentFileName !== '도움말.md' && !activeProfile.layout ? (
-                                  <VisualDocumentEditor key={activeTabId} documentId={activeTabId} tabSize={editorTabSize} onSourceScroll={offset=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel() || isScrollingRef.current==='editor')return;isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);const position=editor.getModel().getPositionAt(offset);editor.setScrollTop(editor.getTopForLineNumber(position.lineNumber));}} onSourceCursor={(offset,reveal=true)=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel())return;const position=editor.getModel().getPositionAt(offset);isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);const top=editor.getScrollTop(),left=editor.getScrollLeft();editor.setPosition(position);if(reveal)editor.revealPositionInCenterIfOutsideViewport(position);else editor.setScrollPosition({scrollTop:top,scrollLeft:left});}} commandRef={visualCommandRef} customCommands={customSlashCommands} customHotkeys={customHotkeys}
+                                  <VisualDocumentEditor key={activeTabId} documentId={activeTabId} tabSize={editorTabSize} onToast={showToast} onStyleSettings={() => setIsStyleModalOpen(true)} onSourceScroll={offset=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel() || isScrollingRef.current==='editor')return;isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);const position=editor.getModel().getPositionAt(offset);editor.setScrollTop(editor.getTopForLineNumber(position.lineNumber));}} onSourceCursor={(offset,reveal=true)=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel())return;const position=editor.getModel().getPositionAt(offset);isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);const top=editor.getScrollTop(),left=editor.getScrollLeft();editor.setPosition(position);if(reveal)editor.revealPositionInCenterIfOutsideViewport(position);else editor.setScrollPosition({scrollTop:top,scrollLeft:left});}} commandRef={visualCommandRef} customCommands={customSlashCommands} customHotkeys={customHotkeys}
                                     onDocLinkDialog={(pos, insert) => {
                                       visualDocLinkPositionRef.current = pos;
                                       visualDocLinkInsertRef.current = insert;
@@ -10667,6 +10752,31 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                 content={processedContent}
                                 onMediaEdit={isRestrictedUser ? undefined : editDocumentMedia}
                                 picturebookProfile={activeProfile}
+                                picturebookEditorOptions={{documentId:activeTabId,tabSize:editorTabSize,customCommands:customSlashCommands,customHotkeys,commandRef:visualCommandRef,
+                                  onAction:command=>dispatchCommand(command),
+                                  floatingToolbarVisible:floatingToolbar.visible,
+                                  onFloatingToolbar:(visible,position)=>{
+                                    visualFloatingOriginRef.current=visible;
+                                    setFloatingToolbar(prev=>({...prev,visible,top:position.top+48,left:position.left}));
+                                  },
+                                  onImageFile:async file=>{let savedPath:string|null=null;await handlePasteImageFile(file,path=>{savedPath=path;});return savedPath;},
+                                  onMediaDialog:(kind,insert)=>{
+                                    visualMediaInsertRef.current={kind,documentId:activeTabIdRef.current,insert};
+                                    setMediaDialogSource({kind,source:''});
+                                    if(kind==='map')setIsMapModalOpen(true);else {setYoutubeInitialUrl(null);setIsYoutubeModalOpen(true);}
+                                  },
+                                  onFormulaDialog:insert=>{
+                                    visualFormulaInsertRef.current=insert;
+                                    setFormulaModalInitialLatex('');setIsFormulaModalOpen(true);
+                                  },
+                                  onImageDialog:(insert,source)=>{
+                                    const details=source?visualImageDetails(source):{path:'',alt:''};
+                                    const params=new URLSearchParams(details.path.includes('?')?details.path.slice(details.path.indexOf('?')+1):'');
+                                    visualImageInsertRef.current=(path,alt)=>insert(picturebookImageReference(path,alt));
+                                    setEditingImageInfo({path:details.path,alt:details.alt,width:params.get('width')||'',height:params.get('height')||'',align:params.get('align')||'center',range:{visualImage:true,documentId:activeTabIdRef.current}});
+                                    setIsImageModalOpen(true);
+                                  }
+                                }}
                                 onPicturebookImageEdit={index => {
                                   const original = contentRef.current;
                                   const scene = parseBookScenes(extractFrontmatter(original).content).scenes[index];
@@ -10676,6 +10786,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                   setIsImageModalOpen(true);
                                 }}
                                 onPicturebookChange={!isRestrictedUser && directEditEnabled && currentFileName !== '도움말.md' ? (next) => {
+                                  contentRef.current=next;
                                   updateContent(next);
                                   setTabs(prev => prev.map(tab => tab.id === activeTabId ? { ...tab, content: next, isModified: true } : tab));
                                 } : undefined}
@@ -10750,7 +10861,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
             {isToolbarOpen && (
               <div className="no-print h-full w-12 flex flex-col justify-end bg-zinc-50 dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700/60 pb-3">
-                <Toolbar documentEditing={directEditEnabled && !!activeTabId && !isRestrictedUser && currentFileName !== '도움말.md' && !(profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE).layout} />
+                <Toolbar documentEditing={directEditEnabled && !!activeTabId && !isRestrictedUser && currentFileName !== '도움말.md'} />
               </div>
             )}
           </div>

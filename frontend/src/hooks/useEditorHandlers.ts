@@ -22,6 +22,7 @@ import {
   saveEmergencyDriveDrafts,
   getSavedWorkspaceInfo
 } from '@/lib/gdrive/googleDriveClient';
+import { organizeMarkdownFootnotes } from '@/lib/footnoteOrganizer';
 
 /**
  * [ONR-16-004] useEditorHandlers 커스텀 훅
@@ -30,6 +31,10 @@ import {
 // ====================================================================
 // 📊 [OMD-EDIT-USEEDITORHANDLERS-0014] useEditorHandlers.ts ➔ useEditorHandlers
 // 🎯 @KICK  : 에디터 주요 액션 핸들러(저장, 내보내기, 서식 삽입 등)를 통합 관리
+// 🚨 @PATCH : **2026-10-14** — [각주 정리(organizeFootnotes) 엔진 전면 고도화 및 본문 순서 기반 1번부터 순차 재정렬 연동]:
+//             1) 구버전의 단순 하단 정렬 방식을 탈피하여 본문 등장 순서대로 1, 2, 3... 순차 재번호 부여(organizeMarkdownFootnotes) 연동
+//             2) 영문/한글/기호 등 비정규 각주 라벨의 표준 번호화 및 본문 흩어진 각주 정의 일괄 수집
+//             3) 정리 완료/미변경/각주없음 상태별 명확한 토스트 알림 안내 제공
 // 🚨 @PATCH : **2026-10-14** — [간편 표(quickTable) 생성 시 첫 번째 열 헤더("구분") 자동 선택 연동]: quickTable 호출 시 첫 번째 헤더 셀로 커서 및 선택 영역을 자동 안착시켜 즉시 편집 가능하도록 개선
 // 🚨 @PATCH : **2026-10-11** — [구글 드라이브 토큰 만료 시 비상 로컬 백업 연동 및 작성 글 100% 보존]:
 //             구글 드라이브 저장 시 토큰 만료(401)나 네트워크 실패 시에도 작성 중이던 최신 에디터 본문을 onrivi_emergency_gdrive_drafts 로컬 스냅샷으로 즉시 대피 백업하여 데이터 유실 원천 방어
@@ -292,76 +297,28 @@ export const useEditorHandlers = ({
         if (!model) return;
 
         const fullText = model.getValue();
+        const result = organizeMarkdownFootnotes(fullText);
 
-        // 3. 전체 문서 파싱 및 각주 수집
-        const lines = fullText.split('\n');
-        let newLines: string[] = [];
-        let footnotes: { num: number, lines: string[] }[] = [];
-        let currentFootnote: { num: number, lines: string[] } | null = null;
-  
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i];
-          const fnMatch = line.match(/^\[\^(\d+)\]:(.*)/);
-          
-          if (fnMatch) {
-            if (currentFootnote) {
-              footnotes.push(currentFootnote);
-            }
-            const num = parseInt(fnMatch[1], 10);
-            currentFootnote = { num, lines: [line] };
-          } else if (currentFootnote) {
-            // 빈 줄이거나 들여쓰기된 줄은 각주 내용으로 간주
-            if (line.trim() === '' || /^[ \t]+/.test(line)) {
-              currentFootnote.lines.push(line);
-            } else {
-              footnotes.push(currentFootnote);
-              currentFootnote = null;
-              newLines.push(line);
-            }
-          } else {
-            newLines.push(line);
-          }
+        if (result.count === 0) {
+          showToast('정리할 각주가 본문에 없습니다.', 'info');
+          return;
         }
-        if (currentFootnote) {
-          footnotes.push(currentFootnote);
-        }
-  
-        // 각주 블록 내의 불필요한 후행 빈 줄 제거
-        footnotes.forEach(f => {
-          while (f.lines.length > 1 && f.lines[f.lines.length - 1].trim() === '') {
-            f.lines.pop();
-          }
-        });
-  
-        // 본문 하단의 불필요한 후행 빈 줄 제거
-        while (newLines.length > 0 && newLines[newLines.length - 1].trim() === '') {
-          newLines.pop();
-        }
-  
-        // 각주 번호순 정렬
-        footnotes.sort((a, b) => a.num - b.num);
-  
-        // 본문 하단에 각주 블록 결합 (빈 줄 하나로 구분)
-        if (footnotes.length > 0) {
-          if (newLines.length > 0) newLines.push('');
-          footnotes.forEach(f => {
-            newLines.push(...f.lines);
-          });
-        }
-  
-        const finalString = newLines.join('\n');
-  
-        if (finalString === fullText) return; // No changes needed
 
-        // 4. 에디터에 일괄 적용
+        if (!result.changed) {
+          showToast('모든 각주가 이미 본문 순서대로 완벽히 정렬되어 있습니다.', 'info');
+          return;
+        }
+
         editor.pushUndoStop();
         const Range = (window as any).monaco.Range;
-        editor.executeEdits("gatherFootnotes", [{
+        editor.executeEdits("organizeFootnotes", [{
           range: model.getFullModelRange(),
-          text: finalString,
+          text: result.text,
           forceMoveMarkers: true
         }]);
         editor.pushUndoStop();
+
+        showToast(`총 ${result.count}개의 각주를 본문 순서에 맞추어 1번부터 순차적으로 재정렬했습니다.`, 'success');
       },
 
       citation: () => {

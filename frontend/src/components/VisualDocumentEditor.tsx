@@ -2,6 +2,36 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-visual-editor
+ * 🚨 @PATCH : **2026-10-14** — [시각 에디터 이미지 비트맵 클립보드 복사(copyImageToClipboard) 연동]: 이미지 컨트롤 '복사' 버튼 클릭 시 마크다운 텍스트 주소가 아닌 실제 이미지 바이너리/비트맵을 클립보드에 복사하여 붙여넣기 호환성 완벽 보장
+ * 🚨 @PATCH : **2026-10-14** — [이미지 Alt 기본값 강제 폴백 제거]: 이미지 드롭 및 삽입 시 alt가 비어있을 때 'image'로 강제 대체하지 않고 빈 문자열("") 그대로 삽입되도록 개선
+ * 🚨 @PATCH : **2026-10-14** — [구글 이미지 검색/외부 웹 이미지 드래그 앤 드롭 새 창 팝업 원천 차단 및 CORS 우회 다운로드·정밀 커서 삽입 완벽 구현]:
+ *             1) 구글 이미지 검색(encrypted-tbn0.gstatic.com 등) 및 외부 웹 이미지 드롭 시 window.dragover/drop에서 e.preventDefault()를 100% 강제하여 브라우저의 파일 URL 새 창 이동 및 Chrome 팝업을 원천 차단
+ *             2) fetchExternalImageFile(Electron net.fetch 기반 CORS 우회)을 연동하여 웹 이미지 바이너리를 로컬 media 폴더에 파일로 안전 보존 후 표준 상대경로로 삽입
+ *             3) 다운로드 실패 시(오프라인, 엄격한 CORS 등)에도 webUrl 마크다운 직접 삽입으로 안전 폴백하여 에러나 새 창 팝업 없이 100% 즉시 렌더링 보장
+ *             4) 마우스로 이미지 드래그 중 마우스를 놓기 전(dragover) 실시간으로 마우스 커서 위치를 추적하여 고시인성 세로 막대 깜빡임 커서(3.5px 코발트 블루 I-beam 서리프 및 '📍 여기에 이미지 삽입' 플로팅 뱃지)가 마우스를 따라 실시간 이동하도록 구현
+ *             5) 드래그 호버 중 ProseMirror 내부 텍스트 선택 영역(TextSelection.near)을 실시간 동기화하여 에디터 본체 커서가 마우스 포인터와 1:1 일치하여 움직이도록 처리
+ *             6) 텍스트 문단 중간에 커서가 위치한 상태에서 마우스를 놓을 경우(insertMode: 'split') canSplit을 통해 기존 문단을 커서 위치에서 둘로 깔끔히 나누고(tr.split) 그 사이에 이미지 블록을 즉시 삽입
+ *             7) 문단 앞(insertMode: 'before') 또는 문단 뒤(insertMode: 'after') 드롭 시 해당 블록 앞/뒤에 정밀 배치하고, 컨테이너 패딩 영역 드롭(INSERT_SAVED_IMAGE:) 시에도 lastDropTargetRef를 참조하여 정확한 커서 위치 삽입 보장
+ *             8) 드롭 완료, dragleave, dragend 시 커서 및 가이드 라인 DOM 요소를 즉시 숨기고 컴포넌트 unmount 시 메모리 누수 없이 완전 제거
+ * 🚨 @PATCH : **2026-10-14** — [이미지 드래그 앤 드롭 네이티브 DOM 처리 및 ProseMirror posAtCoords 결함 완전 해결·새창/Base64 방어]:
+ *             1) ProseMirror handleDrop이 블록 경계선/여백에서 posAtCoords null 반환 시 이벤트를 무시하여 이미지 삽입이 누락되고 드롭선이 멈추던 버그를 handleDOMEvents.drop 네이티브 핸들러로 완전 대체하여 100% 정상 삽입 보장
+ *             2) 드롭 및 드래그 종료(dragend/dragleave/drop/mouseup/mouseleave) 시 clearDropIndicator()를 즉각 동기 호출하여 파란색 가이드 라인 및 삽입 위치 뱃지 잔상 완전 소거
+ *             3) drop 이벤트에서 e.preventDefault() 및 e.stopPropagation()을 발화하여 브라우저/Electron의 파일 URL 새 창 이동 및 빈 이미지 창 팝업 원천 차단
+ *             4) Base64 데이터 및 이미지 파일 드롭 시 마크다운에 Base64를 인라인 삽입하지 않고 활성 리소스 폴더(media/ 하위 또는 구글 드라이브 media)에 바이너리 파일로 안전 저장 후 표준 마크다운 상대 경로로 삽입
+ *             5) resolveDropInsertPos에서 posAtCoords가 null인 경우에도 elementFromPoint 및 DOM childIndex 기하학을 추적하여 파란색 가이드 라인이 지목한 블록 앞/뒤(depth 0)에 1:1 일치하게 블록 노드 삽입
+ *             6) 드롭 실패 시 불필요한 ImageModal 모달 창이 팝업되는 연결 오류를 차단
+ * 🚨 @PATCH : **2026-10-14** — [각주 영역 헤더(Footnotes Header)와 각주 1번 노드 완전 분리 및 세로 여백 대폭 축소]:
+ *             1) 각주 영역 구분 헤더('📌 각주 (Footnotes)')를 첫 번째 각주(visual_footnote_def)의 NodeView 내부에서 완전히 분리하여 ProseMirror 데코레이션 플러그인(createFootnoteHeaderPlugin)의 독립 위젯 데코레이션(Decoration.widget)으로 전환
+ *             2) 각주 1번 선택 시 헤더까지 한 덩어리로 파랗게 묶여 선택되던 결함 및 각주 1번 삭제 시 각주 영역 전체가 함께 날아가던 치명적 결함 완전 해소 (1번 삭제 시 2번 상단으로 헤더 자동 유지 이동, 모든 각주 소멸 시에만 헤더 자동 제거)
+ *             3) 각주 헤더 뱃지(.visual-footnote-area-badge)의 폰트/줄간격/패딩 인플레이션을 진화하고 헤더와 첫 각주 사이의 비정상적 80px+ 간격을 6~8px의 콤팩트하고 정갈한 여백으로 밀착 최적화
+ *             4) .visual-document-surface의 white-space: pre-wrap 상속으로 인해 템플릿 리터럴 줄바꿈/들여쓰기 공백이 아이콘과 문자 사이에 66px 너비로 팽창하던 결함을 수정하여 템플릿 인라인 결합 및 gap: 3.5px, white-space: nowrap 적용으로 아이콘과 텍스트('각주 (Footnotes)')를 초밀착 정렬
+ * 🚨 @PATCH : **2026-10-14** — [이미지 드래그 앤 드롭 실시간 타겟 행 하이라이트 & 드롭 인디케이터 및 문서보기 서식관리 연동]:
+ *             1) 이미지 드래그오버(dragover) 시 마우스를 놓기 전까지 삽입 대상 행/블록을 .onrivi-drop-line-highlight로 실시간 표시하고 플로팅 드롭 가이드 라인(3px 코발트 라인 및 뱃지)을 동적 렌더링
+ *             2) dragleave/drop/dragend 시 인디케이터 및 하이라이트를 즉각 말끔히 제거하여 잔상 방지
+ *             3) onStyleSettings 콜백 연동 및 TOGGLE_CSS_STYLE/styleSettings 명령어 처리를 통해 문서보기 상태에서도 서식관리(CssStyleModal) 즉시 오픈 지원
+ * 🚨 @PATCH : **2026-10-14** — [문서보기(VisualDocumentEditor) 각주 정리(ORGANIZE_FOOTNOTES) 커맨드 탑재 및 실시간 재정렬 연동]:
+ *             1) visualCommandRef에 ORGANIZE_FOOTNOTES 핸들러를 등록하여 도구 메뉴에서 각주 정리 실행 시 문서보기 상태에서도 본문 순서 기반 1번부터 순차 재정렬 즉각 반영
+ *             2) Props에 onToast 콜백을 연동하여 정리 결과(재정렬 완료/미변경/각주없음)를 토스트로 안내
  * 🚨 @PATCH : **2026-10-14** — [머메이드 편집기(textarea) 및 각주(footnote) 입력 시 커서(Caret) 고시인성 표시 지원]:
  *             1) .visual-document-surface의 caret-color: transparent로 인해 자식 입력 요소의 커서가 투명화되던 결함을 해결하기 위해 textarea, input, .visual-mermaid-code-input, .visual-footnote-text에 caret-color: #2563eb !important(다크모드 #60a5fa) 지정
  *             2) 각주 입력기(visual-footnote-text)에 cursor: text, data-placeholder 안내 문구 및 :empty::before 플레이스홀더를 장착하여 빈 각주에서도 커서 높이 및 타이핑 위치 100% 보장
@@ -91,9 +121,9 @@ import DateTimeInsertPicker from '@/components/DateTimeInsertPicker';
 import { selectedList } from '@/lib/visualListCommands';
 import { tableContext, tableAction, moveTableCell, tableEnter } from '@/lib/visualTableCommands';
 import VisualReadOnlyMarkdownBlock from '@/components/VisualReadOnlyMarkdownBlock';
-import { EditorState, TextSelection, Command } from 'prosemirror-state';
-import { EditorView } from 'prosemirror-view';
-import { mediaDetails, copyMediaSource, type MediaKind } from '@/lib/mediaMarkup';
+import { EditorState, Selection, TextSelection, Command, Plugin, PluginKey } from 'prosemirror-state';
+import { EditorView, Decoration, DecorationSet } from 'prosemirror-view';
+import { mediaDetails, copyMediaSource, copyImageToClipboard, type MediaKind } from '@/lib/mediaMarkup';
 import { desktopClipboardImage } from '@/lib/desktopClipboard';
 import { markdownPasteTransaction } from '@/lib/visualMarkdownPaste';
 import { baseKeymap, chainCommands, exitCode, lift, setBlockType, toggleMark, wrapIn } from 'prosemirror-commands';
@@ -106,6 +136,9 @@ import { undoInputRule } from 'prosemirror-inputrules';
 import { visualCommandCatalog, filterVisualCommands } from '@/lib/visualCommandCatalog';
 import { TOOLBAR_ITEMS, configuredHotkeyItem } from '@/lib/toolbarConfig';
 import { installVisualCaret } from '@/lib/visualCaret';
+import { organizeMarkdownFootnotes } from '@/lib/footnoteOrganizer';
+import { parseDroppedDataToBlob, fetchExternalImageFile } from '@/lib/resourceMedia';
+import { canSplit } from 'prosemirror-transform';
 import katex from 'katex';
 
 const slashPattern = new RegExp('(?:^|\\s)([\\/／][\\p{L}\\p{N}_-]*)$', 'u');
@@ -338,6 +371,114 @@ function synchronizeTextSelection(view: EditorView) {
   } catch { /* A DOM selection may be removed during a document update. */ }
 }
 
+export interface DropTargetInfo {
+  pos: number;
+  coords: { left: number; top: number; bottom: number };
+  insertMode: 'before' | 'after' | 'split';
+  blockEl: HTMLElement | null;
+}
+
+export function resolveDropTarget(currentView: EditorView, clientX: number, clientY: number): DropTargetInfo {
+  const surfaceEl = currentView.dom;
+  const posInfo = currentView.posAtCoords({ left: clientX, top: clientY });
+  const hitEl = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
+
+  let blockEl: HTMLElement | null = null;
+  if (hitEl && surfaceEl.contains(hitEl)) {
+    blockEl = hitEl.closest<HTMLElement>('.visual-document-surface > *');
+  }
+
+  const rawPos = posInfo && typeof posInfo.pos === 'number' ? posInfo.pos : null;
+
+  if (!blockEl && typeof rawPos === 'number') {
+    const $pos = currentView.state.doc.resolve(rawPos);
+    if ($pos.depth >= 1) {
+      const nodeDom = currentView.nodeDOM($pos.before(1));
+      if (nodeDom instanceof HTMLElement) blockEl = nodeDom;
+    }
+    if (!blockEl) {
+      const idx = $pos.index(0);
+      const child = surfaceEl.children[idx];
+      if (child instanceof HTMLElement) blockEl = child;
+    }
+  }
+
+  // 1) 텍스트/노드 내부 좌표가 정확히 검출된 경우
+  if (typeof rawPos === 'number') {
+    const $pos = currentView.state.doc.resolve(rawPos);
+    let coords: { left: number; top: number; bottom: number };
+    try {
+      coords = currentView.coordsAtPos(rawPos);
+    } catch {
+      coords = { left: clientX, top: clientY - 12, bottom: clientY + 12 };
+    }
+
+    if ($pos.depth >= 1 && $pos.parent.isTextblock) {
+      if ($pos.parentOffset === 0) {
+        return { pos: $pos.before(1), coords, insertMode: 'before', blockEl };
+      } else if ($pos.parentOffset === $pos.parent.content.size) {
+        return { pos: $pos.after(1), coords, insertMode: 'after', blockEl };
+      } else {
+        return { pos: rawPos, coords, insertMode: 'split', blockEl };
+      }
+    }
+    return { pos: rawPos, coords, insertMode: 'after', blockEl };
+  }
+
+  // 2) 여백이나 패딩 영역에 마우스가 위치한 경우 (블록 기하학 기반 추적)
+  if (blockEl) {
+    const blockRect = blockEl.getBoundingClientRect();
+    const isUpper = clientY < (blockRect.top + blockRect.height / 2);
+    try {
+      const domPos = currentView.posAtDOM(blockEl, 0);
+      const $pos = currentView.state.doc.resolve(domPos);
+      if ($pos.depth >= 1) {
+        const targetPos = isUpper ? $pos.before(1) : $pos.after(1);
+        let coords: { left: number; top: number; bottom: number };
+        try {
+          coords = currentView.coordsAtPos(targetPos);
+        } catch {
+          coords = {
+            left: blockRect.left,
+            top: isUpper ? blockRect.top : blockRect.bottom - 24,
+            bottom: isUpper ? blockRect.top + 24 : blockRect.bottom
+          };
+        }
+        return { pos: targetPos, coords, insertMode: isUpper ? 'before' : 'after', blockEl };
+      }
+    } catch (_) {}
+
+    const idx = Array.from(surfaceEl.children).indexOf(blockEl);
+    if (idx >= 0) {
+      let offset = 0;
+      for (let i = 0; i < idx && i < currentView.state.doc.childCount; i++) {
+        offset += currentView.state.doc.child(i).nodeSize;
+      }
+      const targetPos = isUpper ? offset : offset + (currentView.state.doc.child(idx)?.nodeSize || 0);
+      const coords = {
+        left: blockRect.left,
+        top: isUpper ? blockRect.top : blockRect.bottom - 24,
+        bottom: isUpper ? blockRect.top + 24 : blockRect.bottom
+      };
+      return { pos: targetPos, coords, insertMode: isUpper ? 'before' : 'after', blockEl };
+    }
+  }
+
+  // 3) 문서 최하단 끝 여백
+  const endPos = currentView.state.doc.content.size;
+  let coords: { left: number; top: number; bottom: number };
+  try {
+    coords = currentView.coordsAtPos(endPos);
+  } catch {
+    coords = { left: clientX, top: clientY - 12, bottom: clientY + 12 };
+  }
+  return { pos: endPos, coords, insertMode: 'after', blockEl: null };
+}
+
+function resolveDropInsertPos(currentView: EditorView, clientX: number, clientY: number): number {
+  return resolveDropTarget(currentView, clientX, clientY).pos;
+}
+
 function resolveDocPath(relPath: string, currentFile: string): string {
   if (!relPath || relPath.startsWith('http://') || relPath.startsWith('https://')) return relPath;
   let normRel = relPath.replace(/\\/g, '/');
@@ -379,9 +520,12 @@ type Props = { content: string; onChange: (markdown: string) => void; readOnly?:
   onFormulaDialog?: (apply: (formula: string) => boolean | void, initialLatex?: string) => void;
   currentFilePath?: string;
   onFileOpen?: (filePath: string, heading?: string) => void;
-  onSourceAction?: (id: string, source: string, from: number, to: number) => void };
+  onSourceAction?: (id: string, source: string, from: number, to: number) => void;
+  onToast?: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
+  onStyleSettings?: () => void;
+};
 
-export default function VisualDocumentEditor({ content, onChange, readOnly = false, tabSize=4, onSourceScroll, onSourceCursor, documentId, commandRef, customCommands = {}, customHotkeys = {}, onSourceAction, onFloatingToolbar, floatingToolbarVisible, renderImage, onImageFile, onImageDialog, onMediaDialog, onDocLinkDialog, onFormulaDialog, currentFilePath, onFileOpen }: Props) {
+export default function VisualDocumentEditor({ content, onChange, readOnly = false, tabSize=4, onSourceScroll, onSourceCursor, documentId, commandRef, customCommands = {}, customHotkeys = {}, onSourceAction, onFloatingToolbar, floatingToolbarVisible, renderImage, onImageFile, onImageDialog, onMediaDialog, onDocLinkDialog, onFormulaDialog, currentFilePath, onFileOpen, onToast, onStyleSettings }: Props) {
   const cursorFrame=useRef(0);
   useEffect(()=>()=>cancelAnimationFrame(cursorFrame.current),[]);
   const cursorCallback=useRef(onSourceCursor);cursorCallback.current=onSourceCursor;
@@ -411,6 +555,11 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     return()=>{document.removeEventListener('scroll',sync,true);cancelAnimationFrame(frame);};
   },[]);
 
+  const onToastRef = useRef(onToast);
+  onToastRef.current = onToast;
+  const onStyleSettingsRef = useRef(onStyleSettings);
+  onStyleSettingsRef.current = onStyleSettings;
+
   const imageSequence = useRef(0);
   const [imageMounts, setImageMounts] = useState<{ id: number; element: HTMLElement; source: string }[]>([]);
   const viewRef = useRef<EditorView | null>(null);
@@ -424,6 +573,10 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   const imageTargets = useRef(new Set<{ from: number; to: number; source?: string; valid: boolean }>());
   const beginMediaRef = useRef<(kind: MediaKind, source?: string, position?: number) => void>(() => {});
   const beginImageRef = useRef<(source?: string, position?: number, file?: Blob) => void>(() => {});
+  const executeDropRef = useRef<(view: EditorView, e: DragEvent) => Promise<boolean>>(() => Promise.resolve(false));
+  const updateDropRef = useRef<(view: EditorView, e: DragEvent) => void>(() => {});
+  const lastDropTargetRef = useRef<DropTargetInfo | null>(null);
+  const lastDispatchedPosRef = useRef<number | null>(null);
   const callback = useRef(onChange);
   callback.current = onChange;
   const hotkeysRef = useRef(customHotkeys);
@@ -507,10 +660,24 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
               else beginMediaRef.current(node.attrs.kind, node.attrs.source, position);
             }
           });
+          const isImage = node.type.name === 'visual_image';
           const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = '복사';
-          copy.className = 'visual-media-copy onrivi-media-control'; copy.setAttribute('aria-label','미디어 참조 복사'); copy.title = '다른 문서에 붙여넣을 수 있는 미디어 참조 복사';
+          copy.className = 'visual-media-copy onrivi-media-control';
+          copy.setAttribute('aria-label', isImage ? '이미지 복사' : '미디어 참조 복사');
+          copy.title = isImage ? '이미지 복사' : '다른 문서에 붙여넣을 수 있는 미디어 참조 복사';
           copy.addEventListener('mousedown',event => event.preventDefault());
-          copy.addEventListener('click',event => { event.stopPropagation(); void copyMediaSource(node.attrs.source).then(() => setNotice('미디어 참조를 복사했습니다.')).catch(() => setNotice('클립보드 복사에 실패했습니다.')); });
+          copy.addEventListener('click',event => {
+            event.stopPropagation();
+            if (isImage) {
+              void copyImageToClipboard(node.attrs.source)
+                .then((ok) => setNotice(ok ? '이미지를 클립보드에 복사했습니다.' : '이미지 복사에 실패했습니다.'))
+                .catch(() => setNotice('클립보드 복사에 실패했습니다.'));
+            } else {
+              void copyMediaSource(node.attrs.source)
+                .then(() => setNotice('미디어 참조를 복사했습니다.'))
+                .catch(() => setNotice('클립보드 복사에 실패했습니다.'));
+            }
+          });
           const id = ++imageSequence.current;
           const render = () => setImageMounts(previous => [...previous.filter(item => item.id !== id), { id, element:picture, source:node.attrs.source }]);
           const controls = document.createElement('div'); controls.className = 'visual-media-controls no-print'; controls.append(copy,button);
@@ -524,8 +691,412 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             }, destroy() { queueMicrotask(() => { if (viewRef.current) setImageMounts(previous => previous.filter(item => item.id !== id)); }); },
           };
     };
+
+    host.current.style.position = 'relative';
+
+    // 1. 도톰하고 선명한 세로 막대 텍스트 커서 (3.5px 코발트 블루, 깜빡임 애니메이션 및 I-Beam 서리프)
+    const dropCaretVertical = document.createElement('div');
+    dropCaretVertical.className = 'visual-drag-drop-caret no-print';
+    dropCaretVertical.setAttribute('aria-hidden', 'true');
+    dropCaretVertical.style.cssText = [
+      'position:fixed',
+      'width:3.5px',
+      'background:#1d4ed8',
+      'box-shadow:0 0 12px rgba(29, 78, 216, 0.95), 0 0 3px #ffffff',
+      'pointer-events:none',
+      'z-index:99999',
+      'display:none',
+      'border-radius:2px',
+      'transition:left 0.04s ease-out, top 0.04s ease-out, height 0.04s ease-out',
+      'will-change:left,top,height'
+    ].join(';');
+
+    // 2. 커서 상단 안내 뱃지
+    const dropCaretBadge = document.createElement('div');
+    dropCaretBadge.className = 'visual-drag-drop-badge no-print';
+    dropCaretBadge.style.cssText = [
+      'position:absolute',
+      'bottom:100%',
+      'left:50%',
+      'transform:translateX(-50%) translateY(-6px)',
+      'background:#1d4ed8',
+      'color:#ffffff',
+      'font-size:11px',
+      'font-weight:700',
+      'font-family:Pretendard, -apple-system, sans-serif',
+      'padding:2.5px 8px',
+      'border-radius:6px',
+      'box-shadow:0 3px 12px rgba(0, 0, 0, 0.35)',
+      'pointer-events:none',
+      'display:flex',
+      'align-items:center',
+      'gap:4px',
+      'letter-spacing:-0.2px',
+      'white-space:nowrap'
+    ].join(';');
+    dropCaretBadge.innerHTML = '<span>📍 여기에 이미지 삽입</span>';
+    dropCaretVertical.appendChild(dropCaretBadge);
+
+    // 3. 가로 블록 경계 가이드 라인 (연한 코발트 음영)
+    const dropLineHorizontal = document.createElement('div');
+    dropLineHorizontal.className = 'visual-drag-drop-line no-print';
+    dropLineHorizontal.setAttribute('aria-hidden', 'true');
+    dropLineHorizontal.style.cssText = [
+      'position:fixed',
+      'height:2px',
+      'background:rgba(29, 78, 216, 0.55)',
+      'box-shadow:0 0 8px rgba(29, 78, 216, 0.6)',
+      'pointer-events:none',
+      'z-index:99998',
+      'display:none',
+      'border-radius:1px',
+      'transition:left 0.04s ease-out, top 0.04s ease-out, width 0.04s ease-out',
+      'will-change:left,top,width'
+    ].join(';');
+
+    document.body.appendChild(dropCaretVertical);
+    document.body.appendChild(dropLineHorizontal);
+
+    let activeDropBlock: HTMLElement | null = null;
+    const clearDropIndicator = () => {
+      dropCaretVertical.style.display = 'none';
+      dropLineHorizontal.style.display = 'none';
+      lastDropTargetRef.current = null;
+      lastDispatchedPosRef.current = null;
+      if (activeDropBlock) {
+        activeDropBlock.classList.remove('onrivi-drop-line-highlight');
+        activeDropBlock = null;
+      }
+    };
+
+    const updateDropIndicator = (currentView: EditorView, e: DragEvent) => {
+      if (!host.current || !currentView.dom) return;
+      const target = resolveDropTarget(currentView, e.clientX, e.clientY);
+      lastDropTargetRef.current = target;
+
+      if (activeDropBlock !== target.blockEl) {
+        if (activeDropBlock) activeDropBlock.classList.remove('onrivi-drop-line-highlight');
+        if (target.blockEl) {
+          target.blockEl.classList.add('onrivi-drop-line-highlight');
+          activeDropBlock = target.blockEl;
+        } else {
+          activeDropBlock = null;
+        }
+      }
+
+      const isDark = document.documentElement.classList.contains('dark') || host.current.closest('.dark');
+      dropCaretVertical.style.background = isDark ? '#38bdf8' : '#1d4ed8';
+      dropCaretVertical.style.boxShadow = isDark ? '0 0 12px rgba(56, 189, 248, 0.95), 0 0 3px #ffffff' : '0 0 12px rgba(29, 78, 216, 0.95), 0 0 3px #ffffff';
+      dropCaretBadge.style.background = isDark ? '#0284c7' : '#1d4ed8';
+      dropLineHorizontal.style.background = isDark ? 'rgba(56, 189, 248, 0.55)' : 'rgba(29, 78, 216, 0.55)';
+
+      const caretHeight = Math.max(22, Math.round(target.coords.bottom - target.coords.top));
+      const caretTop = Math.round(target.coords.top);
+      const caretLeft = Math.round(target.coords.left);
+
+      // 상단 여백이 좁을 때 뱃지 뒤집기 방어
+      if (caretTop < 45) {
+        dropCaretBadge.style.bottom = 'auto';
+        dropCaretBadge.style.top = '100%';
+        dropCaretBadge.style.transform = 'translateX(-50%) translateY(6px)';
+      } else {
+        dropCaretBadge.style.bottom = '100%';
+        dropCaretBadge.style.top = 'auto';
+        dropCaretBadge.style.transform = 'translateX(-50%) translateY(-6px)';
+      }
+
+      dropCaretVertical.style.top = `${caretTop}px`;
+      dropCaretVertical.style.left = `${caretLeft}px`;
+      dropCaretVertical.style.height = `${caretHeight}px`;
+      dropCaretVertical.style.display = 'block';
+
+      if (target.blockEl) {
+        const blockRect = target.blockEl.getBoundingClientRect();
+        const lineY = target.insertMode === 'before' ? blockRect.top : target.insertMode === 'after' ? blockRect.bottom : target.coords.bottom;
+        dropLineHorizontal.style.top = `${Math.round(lineY)}px`;
+        dropLineHorizontal.style.left = `${Math.round(blockRect.left)}px`;
+        dropLineHorizontal.style.width = `${Math.max(40, Math.round(blockRect.width))}px`;
+        dropLineHorizontal.style.display = 'block';
+      } else {
+        dropLineHorizontal.style.display = 'none';
+      }
+
+      // 실시간 에디터 텍스트 커서(Selection) 동기화
+      if (lastDispatchedPosRef.current !== target.pos) {
+        lastDispatchedPosRef.current = target.pos;
+        try {
+          const $pos = currentView.state.doc.resolve(target.pos);
+          currentView.dispatch(currentView.state.tr.setSelection(TextSelection.near($pos)));
+        } catch (_) {}
+      }
+    };
+    updateDropRef.current = updateDropIndicator;
+
+    const handleWindowDragOver = (e: DragEvent) => {
+      // 🛡️ [브라우저 파일 URL 새 창 이동 100% 원천 차단]
+      e.preventDefault();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+      const view = viewRef.current;
+      if (!view || !view.editable) return;
+      const types = e.dataTransfer?.types;
+      if (!types || !Array.from(types).some(t => t === 'Files' || t === 'text/html' || t === 'text/uri-list' || t === 'text/plain')) {
+        return;
+      }
+      const container = host.current?.closest('.custom-preview-container') || host.current;
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          updateDropIndicator(view, e);
+        } else {
+          clearDropIndicator();
+        }
+      }
+    };
+
+    const handleWindowDragEnd = () => clearDropIndicator();
+    const handleWindowDrop = (e: DragEvent) => {
+      // 🛡️ [브라우저 파일 URL 새 창 내비게이션 100% 원천 차단]
+      e.preventDefault();
+      clearDropIndicator();
+      const view = viewRef.current;
+      if (!view || !view.editable) return;
+      const container = host.current?.closest('.custom-preview-container') || host.current;
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          e.stopPropagation();
+          void executeDropRef.current(view, e);
+        }
+      }
+    };
+    const handleWindowDragLeave = (e: DragEvent) => {
+      if (e.clientX <= 0 || e.clientY <= 0 || !e.relatedTarget) {
+        clearDropIndicator();
+      }
+    };
+    window.addEventListener('dragover', handleWindowDragOver, true);
+    window.addEventListener('dragend', handleWindowDragEnd, true);
+    window.addEventListener('drop', handleWindowDrop, true);
+    window.addEventListener('dragleave', handleWindowDragLeave, true);
+    window.addEventListener('mouseup', handleWindowDragEnd, true);
+    if (host.current) host.current.addEventListener('mouseleave', handleWindowDragEnd);
+
+    const executeDropImageInsertion = async (currentView: EditorView, e: DragEvent): Promise<boolean> => {
+      const dt = e.dataTransfer;
+      if (!dt || !currentView.editable) {
+        clearDropIndicator();
+        return false;
+      }
+
+      const target = lastDropTargetRef.current || resolveDropTarget(currentView, e.clientX, e.clientY);
+      clearDropIndicator();
+
+      const insertMarkdownImageNode = (savedPath: string, altName: string = '') => {
+        const view = viewRef.current;
+        if (!view || !view.editable) return;
+        const cleanAlt = (altName ?? '').replace(/([\\\[\]])/g, '\\$1');
+        const formattedPath = savedPath.includes(' ') ? `<${savedPath}>` : savedPath;
+        const markdown = `![${cleanAlt}](${formattedPath})\n\n`;
+        const node = visualSchema.nodes.visual_image.create({ source: markdown });
+        let tr = view.state.tr;
+
+        const safePos = Math.max(0, Math.min(target.pos, tr.doc.content.size));
+        const $pos = tr.doc.resolve(safePos);
+
+        if (target.insertMode === 'split' && $pos.parent.isTextblock && $pos.parentOffset > 0 && $pos.parentOffset < $pos.parent.content.size && canSplit(tr.doc, safePos)) {
+          // 문단 텍스트 중간에 커서가 위치한 경우: 현재 커서 위치에서 문단을 둘로 나누고 그 사이에 이미지 삽입!
+          tr = tr.split(safePos);
+          tr = tr.insert(safePos + 1, node);
+        } else if (target.insertMode === 'before' && $pos.depth >= 1) {
+          tr = tr.insert($pos.before(1), node);
+        } else if (target.insertMode === 'after' && $pos.depth >= 1) {
+          tr = tr.insert($pos.after(1), node);
+        } else {
+          tr = tr.insert(safePos, node);
+        }
+
+        if (tr.doc.lastChild?.type === visualSchema.nodes.visual_image) {
+          tr = tr.insert(tr.doc.content.size, visualSchema.nodes.paragraph.create());
+        }
+        view.dispatch(closeHistory(tr).scrollIntoView());
+        view.focus();
+      };
+
+      // 1) parseDroppedDataToBlob 정규화 파싱 (OS 파일, DataTransfer items, Base64 Data URL, Web SVG, 구글/웹 이미지 등)
+      const parsed = parseDroppedDataToBlob(dt);
+      if (parsed) {
+        if (parsed.file && images.current.onImageFile) {
+          try {
+            const savedPath = await images.current.onImageFile(parsed.file);
+            if (savedPath) {
+              insertMarkdownImageNode(savedPath, '');
+              return true;
+            }
+          } catch (err) {
+            console.error('[VisualDocumentEditor] File drop save failed:', err);
+          }
+        } else if (parsed.webUrl) {
+          let fetchedFile: File | null = null;
+          try {
+            fetchedFile = await fetchExternalImageFile(parsed.webUrl, parsed.name);
+          } catch (_) {}
+
+          if (fetchedFile && images.current.onImageFile) {
+            try {
+              const savedPath = await images.current.onImageFile(fetchedFile);
+              if (savedPath) {
+                insertMarkdownImageNode(savedPath, '');
+                return true;
+              }
+            } catch (err) {
+              console.error('[VisualDocumentEditor] External image save failed:', err);
+            }
+          }
+
+          // 다운로드 실패 시에도 웹 이미지 링크 직접 안전 삽입 (절대 실패하거나 새 창을 띄우지 않음!)
+          insertMarkdownImageNode(parsed.webUrl, '');
+          return true;
+        }
+      }
+
+      // 2) OS 다중 파일 드롭 (여러 이미지 일괄 드롭 시)
+      let files = Array.from(dt.files || []).filter(file =>
+        file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|avif|bmp|jfif|tiff?|ico)$/i.test(file.name)
+      );
+      if (files.length === 0 && dt.items) {
+        for (const item of Array.from(dt.items)) {
+          if (item.kind === 'file') {
+            const f = item.getAsFile();
+            if (f && (f.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|avif|bmp|jfif|tiff?|ico)$/i.test(f.name))) {
+              files.push(f);
+            }
+          }
+        }
+      }
+      if (files.length > 0 && images.current.onImageFile) {
+        for (const file of files) {
+          try {
+            const savedPath = await images.current.onImageFile(file);
+            if (savedPath) {
+              insertMarkdownImageNode(savedPath, '');
+            }
+          } catch (err) {
+            console.error('[VisualDocumentEditor] Image file drop upload failed:', err);
+          }
+        }
+        return true;
+      }
+
+      // 3) 로컬 파일 절대 경로 드래그 (Electron 환경)
+      const plainText = dt.getData('text/plain') || '';
+      const uriList = dt.getData('text/uri-list') || '';
+      let fileCandidate = uriList.split(/[\r\n]+/).map(s => s.trim()).find(s => s && /^(?:file:\/\/\/|[a-zA-Z]:[/\\])/i.test(s)) || '';
+      if (!fileCandidate && /^(?:file:\/\/\/|[a-zA-Z]:[/\\])/i.test(plainText.trim())) {
+        fileCandidate = plainText.trim();
+      }
+      if (fileCandidate) {
+        const api = (window as any).electronAPI;
+        let cleanPath = fileCandidate.startsWith('file:///') ? decodeURIComponent(fileCandidate.replace(/^file:\/\/\//, '')) : fileCandidate;
+        cleanPath = cleanPath.replace(/^\/([A-Za-z]:)/, '$1');
+        if (api?.readTransferFile && images.current.onImageFile) {
+          try {
+            const bytes = await api.readTransferFile(cleanPath);
+            const filename = cleanPath.split(/[\\/]/).pop() || `img_${Date.now()}.png`;
+            const ext = filename.split('.').pop()?.toLowerCase() || 'png';
+            const mime = ({ png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml' } as Record<string, string>)[ext] || 'application/octet-stream';
+            const file = new File([new Uint8Array(bytes)], filename, { type: mime });
+            const savedPath = await images.current.onImageFile(file);
+            if (savedPath) {
+              insertMarkdownImageNode(savedPath, filename);
+              return true;
+            }
+          } catch (err) {
+            console.error('[VisualDocumentEditor] Local file drag read failed:', err);
+          }
+        }
+      }
+
+      // 4) 외부 웹 HTTP/HTTPS 이미지 URL (다운로드 후 로컬/드라이브 media에 저장)
+      let webCandidate = uriList.split(/[\r\n]+/).map(s => s.trim()).find(s => s && /^https?:\/\//i.test(s)) || '';
+      if (!webCandidate && /^https?:\/\//i.test(plainText.trim())) {
+        webCandidate = plainText.trim();
+      }
+      if (webCandidate) {
+        let fetchedFile: File | null = null;
+        try {
+          fetchedFile = await fetchExternalImageFile(webCandidate);
+        } catch (_) {}
+
+        if (fetchedFile && images.current.onImageFile) {
+          try {
+            const savedPath = await images.current.onImageFile(fetchedFile);
+            if (savedPath) {
+              insertMarkdownImageNode(savedPath, '');
+              return true;
+            }
+          } catch (err) {
+            console.error('[VisualDocumentEditor] External image save failed:', err);
+          }
+        }
+
+        // 다운로드 실패 시에도 웹 이미지 링크 직접 안전 삽입 (절대 실패하거나 새 창을 띄우지 않음!)
+        if (!webCandidate.startsWith('data:image/')) {
+          insertMarkdownImageNode(webCandidate, '');
+          return true;
+        }
+      }
+
+      return false;
+    };
+    executeDropRef.current = executeDropImageInsertion;
+
+    const footnoteHeaderPluginKey = new PluginKey('visual_footnote_header');
+    const createFootnoteHeaderPlugin = () => new Plugin({
+      key: footnoteHeaderPluginKey,
+      props: {
+        decorations(state) {
+          let firstFootnotePos: number | null = null;
+          let offset = 0;
+          for (let i = 0; i < state.doc.childCount; i++) {
+            const child = state.doc.child(i);
+            if (child.type.name === 'visual_footnote_def') {
+              firstFootnotePos = offset;
+              break;
+            }
+            offset += child.nodeSize;
+          }
+
+          if (firstFootnotePos === null) {
+            return DecorationSet.empty;
+          }
+
+          const widget = Decoration.widget(
+            firstFootnotePos,
+            () => {
+              const areaHeader = document.createElement('div');
+              areaHeader.className = 'visual-footnote-area-header select-none';
+              areaHeader.innerHTML =
+                '<div class="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">' +
+                '<span class="visual-footnote-area-badge inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-950/60 border border-blue-200/60 dark:border-blue-800/60 text-blue-700 dark:text-blue-300 shadow-2xs font-semibold whitespace-nowrap">' +
+                '<svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg>' +
+                '<span class="visual-footnote-area-title">각주 (Footnotes)</span>' +
+                '</span>' +
+                '<div class="flex-1 border-t-2 border-slate-300/80 dark:border-slate-700/80"></div>' +
+                '</div>';
+              return areaHeader;
+            },
+            { side: -1, stopEvent: () => true, key: 'visual-footnote-area-header' }
+          );
+
+          return DecorationSet.create(state.doc, [widget]);
+        }
+      }
+    });
+
     const view = new EditorView(host.current, {
-      state: cached?.source === content ? cached.state : EditorState.create({ doc: codec.doc, plugins: [history(), visualMarkdownInputRules(), keymap({
+      state: cached?.source === content ? cached.state : EditorState.create({ doc: codec.doc, plugins: [history(), visualMarkdownInputRules(), createFootnoteHeaderPlugin(), keymap({
         Backspace: chainCommands(removeHeadingAtStart, backspaceInCodeBlock, undoInputRule, baseKeymap.Backspace),
         Delete: chainCommands(deleteInCodeBlock, baseKeymap.Delete),
         'Mod-Shift-k': (state, dispatch) => {
@@ -842,36 +1413,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         },
         visual_footnote_def(node, currentView, getPos) {
           const dom = document.createElement('div');
-          dom.className = 'visual-footnote-def-container';
+          dom.className = 'visual-footnote-def visual-footnote-def-container group flex items-start gap-2.5 px-3 py-1.5 my-1 rounded-md bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-700/60 hover:border-blue-400/60 dark:hover:border-blue-600/60 transition-all';
           dom.setAttribute('data-footnote-def', node.attrs.label);
-
-          const isFirstFootnote = () => {
-            try {
-              const pos = getPos();
-              if (typeof pos !== 'number') return true;
-              const $pos = currentView.state.doc.resolve(pos);
-              const prevNode = $pos.nodeBefore;
-              return !prevNode || prevNode.type !== node.type;
-            } catch {
-              return true;
-            }
-          };
-
-          const areaHeader = document.createElement('div');
-          areaHeader.className = 'visual-footnote-area-header select-none mb-2 pt-6 pb-1';
-          areaHeader.innerHTML = `
-            <div class="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
-              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-950/60 border border-blue-200/60 dark:border-blue-800/60 text-blue-700 dark:text-blue-300 shadow-2xs font-semibold">
-                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg>
-                각주 (Footnotes)
-              </span>
-              <div class="flex-1 border-t-2 border-slate-300/80 dark:border-slate-700/80"></div>
-            </div>
-          `;
-          areaHeader.style.display = isFirstFootnote() ? 'block' : 'none';
-
-          const itemCard = document.createElement('div');
-          itemCard.className = 'visual-footnote-def group flex items-start gap-2.5 px-3 py-2 my-1 rounded-md bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-700/60 hover:border-blue-400/60 dark:hover:border-blue-600/60 transition-all';
 
           const labelSpan = document.createElement('span');
           labelSpan.className = 'visual-footnote-badge font-bold text-blue-700 dark:text-blue-400 select-none whitespace-nowrap pt-0.5 cursor-pointer hover:underline shrink-0';
@@ -893,8 +1436,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           input.textContent = node.attrs.content || '';
           input.setAttribute('data-placeholder', '각주 설명을 입력하세요...');
 
-          itemCard.addEventListener('click', (e) => {
-            if (e.target === itemCard) {
+          dom.addEventListener('click', (e) => {
+            if (e.target === dom) {
               input.focus();
             }
           });
@@ -937,8 +1480,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             }
           });
 
-          itemCard.append(labelSpan, input, jumpBtn, deleteBtn);
-          dom.append(areaHeader, itemCard);
+          dom.append(labelSpan, input, jumpBtn, deleteBtn);
 
           return {
             dom,
@@ -954,7 +1496,6 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
               if (document.activeElement !== input && input.textContent !== node.attrs.content) {
                 input.textContent = node.attrs.content;
               }
-              areaHeader.style.display = isFirstFootnote() ? 'block' : 'none';
               return true;
             }
           };
@@ -1308,18 +1849,60 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           event.preventDefault(); event.stopPropagation();
           beginImageRef.current(undefined, undefined, image); return true;
         }
-        if (/<img\b/i.test(event.clipboardData?.getData('text/html') || '')) {
-          setNotice('사진 넣기에서 이미지 파일이나 주소를 선택해 주세요.'); return true;
+        const html = event.clipboardData?.getData('text/html') || '';
+        if (/<img\b/i.test(html)) {
+          const match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+          const imgSrc = match?.[1] || '';
+          if (imgSrc.startsWith('data:image/')) {
+            try {
+              event.preventDefault(); event.stopPropagation();
+              const [header, b64] = imgSrc.split(',');
+              const mime = header.match(/:(.*?);/)?.[1] || 'image/png';
+              const binaryStr = atob(b64);
+              const len = binaryStr.length;
+              const u8arr = new Uint8Array(len);
+              for (let i = 0; i < len; i++) u8arr[i] = binaryStr.charCodeAt(i);
+              const ext = ({ 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg' } as Record<string, string>)[mime] || 'png';
+              const file = new File([u8arr], `img_${Date.now()}.${ext}`, { type: mime });
+              beginImageRef.current(undefined, undefined, file);
+              return true;
+            } catch (_) {}
+          }
+          if (imgSrc.startsWith('http://') || imgSrc.startsWith('https://')) {
+            event.preventDefault(); event.stopPropagation();
+            void (async () => {
+              try {
+                const resp = await fetch(imgSrc);
+                if (resp.ok) {
+                  const blob = await resp.blob();
+                  const ext = ({ 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg', 'image/png': 'png' } as Record<string, string>)[blob.type] || 'png';
+                  const file = new File([blob], `img_${Date.now()}.${ext}`, { type: blob.type || 'image/png' });
+                  beginImageRef.current(undefined, undefined, file);
+                  return;
+                }
+              } catch (_) {}
+              if (images.current.onImageFile) {
+                beginImageRef.current(undefined, undefined);
+              }
+            })();
+            return true;
+          }
         }
         return false;
       },
       handleDrop(currentView, event) {
+        clearDropIndicator();
         if (!currentView.editable) return false;
-        const files = Array.from(event.dataTransfer?.files || []).filter(file => file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|avif|bmp)$/i.test(file.name));
-        if (files.length && images.current.onImageFile) {
-          event.preventDefault(); event.stopPropagation();
-          const position = currentView.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
-          files.forEach(file => beginImageRef.current(undefined, position, file)); return true;
+        const e = event as DragEvent;
+        const dt = e.dataTransfer;
+        if (!dt) return false;
+        const types = dt.types ? Array.from(dt.types) : [];
+        const isPotential = types.some(t => t === 'Files' || t === 'text/html' || t === 'text/uri-list' || t === 'text/plain');
+        if (isPotential) {
+          e.preventDefault();
+          e.stopPropagation();
+          void executeDropImageInsertion(currentView, e);
+          return true;
         }
         return false;
       },
@@ -1404,23 +1987,73 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         }
         return false;
       },
-      handleDOMEvents: { mouseup(currentView) {
-        cancelAnimationFrame(cursorFrame.current);
-        cursorFrame.current=requestAnimationFrame(()=>{
-          if(viewRef.current!==currentView || currentView.composing || !currentView.hasFocus())return;
-          synchronizeTextSelection(currentView);
-          const codec=codecRef.current;if(!codec || !cursorCallback.current)return;
-          const token='ONRIVICURSORMAP';
-          const offset=codec.serialize(currentView.state.tr.insertText(token,currentView.state.selection.head).doc).indexOf(token);
-          if(offset>=0)cursorCallback.current(offset);
-        });
-        return false;
-      }, blur() { manualFloatingRef.current = false; setSelection(false); setSlash(false); return false; } },
+      handleDOMEvents: {
+        dragover(currentView, event) {
+          if (!currentView.editable) return false;
+          const e = event as DragEvent;
+          const types = e.dataTransfer?.types;
+          if (!types || !Array.from(types).some(t => t === 'Files' || t === 'text/html' || t === 'text/uri-list' || t === 'text/plain')) {
+            return false;
+          }
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+          updateDropIndicator(currentView, e);
+          return true;
+        },
+        dragenter(currentView, event) {
+          if (!currentView.editable) return false;
+          const e = event as DragEvent;
+          const types = e.dataTransfer?.types;
+          if (!types || !Array.from(types).some(t => t === 'Files' || t === 'text/html' || t === 'text/uri-list' || t === 'text/plain')) {
+            return false;
+          }
+          e.preventDefault();
+          e.stopPropagation();
+          updateDropIndicator(currentView, e);
+          return true;
+        },
+        dragleave(currentView, event) {
+          const e = event as DragEvent;
+          if (!currentView.dom.contains(e.relatedTarget as Node | null)) {
+            clearDropIndicator();
+          }
+          return false;
+        },
+        drop(currentView, event) {
+          clearDropIndicator();
+          const e = event as DragEvent;
+          const dt = e.dataTransfer;
+          if (!dt || !currentView.editable) return false;
+          const types = dt.types ? Array.from(dt.types) : [];
+          const isPotential = types.some(t => t === 'Files' || t === 'text/html' || t === 'text/uri-list' || t === 'text/plain');
+          if (isPotential) {
+            e.preventDefault();
+            e.stopPropagation();
+            void executeDropImageInsertion(currentView, e);
+            return true;
+          }
+          return false;
+        },
+        mouseup(currentView) {
+          cancelAnimationFrame(cursorFrame.current);
+          cursorFrame.current=requestAnimationFrame(()=>{
+            if(viewRef.current!==currentView || currentView.composing || !currentView.hasFocus())return;
+            synchronizeTextSelection(currentView);
+            const codec=codecRef.current;if(!codec || !cursorCallback.current)return;
+            const token='ONRIVICURSORMAP';
+            const offset=codec.serialize(currentView.state.tr.insertText(token,currentView.state.selection.head).doc).indexOf(token);
+            if(offset>=0)cursorCallback.current(offset);
+          });
+          return false;
+        }, blur() { manualFloatingRef.current = false; setSelection(false); setSlash(false); return false; } },
     });
     viewRef.current = view;
     caretRef.current = installVisualCaret(view);
     const scrollContainer=host.current.closest('.custom-preview-container') as HTMLElement|null;
-    if(scrollContainer){scrollContainer.scrollTop=cached?.source===content ? cached.scrollTop || 0 : 0;scrollContainer.scrollLeft=cached?.source===content ? cached.scrollLeft || 0 : 0;}
+    // A scene editor mounts inside an already-scrolled picturebook. Resetting
+    // the shared document viewport here jumps back to the scene list.
+    if(scrollContainer && !host.current.closest('[data-book-text]')){scrollContainer.scrollTop=cached?.source===content ? cached.scrollTop || 0 : 0;scrollContainer.scrollLeft=cached?.source===content ? cached.scrollLeft || 0 : 0;}
     // Codec belongs to this editor instance, keeping unchanged source node bytes.
     (view as EditorView & { replaceSource?: (source: string) => void }).replaceSource = source => {
       imageTargets.current.forEach(target => { target.valid = false; });
@@ -1452,6 +2085,19 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       setSlash(false); setSelection(false);
     };
     return () => {
+      clearDropIndicator();
+      window.removeEventListener('dragover', handleWindowDragOver, true);
+      window.removeEventListener('dragend', handleWindowDragEnd, true);
+      window.removeEventListener('drop', handleWindowDrop, true);
+      window.removeEventListener('dragleave', handleWindowDragLeave, true);
+      window.removeEventListener('mouseup', handleWindowDragEnd, true);
+      if (host.current) host.current.removeEventListener('mouseleave', handleWindowDragEnd);
+      if (dropCaretVertical.parentNode) {
+        dropCaretVertical.parentNode.removeChild(dropCaretVertical);
+      }
+      if (dropLineHorizontal.parentNode) {
+        dropLineHorizontal.parentNode.removeChild(dropLineHorizontal);
+      }
       if (documentId) {
         sessions.set(documentId, { source: emitted.current, state: view.state, codec,scrollTop:scrollContainer?.scrollTop,scrollLeft:scrollContainer?.scrollLeft });
         if (sessions.size > 20) sessions.delete(sessions.keys().next().value!);
@@ -1667,17 +2313,38 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     const from = position ?? view.state.selection.from;
     const target = { from, to: source ? from + (view.state.doc.nodeAt(from)?.nodeSize || 0) : position ?? view.state.selection.to, source, valid: true };
     imageTargets.current.add(target);
-    const insert = (path: string, alt: string) => {
+    const insert = (path: string, alt = '') => {
       imageTargets.current.delete(target);
       if (!target.valid || viewRef.current !== view || !view.editable) return false;
       if (source && view.state.doc.nodeAt(target.from)?.attrs.source !== source) return false;
       const title = source ? visualImageDetails(source).title : '';
-      const markdown = `![${alt.replace(/([\\\[\]])/g, '\\$1')}](${path.includes(' ') ? '<' + path + '>' : path}${title ? ' \"' + title.replace(/([\\\"])/g, '\\$1') + '\"' : ''})\n\n`;
+      const cleanAlt = (alt ?? '').replace(/([\\\[\]])/g, '\\$1');
+      const markdown = `![${cleanAlt}](${path.includes(' ') ? '<' + path + '>' : path}${title ? ' \"' + title.replace(/([\\\"])/g, '\\$1') + '\"' : ''})\n\n`;
       const node = visualSchema.nodes.visual_image.create({ source: markdown });
       let tr = view.state.tr;
       if (source) tr = tr.replaceWith(target.from, target.to, node);
-      else {
-        tr = tr.setSelection(TextSelection.between(tr.doc.resolve(target.from), tr.doc.resolve(target.to))).replaceSelectionWith(node);
+      else if (target.from === target.to) {
+        const $from = tr.doc.resolve(target.from);
+        if ($from.depth === 0) {
+          tr = tr.insert(target.from, node);
+        } else {
+          try {
+            tr = tr.setSelection(TextSelection.between($from, tr.doc.resolve(target.to))).replaceSelectionWith(node);
+          } catch {
+            tr = tr.insert(target.from, node);
+          }
+        }
+        if (tr.selection.$to.parent === tr.doc || tr.selection.to === tr.doc.content.size) {
+          tr = tr.insert(tr.doc.content.size, visualSchema.nodes.paragraph.create());
+          tr = tr.setSelection(TextSelection.create(tr.doc, tr.doc.content.size - 1));
+        } else {
+          try {
+            const safeHead = Math.min(tr.doc.content.size - 1, Math.max(0, target.from + node.nodeSize));
+            tr = tr.setSelection(Selection.near(tr.doc.resolve(safeHead)));
+          } catch {}
+        }
+      } else {
+        tr = tr.replaceWith(target.from, target.to, node);
         if (tr.selection.$to.parent === tr.doc || tr.selection.to === tr.doc.content.size) {
           tr = tr.insert(tr.doc.content.size, visualSchema.nodes.paragraph.create());
           tr = tr.setSelection(TextSelection.create(tr.doc, tr.doc.content.size - 1));
@@ -1687,7 +2354,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     };
     if (file && images.current.onImageFile) {
       void images.current.onImageFile(file).then(path => {
-        if (path && !insert(path, file instanceof File ? file.name : '')) setNotice('문서나 삽입 위치가 변경되었습니다. 저장된 사진을 다시 선택해 주세요.');
+        if (path && !insert(path, '')) setNotice('문서나 삽입 위치가 변경되었습니다. 저장된 사진을 다시 선택해 주세요.');
         if (!path) imageTargets.current.delete(target);
       }).catch(() => { imageTargets.current.delete(target); setNotice('이미지 저장에 실패했습니다. 리소스 폴더 연결을 확인해 주세요.'); });
     } else if (images.current.onImageDialog) images.current.onImageDialog(source || null, insert);
@@ -1820,6 +2487,15 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       view.focus();
       return;
     }
+    if (id === 'styleSettings' || id === 'style') {
+      if (removeSlash && slashRange.current) {
+        const range = slashRange.current;
+        view.dispatch(view.state.tr.delete(range.from, range.to));
+        slashRange.current = null; setSlash(false);
+      }
+      onStyleSettingsRef.current?.();
+      return;
+    }
     if (nativeCommands[id]) { run(nativeCommands[id], removeSlash); return; }
     if (removeSlash && slashRange.current) {
       const range = slashRange.current;
@@ -1854,6 +2530,28 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       MATH: () => { executeItemRef.current('math'); return true; }, LATEX: () => { executeItemRef.current('math'); return true; },
       FOOTNOTE: () => { insertFootnoteRef.current?.(); return true; }, FN: () => { insertFootnoteRef.current?.(); return true; },
       CITATION: () => { insertFootnoteRef.current?.(); return true; }, CITE: () => { insertFootnoteRef.current?.(); return true; },
+      TOGGLE_CSS_STYLE: () => { onStyleSettingsRef.current?.(); return true; },
+      ORGANIZE_FOOTNOTES: () => {
+        if (!viewRef.current || readOnly || !codecRef.current) return true;
+        const view = viewRef.current;
+        const currentSource = codecRef.current.serialize(view.state.doc);
+        const result = organizeMarkdownFootnotes(currentSource);
+        if (result.count === 0) {
+          if (onToastRef.current) onToastRef.current('정리할 각주가 본문에 없습니다.', 'info');
+          else setNotice('정리할 각주가 본문에 없습니다.');
+          return true;
+        }
+        if (!result.changed) {
+          if (onToastRef.current) onToastRef.current('모든 각주가 이미 본문 순서대로 완벽히 정렬되어 있습니다.', 'info');
+          else setNotice('모든 각주가 이미 본문 순서대로 완벽히 정렬되어 있습니다.');
+          return true;
+        }
+        (view as any).replaceSource?.(result.text);
+        callback.current(result.text);
+        if (onToastRef.current) onToastRef.current(`총 ${result.count}개의 각주를 본문 순서에 맞추어 1번부터 순차적으로 재정렬했습니다.`, 'success');
+        else setNotice(`총 ${result.count}개의 각주를 본문 순서에 맞추어 1번부터 순차적으로 재정렬했습니다.`);
+        return true;
+      },
     };
     for (let level = 1; level <= 6; level++) commands[`H${level}`] = setHeadingBlock(level);
     const bridge = (command: string) => {
@@ -1862,6 +2560,40 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         if (!view || readOnly) return true;
         view.dispatch(view.state.tr.insertText(command.slice('INSERT_TEXT:'.length)).scrollIntoView());
         view.focus(); caretRef.current?.schedule();
+        return true;
+      }
+      if (command.startsWith('INSERT_SAVED_IMAGE:')) {
+        const savedPath = command.slice('INSERT_SAVED_IMAGE:'.length).trim();
+        const view = viewRef.current;
+        if (!view || readOnly) return true;
+        if (savedPath.startsWith('data:image/')) {
+          console.warn('[VisualDocumentEditor] Base64 image insertion blocked by policy');
+          return true;
+        }
+        const markdown = `![image](${savedPath.includes(' ') ? '<' + savedPath + '>' : savedPath})\n\n`;
+        const node = visualSchema.nodes.visual_image.create({ source: markdown });
+        const target = lastDropTargetRef.current;
+        let tr = view.state.tr;
+        const insertPos = target ? Math.max(0, Math.min(target.pos, tr.doc.content.size)) : view.state.selection.to;
+        const $pos = tr.doc.resolve(insertPos);
+
+        if (target && target.insertMode === 'split' && $pos.parent.isTextblock && $pos.parentOffset > 0 && $pos.parentOffset < $pos.parent.content.size && canSplit(tr.doc, insertPos)) {
+          tr = tr.split(insertPos);
+          tr = tr.insert(insertPos + 1, node);
+        } else if (target && target.insertMode === 'before' && $pos.depth >= 1) {
+          tr = tr.insert($pos.before(1), node);
+        } else if (target && target.insertMode === 'after' && $pos.depth >= 1) {
+          tr = tr.insert($pos.after(1), node);
+        } else {
+          tr = tr.insert(insertPos, node);
+        }
+
+        if (tr.doc.lastChild?.type === visualSchema.nodes.visual_image) {
+          tr = tr.insert(tr.doc.content.size, visualSchema.nodes.paragraph.create());
+        }
+        view.dispatch(closeHistory(tr).scrollIntoView());
+        view.focus();
+        lastDropTargetRef.current = null;
         return true;
       }
       if (command === 'TOGGLE_FLOATING_TOOLBAR' || command === 'SLASH_COMMAND') {
@@ -1916,7 +2648,35 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     aria-pressed={['bold', 'italic', 'inlineCode', 'link', 'strikethrough'].includes(id) ? activeMarks.includes(({ bold: 'strong', italic: 'em', inlineCode: 'code', link: 'link', strikethrough:'strike' } as Record<string, string>)[id]) : undefined}>{label}</button>;
 
   return <section style={{tabSize}} className="visual-document-editor relative" aria-label="기본 직접 편집기"
-    onClick={event => event.stopPropagation()} onDrop={event => event.stopPropagation()}>
+    onClick={event => event.stopPropagation()}
+    onDragOver={event => {
+      const types = event.dataTransfer?.types;
+      if (types && Array.from(types).some(t => t === 'Files' || t === 'text/html' || t === 'text/uri-list' || t === 'text/plain')) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+        if (viewRef.current && viewRef.current.editable) {
+          updateDropRef.current(viewRef.current, event.nativeEvent);
+        }
+      }
+    }}
+    onDragEnter={event => {
+      const types = event.dataTransfer?.types;
+      if (types && Array.from(types).some(t => t === 'Files' || t === 'text/html' || t === 'text/uri-list' || t === 'text/plain')) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (viewRef.current && viewRef.current.editable) {
+          updateDropRef.current(viewRef.current, event.nativeEvent);
+        }
+      }
+    }}
+    onDrop={event => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (viewRef.current && viewRef.current.editable) {
+        void executeDropRef.current(viewRef.current, event.nativeEvent);
+      }
+    }}>
     <div className="sticky top-0 z-20 flex flex-wrap items-center gap-1 border-b bg-white p-2 text-zinc-800" data-editor-controls>
       {itemButton('bold', 'bold')}{itemButton('italic', 'italic')}{itemButton('strikethrough', '취소선')}{itemButton('inlineCode', 'inlinecode')}{itemButton('link', 'link')}{itemButton('clear', 'clear')}{itemButton('image', '사진 넣기')}{itemButton('table', '표 넣기')}
       {button('실행 취소', undo)}{button('다시 실행', redo)}
@@ -2127,8 +2887,48 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       }
       .visual-footnote-ref { color: #2563eb; font-weight: 600; text-decoration: none; cursor: pointer; }
       .visual-footnote-ref:hover { text-decoration: underline; }
-      .visual-footnote-def-container { margin: 4px 0; }
-      .visual-footnote-def { font-size: 12.5px !important; line-height: 1.55 !important; color: #475569; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+      .visual-footnote-area-header {
+        margin-top: 18px !important;
+        margin-bottom: 6px !important;
+        padding: 0 !important;
+        user-select: none;
+        white-space: normal !important;
+      }
+      .visual-footnote-area-header .visual-footnote-area-badge {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 3.5px !important;
+        font-size: 11.5px !important;
+        line-height: 1 !important;
+        padding: 2.5px 7px !important;
+        height: auto !important;
+        min-height: 0 !important;
+        white-space: nowrap !important;
+      }
+      .visual-footnote-area-header .visual-footnote-area-badge svg {
+        width: 13px !important;
+        height: 13px !important;
+        min-width: 13px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        flex-shrink: 0 !important;
+      }
+      .visual-footnote-area-header .visual-footnote-area-title {
+        font-size: 11.5px !important;
+        line-height: 1 !important;
+        white-space: nowrap !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        letter-spacing: -0.01em;
+      }
+      .visual-footnote-def-container,
+      .visual-footnote-def {
+        font-size: 12.5px !important;
+        line-height: 1.55 !important;
+        color: #475569;
+        margin: 3px 0 !important;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      }
       .dark .visual-footnote-def { color: #94a3b8; }
       .visual-footnote-text { font-size: 12.5px !important; line-height: 1.55 !important; cursor: text; caret-color: #2563eb !important; }
       .dark .visual-footnote-text { caret-color: #60a5fa !important; }
@@ -2147,6 +2947,48 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       .visual-math-preview { margin: 8px 0; overflow-x: auto; display: flex; justify-content: center; }
       .visual-math-preview .visual-readonly-content pre,
       .visual-math-preview pre { display: none !important; }
+      .visual-document-surface .onrivi-drop-line-highlight {
+        background-color: rgba(29, 78, 216, 0.1) !important;
+        outline: 2px dashed #1d4ed8 !important;
+        outline-offset: 3px !important;
+        border-radius: 6px !important;
+        transition: background-color 0.08s ease, outline-color 0.08s ease !important;
+      }
+      .dark .visual-document-surface .onrivi-drop-line-highlight {
+        background-color: rgba(56, 189, 248, 0.15) !important;
+        outline: 2px dashed #38bdf8 !important;
+      }
+      @keyframes omd-visual-caret-blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.18; }
+      }
+      .visual-drag-drop-caret {
+        animation: omd-visual-caret-blink 0.85s infinite ease-in-out !important;
+      }
+      .visual-drag-drop-caret::before,
+      .visual-drag-drop-caret::after {
+        content: '';
+        position: absolute;
+        left: -4px;
+        width: 11.5px;
+        height: 2.5px;
+        background: inherit;
+        border-radius: 1.5px;
+        box-shadow: inherit;
+      }
+      .visual-drag-drop-caret::before {
+        top: -1.5px;
+      }
+      .visual-drag-drop-caret::after {
+        bottom: -1.5px;
+      }
+      @keyframes omd-badge-pop {
+        from { transform: translateX(-50%) translateY(0) scale(0.92); opacity: 0; }
+        to { opacity: 1; }
+      }
+      .visual-drag-drop-badge {
+        animation: omd-badge-pop 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+      }
     `}</style>
   </section>;
 }

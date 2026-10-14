@@ -13,6 +13,11 @@ import { reportClientLog } from '@/lib/clientLogs';
 // ====================================================================
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
+export const dismissDriveAuthNotices = () => {
+  if (typeof document === 'undefined') return;
+  document.querySelectorAll('[data-toast-group="drive-auth"]').forEach(element=>element.remove());
+};
+
 // ====================================================================
 // 📊 [OMD-EDIT-toast-0001] toast ➔ showToast
 // 🎯 @KICK  : 화면 우측 상단에 프리미엄 토마토 테마 Toast 알림을 동적으로 생성하여 표시한다
@@ -48,6 +53,13 @@ function translateToKorean(msg: string): string {
  */
 export const showToast = (message: string, type: ToastType = 'info') => {
   if (typeof window === 'undefined') return;
+  const driveAuthNotice = (type==='error' || type==='warning') && /구글\s*드라이브|Google Drive/i.test(message)
+    && /인증.*만료|연결.*갱신|재인증/.test(message);
+  if (driveAuthNotice) {
+    if(document.querySelector('[data-toast-group="drive-auth"]'))return;
+    message='구글 드라이브 인증을 갱신해 주세요. 연결 해제 없이 파일 메뉴의 [내 구글 드라이브 연결]에서 다시 인증할 수 있습니다.';
+    type='warning';
+  }
   if (type === 'error' || type === 'warning') reportClientLog(translateToKorean(message), type === 'error' ? 'ERROR' : 'WARN', location.pathname === '/login' ? 'LOGIN_NOTICE' : 'USER_NOTICE');
 
   // 1. 알림 컨테이너가 없으면 body 하단에 생성 및 고유 스타일 부여 (Flex 레이아웃 구조)
@@ -68,6 +80,7 @@ export const showToast = (message: string, type: ToastType = 'info') => {
 
   // 3. 알림 본체 엘리먼트 생성 및 고급스러운 글래스모피즘(Glassmorphism) 스타일 장착
   const toast = document.createElement('div');
+  if(driveAuthNotice)toast.dataset.toastGroup='drive-auth';
   toast.style.cssText = `
     pointer-events: auto;
     position: relative;

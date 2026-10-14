@@ -48,10 +48,12 @@ import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { knowledgeClient, canAccessKnowledgeDb } from '@/lib/knowledge/knowledgeClient';
 import { loadSecureData } from '@/lib/secureStorage';
 import { uploadDriveImage, getSavedDriveToken, hasValidDriveToken, getSavedWorkspaceInfo, moveDriveItem, copyDriveFile, copyDriveFolderRecursive } from '@/lib/gdrive/googleDriveClient';
+import { copyImageToClipboard } from '@/lib/mediaMarkup';
 
 // ====================================================================
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
+// 🚨 @PATCH : **2026-10-14** — [탐색기/리소스 폴더 이미지 파일 복사 시 네이티브 비트맵 클립보드 동기화(copyImageToClipboard)]: 탐색기에서 이미지 파일(.png, .jpg 등) 복사(Ctrl+C 또는 복사하기) 시 인메모리 노드 복사뿐만 아니라 OS 시스템 클립보드에도 실제 비트맵 이미지를 직접 기록하여 그림판/Word/카카오톡/ImageModal/에디터에 100% 정상 붙여넣기 지원
 // 🚨 @PATCH : **2026-09-30** — [미리보기 폴더 링크 클릭 시 탐색기 증발 결함 수정 및 트리 자동 전개 완비]: handleFocusTreeFolder에서 탐색기 탭 ID('explorer') 오기입('files' -> 'explorer')으로 인해 트리 영역이 hidden 처리되던 결함을 수정하고, 웹 환경에서 루트 폴더명이 접두어로 붙은 상대 경로(relativeToRoot)를 자동 분리하여 onrivi_expanded_paths에 동시 등록함으로써 하위/상위 폴더가 즉시 펼쳐지고 부드러운 스크롤 및 코발트 블루 링 하이라이트가 100% 완벽 연동되도록 조치
 // 🚨 @PATCH : **2026-09-18** — [폴더 삭제 되돌리기(Undo) 전면 지원 및 탐색기 덜렁거림·깜빡임 완전 해소]:
 //             1) 폴더 삭제 되돌리기: handleUndoMove에서 kind === 'directory' 지원(데스크톱 api.restoreFolderFromUndo, 웹 FSA restoreFsaDirectory, VFS 복원 및 onrivi_expanded_paths 자동 전개)
@@ -889,6 +891,14 @@ export default function LeftSidebar() {
       (window as any)._omdClipboardNode = item;
       window.dispatchEvent(new CustomEvent('file:clipboard-changed', { detail: item }));
     }
+
+    // 🖼️ 이미지 파일인 경우 OS 시스템 클립보드에 비트맵 복사 병행 수행
+    const isImageFile = nodeToCopy.kind === 'file' && /\.(png|jpe?g|gif|webp|svg|bmp|avif|ico)$/i.test(nodeToCopy.name);
+    if (isImageFile) {
+      const imgPath = nodeToCopy.path || nodeToCopy.name;
+      void copyImageToClipboard(imgPath);
+    }
+
     showToast(`'${nodeToCopy.name}'이(가) 클립보드에 복사되었습니다.`, 'success');
   }, [currentFileNode, showToast]);
 

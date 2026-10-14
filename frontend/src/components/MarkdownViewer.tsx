@@ -3,6 +3,8 @@ import PicturebookPreview from './PicturebookPreview';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { exportContentFingerprint } from '@/lib/exportPreparation';
 import katex from 'katex';
+// 🚨 @PATCH : **2026-10-14** — [미리보기 이미지 클립보드 실제 비트맵 복사(copyImageToClipboard) 연동]: 이미지 호버 액션 '복사' 및 AsyncImage 복사 버튼 클릭 시 마크다운 텍스트 주소가 아닌 실제 이미지 비트맵을 OS 클립보드에 기록하여 다른 앱 및 ImageModal/에디터 붙여넣기 완벽 지원
+// 🚨 @PATCH : **2026-10-14** — [이미지 캡션 [그림 N] 자동 접두사 제거]: 마크다운 이미지 렌더링 시 figcaption::before의 [그림 1] 카운터 자동 표기를 제거하여 사용자가 입력한 순수 캡션만 노출되도록 개선
 // 🚨 @PATCH : **2026-10-14** — [도움말 에셋(/help/assets/) 정적 자산 로드 및 로컬 미디어 오탐 방어]: 마크다운 내 /help/assets/, ./assets/, assets/ 하위 도움말 이미지 참조 시 사용자 작업장 리소스 폴더(media/)로 오탐되어 '리소스 폴더 미지정' 경고가 발생하던 결함을 방어하고, 웹 및 Electron 데스크톱 앱(app://) 정적 로더로 100% 직결하여 실시간 정상 렌더링되도록 개선
 // 🚨 @PATCH : **2026-10-13** — [수식(math/latex) 코드블록 KaTeX 실시간 렌더링 지원]: ```math 및 ```latex 코드블록을 일반 텍스트 박스가 아닌 아름다운 KaTeX 수식으로 중앙 정렬 실시간 렌더링하도록 MathBlock 컴포넌트 탑재 및 원문 보기/복사 제어 연동
 // 🚨 @PATCH : **2026-10-13** — [Mermaid 다이어그램 상단 제어 버튼 마우스 호버 시 활성화]: 다이어그램(Mermaid) 블록의 상단 액션 버튼들(코드 복사, 새 창으로 확대, 이미지 복사, 저장)이 평소에는 숨겨져 있다가 마우스가 다이어그램 영역에 위치하거나 포커스될 때만 활성화되도록 변경
@@ -85,7 +87,7 @@ import VideoCard from '@/components/VideoCard';
 import SocialVideoCard from '@/components/SocialVideoCard';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { rehypePreserveFootnotes } from '@/lib/rehypePreserveFootnotes';
-import { copyMediaSource } from '@/lib/mediaMarkup';
+import { copyMediaSource, copyImageToClipboard } from '@/lib/mediaMarkup';
 import { mediaSourceRange } from '@/lib/mediaSourceRange';
 import { useToast } from '@/components/ToastProvider';
 import { extractFrontmatter } from '@/lib/frontmatter';
@@ -155,6 +157,7 @@ interface MarkdownViewerProps {
   onMediaEdit?: (kind:'image'|'video'|'map', path:string, line:number) => void;
   onPicturebookChange?: (markdown: string) => void;
   onPicturebookImageEdit?: (index:number) => void;
+  picturebookEditorOptions?: import('./PicturebookSceneInput').PicturebookEditorOptions;
   content: string;
   originalContent?: string;
   lineMap?: number[];
@@ -435,23 +438,9 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
       e.preventDefault();
       e.stopPropagation();
       try {
-        let blob;
-        if (imgSrc.startsWith('data:')) {
-          const response = await fetch(imgSrc);
-          blob = await response.blob();
-        } else if (imgRef.current) {
-          const canvas = document.createElement('canvas');
-          canvas.width = imgRef.current.naturalWidth || imgRef.current.width;
-          canvas.height = imgRef.current.naturalHeight || imgRef.current.height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(imgRef.current, 0, 0);
-            blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
-          }
-        }
-        
-        if (blob) {
-          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        const target = absolutePath || src || imgSrc;
+        const ok = await copyImageToClipboard(target);
+        if (ok) {
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);
         }
@@ -1932,10 +1921,19 @@ function MarkdownViewer({
       {child}
       <div className="absolute top-2 right-2 z-20 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 no-print" data-editor-controls contentEditable={false}>
         <button type="button" className="onrivi-media-control" onMouseDown={e=>e.preventDefault()} onClick={e=>{e.stopPropagation();dynamicPropsRef.current.onMediaEdit?.(kind,path,line);}}>편집</button>
-        <button type="button" className="onrivi-media-control" title="미디어 참조 복사" onMouseDown={e=>e.preventDefault()} onClick={e=>{
+        <button type="button" className="onrivi-media-control" title={kind === 'image' ? '이미지 복사' : '미디어 참조 복사'} onMouseDown={e=>e.preventDefault()} onClick={e=>{
           e.stopPropagation(); const match = mediaSourceRange(originalContentRef.current || contentRef.current,kind,path,line);
-          if (!match) {showToast('원본 미디어 위치를 찾지 못했습니다.','warning');return;}
-          void copyMediaSource(match.source).then(()=>showToast('미디어 참조를 복사했습니다.','success')).catch(()=>showToast('클립보드 복사 실패','error'));
+          if (kind === 'image') {
+            const target = path || match?.source || '';
+            if (!target) { showToast('복사할 이미지 정보를 찾지 못했습니다.', 'warning'); return; }
+            void copyImageToClipboard(target).then((ok)=>{
+              if (ok) showToast('이미지를 클립보드에 복사했습니다.', 'success');
+              else showToast('이미지 복사에 실패했습니다.', 'error');
+            }).catch(()=>showToast('클립보드 복사 실패', 'error'));
+          } else {
+            if (!match) {showToast('원본 미디어 위치를 찾지 못했습니다.','warning');return;}
+            void copyMediaSource(match.source).then(()=>showToast('미디어 참조를 복사했습니다.','success')).catch(()=>showToast('클립보드 복사 실패','error'));
+          }
         }}>복사</button>
       </div>
     </div>;
@@ -2470,7 +2468,6 @@ function MarkdownViewer({
       <style>{`
         .markdown-viewer-root,
         .onrivi-content-root {
-          counter-reset: onrivi-figure;
           tab-size: 4 !important;
           -moz-tab-size: 4 !important;
           word-break: break-word;
@@ -2564,18 +2561,12 @@ function MarkdownViewer({
           overflow-wrap: anywhere !important;
         }
         .markdown-viewer-root figure {
-            counter-increment: onrivi-figure;
             margin: 0 !important;
           }
           .markdown-viewer-root figure figcaption {
             margin-top: 0.5rem !important;
             margin-bottom: 0 !important;
           }
-        .markdown-viewer-root figcaption::before {
-          content: "[그림 " counter(onrivi-figure) "] ";
-          font-weight: 700;
-          color: #3b82f6;
-        }
         .markdown-viewer-root th:not([style*="text-align"]) {
           text-align: center !important;
         }
@@ -3885,6 +3876,7 @@ function LayoutAwareViewer(props: MarkdownViewerProps) {
   if (props.picturebookProfile?.layout?.type !== 'picturebook') return <MarkdownViewer {...props} />;
   return <PicturebookPreview content={body.replace(/\r\n/g, '\n')} profile={props.picturebookProfile}
     onImageEdit={props.onPicturebookImageEdit}
+    editorOptions={props.onPicturebookChange ? props.picturebookEditorOptions : undefined}
     sourceLineOffset={(original.slice(0, original.length-body.length).match(/\n/g) || []).length}
     onChange={props.onPicturebookChange ? next => props.onPicturebookChange!(original.slice(0, original.length-body.length) + next) : undefined}
     fingerprint={exportContentFingerprint(original)}

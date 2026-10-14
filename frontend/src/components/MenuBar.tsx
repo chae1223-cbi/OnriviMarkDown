@@ -1,7 +1,9 @@
 // ====================================================================
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
-// 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
-// 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
+// 🚨 @PATCH : **2026-10-14** — [도구 메뉴 '서식 관리 (갤러리)' 문서보기 전면 활성화]:
+//             도구 메뉴의 서식 관리 항목을 dispatch('TOGGLE_CSS_STYLE')로 일원화 연동하여 문서보기(VisualDocumentEditor) 및 모든 뷰 모드에서 원클릭 호출 지원
+// 🚨 @PATCH : **2026-10-14** — [도구 메뉴 '각주 정리' 문서보기(VisualDocumentEditor) 포함 전면 활성화]:
+//             단일/문서보기(previewMode === 'preview') 모드에서 차단되어 있던 비활성화 가드를 해제하여 문서보기 및 마크다운 편집기 모두에서 각주 정리가 정상 작동하도록 지원
 // 🚨 @PATCH : **2026-10-13** — [편집 메뉴 '달력 및 날짜/시간 삽입' 연동]:
 //             상단 편집(Edit) 메뉴에 '달력 및 날짜/시간 삽입' 항목을 신설하여 언제든 인터랙티브 달력 모달을 호출할 수 있도록 연동
 // 🚨 @PATCH : **2026-10-11** — [파일 메뉴 최상단 '새 문서(Ctrl+N)' 항목 추가]:
@@ -368,7 +370,13 @@ export default function MenuBar() {
             }
           ] : []),
           { divider: true },
-          { label: "서식 정의 (갤러리)", icon: <Icon name="Palette" size={15} />, disabled: isRestrictedUser, onClick: () => setPreviewMode('css-style') },
+          { 
+            label: "서식 관리 (갤러리)", 
+            icon: <Icon name="Palette" size={15} />, 
+            disabled: isRestrictedUser, 
+            title: isRestrictedUser ? "읽기 전용(제한사용자) 모드에서는 사용할 수 없습니다." : "출판 및 테마 서식 관리 창을 엽니다.",
+            onClick: () => !isRestrictedUser && dispatch('TOGGLE_CSS_STYLE') 
+          },
           { divider: true },
           { label: t('globalSearch'), icon: <Icon name="Search" size={15} />, shortcut: 'Ctrl+Shift+F', onClick: () => dispatch('GLOBAL_SEARCH') },
           { label: t('copyPreview'), icon: <Icon name="Copy" size={15} />, onClick: () => dispatch('COPY_ALL') },
@@ -384,11 +392,11 @@ export default function MenuBar() {
           { 
             label: "각주 정리", 
             icon: <Icon name="Document" size={15} />, 
-            disabled: isRestrictedUser || previewMode === 'preview', 
-            title: previewMode === 'preview' 
-              ? "미리보기 모드에서는 사용할 수 없습니다." 
-              : (isRestrictedUser ? "읽기 전용(제한사용자) 모드에서는 사용할 수 없습니다." : undefined),
-            onClick: () => !isRestrictedUser && previewMode !== 'preview' && dispatch('ORGANIZE_FOOTNOTES') 
+            disabled: isRestrictedUser, 
+            title: isRestrictedUser 
+              ? "읽기 전용(제한사용자) 모드에서는 사용할 수 없습니다." 
+              : "본문 순서에 따라 각주 번호를 1번부터 순차적으로 재정렬하고 문서 하단에 모읍니다.",
+            onClick: () => !isRestrictedUser && dispatch('ORGANIZE_FOOTNOTES') 
           },
           { label: "환경 설정", icon: <Icon name="Settings" size={15} />, onClick: () => dispatch('SETTINGS') },
         ]}

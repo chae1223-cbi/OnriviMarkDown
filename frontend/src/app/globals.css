@@ -2338,3 +2338,8 @@ input::-ms-clear {
 .onrivi-media-control:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
 @media (hover:none) { .onrivi-media-actions-frame > [data-editor-controls] { opacity:1!important; } }
 @media print { .onrivi-media-control { display:none!important; } }
+/* Retired picturebook action row: never show its cached/legacy DOM. */
+.picturebook-scene-input > div.flex.flex-wrap.gap-2.my-2 {
+  display: none !important;
+}
+

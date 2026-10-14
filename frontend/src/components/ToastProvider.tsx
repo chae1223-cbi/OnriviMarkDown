@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect } from 'react';
 import { reportClientLog } from '@/lib/clientLogs';
-import { showToast } from '@/utils/toast';
+import { showToast, dismissDriveAuthNotices } from '@/utils/toast';
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
 

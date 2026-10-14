@@ -1,3 +1,15 @@
+// ====================================================================
+// 📊 [OMD-LIB-resourceMedia-0001] src/lib/resourceMedia.ts
+// 🎯 @KICK  : 리소스 미디어 저장, 드롭 데이터 파싱(Data URL/SVG/바이너리 디코딩) 및 임포트 관리
+// 🛡️ @GUARD : Rule 1(단일 주석 관리), Base64 인라인 배제 및 리소스 폴더 바이너리 저장 무결성
+// 🚨 @PATCH : **2026-10-14** — [구글 이미지 검색/외부 웹 이미지 드래그 앤 드롭 정규화(DroppedMediaItem) 및 CORS 우회 다운로드(fetchExternalImageFile) 탑재]:
+//             1) 구글 이미지 검색(encrypted-tbn0.gstatic.com, imgurl 파라미터 등) 및 외부 웹 이미지 드롭 시 URL과 파일명을 정밀 추출하여 DroppedMediaItem으로 정규화
+//             2) Electron net.fetch(net:fetchImageBlob) 및 브라우저 fetch를 통합한 fetchExternalImageFile을 탑재하여 CORS 제약 없이 원본 바이너리를 로컬 media 폴더에 파일로 안전 저장
+//             3) 다운로드 불가 환경에서도 webUrl을 마크다운 이미지 링크로 직접 삽입하는 2중 안전 폴백 제공으로 드롭 실패 및 새 창 내비게이션 원천 차단
+// 🚨 @PATCH : **2026-10-14** — [드롭 데이터(DataTransfer) 이미지·SVG·Base64 파싱 엔진(parseDroppedDataToBlob) 구현]:
+//             1) 웹 브라우저/외부 페이지에서 드래그된 SVG 아이콘, Base64 Data URL, URL-encoded SVG, HTML <img>, <svg> 태그를 표준 바이너리 File 객체로 완벽 변환
+//             2) Base64 패딩 공백 및 URI 인코딩 정제, raw SVG 텍스트의 Blob 변환 지원으로 드롭 실패 및 브라우저 새창 팝업 원천 차단
+// ====================================================================
 import { requireResourceSettings } from './resourceSettings';
 import { idb } from './indexedDbHelper';
 import { getSavedDriveToken, uploadDriveImage } from './gdrive/googleDriveClient';
@@ -65,4 +77,220 @@ export async function importResourceMedia(source: string, browserHandle?: any): 
     return saveResourceMedia(new Blob([new Uint8Array(bytes)],{type:mime[name.split('.').pop()!.toLowerCase()] || 'application/octet-stream'}),name,browserHandle);
   }
   return source;
+}
+export interface DroppedMediaItem {
+  file?: File;
+  webUrl?: string;
+  name: string;
+}
+
+/**
+ * [OMD-LIB-resourceMedia-parseDroppedDataToBlob]
+ * 브라우저 드래그 앤 드롭 DataTransfer 객체로부터 이미지 파일, 웹 URL, Base64 Data URL, SVG 등을
+ * 안전한 바이너리 File 객체 또는 웹 이미지 링크로 정규화 추출하는 엔진
+ */
+export function parseDroppedDataToBlob(dt: DataTransfer): DroppedMediaItem | null {
+  if (!dt) return null;
+
+  // 1) OS 파일 드롭 (탐색기, 파인더 등)
+  const files = Array.from(dt.files || []).filter(file =>
+    file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|avif|bmp|jfif|tiff?|ico)$/i.test(file.name)
+  );
+  if (files.length > 0) {
+    return { file: files[0], name: files[0].name };
+  }
+
+  // 2) DataTransfer items 파일 인터페이스
+  if (dt.items) {
+    for (const item of Array.from(dt.items)) {
+      if (item.kind === 'file') {
+        const f = item.getAsFile();
+        if (f && (f.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|avif|bmp|jfif|tiff?|ico)$/i.test(f.name))) {
+          return { file: f, name: f.name };
+        }
+      }
+    }
+  }
+
+  // 3) 웹 브라우저/외부 페이지 드래그 텍스트 데이터 파싱 (HTML, URI-List, Plain Text)
+  const html = dt.getData('text/html') || '';
+  const uriList = dt.getData('text/uri-list') || '';
+  const plainText = dt.getData('text/plain') || '';
+
+  let candidate = '';
+  const imgMatch = html.match(/<img[^>]+(?:src|data-src)=["']([^"']+)["']/i);
+  if (imgMatch && imgMatch[1]) {
+    candidate = imgMatch[1].trim();
+  }
+
+  // HTML 내부의 직접적인 <svg>...</svg> 태그 검출
+  if (!candidate) {
+    const svgMatch = html.match(/<svg[\s\S]*?<\/svg>/i);
+    if (svgMatch && svgMatch[0]) {
+      const svgText = svgMatch[0];
+      const blob = new Blob([svgText], { type: 'image/svg+xml' });
+      const name = `img_${Date.now()}.svg`;
+      return { file: new File([blob], name, { type: 'image/svg+xml' }), name };
+    }
+  }
+
+  // <a> 태그 내부 이미지/SVG 링크 검출
+  if (!candidate) {
+    const aMatch = html.match(/<a[^>]+href=["']([^"']*(?:\.(?:png|jpe?g|gif|webp|svg|avif)|data:image\/)[^"']*)["']/i);
+    if (aMatch && aMatch[1]) {
+      candidate = aMatch[1].trim();
+    }
+  }
+
+  if (!candidate && uriList) {
+    const first = uriList.split(/[\r\n]+/).map(s => s.trim()).find(s => s && !s.startsWith('#'));
+    if (first) candidate = first;
+  }
+
+  if (!candidate && plainText) {
+    const trimmed = plainText.trim();
+    if (trimmed.startsWith('<svg') && trimmed.endsWith('</svg>')) {
+      const blob = new Blob([trimmed], { type: 'image/svg+xml' });
+      const name = `img_${Date.now()}.svg`;
+      return { file: new File([blob], name, { type: 'image/svg+xml' }), name };
+    }
+    if (/^(https?:|data:image\/|blob:|file:\/\/\/|[a-zA-Z]:[/\\])/i.test(trimmed)) {
+      candidate = trimmed;
+    }
+  }
+
+  if (!candidate) return null;
+
+  // 구글 검색(Google Images)의 imgurl 파라미터가 있을 경우 원본 이미지 URL 추출
+  if (candidate.includes('imgurl=')) {
+    try {
+      const u = new URL(candidate);
+      const p = u.searchParams.get('imgurl');
+      if (p) candidate = p;
+    } catch (_) {
+      const m = candidate.match(/[?&]imgurl=([^&]+)/);
+      if (m) candidate = decodeURIComponent(m[1]);
+    }
+  }
+
+  // 4) Data URL 처리 (data:image/svg+xml;base64, data:image/png 등)
+  if (candidate.startsWith('data:image/')) {
+    try {
+      const commaIdx = candidate.indexOf(',');
+      if (commaIdx !== -1) {
+        const header = candidate.slice(0, commaIdx);
+        const dataPart = candidate.slice(commaIdx + 1);
+        const mimeType = header.match(/data:(image\/[^;]+)/)?.[1] || 'image/png';
+        const isBase64 = header.includes(';base64');
+        const ext = ({
+          'image/jpeg': 'jpg',
+          'image/webp': 'webp',
+          'image/gif': 'gif',
+          'image/svg+xml': 'svg',
+          'image/png': 'png'
+        } as Record<string, string>)[mimeType] || 'png';
+        const name = `img_${Date.now()}.${ext}`;
+
+        if (isBase64) {
+          let cleanB64 = dataPart.replace(/\s+/g, '');
+          if (cleanB64.includes('%')) {
+            try { cleanB64 = decodeURIComponent(cleanB64); } catch (_) {}
+          }
+          while (cleanB64.length % 4 !== 0) {
+            cleanB64 += '=';
+          }
+          try {
+            const binaryStr = atob(cleanB64);
+            const len = binaryStr.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) bytes[i] = binaryStr.charCodeAt(i);
+            return { file: new File([bytes], name, { type: mimeType }), name };
+          } catch (e) {
+            try {
+              const decoded = decodeURIComponent(dataPart);
+              const blob = new Blob([decoded], { type: mimeType });
+              return { file: new File([blob], name, { type: mimeType }), name };
+            } catch (_) {}
+          }
+        } else {
+          const decoded = decodeURIComponent(dataPart);
+          const blob = new Blob([decoded], { type: mimeType });
+          return { file: new File([blob], name, { type: mimeType }), name };
+        }
+      }
+    } catch (err) {
+      console.error('[parseDroppedDataToBlob] Data URL parsing failed:', err);
+    }
+  }
+
+  // 5) 외부 웹 HTTP/HTTPS 이미지 URL (Google 검색 썸네일, 웹 이미지 등)
+  if (candidate.startsWith('http://') || candidate.startsWith('https://')) {
+    let clean = candidate.split('?')[0];
+    let extMatch = clean.match(/\.(png|jpe?g|gif|webp|svg|avif|bmp|jfif|tiff?|ico)$/i);
+    let ext = extMatch ? extMatch[1].toLowerCase() : 'jpg';
+    let urlName = clean.split('/').pop() || '';
+    if (!urlName || !/\.[a-z0-9]+$/i.test(urlName)) {
+      urlName = `img_${Date.now()}.${ext}`;
+    } else {
+      try { urlName = decodeURIComponent(urlName); } catch (_) {}
+    }
+    return { webUrl: candidate, name: urlName };
+  }
+
+  return null;
+}
+
+/**
+ * 외부 웹 이미지 URL을 Electron net.fetch 또는 브라우저 fetch를 통해 바이너리 File 객체로 다운로드
+ */
+export async function fetchExternalImageFile(url: string, suggestedName?: string): Promise<File | null> {
+  const cleanUrl = url.trim();
+  const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+
+  // 1) Electron 네이티브 IPC (net.fetch — CORS 완전 우회)
+  if (api?.fetchExternalImage) {
+    try {
+      const res = await api.fetchExternalImage(cleanUrl);
+      if (res && res.bytes) {
+        const mimeType = res.contentType?.split(';')[0]?.trim() || 'image/jpeg';
+        const ext = ({
+          'image/jpeg': 'jpg',
+          'image/webp': 'webp',
+          'image/gif': 'gif',
+          'image/svg+xml': 'svg',
+          'image/png': 'png'
+        } as Record<string, string>)[mimeType] || 'jpg';
+        const finalName = suggestedName && /\.[a-z0-9]+$/i.test(suggestedName)
+          ? suggestedName
+          : `img_${Date.now()}.${ext}`;
+        return new File([new Uint8Array(res.bytes)], finalName, { type: mimeType });
+      }
+    } catch (err) {
+      console.warn('[fetchExternalImageFile] Electron IPC fetch failed:', err);
+    }
+  }
+
+  // 2) 브라우저 표준 fetch
+  try {
+    const resp = await fetch(cleanUrl);
+    if (resp.ok) {
+      const blob = await resp.blob();
+      const mimeType = blob.type || 'image/jpeg';
+      const ext = ({
+        'image/jpeg': 'jpg',
+        'image/webp': 'webp',
+        'image/gif': 'gif',
+        'image/svg+xml': 'svg',
+        'image/png': 'png'
+      } as Record<string, string>)[mimeType] || 'jpg';
+      const finalName = suggestedName && /\.[a-z0-9]+$/i.test(suggestedName)
+        ? suggestedName
+        : `img_${Date.now()}.${ext}`;
+      return new File([blob], finalName, { type: mimeType });
+    }
+  } catch (_) {
+    // CORS 제약 등으로 실패 시 null 반환 (상위에서 webUrl 마크다운 직접 삽입으로 안전 폴백)
+  }
+
+  return null;
 }
