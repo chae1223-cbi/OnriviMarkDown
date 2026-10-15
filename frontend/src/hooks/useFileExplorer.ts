@@ -23,6 +23,10 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
+// 🚨 @PATCH : **2026-10-15** — [작업장 폴더 선택 시 불필요한 구글 연결 확인 팝업 차단]:
+//             이미 유효한 구글 토큰이 존재할 때 불필요하게 prepareGoogleDriveAuth() 빈 팝업을 열어
+//             브라우저 COOP 차단으로 인해 'Google Drive 연결 확인' 창이 화면에 잔상으로 남던 문제를 완전 해결.
+//             토큰이 유효하면 팝업 없이 즉시 폴더 선택/연결을 진행하고, 토큰 미존재/만료 시에만 인증 팝업을 열도록 최적화
 // 🚨 @PATCH : **2026-10-11** — [구글 드라이브 토큰 만료 전 자동 저장 플러시 & 만료/해제 시 로컬 비상 백업 안전망 구축]:
 //             1) onrivi:drive_token_about_to_expire 수신 시 만료 2분 전 작업 중인 모든 활성 및 수정된 탭 문서를 구글 드라이브에 안전하게 사전 자동 저장(플러시)
 //             2) onrivi:drive_auth_expired / onrivi:drive_token_expired 수신 시 현재 열린 모든 탭과 에디터 버퍼를 onrivi_emergency_gdrive_drafts 로컬 스냅샷으로 100% 비상 보존하고 탭 유지
@@ -90,7 +94,6 @@ import {
   hasValidDriveToken,
   getSavedWorkspaceInfo,
   requestGoogleDriveAuth,
-  prepareGoogleDriveAuth,
   setupOnriviDriveWorkspace,
   selectOnriviWorkspaceFolder,
   disconnectGoogleDrive as disconnectGDriveClient,
@@ -1701,7 +1704,6 @@ export const useFileExplorer = ({
   const connectGoogleDrive = useCallback(async (chooseFolder = false) => {
     if (storageSwitchRef.current) return;
     storageSwitchRef.current = true;
-    let authentication: ReturnType<typeof prepareGoogleDriveAuth> | undefined;
     let stage = '인증 확인';
     try {
       const isLocal = rootFolderRef.current?.type !== 'GDRIVE';
@@ -1713,7 +1715,6 @@ export const useFileExplorer = ({
       }
       let token = getSavedDriveToken();
       if (token && hasValidDriveToken()) {
-        authentication = prepareGoogleDriveAuth();
         const testRes = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
           headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000)
         });
@@ -1730,11 +1731,11 @@ export const useFileExplorer = ({
           throw new Error(`Google Drive 응답 오류(HTTP ${testRes.status}). 인증을 해제하지 말고 잠시 후 다시 시도해 주세요.`);
         }
       } else token = null;
+
       if (!token) {
         stage = 'Google 인증';
-        token = await (authentication ? authentication.request() : requestGoogleDriveAuth());
+        token = await requestGoogleDriveAuth();
       }
-      authentication?.close();
       if (!token) {
         throw new Error("구글 인증 토큰 획득에 실패했습니다. 다시 시도해주세요.");
       }
@@ -1830,7 +1831,6 @@ export const useFileExplorer = ({
       console.error('[connectGoogleDrive Error]', err);
       showToast(`구글 드라이브 ${stage} 실패: ${err.message || '잠시 후 다시 시도해 주세요.'}`, "error");
     } finally {
-      authentication?.close();
       storageSwitchRef.current = false;
     }
   }, [setRootFolder, setWorkspaceType, setFileList, setIsSidebarOpen, showToast, workspaceType, activeTabIdRef, captureEnvironment, contentRef, lastSavedContentRef, restoreEnvironment, tabsRef]);

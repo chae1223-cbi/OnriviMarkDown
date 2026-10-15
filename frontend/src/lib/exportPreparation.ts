@@ -1,3 +1,12 @@
+// ====================================================================
+// 📊 [OMD-LIB-exportPreparation-0001] exportPreparation.ts
+// 🎯 @KICK  : PDF/EPUB 내보내기 전 리소스(폰트, 이미지, 다이어그램) 준비 및 대기 유틸리티
+// 🛡️ @GUARD : 비표준/손상 폰트 OTS 파싱 결함 시 내보내기 차단 방지 및 시스템 기본 대체 글꼴 폴백 보장
+// 🚨 @PATCH : **2026-10-15** — [폰트 OTS 디코딩 결함 시 PDF 내보내기 차단 해제 및 안전 폴백]:
+//             더서클체 등 구형 TTF의 OTS kern 파싱 오류로 인해 face.status === 'error' 발생 시 PDF 내보내기 전체가
+//             실패(throw Error)하던 결함을 개선하여, 경고 로깅 후 시스템 기본 글꼴로 자연스럽게 폴백하여 PDF 생성을 완수하도록 보강
+// ====================================================================
+
 export const EXPORT_RESOURCE_TIMEOUT_MS = 15_000;
 
 export function exportContentFingerprint(value: string): string {
@@ -43,7 +52,9 @@ export async function waitForExportResources(root: HTMLElement, timeoutMs = EXPO
           }
           return true;
         }));
-        if (failed) throw new Error(`문서 글꼴 (${failed.family})을 불러오지 못했습니다. 연결 상태나 글꼴 설정을 확인해 주세요.`);
+        if (failed) {
+          console.warn(`[exportPreparation] 문서 글꼴 (${failed.family}) 디코딩 실패 (브라우저 OTS 결함 등). 시스템 기본 대체 글꼴로 내보내기를 계속합니다.`);
+        }
       }
     }
     const images = Array.from(root.querySelectorAll('img'));
