@@ -2,7 +2,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const req=require('node:module').createRequire(path.resolve('frontend/package.json')),ts=req('typescript');
 const source=fs.readFileSync('frontend/src/components/MenuBar.tsx','utf8'),tree=ts.createSourceFile('menu.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 let items;
-function visit(node){if(ts.isJsxOpeningElement(node)&&node.tagName.getText(tree)==='MenuDropdown'){
+function visit(node){if((ts.isJsxOpeningElement(node)||ts.isJsxSelfClosingElement(node))&&node.tagName.getText(tree)==='MenuDropdown'){
  const attrs=node.attributes.properties;const label=attrs.find(a=>a.name?.getText(tree)==='label');
  if(label?.initializer?.getText(tree)==="{t('edit')}")items=attrs.find(a=>a.name?.getText(tree)==='items').initializer.expression.getText(tree);
 }ts.forEachChild(node,visit);}visit(tree);assert.ok(items);

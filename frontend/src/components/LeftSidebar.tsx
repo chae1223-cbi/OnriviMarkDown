@@ -1,5 +1,9 @@
 // ====================================================================
 // 📊 [OMD-UI-LeftSidebar-0001] LeftSidebar.tsx ➔ 에디터 좌측 탐색기 사이드바
+// 🚨 @PATCH : **2026-10-16** — [전역 검색(GlobalSearch) 전 환경 경로·하위 폴더 파일 열기 및 줄 점프 무결성 완비]:
+//             1) GlobalSearch에 rootFolder, currentFilePath 및 유효 로컬 작업장 경로를 정확히 전달하여 상대 경로/구글 드라이브 가상 경로 혼선에 의한 검색 불능 해결
+//             2) onFileOpenAndJump에서 검색 결과의 handle / driveFileId 직접 열기, 브라우저 FSA 하위 폴더 경로 재귀 추적(getDirectoryHandle ➔ getFileHandle), VFS 폴백 및 비동기 openFile 완료 후 executeJumpAndHighlight 실행 보장
+//             3) 검색 탭 클릭 시 onrivi:focus-global-search 이벤트를 발송하여 검색어 입력창 자동 포커스 연동
 // 🚨 @PATCH : **2026-10-15** — [웹드라이브 작업장 상태 시 내 PC 로컬 작업장 원클릭 복구 버튼 신설]:
 //             1) 웹드라이브(GDRIVE) 상태에서 상단 워크스페이스 바에 [🔌 로컬 복귀] 버튼을 명확히 노출
 //             2) 웹드라이브 작업장 폴더가 비어있을 때 사용자가 당황하지 않도록 [🏠 내 PC 로컬 작업장으로 복귀] 원클릭 카드 제공
@@ -2730,6 +2734,9 @@ export default function LeftSidebar() {
               onClick={() => {
                 setSidebarTab('search');
                 setIsSearchOpen(true);
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('onrivi:focus-global-search'));
+                }
               }}
               className={`flex-1 py-1.5 text-[12px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 sidebarTab === 'search' 
@@ -3498,9 +3505,19 @@ export default function LeftSidebar() {
             isDarkMode={isDarkMode}
             content={content}
             currentFileName={currentFileName}
+            currentFilePath={currentFileNode?.path || null}
             tabs={tabs}
             fileList={fileList}
-            workspacePath={rootFolder?.name && rootFolder.name !== BROWSER_STORAGE_NAME ? rootFolder.name : (typeof window !== 'undefined' ? localStorage.getItem('onrivi_workspace_path') || undefined : undefined)}
+            rootFolder={rootFolder}
+            workspacePath={
+              rootFolder?.type === 'GDRIVE'
+                ? (rootFolder.path || rootFolder.name)
+                : (rootFolder?.path ||
+                   (rootFolder?.name && rootFolder.name !== BROWSER_STORAGE_NAME ? rootFolder.name : undefined) ||
+                   (typeof window !== 'undefined'
+                     ? localStorage.getItem('onrivi_last_local_workspace_path') || localStorage.getItem('onrivi_workspace_path') || undefined
+                     : undefined))
+            }
             rootFolderHandle={rootFolder?.handle}
             workspaceType={workspaceType}
             onSelectFolder={onSelectRootFolder}
@@ -3508,24 +3525,29 @@ export default function LeftSidebar() {
 // ====================================================================
 // 📊 [OMD-FILE-LeftSidebar-0001 ✅ FIXED] LeftSidebar ➔ onFileOpenAndJump
 // 🎯 @KICK  : 전역 검색 결과 파일을 열고 지정 줄로 이동 및 검색어 하이라이트
-// 🛡️ @GUARD : 현재 활성 파일 여부 판별, 탭 전환 우선 처리, 트리 재귀 탐색, 이동 완료 팝업 알림 전면 제거
+// 🛡️ @GUARD : 현재 활성 파일 여부 판별, 탭 전환 우선 처리, 하위 폴더 핸들/구글 드라이브/VFS 재귀 탐색, 이동 완료 팝업 알림 전면 제거
+// 🚨 @PATCH : **2026-10-16** — [하위 폴더·구글 드라이브·VFS 검색 결과 파일 열기 및 비동기 줄 점프 무결성 보강]:
+//             1) targetMeta(handle, driveFileId) 직접 지원 및 브라우저 FSA 하위 폴더 경로(getDirectoryHandle ➔ getFileHandle) 순차 추적
+//             2) 동명 파일 오매칭 방지를 위해 전체 경로 일치 우선 검사 후 openFile 완료 대기(await) 뒤 executeJumpAndHighlight 실행
 // 🚨 @PATCH : 2026-09-16 — [검색 결과 줄 이동 및 하이라이트 처리 & 토스트 알림 제거] 1) previewMode === 'preview' 및 분할 모드에서 미리보기 [data-line] 스크롤 및 텍스트 하이라이트 연동, 2) '...번째 줄로 이동했습니다' 불필요한 토스트 알림 4개소 전면 제거
 // 🔗 @CALLS : executeJumpAndHighlight, openFile, switchTab, findNodeRecursively
 // ====================================================================
-            onFileOpenAndJump={async (filePath, lineNumber, term) => {
+            onFileOpenAndJump={async (filePath, lineNumber, term, targetMeta) => {
               // 서식설정 또는 편집 전용 모드인 경우 문서 보기로 전환
               if (previewMode === 'css-style' || previewMode === 'edit') {
                 setPreviewMode('preview');
               }
 
               const targetLine = typeof lineNumber === 'number' && lineNumber > 0 ? lineNumber : 1;
+              const normFilePath = (filePath || '').replace(/\\/g, '/').toLowerCase().normalize('NFC');
+              const fileNameOnly = (targetMeta?.fileName || filePath.split(/[\\/]/).pop() || filePath).normalize('NFC');
 
               // 1. 현재 열려 있는 활성 문서인지 확인
-              const fileNameOnly = filePath.split(/[\\/]/).pop() || filePath;
+              const normCurrentPath = currentFileNode?.path ? currentFileNode.path.replace(/\\/g, '/').toLowerCase().normalize('NFC') : '';
               const isAlreadyActive = (
                 filePath === 'current' ||
-                (currentFileName && (currentFileName === fileNameOnly || currentFileName === filePath)) ||
-                (currentFileNode?.path && (currentFileNode.path === filePath || currentFileNode.path.replace(/\\/g, '/').toLowerCase() === filePath.replace(/\\/g, '/').toLowerCase()))
+                (normCurrentPath && normCurrentPath === normFilePath) ||
+                (!normCurrentPath && currentFileName && (currentFileName.normalize('NFC') === fileNameOnly || currentFileName.normalize('NFC') === filePath.normalize('NFC')))
               );
 
               if (isAlreadyActive) {
@@ -3533,14 +3555,16 @@ export default function LeftSidebar() {
                 return;
               }
 
-              // 2. 이미 열려 있는 탭 목록에 있는지 확인
+              // 2. 이미 열려 있는 탭 목록에 있는지 확인 (전체 경로 일치 최우선)
               if (tabs && tabs.length > 0 && switchTab) {
-                const matchedTab = tabs.find(t => {
-                  if (!t) return false;
-                  const normTabPath = t.path ? t.path.replace(/\\/g, '/').toLowerCase() : '';
-                  const normFilePath = filePath.replace(/\\/g, '/').toLowerCase();
-                  return normTabPath === normFilePath || t.name.toLowerCase() === fileNameOnly.toLowerCase();
+                const exactPathTab = tabs.find(t => {
+                  if (!t || !t.path) return false;
+                  return t.path.replace(/\\/g, '/').toLowerCase().normalize('NFC') === normFilePath;
                 });
+                const fallbackNameTab = !filePath.includes('/') && !filePath.includes('\\')
+                  ? tabs.find(t => t && t.name.toLowerCase().normalize('NFC') === fileNameOnly.toLowerCase())
+                  : null;
+                const matchedTab = exactPathTab || fallbackNameTab;
 
                 if (matchedTab) {
                   switchTab(matchedTab.id);
@@ -3551,41 +3575,95 @@ export default function LeftSidebar() {
                 }
               }
 
-              // 3. 탐색기 트리에서 해당 노드 재귀 탐색
-              const findNodeRecursively = (nodes: FileNode[], targetPath: string): FileNode | null => {
+              // 3. 검색 결과에 직접 포함된 핸들(브라우저 FSA) 또는 구글 드라이브 ID가 있는 경우 즉시 오픈
+              if (targetMeta?.handle) {
+                await Promise.resolve(openFile({
+                  name: fileNameOnly,
+                  kind: 'file' as const,
+                  path: filePath,
+                  handle: targetMeta.handle
+                }, rootFolder?.handle));
+                setTimeout(() => {
+                  executeJumpAndHighlight(targetLine, term);
+                }, 100);
+                return;
+              }
+
+              const driveId = targetMeta?.driveFileId || targetMeta?.driveId;
+              if (driveId) {
+                await Promise.resolve(openFile({
+                  name: fileNameOnly,
+                  kind: 'file' as const,
+                  path: filePath,
+                  driveFileId: driveId,
+                  driveId: driveId,
+                  id: driveId
+                } as any));
+                setTimeout(() => {
+                  executeJumpAndHighlight(targetLine, term);
+                }, 120);
+                return;
+              }
+
+              // 4. 탐색기 트리에서 해당 노드 재귀 탐색 (전체 경로 일치 최우선, 이후 파일명 폴백)
+              const findNodeByPath = (nodes: FileNode[], targetP: string): FileNode | null => {
+                const normT = targetP.replace(/\\/g, '/').toLowerCase().normalize('NFC');
                 for (const n of nodes) {
-                  const normN = n.path ? n.path.replace(/\\/g, '/').toLowerCase() : '';
-                  const normT = targetPath.replace(/\\/g, '/').toLowerCase();
-                  if (n.kind === 'file' && (normN === normT || n.name.toLowerCase() === targetPath.toLowerCase() || n.name.toLowerCase() === fileNameOnly.toLowerCase())) {
+                  const normN = n.path ? n.path.replace(/\\/g, '/').toLowerCase().normalize('NFC') : '';
+                  if (n.kind === 'file' && normN && normN === normT) {
                     return n;
                   }
                   if (n.kind === 'directory' && n.children) {
-                    const found = findNodeRecursively(n.children, targetPath);
+                    const found = findNodeByPath(n.children, targetP);
                     if (found) return found;
                   }
                 }
                 return null;
               };
 
-              const targetNode = findNodeRecursively(fileList, filePath);
+              const findNodeByName = (nodes: FileNode[], targetName: string): FileNode | null => {
+                const normName = targetName.toLowerCase().normalize('NFC');
+                for (const n of nodes) {
+                  if (n.kind === 'file' && n.name.toLowerCase().normalize('NFC') === normName) {
+                    return n;
+                  }
+                  if (n.kind === 'directory' && n.children) {
+                    const found = findNodeByName(n.children, targetName);
+                    if (found) return found;
+                  }
+                }
+                return null;
+              };
+
+              const targetNode = findNodeByPath(fileList, filePath) || findNodeByName(fileList, fileNameOnly);
 
               if (targetNode) {
-                openFile(targetNode);
+                await Promise.resolve(openFile(targetNode));
                 setTimeout(() => {
                   executeJumpAndHighlight(targetLine, term);
                 }, 100);
               } else if (typeof window !== 'undefined' && (window as any).electronAPI) {
                 const dummyNode = { name: fileNameOnly, kind: 'file' as const, path: filePath };
-                openFile(dummyNode);
+                await Promise.resolve(openFile(dummyNode));
                 setTimeout(() => {
                   executeJumpAndHighlight(targetLine, term);
                 }, 120);
               } else if (rootFolder?.handle) {
                 try {
-                  const fileHandle = await rootFolder.handle.getFileHandle(filePath);
+                  // 하위 폴더 경로(예: "sub/doc.md")를 단계별로 추적하여 FileHandle 획득
+                  const parts = filePath.replace(/\\/g, '/').split('/').filter(p => p && p !== '.');
+                  if (parts.length > 0 && (parts[0] === rootFolder.handle.name || parts[0] === rootFolder.name)) {
+                    parts.shift();
+                  }
+                  let currDir = rootFolder.handle;
+                  for (let i = 0; i < parts.length - 1; i++) {
+                    currDir = await currDir.getDirectoryHandle(parts[i], { create: false });
+                  }
+                  const targetFileName = parts.length > 0 ? parts[parts.length - 1] : filePath;
+                  const fileHandle = await currDir.getFileHandle(targetFileName, { create: false });
                   if (fileHandle) {
-                    const tempNode = { name: filePath, kind: 'file' as const, handle: fileHandle };
-                    openFile(tempNode, rootFolder.handle);
+                    const tempNode = { name: fileNameOnly, kind: 'file' as const, path: filePath, handle: fileHandle };
+                    await Promise.resolve(openFile(tempNode, currDir));
                     setTimeout(() => {
                       executeJumpAndHighlight(targetLine, term);
                     }, 100);
@@ -3594,6 +3672,18 @@ export default function LeftSidebar() {
                   showToast("파일을 찾지 못했습니다.", "error");
                 }
               } else {
+                // VFS 폴백
+                try {
+                  const { vfsReadFile } = await import('@/lib/virtualFileSystem');
+                  const vfsText = vfsReadFile(filePath);
+                  if (vfsText !== null && vfsText !== undefined) {
+                    await Promise.resolve(openFile({ name: fileNameOnly, kind: 'file' as const, path: filePath }));
+                    setTimeout(() => {
+                      executeJumpAndHighlight(targetLine, term);
+                    }, 100);
+                    return;
+                  }
+                } catch {}
                 showToast("파일을 찾지 못했습니다.", "error");
               }
             }}

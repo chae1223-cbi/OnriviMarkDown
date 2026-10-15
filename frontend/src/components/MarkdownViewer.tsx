@@ -1,4 +1,5 @@
 import { remarkCodeBlockMetadata } from '../lib/codeBlockMetadata';
+import { remarkKoreanStrong } from '@/lib/remarkKoreanStrong';
 import PicturebookPreview from './PicturebookPreview';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { exportContentFingerprint } from '@/lib/exportPreparation';
@@ -2682,7 +2683,7 @@ function MarkdownViewer({
             if (cleanUri.trim().toLowerCase().startsWith('javascript:')) return '';
             return cleanUri;
           }}
-          remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkExtendedTable, remarkBreaks, remarkMath, remarkDisableIndentedCode, remarkCodeBlockMetadata]}
+          remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkExtendedTable, remarkBreaks, remarkMath, remarkDisableIndentedCode, remarkCodeBlockMetadata, remarkKoreanStrong]}
           rehypePlugins={[
             [rehypeKatex, { strict: false }],
             rehypeBrRaw,

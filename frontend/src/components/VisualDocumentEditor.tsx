@@ -138,7 +138,7 @@ import { baseKeymap, chainCommands, exitCode, lift, setBlockType, toggleMark, wr
 import { splitListItem, sinkListItem, liftListItem } from 'prosemirror-schema-list';
 import { history, undo, redo, closeHistory } from 'prosemirror-history';
 import { keymap } from 'prosemirror-keymap';
-import { createVisualDocumentCodec, visualSchema, visualImageDetails } from '@/lib/visualDocumentCodec';
+import { createVisualDocumentCodec, visualSchema, visualImageDetails, normalizeVisualMarkdownSpacing } from '@/lib/visualDocumentCodec';
 import { visualMarkdownInputRules } from '@/lib/visualMarkdownInputRules';
 import { undoInputRule } from 'prosemirror-inputrules';
 import { visualCommandCatalog, filterVisualCommands } from '@/lib/visualCommandCatalog';
@@ -2132,6 +2132,14 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     const view = viewRef.current as (EditorView & { replaceSource?: (source: string) => void }) | null;
     if (view && content !== emitted.current) view.replaceSource?.(content);
   }, [content]);
+  useEffect(() => {
+    if (readOnly) return;
+    const normalized = normalizeVisualMarkdownSpacing(content);
+    if (normalized !== content) {
+      emitted.current = normalized;
+      callback.current(normalized);
+    }
+  }, [content, readOnly]);
   useEffect(()=>{
     const sync=(event:Event)=>{
       const detail=(event as CustomEvent).detail;

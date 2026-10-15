@@ -1,5 +1,7 @@
 /**
  * 프로그램명 : OnriviAuthor 
+// 🚨 @PATCH : **2026-10-16** — [전역 검색(GLOBAL_SEARCH / Ctrl+Shift+F) 단축키 및 포커스 연동 보강]:
+//             1) Ctrl+Shift+F 전역 단축키 바인딩 및 GLOBAL_SEARCH 실행 시 Monaco 에디터 포커스 강제 탈취를 방지하고 사이드바 검색 탭(sidebarTab='search') 즉시 전환 및 입력창 자동 포커스 연동
 // 🚨 @PATCH : **2026-10-15** — [그림책/동화책(Story Book) 2종 시스템 서식 자동 인식 연동 및 ID 갱신]: Frontmatter의 css_profile에 'Story Book-전체표지'(profile-1792073192013 및 profile-1792072443551) 및 'Story Book - 오른쪽 그림 표지'(오타 'Stroy Book' 포함)가 지정되었을 때 해당 신규 시스템 서식으로 즉시 매칭되도록 보강
 // 🚨 @PATCH : **2026-10-15** — [화면 흔들림 완전 해결 및 나란히 보기(분할 모드) 내보내기 전면 활성화]:
 //             1) 뷰포트 overflow: hidden 및 100% 규격 강제 보장으로 동적 이벤트 발생 시 17px 윈도우 스크롤바 생성/소멸에 의한 전체 화면 좌우 요동 원천 차단
@@ -7948,9 +7950,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       return;
     }
 
-    // [WBS SYNC-01] 명령어 실행 초입 단계에 반드시 editor.focus()를 강제 격발하여 브라우저 포커스 뺏김 방지 및 포지션 최우선 확보
+    // [WBS SYNC-01] 명령어 실행 초입 단계에 반드시 editor.focus()를 강제 격발하여 브라우저 포커스 뺏김 방지 및 포지션 최우선 확보 (단, 전역 검색은 검색 입력창 포커스를 위해 제외)
     let editorPosition = null;
-    if (editorRef.current) {
+    if (editorRef.current && type !== 'GLOBAL_SEARCH') {
       const editor = editorRef.current;
       editor.focus();
       editorPosition = editor.getPosition();
@@ -8023,7 +8025,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'REDO': handlers.redo(); return;
       case 'FIND': handlers.find(); return;
       case 'REPLACE': handlers.replace(); return;
-      case 'GLOBAL_SEARCH': handlers.globalSearch(); return;
+      case 'GLOBAL_SEARCH':
+        setIsSidebarOpen(true);
+        setSidebarTab('search');
+        setIsSearchOpen(true);
+        handlers.globalSearch();
+        return;
       case 'SETTINGS':
         setIsSettingsModalOpen(true);
         return;
@@ -8716,9 +8723,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       }
 
-      // 파일 열기와 작업장 폴더 열기는 제한사용자도 사용할 수 있다.
+      // 파일 열기, 작업장 폴더 열기, 전역 검색(Ctrl+Shift+F)은 포커스 위치와 관계없이 전역에서 동작한다.
       if (isCtrl && !isAlt) {
         const keyUpper = e.key.toUpperCase();
+        if (isShift && (keyUpper === 'F' || e.code === 'KeyF')) {
+          e.preventDefault();
+          e.stopPropagation();
+          dispatchCommand('GLOBAL_SEARCH');
+          return;
+        }
         if (keyUpper === 'O') {
           e.preventDefault();
           e.stopPropagation();

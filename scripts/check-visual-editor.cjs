@@ -128,6 +128,9 @@ console.log('PASS: incremental source synchronization, Unicode boundaries and on
 async function visual() {
   const dir = path.join(base, '.tmp/visual-editor-qa');
   fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'footnoteOrganizer.js'), compile(path.join(frontend, 'src/lib/footnoteOrganizer.ts')));
+  // The focused text fixture does not exercise network image downloads.
+  fs.writeFileSync(path.join(dir, 'resourceMedia.js'), 'exports.parseDroppedDataToBlob=async()=>null;exports.fetchExternalImageFile=async()=>null;');
   fs.writeFileSync(path.join(dir, 'codec.js'), compile(path.join(frontend, 'src/lib/visualDocumentCodec.ts')));
   fs.writeFileSync(path.join(dir, 'editor.js'), compile(path.join(frontend, 'src/components/VisualDocumentEditor.tsx')));
   fs.writeFileSync(path.join(dir, 'inputRules.js'), compile(path.join(frontend, 'src/lib/visualMarkdownInputRules.ts')));
@@ -200,6 +203,10 @@ async function visual() {
     createRoot(document.getElementById('root')).render(React.createElement(App));
   `);
   const webpack = req('webpack');
+  const focusedAliases = process.argv.includes('--spacing-emphasis-only') ? {
+    '@/lib/footnoteOrganizer': path.join(dir, 'footnoteOrganizer.js'),
+    '@/lib/resourceMedia': path.join(dir, 'resourceMedia.js'),
+  } : {};
   // The read-only renderer includes KaTeX styles. Load its real CSS in the
   // browser fixture instead of relying on the production Next.js CSS loader.
   fs.writeFileSync(path.join(dir, 'css-loader.cjs'), `module.exports = function(source) {
@@ -208,7 +215,7 @@ async function visual() {
   await new Promise((resolve, reject) => webpack({ mode: 'development', entry: path.join(dir, 'entry.js'),
     module: { rules: [{ test: /\.css$/, use: [path.join(dir, 'css-loader.cjs')] }] },
     output: { path: dir, filename: 'bundle.js' }, resolve: { modules: [path.join(frontend, 'node_modules')],
-      alias: { '@/components/LinkModal':path.join(dir,'unrelatedModals.js'), '@/components/CalendarModal':path.join(dir,'unrelatedModals.js'), '@/components/DateTimeInsertPicker':path.join(dir,'unrelatedModals.js'), '@/lib/visualListCommands':path.join(dir,'listCommands.js'), 'lucide-react':path.join(dir,'icons.js'), './visualDocumentCodec':path.join(dir,'codec.js'), '@/lib/visualTableCommands':path.join(dir,'tableCommands.js'), '@/components/TableModal':path.join(dir,'tableModal.js'), '@/components/TableHeaderCell':path.join(dir,'tableHeader.js'), './mediaMarkup':path.join(dir,'mediaMarkup.js'), '@/lib/mediaMarkup':path.join(dir,'mediaMarkup.js'), '@/lib/desktopClipboard':path.join(dir,'clipboard.js'), '@/lib/visualCaret': path.join(dir, 'caret.js'), '@/lib/visualDocumentCodec': path.join(dir, 'codec.js'), '@/lib/visualMarkdownInputRules': path.join(dir, 'inputRules.js'), '@/lib/visualCommandCatalog': path.join(dir,'catalog.js'), '@/lib/toolbarConfig': path.join(dir,'toolbar.js'), '@/lib/visualMarkdownPaste':path.join(dir,'paste.js'), '@/components/VisualReadOnlyMarkdownBlock':path.join(dir,'readonly.js') } }, devtool: false,
+      alias: { ...focusedAliases, '@/components/LinkModal':path.join(dir,'unrelatedModals.js'), '@/components/CalendarModal':path.join(dir,'unrelatedModals.js'), '@/components/DateTimeInsertPicker':path.join(dir,'unrelatedModals.js'), '@/lib/visualListCommands':path.join(dir,'listCommands.js'), 'lucide-react':path.join(dir,'icons.js'), './visualDocumentCodec':path.join(dir,'codec.js'), '@/lib/visualTableCommands':path.join(dir,'tableCommands.js'), '@/components/TableModal':path.join(dir,'tableModal.js'), '@/components/TableHeaderCell':path.join(dir,'tableHeader.js'), './mediaMarkup':path.join(dir,'mediaMarkup.js'), '@/lib/mediaMarkup':path.join(dir,'mediaMarkup.js'), '@/lib/desktopClipboard':path.join(dir,'clipboard.js'), '@/lib/visualCaret': path.join(dir, 'caret.js'), '@/lib/visualDocumentCodec': path.join(dir, 'codec.js'), '@/lib/visualMarkdownInputRules': path.join(dir, 'inputRules.js'), '@/lib/visualCommandCatalog': path.join(dir,'catalog.js'), '@/lib/toolbarConfig': path.join(dir,'toolbar.js'), '@/lib/visualMarkdownPaste':path.join(dir,'paste.js'), '@/components/VisualReadOnlyMarkdownBlock':path.join(dir,'readonly.js') } }, devtool: false,
   }, (error, stats) => error || stats.hasErrors() ? reject(error || new Error(stats.toString({ all: false, errors: true }))) : resolve()));
   const cssDir=path.join(frontend,'out/_next/static/css');
   const css=fs.existsSync(cssDir)?fs.readdirSync(cssDir).filter(file=>file.endsWith('.css')).map(file=>`<link rel="stylesheet" href="file:///${path.join(cssDir,file).replace(/\\/g,'/')}">`).join(''):'';
@@ -222,6 +229,25 @@ async function visual() {
     page.on('pageerror', error => { errors.push(error.message); console.error('Browser error:',error.message); });
     await page.goto('file:///' + path.join(dir, 'index.html').replace(/\\/g, '/'));
     const surface = page.locator('.visual-document-surface');
+    if (process.argv.includes('--spacing-emphasis-only')) {
+      await surface.waitFor();
+      const source = '# 안내서' + '\n'.repeat(45) + '**활동명(별명)**을 입력합니다.';
+      await page.evaluate(value => window.setTestSource(value), source);
+      await page.waitForFunction(() => document.querySelector('#source').value === '# 안내서\n\n**활동명(별명)**을 입력합니다.');
+      assert.equal(await surface.locator('strong').textContent(), '활동명(별명)');
+      await page.evaluate(() => window.setTestSource(''));
+      await page.waitForFunction(() => document.querySelector('.visual-document-surface').textContent === '');
+      await surface.click();
+      await page.evaluate(value => {
+        const data = new DataTransfer(); data.setData('text/plain', value);
+        document.querySelector('.visual-document-surface').dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+      }, source);
+      await page.waitForFunction(() => document.querySelector('#source').value.includes('**활동명(별명)**을') && !/\n{4,}/.test(document.querySelector('#source').value));
+      assert.equal(await surface.locator('strong').textContent(), '활동명(별명)');
+      assert.deepEqual(errors, []);
+      console.log('PASS: actual editor normalizes existing source and Markdown paste, renders parenthesized bold before Korean particles');
+      return;
+    }
     const checkTableModal=async()=>{
     for(const submitWithEnter of [false,true]) {
       await page.evaluate(()=>window.setTestSource(''));

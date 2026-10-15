@@ -140,6 +140,21 @@ export const visualSchema = new Schema({
 });
 
 const tokenizer = defaultMarkdownParser.tokenizer.enable(['table','strikethrough']);
+const strongClosingPunctuation = new RegExp('[\\p{Pe}\\p{Pf}:;.!?%…]', 'u');
+const strongFollowingLetter = new RegExp('[\\p{L}\\p{N}]', 'u');
+// Korean particles may immediately follow punctuation at the end of bold text.
+tokenizer.inline.ruler.before('emphasis', 'onrivi_strong_particle', (state: any, silent: boolean) => {
+  const start = state.pos;
+  if (silent || state.src.slice(start, start + 2) !== '**' || state.src[start + 2] === '*'
+    || !strongClosingPunctuation.test(state.src[start - 1] || '') || !strongFollowingLetter.test(state.src[start + 2] || '')
+    || !state.delimiters.some((delimiter: any) => delimiter.marker === 42 && delimiter.open)) return false;
+  for (let i = 0; i < 2; i++) {
+    state.push('text', '', 0).content = '*';
+    state.delimiters.push({ marker: 42, length: 2, token: state.tokens.length - 1, end: -1, open: false, close: true });
+  }
+  state.pos += 2;
+  return true;
+});
 const visualTokenizer = Object.create(tokenizer) as typeof tokenizer;
 visualTokenizer.parse = (source,environment) => {
   const result = [];
@@ -254,6 +269,7 @@ function normalizeQuotes(node: DocumentNode): DocumentNode {
   return node.type.create(attrs,children,node.marks);
 }
 export function createVisualDocumentCodec(markdown: string) {
+  markdown = normalizeVisualMarkdownSpacing(markdown);
   const originals = new WeakMap<DocumentNode, string>();
   const rawSuffixes: string[] = [];
   const meta = markdown.match(/^(?:\uFEFF)?---[^\S\r\n]*\r?\n[\s\S]*?\r?\n---[^\S\r\n]*(?:\r?\n|$)/);
@@ -385,9 +401,38 @@ export function createVisualDocumentCodec(markdown: string) {
         previousOriginal = original !== undefined;
         previousNode = node;
       });
-      return result;
+      return normalizeVisualMarkdownSpacing(result);
     },
   };
+}
+
+/** Remove accidental long blank runs between blocks, never code/math/metadata. */
+export function normalizeVisualMarkdownSpacing(source: string): string {
+  const lines = source.match(/[^\n]*\n|[^\n]+$/g) || [];
+  const output: string[] = [];
+  let blanks: string[] = [], fence = '', fenceLength = 0, math = false, pre = false;
+  let metadata = false, wasIndented = false;
+  lines.forEach((line, index) => {
+    const text = line.replace(/\r?\n$/, '');
+    if (index === 0 && /^\uFEFF?---[ \t]*$/.test(text)) metadata = true;
+    const boundary = text.match(/^ {0,3}(`{3,}|~{3,})/);
+    const indented = /^(?: {4}|\t)\S/.test(text);
+    const protectedLine = metadata || !!fence || math || pre || indented || wasIndented;
+    if (/^[ \t]*$/.test(text) && !protectedLine) { blanks.push(line); return; }
+    if (blanks.length) { output.push(...(protectedLine || blanks.length < 3 ? blanks : [blanks[0]])); blanks = []; }
+    output.push(line);
+    if (metadata) { if (index > 0 && /^(?:---|\.\.\.)[ \t]*$/.test(text)) metadata = false; return; }
+    if (boundary) {
+      if (!fence) { fence = boundary[1][0]; fenceLength = boundary[1].length; }
+      else if (boundary[1][0] === fence && boundary[1].length >= fenceLength && /^ {0,3}(?:`+|~+)[ \t]*$/.test(text)) fence = '';
+    }
+    if (!fence && /^\s*\$\$/.test(text)) { if (!/^\s*\$\$.*\$\$\s*$/.test(text)) math = !math; }
+    if (!fence && /<(?:pre|script|style)\b/i.test(text)) pre = true;
+    if (/<\/(?:pre|script|style)>/i.test(text)) pre = false;
+    wasIndented = indented;
+  });
+  output.push(...blanks); // Preserve deliberate Enter presses at the document end.
+  return output.join('');
 }
 
 export function visualImageDetails(source: string) {

@@ -31,6 +31,8 @@ import { organizeMarkdownFootnotes } from '@/lib/footnoteOrganizer';
 // ====================================================================
 // 📊 [OMD-EDIT-USEEDITORHANDLERS-0014] useEditorHandlers.ts ➔ useEditorHandlers
 // 🎯 @KICK  : 에디터 주요 액션 핸들러(저장, 내보내기, 서식 삽입 등)를 통합 관리
+// 🚨 @PATCH : **2026-10-16** — [전역 검색(globalSearch) 호출 시 사이드바 오픈 및 검색 입력창 포커스 강제 연동]:
+//             globalSearch 실행 시 setIsSidebarOpen(true), setIsSearchOpen(true) 및 onrivi:focus-global-search 이벤트를 발송하여 어느 상태에서든 즉시 검색 탭이 열리고 포커스되도록 개선
 // 🚨 @PATCH : **2026-10-15** — [편집 에디터 글자 크기 확대/축소 핸들러 제거]:
 //             에디터 폰트 크기 변경 방식의 zoomIn/zoomOut 핸들러를 제거하여 문서보기 줌 체계와 분리
 // 🚨 @PATCH : **2026-10-15** — [다른 이름으로 저장(saveAs) 시 작업장 변경 차단]:
@@ -1298,7 +1300,13 @@ export const useEditorHandlers = ({
     latex: () => setIsFormulaModalOpen(true),
     zoomIn: () => {},
     zoomOut: () => {},
-    globalSearch: () => setIsSearchOpen(true),
+    globalSearch: () => {
+      setIsSidebarOpen(true);
+      setIsSearchOpen(true);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('onrivi:focus-global-search'));
+      }
+    },
     settings: (tab: 'editor' | 'app' | 'shortcuts' = 'editor') => {
       setSettingsModalInitialTab(tab);
       setIsSettingsModalOpen(true);

@@ -2,6 +2,10 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-10-16** — [전역 검색(file:searchInFolder & getAllMdFiles) 경로 해석·유니코드 NFC 정규화·심볼릭 링크 탐색 전면 보강]:
+//             1) file:searchInFolder에서 전달된 folderPath가 상대 폴더명이거나 GoogleDrive 가상 경로 또는 미존재 경로일 때 currentActiveWorkspacePath 및 settings.json(localWorkspaceFolder)을 자동 해석하여 검색 누락(0건) 버그 해결
+//             2) 한글 파일명 및 본문의 NFD/NFC 유니코드 정규화(.normalize('NFC'))를 적용하여 자소 분리된 한글 문서 및 검색어 매칭 100% 보장
+//             3) getAllMdFiles에서 심볼릭 링크/정션 디렉토리(isSymbolicLink) 순환 방어 탐색 및 .bib 파일 검색 지원 추가
 // 🚨 @PATCH : **2026-10-14** — [폴더 전역 검색(file:searchInFolder) 성능 최적화 및 의존성/빌드 폴더 무시·예외 격리]:
 //             1) getAllMdFiles에서 node_modules, .git, .next, out, dist, build, scratch 등 대규모 폴더를 무시(IGNORED_SEARCH_DIRS)하고 withFileTypes 기반으로 안전하게 탐색하여 메인 프로세스 동기 블로킹 및 탐색 중단 버그 해결
 //             2) file:searchInFolder 핸들러에서 파일별 읽기 예외를 격리하여 잠긴 파일이나 비정상 파일이 있어도 나머지 마크다운 파일 검색이 정상 완료되도록 무결성 보장
@@ -3161,26 +3165,45 @@ const IGNORED_SEARCH_DIRS = new Set([
   '_dev_api_backup', '.vscode', '.idea', 'scratch', '.next-web-build'
 ]);
 
-function getAllMdFiles(dirPath, fileList = [], depth = 0) {
+function getAllMdFiles(dirPath, fileList = [], depth = 0, visitedDirs = new Set()) {
   if (depth > 12) return fileList; // 지나치게 깊은 재귀 탐색 방어
   try {
     if (!dirPath || typeof dirPath !== 'string' || !fs.existsSync(dirPath)) {
       return fileList;
     }
+    let realDir = dirPath;
+    try {
+      realDir = fs.realpathSync(dirPath);
+    } catch {}
+    const normRealDir = realDir.toLowerCase();
+    if (visitedDirs.has(normRealDir)) return fileList;
+    visitedDirs.add(normRealDir);
+
     const entries = fs.readdirSync(dirPath, { withFileTypes: true });
     for (const entry of entries) {
       const entryName = entry.name;
-      if (entry.isDirectory()) {
+      const fullEntryPath = path.join(dirPath, entryName);
+      let isDir = entry.isDirectory();
+      let isFile = entry.isFile();
+      if (entry.isSymbolicLink()) {
+        try {
+          const stat = fs.statSync(fullEntryPath);
+          isDir = stat.isDirectory();
+          isFile = stat.isFile();
+        } catch {
+          continue;
+        }
+      }
+      if (isDir) {
         const lowerName = entryName.toLowerCase();
         if (lowerName.startsWith('.') || IGNORED_SEARCH_DIRS.has(lowerName)) {
           continue;
         }
-        const fullDirPath = path.join(dirPath, entryName);
-        getAllMdFiles(fullDirPath, fileList, depth + 1);
-      } else if (entry.isFile()) {
+        getAllMdFiles(fullEntryPath, fileList, depth + 1, visitedDirs);
+      } else if (isFile) {
         const lowerName = entryName.toLowerCase();
-        if (lowerName.endsWith('.md') || lowerName.endsWith('.markdown')) {
-          fileList.push(path.join(dirPath, entryName));
+        if (lowerName.endsWith('.md') || lowerName.endsWith('.markdown') || lowerName.endsWith('.bib')) {
+          fileList.push(fullEntryPath);
         }
       }
     }
@@ -3579,20 +3602,68 @@ ipcMain.handle('file:createFolder', async (event, parentPath, name) => {
   }
 });
 
-// 13. 폴더 아래의 모든 마크다운 파일 내용 검색 (안전성 및 예외 격리 보강)
+// 13. 폴더 아래의 모든 마크다운 파일 내용 검색 (안전성·경로해석·유니코드 NFC 정규화 및 예외 격리 보강)
 ipcMain.handle('file:searchInFolder', async (event, { folderPath, searchTerm, matchCase, useRegex }) => {
   try {
-    if (!folderPath || typeof folderPath !== 'string' || !searchTerm || typeof searchTerm !== 'string' || !searchTerm.trim()) {
+    if (!searchTerm || typeof searchTerm !== 'string' || !searchTerm.trim()) {
       return [];
     }
-    const mdFiles = getAllMdFiles(folderPath);
+
+    // 1) 검색 대상 폴더 경로 정규화 및 활성 작업장 경로 해석
+    let resolvedFolder = typeof folderPath === 'string' ? folderPath.trim() : '';
+    if (resolvedFolder.startsWith('file:///')) {
+      try { resolvedFolder = decodeURIComponent(resolvedFolder.replace(/^file:\/\/\//, '')); } catch {}
+    }
+
+    const isValidDir = (p) => {
+      if (!p || typeof p !== 'string' || p.startsWith('GoogleDrive') || p === '브라우저 저장소') return false;
+      try {
+        return fs.existsSync(p) && fs.statSync(p).isDirectory();
+      } catch {
+        return false;
+      }
+    };
+
+    if (!isValidDir(resolvedFolder)) {
+      let fallbackFolder = '';
+      if (currentActiveWorkspacePath && isValidDir(currentActiveWorkspacePath)) {
+        if (resolvedFolder && !resolvedFolder.startsWith('GoogleDrive')) {
+          const candidate = path.join(currentActiveWorkspacePath, resolvedFolder);
+          fallbackFolder = isValidDir(candidate) ? candidate : currentActiveWorkspacePath;
+        } else {
+          fallbackFolder = currentActiveWorkspacePath;
+        }
+      }
+      if (!fallbackFolder) {
+        try {
+          const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+          if (fs.existsSync(settingsPath)) {
+            const saved = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+            if (saved?.localWorkspaceFolder && isValidDir(saved.localWorkspaceFolder)) {
+              fallbackFolder = saved.localWorkspaceFolder;
+              currentActiveWorkspacePath = fallbackFolder;
+            }
+          }
+        } catch {}
+      }
+      resolvedFolder = fallbackFolder;
+    } else {
+      currentActiveWorkspacePath = resolvedFolder;
+    }
+
+    if (!isValidDir(resolvedFolder)) {
+      return [];
+    }
+
+    const mdFiles = getAllMdFiles(resolvedFolder);
     const results = [];
-    
+
+    const normalizedSearchTerm = searchTerm.normalize('NFC');
     let regex;
-    const escaped = searchTerm.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const escaped = normalizedSearchTerm.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
     if (useRegex) {
       try {
-        regex = new RegExp(searchTerm, matchCase ? 'g' : 'gi');
+        regex = new RegExp(normalizedSearchTerm, matchCase ? 'g' : 'gi');
       } catch(e) {
         regex = new RegExp(escaped, matchCase ? 'g' : 'gi');
       }
@@ -3602,11 +3673,11 @@ ipcMain.handle('file:searchInFolder', async (event, { folderPath, searchTerm, ma
 
     for (const filePath of mdFiles) {
       try {
-        const fileName = path.basename(filePath);
-        const fileNameWithoutExt = path.basename(filePath, path.extname(filePath));
+        const fileName = path.basename(filePath).normalize('NFC');
+        const fileNameWithoutExt = path.basename(filePath, path.extname(filePath)).normalize('NFC');
         let content = '';
         try {
-          content = fs.readFileSync(filePath, 'utf-8');
+          content = fs.readFileSync(filePath, 'utf-8').normalize('NFC');
         } catch {
           // 잠긴 파일, 바이너리 또는 권한 문제 시 개별 skip
           continue;
@@ -3618,8 +3689,13 @@ ipcMain.handle('file:searchInFolder', async (event, { folderPath, searchTerm, ma
 
         // 파일명 검사
         regex.lastIndex = 0;
-        if (regex.test(fileName) || regex.test(fileNameWithoutExt)) {
+        if (regex.test(fileName)) {
           fileNameMatched = true;
+        } else {
+          regex.lastIndex = 0;
+          if (regex.test(fileNameWithoutExt)) {
+            fileNameMatched = true;
+          }
         }
 
         // 내용 검사
