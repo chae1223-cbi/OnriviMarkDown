@@ -39,14 +39,14 @@ export const insertLicenseActivationQuery = async (
       ['ACTIVE', 'FREE'].includes(status) && (is_active === true || status === 'FREE') &&
       (!current_period_end || new Date(current_period_end).getTime() > Date.now());
 
-    // 🧹 [좀비 세션 자동 정리 가드]: 2분 이상 활동(Heartbeat)이 중단된 웹 세션은 자동 비활성화하여 오탐지 방지
+    // 🧹 [좀비 세션 자동 정리 가드]: 5분 이상 활동(Heartbeat)이 중단된 웹 세션은 자동 비활성화하여 오탐지 방지
     await tx`
       UPDATE license_activations
       SET is_active = false, updated_at = now()
       WHERE subscription_id IN (SELECT id FROM subscriptions WHERE user_id = ${subOwnerId})
         AND is_active = true
         AND lower(trim(coalesce(device_name, ''))) IN ('web saas', 'web browser')
-        AND coalesce(updated_at, activated_at) < (now() - interval '2 minutes')
+        AND coalesce(updated_at, activated_at) < (now() - interval '5 minutes')
     `;
 
     // 💡 [웹 제어권 인수]: 다른 웹 세션을 강제 삭제(로그아웃)하지 않고, is_active = false로 변경하여 세션아웃 없이 '제한사용자(미리보기 전용)'로 안전하게 전환한다.

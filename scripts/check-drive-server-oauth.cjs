@@ -31,6 +31,10 @@ const cookieValue = (response, name) => response.headers.getSetCookie().find(v =
   const callback = await request(`oauth/callback?code=fixture&state=${state}`, { headers: { Cookie: stateCookie } });
   assert.equal(callback.status, 200);
   const body = await callback.text();
+  let popupClosed = false;
+  const callbackScript = body.match(/<script[^>]*>([\s\S]*?)<\/script>/)[1];
+  Function('window', callbackScript)({ opener: null, close: () => { popupClosed = true; } });
+  assert.equal(popupClosed, true, 'callback closes even when COOP severed the opener');
   assert.ok(body.includes('fixture-access-1')); assert.ok(!body.includes('fixture-refresh'));
   const session = cookieValue(callback, 'onrivi_drive_session'); assert.ok(session);
   const status = state => request('oauth/status', { method: 'POST', headers: { Origin: 'https://onrivi.com', Cookie: session, 'Content-Type': 'application/json' }, body: JSON.stringify({ state }) });

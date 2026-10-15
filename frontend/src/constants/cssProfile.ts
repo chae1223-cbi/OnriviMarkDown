@@ -2578,7 +2578,7 @@ export function normalizeCssProfile(
   }
 
   // 3-4. 표(table, th, td) 단축 속성과 개별 속성 중복 제거 및 세로선 방해 레거시 방향별 테두리 살균
-  ['table', 'th', 'td'].forEach(tag => {
+  ['table', 'th', 'td', 'blockquote', 'codeBlock', 'math'].forEach(tag => {
     if (incomingRules[tag] && incomingRules[tag]['border-width'] && incomingRules[tag]['border']) {
       delete incomingRules[tag]['border'];
     }
@@ -2604,6 +2604,11 @@ export function normalizeCssProfile(
       ...(deeplyMergedRules[tag] || {}),
       ...(cleanRules[tag] as object || {}),
     };
+  });
+
+  // Controls with a base-size mode must not regain a fixed size during normalization.
+  ['table', 'th', 'td', 'blockquote', 'codeBlock', 'math'].forEach(tag => {
+    if (!incomingRules[tag]?.['font-size']) deeplyMergedRules[tag]['font-size'] = 'inherit';
   });
 
   // 5. hrStructure 및 checkboxStructure, tableStructure 안전 병합

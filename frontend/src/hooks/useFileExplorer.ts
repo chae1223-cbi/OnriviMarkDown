@@ -90,6 +90,7 @@ import {
   hasValidDriveToken,
   getSavedWorkspaceInfo,
   requestGoogleDriveAuth,
+  prepareGoogleDriveAuth,
   setupOnriviDriveWorkspace,
   selectOnriviWorkspaceFolder,
   disconnectGoogleDrive as disconnectGDriveClient,
@@ -1700,6 +1701,8 @@ export const useFileExplorer = ({
   const connectGoogleDrive = useCallback(async (chooseFolder = false) => {
     if (storageSwitchRef.current) return;
     storageSwitchRef.current = true;
+    let authentication: ReturnType<typeof prepareGoogleDriveAuth> | undefined;
+    let stage = '인증 확인';
     try {
       const isLocal = rootFolderRef.current?.type !== 'GDRIVE';
       const localResourceBeforeConnect = getResourceSettings('local');
@@ -1708,44 +1711,50 @@ export const useFileExplorer = ({
         showToast('작업장을 변경하기 전에 작성 중인 글을 저장해 주세요.', 'warning');
         return;
       }
-      showToast("구글 드라이브 연결 중...", "info");
       let token = getSavedDriveToken();
-      if (token) {
-        try {
-          const testRes = await fetch('https://www.googleapis.com/drive/v3/about?fields=user&supportsAllDrives=true', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (testRes.status === 401 || !testRes.ok) {
-            console.warn('[connectGoogleDrive] 기존 토큰 만료 확인 (401) -> 새 토큰 발급 팝업 가동');
+      if (token && hasValidDriveToken()) {
+        authentication = prepareGoogleDriveAuth();
+        const testRes = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
+          headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000)
+        });
+        if (testRes.status === 401) {
+          const refreshed = getSavedDriveToken();
+          if (refreshed && refreshed !== token) token = refreshed;
+          else {
             localStorage.removeItem('onrivi_gdrive_access_token');
             localStorage.removeItem('onrivi_gdrive_token_expires_at');
             sessionStorage.removeItem('onrivi_gdrive_access_token');
             token = null;
           }
-        } catch {
-          token = null;
+        } else if (!testRes.ok) {
+          throw new Error(`Google Drive 응답 오류(HTTP ${testRes.status}). 인증을 해제하지 말고 잠시 후 다시 시도해 주세요.`);
         }
-      }
+      } else token = null;
       if (!token) {
-        token = await requestGoogleDriveAuth();
+        stage = 'Google 인증';
+        token = await (authentication ? authentication.request() : requestGoogleDriveAuth());
       }
+      authentication?.close();
       if (!token) {
         throw new Error("구글 인증 토큰 획득에 실패했습니다. 다시 시도해주세요.");
       }
 
+      stage = '계정 정보 확인';
       const { fetchGoogleUserInfo } = await import('@/lib/gdrive/googleDriveClient');
       const account = await fetchGoogleUserInfo(token);
       const { isFirstConnection } = activateDriveAccount(account.email);
       // Account-specific settings -> validate/create resource folder -> initialize
       // children/files -> connect document workspace.
       const { resolveDriveResourceFolderByName, createDefaultDriveFolders } = await import('@/lib/gdrive/googleDriveClient');
+      stage = '참조폴더 복구';
       const resource = await resolveDriveResourceFolderByName(token);
       const selectedResource = { id: resource.folderId, name: resource.name };
       const initial = isFirstConnection ? await createDefaultDriveFolders(token, resource.name) : null;
+      stage = '작업장 복구';
       const selectedFolder = initial?.workspace || await selectOnriviWorkspaceFolder(token, !chooseFolder);
       if (!selectedFolder) return;
-      showToast('선택한 작업장에 연결 중...', 'info');
       const wsInfo = await setupOnriviDriveWorkspace(token, selectedFolder, selectedResource);
+      stage = '파일 목록 불러오기';
       const driveNodes = await fetchDriveFileNodes(token, selectedFolder.id);
 
       // Back up only when leaving local storage; cloud folder changes must not overwrite it.
@@ -1819,8 +1828,9 @@ export const useFileExplorer = ({
     } catch (err: any) {
       reportClientLog(err.message || '구글 드라이브 연결 실패', 'ERROR', 'DRIVE_CONNECT');
       console.error('[connectGoogleDrive Error]', err);
-      showToast("구글 드라이브 연결 실패: " + (err.message || '인증 오류'), "error");
+      showToast(`구글 드라이브 ${stage} 실패: ${err.message || '잠시 후 다시 시도해 주세요.'}`, "error");
     } finally {
+      authentication?.close();
       storageSwitchRef.current = false;
     }
   }, [setRootFolder, setWorkspaceType, setFileList, setIsSidebarOpen, showToast, workspaceType, activeTabIdRef, captureEnvironment, contentRef, lastSavedContentRef, restoreEnvironment, tabsRef]);

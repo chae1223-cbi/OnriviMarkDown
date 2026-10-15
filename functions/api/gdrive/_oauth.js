@@ -48,8 +48,11 @@ async function googleToken(env, params) {
   });
   const result = await response.json();
   if (!response.ok || !result.access_token) {
-    const error = new Error(result.error === 'invalid_grant' ? 'REAUTH_REQUIRED' : 'TOKEN_REQUEST_FAILED');
-    error.reauth = result.error === 'invalid_grant'; throw error;
+    console.error('[Google OAuth Token Error]', response.status, result);
+    const error = new Error(result.error === 'invalid_grant' ? 'REAUTH_REQUIRED' : (result.error_description || result.error || 'TOKEN_REQUEST_FAILED'));
+    error.reauth = result.error === 'invalid_grant';
+    error.details = result;
+    throw error;
   }
   return result;
 }
@@ -103,7 +106,7 @@ export async function handleDriveOAuth(request, env) {
       headers.append('Set-Cookie', cookie(sessionCookie, session, 90 * 86400, secure));
       const message = { type: 'onrivi:drive-oauth', access_token: tokens.access_token, expires_in: Number(tokens.expires_in) || 3600 };
       return page('Google Drive 연결이 완료되었습니다. 이 창을 닫아도 됩니다.',
-        `if(window.opener){window.opener.postMessage(${safeScript(message)},${safeScript(origin)});window.close();}`, headers);
+        `try{if(window.opener)window.opener.postMessage(${safeScript(message)},${safeScript(origin)});}finally{window.close();}`, headers);
     }
     if (request.method !== 'POST') return json({ error: '지원하지 않는 요청입니다.' }, 405);
     // Cookie sessions require same-origin requests; desktop sessions use a bearer capability.
@@ -156,7 +159,8 @@ export async function handleDriveOAuth(request, env) {
       operation.finally(() => { if (refreshes.get(key) === operation) refreshes.delete(key); }).catch(() => {});
     }
     return (await refreshes.get(key)).clone();
-  } catch {
-    return json({ error: 'Google Drive 인증 처리에 실패했습니다.', code: 'OAUTH_FAILED' }, 502);
+  } catch (error) {
+    console.error('[Google OAuth Handle Error]', error);
+    return json({ error: 'Google Drive 인증 처리에 실패했습니다.', details: error.message || String(error), code: 'OAUTH_FAILED' }, 502);
   }
 }

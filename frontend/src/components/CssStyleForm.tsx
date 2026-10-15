@@ -984,9 +984,9 @@ ${guideContent}
       const { 'font-size': _, ...restTable } = tableRules;
       const { 'font-size': __, ...restTh } = thRules;
       const { 'font-size': ___, ...restTd } = tdRules;
-      updatedRules.table = restTable;
-      updatedRules.th = restTh;
-      updatedRules.td = restTd;
+      updatedRules.table = { ...restTable, 'font-size': 'inherit' };
+      updatedRules.th = { ...restTh, 'font-size': 'inherit' };
+      updatedRules.td = { ...restTd, 'font-size': 'inherit' };
     } else {
       updatedRules.table = { ...tableRules, 'font-size': value };
       updatedRules.th = { ...thRules, 'font-size': value };
@@ -2596,7 +2596,7 @@ ${guideContent}
                   const { 'font-size': _, ...rest } = getTagRules('blockquote');
                   triggerUpdate({
                     ...currentProfile,
-                    rules: { ...currentProfile.rules, blockquote: rest }
+                    rules: { ...currentProfile.rules, blockquote: { ...rest, 'font-size': 'inherit' } }
                   }, 'blockquote', '인용구 기본 글자 크기 유지');
                 } else {
                   updateCssRule('blockquote', 'font-size', v);
@@ -3023,7 +3023,7 @@ ${guideContent}
                   const { 'font-size': _, ...rest } = getTagRules('codeBlock');
                   triggerUpdate({
                     ...currentProfile,
-                    rules: { ...currentProfile.rules, codeBlock: rest }
+                    rules: { ...currentProfile.rules, codeBlock: { ...rest, 'font-size': 'inherit' } }
                   }, 'codeBlock', '코드 블록 기본 글자 크기 유지');
                 } else {
                   updateCssRule('codeBlock', 'font-size', v);
@@ -3493,7 +3493,7 @@ ${guideContent}
                   const { 'font-size': _, ...rest } = currentMath;
                   triggerUpdate({
                     ...currentProfile,
-                    rules: { ...currentProfile.rules, math: rest }
+                    rules: { ...currentProfile.rules, math: { ...rest, 'font-size': 'inherit' } }
                   }, 'math', '수식 기본 글자 크기 유지');
                 } else {
                   updateCssRule('math', 'font-size', v);

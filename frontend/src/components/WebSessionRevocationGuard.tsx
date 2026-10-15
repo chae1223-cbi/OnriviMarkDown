@@ -1,87 +1,48 @@
-'use client';
-
+"use client";
 import { useEffect } from 'react';
+import { browserSessionPolling } from '@/lib/sessionPolling';
 
-// ====================================================================
-// 📊 [OMD-CORE-WebSessionRevocationGuard-0001] WebSessionRevocationGuard
-// 🎯 @KICK  : 웹 세션 만료/해제 감시 가드 - 에디터 밖 페이지에서도 본인 웹 세션 해제 시 로컬 정리 및 로그아웃 유도
-// 🛡️ @GUARD : Electron 데스크톱 앱 무조건 스킵, 세션 토큰 미존재 시 불필요한 Supabase 모듈 로딩 원천 차단
-// 🚨 @PATCH : **2026-10-02** — [Supabase 클라이언트 동적 지연 임포트(Lazy Dynamic Import)]: 루트 layout.js에 2.8MB Supabase 라이브러리가 번들링되어 첫 로딩 지연 및 layout.js:500 SyntaxError 발생하던 문제 완전 해결. 실제 탭 세션 존재 시에만 비동기 import 수행
-// 🔗 @CALLS : /api/device/session-status
-// ====================================================================
-
+/** One web monitor for both editor and non-editor pages. */
 export function WebSessionRevocationGuard() {
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if ((window as any).electronAPI || navigator.userAgent.toLowerCase().includes('electron') ||
+    if ((window as any).electronAPI || /electron/i.test(navigator.userAgent) ||
         new URLSearchParams(window.location.search).get('env') === 'desktop') return;
-
-    let observedKey = '';
-    let hadSession = false;
-    let inFlight = false;
-    let signingOut = false;
-    let disposed = false;
-
-    const checkSession = async () => {
-      if (inFlight || signingOut || disposed) return;
+    let observedKey = '', hadSession = false, signingOut = false, disposed = false;
+    const polling = browserSessionPolling(async () => {
+      if (disposed || signingOut) return 'skip';
+      if (!navigator.onLine) return false;
       const deviceUuid = sessionStorage.getItem('onrivi_tab_session_id');
-      if (!deviceUuid) return;
-
-      inFlight = true;
-      try {
-        const [{ supabase }, { clearAuthSessionStorage }] = await Promise.all([
-          import('@/lib/supabaseClient'),
-          import('@/lib/authSessionHelper'),
-        ]);
-
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token || !session.user?.id || disposed) return;
-
-        const key = `${session.user.id}:${deviceUuid}`;
-        if (observedKey !== key) {
-          observedKey = key;
-          hadSession = false;
-        }
-
-        const response = await fetch(`/api/device/session-status?device_uuid=${encodeURIComponent(deviceUuid)}`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-          cache: 'no-store',
-        });
-        if (!response.ok || disposed) return;
-
-        const data = await response.json() as { exists?: boolean };
-        if (data.exists === true) {
-          hadSession = true;
-        } else if (data.exists === false && hadSession) {
-          signingOut = true;
-          try {
-            await supabase.auth.signOut({ scope: 'local' });
-          } finally {
-            clearAuthSessionStorage();
-            window.location.replace('/login?session=revoked');
-          }
-        }
-      } catch (error) {
-        // 일시적인 네트워크·DB 오류만으로 사용자를 로그아웃시키지 않는다.
-        console.warn('[web session] revocation check failed', error);
-      } finally {
-        inFlight = false;
+      if (!deviceUuid) return 'skip';
+      const [{ supabase }, { clearAuthSessionStorage }] = await Promise.all([
+        import('@/lib/supabaseClient'), import('@/lib/authSessionHelper')
+      ]);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token || !session.user?.id || disposed) return 'skip';
+      const key = `${session.user.id}:${deviceUuid}`;
+      if (observedKey !== key) { observedKey = key; hadSession = false; }
+      const response = await fetch('/api/license/check-session', {
+        method: 'POST', headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_device_uuid: deviceUuid }), cache: 'no-store', signal: AbortSignal.timeout(10000)
+      });
+      if (!response.ok || disposed) return false;
+      const data = await response.json();
+      if (disposed || sessionStorage.getItem('onrivi_tab_session_id') !== deviceUuid) return 'skip';
+      if (!data.success) return false;
+      if (data.exists) hadSession = true;
+      const event = new CustomEvent('onrivi:license-session', { cancelable: true, detail: { ...data, device_uuid: deviceUuid } });
+      window.dispatchEvent(event);
+      // The editor handles its own read-only state and logout notification.
+      if (event.defaultPrevented) return true;
+      if (data.is_terminated === true && hadSession) {
+        signingOut = true;
+        try { await supabase.auth.signOut({ scope: 'local' }); }
+        finally { clearAuthSessionStorage(); window.location.replace('/login?session=revoked'); }
       }
-    };
-
-    void checkSession();
-    const timer = window.setInterval(() => { void checkSession(); }, 5000);
-    const checkOnFocus = () => { void checkSession(); };
-    const checkOnVisibility = () => { if (document.visibilityState === 'visible') void checkSession(); };
-    window.addEventListener('focus', checkOnFocus);
-    document.addEventListener('visibilitychange', checkOnVisibility);
-    return () => {
-      disposed = true;
-      window.clearInterval(timer);
-      window.removeEventListener('focus', checkOnFocus);
-      document.removeEventListener('visibilitychange', checkOnVisibility);
-    };
+      return true;
+    });
+    const request = () => polling.request();
+    window.addEventListener('onrivi:session-check-request', request);
+    return () => { disposed = true; polling.stop(); window.removeEventListener('onrivi:session-check-request', request); };
   }, []);
-
   return null;
 }

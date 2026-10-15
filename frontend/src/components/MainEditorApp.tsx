@@ -326,6 +326,7 @@ import { useMonacoSetup } from '@/hooks/editor/useMonacoSetup';
 import { useUIStore } from '@/store/useUIStore';
 import { useToast } from '@/components/ToastProvider';  // 토스트 메시지
 import { msg } from '@/lib/systemMessages'; // 메시지
+import { browserSessionPolling } from '@/lib/sessionPolling';
 import { getApiUrl } from '@/lib/apiUrlBuilder'; // api 서버 경로
 import { exportPDF, exportHTML, exportEPUB, exportPNG } from '@/lib/exportHandlers'; // 파일 내보내기 핸들러
 import { configureMonacoEnvironment } from '@/lib/monacoEnv'; // Monaco 환경 설정
@@ -2560,29 +2561,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     });
   }, [loadAndVerifyLicense, deviceId, setIsLicenseChecking]);
 
-  // 💻 [Heartbeat 가드] 20초마다 라이선스 세션의 활동 시각(last_active_at)을 갱신하고 강탈 여부를 검사
+  // One adaptive monitor: web uses the root guard; desktop owns its monitor here.
   useEffect(() => {
     if (typeof window === 'undefined' || !deviceId || isLicenseChecking || isGuestMode) return;
-
-    const intervalId = setInterval(async () => {
-      const paymentNo = localStorage.getItem('onrivi_payment_no');
-      if (!paymentNo) return;
-
-      try {
-        const isDesktopEnv = typeof window !== 'undefined' && (!!(window as any).electronAPI || new URLSearchParams(window.location.search).get('env') === 'desktop');
-        // 🚨 @PATCH : 2026-09-16 웹 환경에서는 탭 격리 세션 ID를 우선 전송하여 타 기기/탭의 세션 변경을 정밀 감지
-        const currentSessionId = isDesktopEnv ? deviceId :
-          (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('onrivi_tab_session_id') : null) || localStorage.getItem('onrivi_session_id') || deviceId;
-        const chkRes = await fetch(getApiUrl('/api/license/check-session'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ p_payment_no: paymentNo, p_device_uuid: currentSessionId })
-        });
-        const chk = chkRes.ok ? await chkRes.json() : null;
-
+    let disposed = false, ending = false;
+    const isDesktopEnv = !!(window as any).electronAPI || new URLSearchParams(window.location.search).get('env') === 'desktop';
+    const handleResult = (chk: any) => {
+      if (disposed) return;
         if (chk) {
           if (chk.success && (chk.is_terminated || (chk.has_session === false && chk.is_restricted === false))) {
             // 세션 자체가 DB에서 완전히 삭제(DELETE)된 경우 (대시보드 기기 해제, 타 기기/관리자 세션 종료 등) -> 무조건 강제 로그아웃
+            if (ending) return;
+            ending = true;
             setLicenseStatus(prev => {
               showToast("🛑 다른 화면 또는 대시보드에서 세션이 해제되었습니다. 자동으로 로그아웃됩니다.", "error");
               setTimeout(async () => {
@@ -2603,6 +2593,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               }, 2500);
               return { ...prev, isActivated: false, isExpired: true, planName: '세션 해제 (로그아웃 중...)' };
             });
+          } else if (chk.reason === 'PLAN_EXPIRED') {
+            setLicenseStatus(prev => ({ ...prev, isActivated: false, isExpired: true, isRestricted: true, isConcurrentLimited: false }));
+            if (previewModeRef.current !== 'preview') {
+              lastGeneralPreviewModeRef.current = previewModeRef.current;
+              setPreviewModeRaw('preview'); previewModeRef.current = 'preview';
+            }
           } else if (chk.success && chk.has_session === false && chk.is_restricted !== false) {
             // 세션은 존재하지만 활성화되지 않은 제한 사용자 상태인 경우 (타 화면에서 제어권 인수했거나 동시접속 초과)
             setLicenseStatus(prev => {
@@ -2655,12 +2651,32 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             });
           }
         }
-      } catch (err) {
-        console.warn('[Heartbeat] session verify failed:', err);
-      }
-    }, 20000); // 20초마다 주기적 검사 수행 (60초 DB 만료 대비 충분한 신뢰성 확보)
-
-    return () => clearInterval(intervalId);
+    };
+    if (!isDesktopEnv) {
+      const receive = (event: Event) => {
+        const message = event as CustomEvent;
+        if (message.detail?.device_uuid !== sessionStorage.getItem('onrivi_tab_session_id')) return;
+        event.preventDefault(); handleResult(message.detail);
+      };
+      window.addEventListener('onrivi:license-session', receive);
+      window.dispatchEvent(new Event('onrivi:session-check-request'));
+      return () => { disposed = true; window.removeEventListener('onrivi:license-session', receive); };
+    }
+    const polling = browserSessionPolling(async () => {
+      if (ending || disposed) return 'skip';
+      if (!navigator.onLine) return false;
+      const paymentNo = localStorage.getItem('onrivi_payment_no');
+      if (!paymentNo) return 'skip';
+      const response = await fetch(getApiUrl('/api/license/check-session'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_payment_no: paymentNo, p_device_uuid: deviceId }), signal: AbortSignal.timeout(10000)
+      });
+      if (!response.ok || disposed) return false;
+      const result = await response.json();
+      if (!result.success) return false;
+      handleResult(result); return true;
+    });
+    return () => { disposed = true; polling.stop(); };
   }, [deviceId, isLicenseChecking, setLicenseStatus, showToast, isGuestMode]);
 
   // 📊 [OMD-CITATION-MainEditorApp] .bib 워크스페이스 자동 로드
@@ -6963,8 +6979,22 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     });
 
     // 🧰 구조제어: 표 글자 크기 동적 상속 (설정하지 않은 경우 페이지 기본 크기를 따름)
+  // Resolve base-size controls against the document, even inside fixed-size wrappers.
+  const baseSizeSelectors = {
+    blockquote: 'blockquote, blockquote > p',
+    codeBlock: '.codeblock-area pre, .codeblock-area pre code',
+    math: '.katex-display .katex, :not(.katex-display) > .katex',
+  };
+  Object.entries(baseSizeSelectors).forEach(([tag, selectors]) => {
+    const configured = prof.rules[tag as keyof CssProfile['rules']]?.['font-size'];
+    const size = !configured || ['inherit', '0', '0px'].includes(String(configured)) ? ps.fontSize : configured;
+    const scoped = ['.custom-preview-container', '.onrivi-content-root']
+      .flatMap(root => selectors.split(', ').map(selector => `${root} ${selector}`)).join(', ');
+    css += `${scoped} { font-size: ${size} !important; }\n`;
+  });
+
     const tableHasFontSize = prof.rules.table && prof.rules.table['font-size'];
-    if (!tableHasFontSize) {
+    if (!tableHasFontSize || ['inherit', '0', '0px'].includes(String(tableHasFontSize))) {
       css += `
 .custom-preview-container table,
 .custom-preview-container th,
@@ -6972,7 +7002,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 .onrivi-content-root table,
 .onrivi-content-root th,
 .onrivi-content-root td {
-  font-size: inherit !important;
+  font-size: ${ps.fontSize} !important;
 }
 `;
     }

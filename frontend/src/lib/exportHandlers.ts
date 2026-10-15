@@ -545,8 +545,22 @@ p .onrivi-line + .onrivi-line {
     }
   });
 
+  // Resolve base-size controls against the document, even inside fixed-size wrappers.
+  const baseSizeSelectors = {
+    blockquote: 'blockquote, blockquote > p',
+    codeBlock: '.codeblock-area pre, .codeblock-area pre code',
+    math: '.katex-display .katex, :not(.katex-display) > .katex',
+  };
+  Object.entries(baseSizeSelectors).forEach(([tag, selectors]) => {
+    const configured = profile.rules[tag as keyof CssProfile['rules']]?.['font-size'];
+    const size = !configured || ['inherit', '0', '0px'].includes(String(configured)) ? ps.fontSize : configured;
+    const scoped = ['.custom-preview-container', '.onrivi-content-root']
+      .flatMap(root => selectors.split(', ').map(selector => `${root} ${selector}`)).join(', ');
+    css += `${scoped} { font-size: ${size} !important; }\n`;
+  });
+
   const tableHasFontSize = profile.rules.table && profile.rules.table['font-size'];
-  if (!tableHasFontSize) {
+  if (!tableHasFontSize || ['inherit', '0', '0px'].includes(String(tableHasFontSize))) {
     css += `
 .custom-preview-container table,
 .custom-preview-container th,
@@ -554,7 +568,7 @@ p .onrivi-line + .onrivi-line {
 .onrivi-content-root table,
 .onrivi-content-root th,
 .onrivi-content-root td {
-  font-size: inherit !important;
+  font-size: ${ps.fontSize} !important;
 }
 `;
   }

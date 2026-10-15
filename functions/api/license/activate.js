@@ -64,7 +64,7 @@ export async function onRequestPost({ request, env }) {
         (!sub.current_period_end || new Date(sub.current_period_end).getTime() > Date.now());
 
       if (isWeb) {
-        // 하트비트가 2분 넘게 중단된 웹 세션만 정리한다. 데스크톱은 건드리지 않는다.
+        // 하트비트가 5분 넘게 중단된 웹 세션만 정리한다. 데스크톱은 건드리지 않는다.
         await db.query(`
           UPDATE public.license_activations AS activation
           SET is_active = false, updated_at = now()
@@ -72,7 +72,7 @@ export async function onRequestPost({ request, env }) {
           WHERE activation.subscription_id = subscription.id AND subscription.user_id = $1
             AND activation.is_active = true
             AND lower(trim(coalesce(activation.device_name, ''))) IN ('web saas', 'web browser')
-            AND coalesce(activation.updated_at, activation.activated_at) < now() - interval '2 minutes'`, [sub.user_id]);
+            AND coalesce(activation.updated_at, activation.activated_at) < now() - interval '5 minutes'`, [sub.user_id]);
 
         if (body.p_force_takeover === true && eligible) {
           await db.query(`
