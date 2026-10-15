@@ -1,7 +1,7 @@
 // @ts-nocheck
 // ====================================================================
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
-// 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 모나코 에디터 3대 이벤트(타이핑/커서/스크롤) 단일 책임 연동
+// 🚨 @PATCH : **2026-10-15** — [슬래시 자동완성(Suggest Widget) 서식 설명 열 왼쪽 정렬 스타일 동적 주입]: Monaco의 Suggest Widget 상세 열(.details-label / .right)이 우측 정렬되어 서식명 대괄호([)가 울퉁불퉁해지던 레이아웃을 flex-start 및 고정 열 너비(220px) 기반의 단정한 왼쪽 정렬로 보장하는 전용 스타일 시트 주입
 // 🚨 @PATCH : **2026-10-14** — [마우스 단일 클릭 시 드래그 앵커 보정 간섭 차단]: onDidChangeCursorSelection에서 드래그 선택 영역이 존재할 때(!e.selection.isEmpty())에만 고속 드래그 앵커 보정이 동작하도록 가드를 보강하여 단일 클릭 시 커서 위치 왜곡 방지
 // 🚨 @PATCH : **2026-10-13** — [나란히 보기 마크다운 영역 읽기 전용 잠금·라인번호 숨김 및 배경색 시각적 경계 분리]: 나란히 보기(previewMode === 'both')에서 마크다운 영역 직접 입력/붙여넣기/드롭/커서 노출을 차단하고, 라인번호(lineNumbers: 'off')를 숨기며, 모달·문서 편집기 위임 프로그래밍 방식 편집(executeEdits)만 안전하게 통과하도록 처리하고 슬레이트 배경색(#eef2f6) 적용
 // 🚨 @PATCH : **2026-10-02** — [이미지 드래그 앤 드롭 실시간 위치 가이드라인 및 드롭 타겟 라인/커서 인디케이터 탑재]: 이미지 드래그 중 마우스 아래 삽입 위치(행 전체 하이라이트 및 실시간 커서 바/위치 뱃지)를 드롭 전에 즉시 시각적으로 확인 가능하도록 완벽 구현
@@ -81,6 +81,80 @@ export function useMonacoSetup(deps: any) {
                   editorRef.current = editor;
                   if (typeof window !== 'undefined') {
                     (window as any).monaco = monaco;
+                  }
+
+                  // 💡 [슬래시 자동완성 서식설명 열 왼쪽 정렬 동적 주입] Monaco Suggest Widget의 오른쪽 열이 왼쪽 정렬되도록 보장
+                  if (typeof document !== 'undefined' && !document.getElementById('onrivi-monaco-suggest-styles')) {
+                    const styleEl = document.createElement('style');
+                    styleEl.id = 'onrivi-monaco-suggest-styles';
+                    styleEl.textContent = `
+                      .suggest-widget,
+                      .monaco-editor .suggest-widget {
+                        min-width: 520px !important;
+                        z-index: 9999 !important;
+                        pointer-events: auto !important;
+                      }
+                      .suggest-widget *,
+                      .monaco-editor .suggest-widget * {
+                        pointer-events: auto !important;
+                      }
+                      .suggest-widget .monaco-list-row .contents .main,
+                      .suggest-widget .monaco-list .monaco-list-row > .contents > .main,
+                      .monaco-editor .suggest-widget .monaco-list-row .contents .main,
+                      .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main {
+                        display: flex !important;
+                        justify-content: flex-start !important;
+                        align-items: center !important;
+                        gap: 0 !important;
+                        width: 100% !important;
+                      }
+                      .suggest-widget .monaco-list-row .contents .main .left,
+                      .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left,
+                      .monaco-editor .suggest-widget .monaco-list-row .contents .main .left,
+                      .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left {
+                        flex: 0 0 220px !important;
+                        width: 220px !important;
+                        min-width: 220px !important;
+                        max-width: 220px !important;
+                        display: flex !important;
+                        align-items: center !important;
+                        overflow: hidden !important;
+                        text-overflow: ellipsis !important;
+                        white-space: nowrap !important;
+                      }
+                      .suggest-widget .monaco-list-row .contents .main .right,
+                      .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right,
+                      .monaco-editor .suggest-widget .monaco-list-row .contents .main .right,
+                      .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right {
+                        flex: 1 1 auto !important;
+                        width: auto !important;
+                        display: flex !important;
+                        justify-content: flex-start !important;
+                        align-items: center !important;
+                        text-align: left !important;
+                        margin-left: 14px !important;
+                        max-width: none !important;
+                        overflow: hidden !important;
+                      }
+                      .suggest-widget .monaco-list-row .contents .main .right .details-label,
+                      .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .details-label,
+                      .monaco-editor .suggest-widget .monaco-list-row .contents .main .right .details-label,
+                      .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .details-label {
+                        text-align: left !important;
+                        margin-left: 0 !important;
+                        width: 100% !important;
+                        display: inline-block !important;
+                        opacity: 0.7 !important;
+                        white-space: nowrap !important;
+                        text-overflow: ellipsis !important;
+                      }
+                      .suggest-widget .monaco-list-row .contents .main .right .details-label .monaco-tokenized-source,
+                      .monaco-editor .suggest-widget .monaco-list-row .contents .main .right .details-label .monaco-tokenized-source {
+                        text-align: left !important;
+                        display: inline-block !important;
+                      }
+                    `;
+                    document.head.appendChild(styleEl);
                   }
 
                   // 🔒 나란히 보기(previewMode === 'both')에서 마크다운 영역은 사용자 직접 편집이 금지(readOnly: true)되지만,

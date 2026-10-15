@@ -25,6 +25,8 @@ export const dismissDriveAuthNotices = () => {
 // 📊 [OMD-EDIT-toast-0001] toast ➔ showToast
 // 🎯 @KICK  : 화면 우측 상단에 프리미엄 토마토 테마 Toast 알림을 동적으로 생성하여 표시한다
 // 🛡️ @GUARD : SSR 환경에서는 early return, 컨테이너 미존재 시 생성
+// 🚨 @PATCH : **2026-10-15** — [개인 웹드라이브 인증 안내 문구 표준화]:
+//             [내 구글 드라이브 연결] 안내 문구를 [개인 웹드라이브 연결]로 일원화
 // 🚨 @PATCH : **2026-07-22** — 영문 예외 및 서버 메시지가 노출되는 현상을 방지하도록 Supabase/서버 오류용 자동 한글 변환 맵(translateToKorean)을 탑재하여 모든 알림이 친절한 한글 메시지로 보정되어 표출되도록 개선 패치
 // 🔗 @CALLS : ToastType
 // ====================================================================
@@ -61,7 +63,7 @@ export const showToast = (message: string, type: ToastType = 'info') => {
   if (driveAuthNotice) {
     if (driveAuthNoticeShown) return;
     driveAuthNoticeShown = true;
-    message='구글 드라이브 인증을 갱신해 주세요. 연결 해제 없이 파일 메뉴의 [내 구글 드라이브 연결]에서 다시 인증할 수 있습니다.';
+    message='개인 웹드라이브 인증을 갱신해 주세요. 연결 해제 없이 파일 메뉴의 [개인 웹드라이브 연결]에서 다시 인증할 수 있습니다.';
     type='warning';
   }
   if (type === 'error' || type === 'warning') reportClientLog(translateToKorean(message), type === 'error' ? 'ERROR' : 'WARN', location.pathname === '/login' ? 'LOGIN_NOTICE' : 'USER_NOTICE');

@@ -2,16 +2,20 @@
 // 📊 [OMD-UI-PreviewToolbar-0001] PreviewToolbar ➔ PreviewToolbar
 // 🎯 @KICK  : 미리보기(Preview) 전용 컨트롤러 — 텍스트 찾기, 배율 확대/축소(50%~200%), 100% 리셋 및 내용 복사 지원
 // 🛡️ @GUARD : 인쇄 시 no-print로 자동 숨김 처리, 문서 가독성을 해치지 않도록 미세 투명도 및 호버 시 완전 노출
+// 🚨 @PATCH : **2026-10-15** — [미리보기 전용 컨트롤 툴바에 '바꾸기(Replace)' 버튼 추가 및 화면 흔들림 방어]:
+//             1) 찾기(Search) 버튼 바로 우측에 바꾸기(Replace, Ctrl+H) 원클릭 토글 버튼 신설
+//             2) 찾기(Find) 및 바꾸기(Replace) 모드 간 상호 전환 및 활성 상태 하이라이트 분리 지원
+//             3) 버튼 활성화 시 font-semibold로 인한 폰트 폭 팽창 및 transition-all 제거로 툴바 미세 떨림 방지
 // 🚨 @PATCH : **2026-09-30** — [미리보기 전용 컨트롤 툴바 단축키 툴팁 최신화 및 충돌 방지]:
 //             1. 🔍 찾기: Ctrl+Alt+F (전역 직접 토글) / 미리보기 포커스 시 Ctrl+F
 //             2. ➖ 축소: Ctrl+- (Ctrl+Wheel), 🏷️ 배율 리셋: Ctrl+0, ➕ 확대: Ctrl+= (Ctrl+Wheel)
 //             3. 📋 클립보드 복사 원클릭 버튼 연동
-// 🔗 @CALLS : ZoomIn, ZoomOut, RotateCcw, Search, Copy, Check
+// 🔗 @CALLS : ZoomIn, ZoomOut, RotateCcw, Search, Replace, Copy, Check
 // ====================================================================
 "use client";
 
 import React, { useState } from "react";
-import { ZoomIn, ZoomOut, Search, Copy, Check } from "lucide-react";
+import { ZoomIn, ZoomOut, Search, Replace, Copy, Check } from "lucide-react";
 
 interface PreviewToolbarProps {
   zoomScale: number;
@@ -20,6 +24,8 @@ interface PreviewToolbarProps {
   onZoomReset: () => void;
   onToggleFind: () => void;
   isFindOpen: boolean;
+  onToggleReplace?: () => void;
+  isReplaceOpen?: boolean;
   onCopyPreview?: () => void;
 }
 
@@ -30,6 +36,8 @@ export function PreviewToolbar({
   onZoomReset,
   onToggleFind,
   isFindOpen,
+  onToggleReplace,
+  isReplaceOpen,
   onCopyPreview,
 }: PreviewToolbarProps) {
   const [copied, setCopied] = useState(false);
@@ -56,13 +64,29 @@ export function PreviewToolbar({
         onClick={onToggleFind}
         title="미리보기에서 찾기 (단축키: Ctrl+Alt+F / 미리보기 포커스 시 Ctrl+F)"
         className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition-all ${
-          isFindOpen
+          isFindOpen && !isReplaceOpen
             ? "bg-blue-600 text-white font-semibold shadow-xs"
             : "hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200"
         }`}
       >
         <Search className="w-3.5 h-3.5" />
       </button>
+
+      {/* 🔀 텍스트 바꾸기 토글 버튼 */}
+      {onToggleReplace && (
+        <button
+          type="button"
+          onClick={onToggleReplace}
+          title="미리보기에서 바꾸기 (단축키: Ctrl+H)"
+          className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition-all ${
+            isFindOpen && isReplaceOpen
+              ? "bg-blue-600 text-white font-semibold shadow-xs"
+              : "hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200"
+          }`}
+        >
+          <Replace className="w-3.5 h-3.5" />
+        </button>
+      )}
 
       {/* 구분선 */}
       <div className="w-[1px] h-3.5 bg-slate-200 dark:bg-zinc-700 mx-0.5" />

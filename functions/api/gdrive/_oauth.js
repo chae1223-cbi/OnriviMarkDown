@@ -74,10 +74,10 @@ export async function handleDriveOAuth(request, env) {
       if (browserState && !/^[\w-]{43}$/.test(browserState)) return json({ error: '인증 요청이 올바르지 않습니다.' }, 400);
       if (port && (!/^\d+$/.test(port) || Number(port) < 49152 || Number(port) > 65535 || !/^[\w-]{43}$/.test(challenge || '') || !/^[\w-]{43}$/.test(desktopState || ''))) return json({ error: '데스크톱 인증 요청이 올바르지 않습니다.' }, 400);
       const state = random(), verifier = random();
-      const payload = await seal(env, { state, verifier, port, challenge, desktopState, browserState, expires: Date.now() + 600000 });
+      const payload = await seal(env, { state, verifier, port, challenge, desktopState, browserState, standalone: url.searchParams.get('standalone') === '1', expires: Date.now() + 600000 });
       const target = new URL('https://accounts.google.com/o/oauth2/v2/auth');
       target.search = new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID, redirect_uri: redirect.href,
-        response_type: 'code', access_type: 'offline', prompt: 'consent', state,
+        response_type: 'code', access_type: 'offline', prompt: 'select_account consent', state,
         code_challenge: await digest(verifier), code_challenge_method: 'S256',
         scope: 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile'
       }).toString();
@@ -103,7 +103,8 @@ export async function handleDriveOAuth(request, env) {
         headers.set('Location', `http://127.0.0.1:${state.port}/callback?code=${ticket}&state=${state.desktopState}`);
         return new Response(null, { status: 302, headers });
       }
-      headers.append('Set-Cookie', cookie(sessionCookie, session, 90 * 86400, secure));
+      // Saving to another account must not replace the workspace refresh session.
+      headers.append('Set-Cookie', cookie(state.standalone ? `${sessionCookie}_${state.browserState}` : sessionCookie, session, state.standalone ? 600 : 90 * 86400, secure));
       const message = { type: 'onrivi:drive-oauth', access_token: tokens.access_token, expires_in: Number(tokens.expires_in) || 3600 };
       return page('Google Drive 연결이 완료되었습니다. 이 창을 닫아도 됩니다.',
         `try{if(window.opener)window.opener.postMessage(${safeScript(message)},${safeScript(origin)});}finally{window.close();}`, headers);
@@ -123,12 +124,14 @@ export async function handleDriveOAuth(request, env) {
       if (!session) return json({ error: '인증 세션이 만료되었습니다.' }, 401);
       return json({ access_token: session.accessToken, expires_in: Math.max(1, Math.floor((session.accessExpires - Date.now()) / 1000)), session_token: record.session });
     }
-    const sessionId = bearer || requestCookies[sessionCookie];
+    const statusInput = route === 'oauth/status' ? await request.json() : null;
+    const selectedCookie = statusInput?.standalone && /^[\w-]{43}$/.test(statusInput.state || '') ? `${sessionCookie}_${statusInput.state}` : sessionCookie;
+    const sessionId = bearer || requestCookies[selectedCookie];
     if (route === 'oauth/status' && !sessionId) return json({ pending: true }, 202);
     if (!/^[\w-]{43}$/.test(sessionId || '')) return json({ code: 'REAUTH_REQUIRED', error: 'Google Drive를 다시 연결해 주세요.' }, 401);
     const key = `sessions/${await digest(sessionId)}`;
     if (route === 'oauth/status') {
-      const input = await request.json(), session = await load(env, key);
+      const input = statusInput, session = await load(env, key);
       if (!session || !input.state || session.browserState !== input.state) return json({ pending: true }, 202);
       return json({ access_token: session.accessToken, expires_in: Math.max(1, Math.floor((session.accessExpires - Date.now()) / 1000)) });
     }

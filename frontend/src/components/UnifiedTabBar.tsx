@@ -8,6 +8,7 @@ import { useEditorContext } from '@/context/EditorContext';
 // 📊 [OMD-EDIT-UnifiedTabBar-0002] UnifiedTabBar ➔ EditorTab
 // 🎯 @KICK  : 에디터 탭 인터페이스 - id, name, path, content, isModified 등 탭 상태 정의
 // 🛡️ @GUARD : 없음
+// 🚨 @PATCH : **2026-10-15** — [화면 흔들림 방어]: 탭 항목 및 (+) 버튼의 transition-all, scale-[0.98], active:scale-95를 transition-colors 및 고정 스케일로 전환하여 클릭/전환 시 탭 바 및 화면 미세 떨림 완전 해소
 // 🚨 @PATCH : **2026-10-11** — [열린 탭 우클릭 이름 바꾸기 및 더블클릭 이름 변경 지원]:
 //             탭 우클릭 컨텍스트 메뉴(Pencil) 및 더블클릭을 통해 열려 있는 문서의 이름을 즉각 변경하고, 파일 시스템 및 탭 메타데이터(file:tab-renamed) 실시간 동기화
 // 🚨 @PATCH : **2026-10-11** — [상단 탭 바 브라우저 표준 새 문서(+) 버튼 신설]:
@@ -239,11 +240,11 @@ export default function UnifiedTabBar() {
                 onClick={() => { if (!isActive) onSwitchTab(tab.id); }}
                 onContextMenu={(e) => handleContextMenu(e, tab.id)}
                 onDoubleClick={(e) => { e.stopPropagation(); setRenamePrompt({ isOpen: true, tabId: tab.id, currentName: tab.name.replace(/\.md$/i, '') }); }}
-                className={`group relative flex items-center gap-2 px-3 py-1 rounded-md text-[12px] font-bold cursor-pointer transition-all duration-150 ${
+                className={`group relative flex items-center gap-2 px-3 py-1 rounded-md text-[12px] font-bold cursor-pointer transition-colors outline-none focus:outline-none select-none ${
                   isActive
                     ? 'bg-gradient-to-r from-[#1d4ed8] to-[#1e40af] text-white shadow-sm shadow-[#1d4ed8]/30'
                     : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
-                } ${draggedTabId === tab.id ? 'opacity-40 scale-[0.98] border-dashed border-[#1d4ed8]' : ''}`}
+                } ${draggedTabId === tab.id ? 'opacity-40 border-dashed border-[#1d4ed8]' : ''}`}
                 style={{
                   zIndex: isActive ? 2 : 1,
                 }}
@@ -260,8 +261,9 @@ export default function UnifiedTabBar() {
                 
                 {/* 💡 2. 닫기 단추: 저장 여부와 관계없이 항상 언제나 노출 */}
                 <button
+                  type="button"
                   onClick={(e) => onCloseTab(tab.id, e)}
-                  className={`w-4 h-4 flex items-center justify-center rounded-full transition-all duration-150 p-0.5 ${
+                  className={`w-4 h-4 flex items-center justify-center rounded-full transition-colors p-0.5 outline-none focus:outline-none ${
                     isActive
                       ? 'hover:bg-black/20 text-white/90 hover:text-white'
                       : 'opacity-65 group-hover:opacity-100 hover:bg-slate-200/60 dark:hover:bg-zinc-800 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200'
@@ -283,7 +285,7 @@ export default function UnifiedTabBar() {
                 dispatchCommand('NEW_FILE');
               }
             }}
-            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-black/10 dark:hover:bg-white/10 text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white transition-all shrink-0 active:scale-95 ml-0.5"
+            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-black/10 dark:hover:bg-white/10 text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white transition-colors shrink-0 ml-0.5 outline-none focus:outline-none"
             title="새 문서 열기 (Ctrl+N)"
           >
             <Plus className="w-4 h-4" />

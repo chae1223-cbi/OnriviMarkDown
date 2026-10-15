@@ -2,6 +2,14 @@
 // 📊 [OMD-LIB-googleDriveClient-0001] src/lib/gdrive/googleDriveClient.ts
 // 🎯 @KICK  : 누구나 쉽게 사용하는 구글 드라이브 무설정(Zero-Config) 자동 연동 및 클라우드 작업장 클라이언트 모듈
 // 🛡️ @GUARD : Rule 1, Rule 2(대문자 코드값 GDRIVE), 최소 권한 원칙(drive.file 스코프 한정)
+// 🚨 @PATCH : **2026-10-15** — [웹드라이브 작업장 유지 상태에서 다른 웹드라이브로의 독립 저장 완벽 지원]:
+//             1) 다중 구글 드라이브 계정 관리 레지스트리(DriveAccountEntry / getSavedDriveAccounts / saveDriveAccount) 신설
+//             2) requestGoogleDriveAuth에 isStandalone 옵션을 추가하여 다른 웹드라이브 계정 로그인/저장 시 현재 활성 작업장 토큰(STORAGE_KEY_TOKEN) 및 상태를 절대 덮어쓰지 않고 100% 무간섭 격리
+//             3) 현재 웹드라이브 작업장을 종료하거나 연결 해제하지 않고도 다른 웹드라이브 계정으로의 자유로운 저장을 가능하게 보장
+// 🚨 @PATCH : **2026-10-15** — [다중 웹드라이브(공유 드라이브 및 다중 계정) 전면 지원]:
+//             1) listSharedDrives 신설로 사용자가 소속된 모든 공유 드라이브(Shared Drives) 목록 조회 지원
+//             2) listDriveChildren, findDriveFolder, createDriveFolder, createDriveMarkdownFile 등에 supportsAllDrives=true 및 includeItemsFromAllDrives=true를 적용하여 개인 드라이브뿐 아니라 모든 공유 드라이브 호환
+//             3) '내 구글 드라이브 연결' 문구를 '개인 웹드라이브 연결'로 표준화
 // 🚨 @PATCH : **2026-10-14** — [구글 드라이브 인증 중복 호출 방어(activeAuthPromise) 및 데스크톱 무음 갱신 시 강제 브라우저 팝업 방지]:
 //             1) requestGoogleDriveAuth에 인-플라이트 프로미스(activeAuthPromise) 싱글톤을 적용하여 동시 다발적 인증 호출 시 단일 요청으로 공유 대기
 //             2) refreshDriveTokenSilently 실행 시 데스크톱 환경에서 사용자 동의 없는 브라우저 창 자동 팝업을 차단하고 만료 알림 이벤트로 안전 유도
@@ -98,6 +106,73 @@ const STORAGE_KEY_TOKEN = 'onrivi_gdrive_access_token';
 const STORAGE_KEY_EXPIRY = 'onrivi_gdrive_token_expires_at';
 const STORAGE_KEY_WORKSPACE = 'onrivi_gdrive_workspace_info';
 export const STORAGE_KEY_EMERGENCY_DRAFTS = 'onrivi_emergency_gdrive_drafts';
+export const STORAGE_KEY_SAVED_ACCOUNTS = 'onrivi_saved_drive_accounts';
+
+export interface DriveAccountEntry {
+  email: string;
+  name?: string;
+  token: string;
+  expiresAt: number;
+  isWorkspaceAccount?: boolean;
+}
+
+/**
+ * 저장된 다중 구글 드라이브 계정 목록 조회
+ */
+export function getSavedDriveAccounts(): DriveAccountEntry[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_SAVED_ACCOUNTS);
+    const parsed: DriveAccountEntry[] = raw ? JSON.parse(raw) : [];
+    const accounts = Array.isArray(parsed) ? parsed.filter(a => a && a.email && a.token) : [];
+
+    // 현재 활성 작업장 토큰 계정이 있으면 최우선 포함 보장
+    const currentToken = getSavedDriveToken();
+    const wsInfo = getSavedWorkspaceInfo();
+    const currentEmail = wsInfo?.userEmail || localStorage.getItem('onrivi_active_drive_account');
+    if (currentToken && currentEmail) {
+      const existing = accounts.find(a => a.email.toLowerCase() === currentEmail.toLowerCase());
+      if (existing) {
+        existing.token = currentToken;
+        existing.isWorkspaceAccount = true;
+      } else {
+        accounts.unshift({
+          email: currentEmail,
+          name: wsInfo?.userName || currentEmail.split('@')[0],
+          token: currentToken,
+          expiresAt: Number(localStorage.getItem(STORAGE_KEY_EXPIRY)) || (Date.now() + 3600000),
+          isWorkspaceAccount: true
+        });
+      }
+    }
+    return accounts;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 다중 구글 드라이브 계정 등록/갱신
+ */
+export function saveDriveAccount(account: DriveAccountEntry): void {
+  if (typeof window === 'undefined' || !account?.email || !account?.token) return;
+  try {
+    const accounts = getSavedDriveAccounts().filter(a => a.email.toLowerCase() !== account.email.toLowerCase());
+    accounts.push(account);
+    localStorage.setItem(STORAGE_KEY_SAVED_ACCOUNTS, JSON.stringify(accounts));
+  } catch {}
+}
+
+/**
+ * 다중 구글 드라이브 계정 삭제
+ */
+export function removeDriveAccount(email: string): void {
+  if (typeof window === 'undefined' || !email) return;
+  try {
+    const accounts = getSavedDriveAccounts().filter(a => a.email.toLowerCase() !== email.toLowerCase());
+    localStorage.setItem(STORAGE_KEY_SAVED_ACCOUNTS, JSON.stringify(accounts));
+  } catch {}
+}
 
 export interface EmergencyDriveDraft {
   tabId: string;
@@ -386,6 +461,19 @@ export function saveDriveToken(token: string, expiresIn: number = 3600): void {
   // 토큰 만료 3분 전부터 활동 여부에 따라 갱신한다.
   scheduleDriveTokenRefresh(expiresIn);
   window.dispatchEvent(new CustomEvent('onrivi:drive_token_updated', { detail: { token } }));
+
+  // 활성 작업장 계정을 다중 계정 레지스트리에 자동 등록/갱신
+  void fetchGoogleUserInfo(token).then(info => {
+    if (info?.email) {
+      saveDriveAccount({
+        email: info.email,
+        name: info.name,
+        token,
+        expiresAt: Date.now() + Math.max(0, expiresIn) * 1000,
+        isWorkspaceAccount: true
+      });
+    }
+  }).catch(() => {});
 }
 
 /**
@@ -396,7 +484,7 @@ export function resolveAuthToken(token?: string): string {
     return token.trim();
   }
   const saved = getSavedDriveToken();
-  if (!saved) throw new Error('구글 드라이브 연결이 만료되었습니다. [내 구글 드라이브 연결]을 눌러 다시 인증해 주세요. 작성한 글은 유지됩니다.');
+  if (!saved) throw new Error('개인 웹드라이브 연결이 만료되었습니다. [개인 웹드라이브 연결]을 눌러 다시 인증해 주세요. 작성한 글은 유지됩니다.');
   return saved;
 }
 
@@ -465,7 +553,7 @@ export function disconnectGoogleDrive(): void {
 let activeAuthPromise: Promise<string> | null = null;
 
 /** Reserve the login window during the click, before checking an old token. */
-export function prepareGoogleDriveAuth() {
+export function prepareGoogleDriveAuth(options?: { isStandalone?: boolean }) {
   const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
   const popup = !api?.requestDesktopGDriveAuth && !activeAuthPromise
     ? window.open('about:blank', 'onrivi-drive-check-' + Date.now(), 'popup,width=560,height=720') : undefined;
@@ -474,28 +562,48 @@ export function prepareGoogleDriveAuth() {
     popup.document.body.textContent = 'Google Drive 연결을 확인하고 있습니다. 잠시 기다려 주세요.';
   }
   return {
-    request: () => requestGoogleDriveAuth(undefined, popup),
+    request: () => requestGoogleDriveAuth(undefined, popup, options),
     close: () => { try { popup?.close(); } catch {} }
   };
 }
 
 /**
  * 구글 OAuth 인증 팝업 호출 및 Access Token 발급
+ * @param clientId 클라이언트 ID
+ * @param preparedPopup 사전 생성된 팝업 윈도우
+ * @param options isStandalone: true 시 활성 작업장 토큰(STORAGE_KEY_TOKEN)을 덮어쓰지 않고 순수 토큰만 발급/등록하여 작업장 무간섭 보장
  */
-export async function requestGoogleDriveAuth(clientId?: string, preparedPopup?: Window | null): Promise<string> {
-  if (activeAuthPromise) return activeAuthPromise;
-  activeAuthPromise = (async () => {
+export async function requestGoogleDriveAuth(
+  clientId?: string,
+  preparedPopup?: Window | null,
+  options?: { isStandalone?: boolean }
+): Promise<string> {
+  const isStandalone = !!options?.isStandalone;
+  const runAuth = async () => {
     const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
     if (api?.requestDesktopGDriveAuth) {
-      const result = await api.requestDesktopGDriveAuth();
+      const result = await api.requestDesktopGDriveAuth({ isStandalone });
       if (!result?.access_token) throw new Error('데스크톱 Google Drive 인증에 실패했습니다.');
-      saveDriveToken(result.access_token, Number(result.expires_in) || 3600);
+      if (!isStandalone) {
+        saveDriveToken(result.access_token, Number(result.expires_in) || 3600);
+      }
+      void fetchGoogleUserInfo(result.access_token).then(info => {
+        if (info?.email) {
+          saveDriveAccount({
+            email: info.email,
+            name: info.name,
+            token: result.access_token,
+            expiresAt: Date.now() + (Number(result.expires_in) || 3600) * 1000,
+            isWorkspaceAccount: !isStandalone
+          });
+        }
+      }).catch(() => {});
       return result.access_token;
     }
     return new Promise<string>((resolve, reject) => {
       // Open synchronously from the user's click, before awaiting any request.
       const browserState = btoa(Array.from(crypto.getRandomValues(new Uint8Array(32)), byte => String.fromCharCode(byte)).join('')).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-      const target = '/api/gdrive/oauth/start?browser_state=' + browserState;
+      const target = '/api/gdrive/oauth/start?browser_state=' + browserState + (isStandalone ? '&standalone=1' : '');
       const popup = preparedPopup === undefined ? window.open(target, 'onrivi-drive-oauth', 'popup,width=560,height=720') : preparedPopup;
       if (!popup) { reject(new Error('Google Drive 로그인 창을 열 수 없습니다. 팝업을 허용해 주세요.')); return; }
       if (preparedPopup) {
@@ -513,7 +621,20 @@ export async function requestGoogleDriveAuth(clientId?: string, preparedPopup?: 
         if (typeof event.data.access_token !== 'string' || !event.data.access_token) return;
         finished = true; cleanup();
         try { popup.close(); } catch {}
-        saveDriveToken(event.data.access_token, Number(event.data.expires_in) || 3600);
+        if (!isStandalone) {
+          saveDriveToken(event.data.access_token, Number(event.data.expires_in) || 3600);
+        }
+        void fetchGoogleUserInfo(event.data.access_token).then(info => {
+          if (info?.email) {
+            saveDriveAccount({
+              email: info.email,
+              name: info.name,
+              token: event.data.access_token,
+              expiresAt: Date.now() + (Number(event.data.expires_in) || 3600) * 1000,
+              isWorkspaceAccount: !isStandalone
+            });
+          }
+        }).catch(() => {});
         resolve(event.data.access_token);
       };
       window.addEventListener('message', receive);
@@ -525,14 +646,27 @@ export async function requestGoogleDriveAuth(clientId?: string, preparedPopup?: 
         try {
           const response = await fetch('/api/gdrive/oauth/status', {
             method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ state: browserState }), signal: AbortSignal.timeout(10000)
+            body: JSON.stringify({ state: browserState, standalone: isStandalone }), signal: AbortSignal.timeout(10000)
           });
           if (response.status !== 200 || finished) return;
           const result = await response.json();
           if (finished || !result.access_token) return;
           finished = true; cleanup();
           try { popup.close(); } catch {}
-          saveDriveToken(result.access_token, Number(result.expires_in) || 3600);
+          if (!isStandalone) {
+            saveDriveToken(result.access_token, Number(result.expires_in) || 3600);
+          }
+          void fetchGoogleUserInfo(result.access_token).then(info => {
+            if (info?.email) {
+              saveDriveAccount({
+                email: info.email,
+                name: info.name,
+                token: result.access_token,
+                expiresAt: Date.now() + (Number(result.expires_in) || 3600) * 1000,
+                isWorkspaceAccount: !isStandalone
+              });
+            }
+          }).catch(() => {});
           resolve(result.access_token);
         } catch { /* Wait for the callback until the login timeout. */ }
         finally { polling = false; }
@@ -542,7 +676,13 @@ export async function requestGoogleDriveAuth(clientId?: string, preparedPopup?: 
         finished = true; cleanup(); popup.close(); reject(new Error('Google Drive 인증 시간이 초과되었습니다.'));
       }, 300000);
     });
-  })().finally(() => { activeAuthPromise = null; });
+  };
+
+  if (isStandalone) {
+    return runAuth();
+  }
+  if (activeAuthPromise) return activeAuthPromise;
+  activeAuthPromise = runAuth().finally(() => { activeAuthPromise = null; });
   return activeAuthPromise;
 }
 
@@ -657,7 +797,7 @@ export async function findDriveFolder(token?: string, folderName?: string, paren
     query += ` and '${parentFolderId}' in parents`;
   }
 
-  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,createdTime)&orderBy=createdTime asc`;
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,createdTime)&orderBy=createdTime asc&supportsAllDrives=true&includeItemsFromAllDrives=true`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${authToken}` },
   });
@@ -684,7 +824,7 @@ export async function createDriveFolder(token?: string, folderName?: string, par
     metadata.parents = [parentFolderId];
   }
 
-  const res = await fetch('https://www.googleapis.com/drive/v3/files', {
+  const res = await fetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${authToken}`,
@@ -722,7 +862,7 @@ export async function findDriveFile(token?: string, fileName?: string, parentFol
     query += ` and '${parentFolderId}' in parents`;
   }
 
-  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime,createdTime)&orderBy=modifiedTime desc`;
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime,createdTime)&orderBy=modifiedTime desc&supportsAllDrives=true&includeItemsFromAllDrives=true`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${authToken}` },
   });
@@ -978,7 +1118,7 @@ export async function setupOnriviDriveWorkspace(token?: string, selectedFolder?:
 
 ### ✨ 어디서나 이어지는 글쓰기
 - **자동 저장**: 글을 작성하시면 구글 드라이브에 실시간으로 안전하게 저장됩니다.
-- **어디서나 열기**: 다른 컴퓨터나 브라우저에서도 **[내 구글 드라이브 연결]**만 누르면 이 글을 그대로 열어보실 수 있습니다.
+- **어디서나 열기**: 다른 컴퓨터나 브라우저에서도 **[개인 웹드라이브 연결]**만 누르면 이 글을 그대로 열어보실 수 있습니다.
 - **스마트폰 확인**: 휴대폰에서 **'구글 드라이브' 앱**을 열어 **OnriviAuthor ➔ 작업장** 폴더를 보시면 방금 작성하신 글이 들어있습니다.
 
 이제 자유롭게 글을 작성해보세요!
@@ -1109,7 +1249,14 @@ export async function listDriveChildren(token?: string, parentFolderId?: string,
   const rawList: any[] = [];
   let pageToken: string | undefined;
   do {
-    const params = new URLSearchParams({ q: query, fields: 'nextPageToken,files(id,name,mimeType,modifiedTime,size)', orderBy: 'folder,name', pageSize: '100' });
+    const params = new URLSearchParams({
+      q: query,
+      fields: 'nextPageToken,files(id,name,mimeType,modifiedTime,size)',
+      orderBy: 'folder,name',
+      pageSize: '100',
+      supportsAllDrives: 'true',
+      includeItemsFromAllDrives: 'true',
+    });
     if (pageToken) params.set('pageToken', pageToken);
     const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
       headers: { Authorization: `Bearer ${authToken}` },
@@ -1131,8 +1278,36 @@ export async function listDriveChildren(token?: string, parentFolderId?: string,
 }
 
 /**
+ * 사용자가 접근 가능한 모든 공유 드라이브(Shared Drives / Team Drives) 목록 조회
+ */
+export async function listSharedDrives(token?: string): Promise<Array<{ id: string; name: string }>> {
+  const authToken = resolveAuthToken(token);
+  if (!authToken) return [];
+  try {
+    const res = await fetch('https://www.googleapis.com/drive/v3/drives?pageSize=100', {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.drives || []).map((d: any) => ({ id: d.id, name: d.name }));
+  } catch {
+    return [];
+  }
+}
+
+/**
  * 마크다운 파일 내용 다운로드 (UTF-8 텍스트)
  */
+export async function readDriveImportFile(token: string, file: { id: string; name: string; mimeType?: string }): Promise<File> {
+  const authToken = resolveAuthToken(token);
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}?alt=media&supportsAllDrives=true`, {
+    headers: { Authorization: `Bearer ${authToken}` },
+    signal: AbortSignal.timeout(60000),
+  });
+  if (!res.ok) throw await parseDriveError(res, '가져올 파일 읽기', authToken);
+  return new File([await res.blob()], file.name, { type: file.mimeType || 'application/octet-stream' });
+}
+
 export async function readDriveFileContent(token?: string, fileId?: string): Promise<string> {
   const authToken = resolveAuthToken(token);
   if (!fileId) return '';
@@ -1152,7 +1327,7 @@ export async function readDriveFileContent(token?: string, fileId?: string): Pro
 export async function saveDriveFileContent(token?: string, fileId?: string, content: string = ''): Promise<boolean> {
   const authToken = resolveAuthToken(token);
   if (!fileId) return false;
-  const url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`;
+  const url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&supportsAllDrives=true`;
   const res = await fetch(url, {
     method: 'PATCH',
     headers: {
@@ -1200,7 +1375,7 @@ export async function createDriveMarkdownFile(
     content +
     closeDelimiter;
 
-  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${authToken}`,
@@ -1352,10 +1527,20 @@ export async function getDriveMediaImageBlobUrl(token?: string, mediaFolderId?: 
 /**
  * 파일 또는 폴더 삭제 (휴지통으로 이동)
  */
+export async function restoreDriveItem(token: string, fileId: string): Promise<boolean> {
+  const authToken = resolveAuthToken(token);
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?supportsAllDrives=true`, {
+    method: 'PATCH', headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trashed: false }),
+  });
+  if (!response.ok) throw await parseDriveError(response, '휴지통 항목 복원', authToken);
+  return true;
+}
+
 export async function trashDriveItem(token?: string, fileId?: string): Promise<boolean> {
   const authToken = resolveAuthToken(token);
   if (!fileId) return false;
-  const url = `https://www.googleapis.com/drive/v3/files/${fileId}`;
+  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`;
   const res = await fetch(url, {
     method: 'PATCH',
     headers: {
@@ -1364,7 +1549,8 @@ export async function trashDriveItem(token?: string, fileId?: string): Promise<b
     },
     body: JSON.stringify({ trashed: true }),
   });
-  return res.ok;
+  if (!res.ok) throw await parseDriveError(res, '휴지통으로 이동', authToken);
+  return true;
 }
 
 /**
@@ -1432,6 +1618,21 @@ export async function fetchDriveFileNodes(token?: string, parentFolderId?: strin
  * 파일 또는 폴더를 다른 부모 폴더로 이동 (Drive API: addParents / removeParents)
  * - 잘라내기(Cut) → 붙여넣기(Paste) 이동에 사용
  */
+export async function moveDriveItemWithUndo(token: string, fileId: string, newParentId: string, oldParentId: string | undefined, item: { name: string; kind?: string }) {
+  if (!oldParentId) {
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=parents&supportsAllDrives=true`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok) throw await parseDriveError(response, '원래 폴더 확인', token);
+    oldParentId = (await response.json()).parents?.[0];
+  }
+  if (!oldParentId) throw new Error('원래 폴더를 확인할 수 없어 이동하지 않았습니다.');
+  if (oldParentId === newParentId) return;
+  await moveDriveItem(token, fileId, newParentId, oldParentId);
+  window.dispatchEvent(new CustomEvent('file:push-undo-action', { detail: {
+    type: 'move', workspaceType: 'cloud', driveId: fileId, srcParentDriveId: oldParentId, destParentDriveId: newParentId,
+    name: item.name, kind: item.kind || 'file', accountEmail: getSavedWorkspaceInfo()?.userEmail,
+  } }));
+}
+
 export async function moveDriveItem(
   token?: string,
   fileId?: string,
@@ -1442,7 +1643,7 @@ export async function moveDriveItem(
   if (!fileId || !newParentId) return false;
   if (oldParentId && oldParentId === newParentId) return true;
 
-  const params = new URLSearchParams({ addParents: newParentId, fields: 'id,parents' });
+  const params = new URLSearchParams({ addParents: newParentId, fields: 'id,parents', supportsAllDrives: 'true' });
   if (oldParentId) params.set('removeParents', oldParentId);
 
   const res = await fetch(

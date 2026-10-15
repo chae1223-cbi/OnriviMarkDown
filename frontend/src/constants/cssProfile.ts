@@ -4,6 +4,8 @@ import { normalizeBookLayout } from '../lib/picturebook';
 // ====================================================================
 // 📊 [OMD-CORE-cssProfile-0006] cssProfile ➔ SYSTEM_PROFILE_IDS
 // 🎯 @KICK  : 시스템 프로필 식별자 목록을 정의한다
+// 🚨 @PATCH : **2026-10-15** — [Story Book-전체표지 시스템 서식 최신 규격(ID: profile-1792073192013, 글자크기 20px) 갱신]: 기본 본문 글자 크기를 16px에서 20px로 확대하고 신규 프로필 ID(profile-1792073192013) 반영 (기존 profile-1792072443551 하위 호환 유지)
+// 🚨 @PATCH : **2026-10-15** — [그림책/동화책(Story Book) 2종 시스템 서식 신규 탑재]: 가로(Landscape) A4 규격의 'Story Book-전체표지'(full-image) 및 'Story Book - 오른쪽 그림 표지'(image-right)를 공식 시스템 프로필(SYSTEM_PROFILES, SYSTEM_PROFILE_IDS)에 등록하여 삭제 불가 표준 서식으로 제공
 // 🚨 @PATCH : **2026-10-09** — [신규 시스템 서식 '편안한 전자책 서식' 추가]: 시니어 독자 및 저자를 위한 큰 글자(20px), 여유로운 줄 간격(1.85), 편안한 미색 배경(#fcfbf7), 고대비 타이포그래피 규격의 공식 시스템 서식(profile-1791514218283) 등록
 // 🚨 @PATCH : **2026-10-01** — [PDF/EPUB 내보내기 페이지 나누기 기준 기본값 'none' 일원화]: 시스템 프로필, 빈 프로필 및 정규화 기본값을 'none'으로 변경하여 제목 기준 인위적 페이지 나눔 배제
 // 🚨 @PATCH : **2026-10-01** — [표 미리보기-내보내기 일치화 및 기본 서식 가로선 중심(세로선 0px) 표준화]: DEFAULT_PROFILE 및 system-1의 tableStructure.colBorderWidth를 '0px'로 표준화하여 미리보기와 동일하게 외곽 테두리 및 행 가로선만 렌더링되도록 정합화
@@ -38,7 +40,10 @@ export const SYSTEM_PROFILE_IDS = [
   'profile-tech-book-2026',
   'profile-official-notice-letter',
   'hancom-tech-blog',
-  'profile-1791514218283'
+  'profile-1791514218283',
+  'profile-1792072443551',
+  'profile-1792073192013',
+  'profile-1792072480655'
 ] as const;
 export type SystemProfileId = typeof SYSTEM_PROFILE_IDS[number];
 
@@ -2395,6 +2400,592 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "colBorderWidth": "1px"
     },
     "customCss": ""
+  },
+  {
+    "id": "profile-1792073192013",
+    "name": "Story Book-전체표지",
+    "description": "온리비 어서(Onrivi Author)의 공식 기본 서식 테마입니다. 정갈한 텍스트 배치와 최적화된 용지 규격을 제공합니다.",
+    "pageStyle": {
+      "fontFamily": "\"EBS 훈민정음 새론\", serif",
+      "fontSize": "20px",
+      "lineHeight": "1.75",
+      "letterSpacing": "-0.01em",
+      "backgroundColor": "#ffffff",
+      "paperSize": "a4",
+      "marginTop": "18mm",
+      "marginBottom": "18mm",
+      "marginLeft": "12mm",
+      "marginRight": "12mm",
+      "orientation": "landscape",
+      "headingSizeOffset": "0px",
+      "tabSize": "2",
+      "exportPageBreakLevel": "none"
+    },
+    "rules": {
+      "h1": {
+        "font-size": "32px",
+        "font-weight": "700",
+        "color": "#202123",
+        "padding-left": "0px",
+        "margin-bottom": "18px",
+        "border-bottom": "",
+        "margin-top": "32px",
+        "text-align": "left",
+        "text-decoration": "none",
+        "font-style": "normal",
+        "line-height": "1.25",
+        "letter-spacing": "-0.025em"
+      },
+      "h2": {
+        "font-size": "24px",
+        "font-weight": "700",
+        "color": "#202123",
+        "border-bottom": "",
+        "padding-bottom": "8px",
+        "margin-top": "28px",
+        "text-decoration": "none",
+        "font-style": "normal",
+        "margin-bottom": "14px",
+        "text-align": "left",
+        "line-height": "1.35",
+        "letter-spacing": "-0.02em"
+      },
+      "h3": {
+        "text-align": "left",
+        "font-weight": "650",
+        "font-size": "20px",
+        "margin-top": "24px",
+        "margin-bottom": "12px",
+        "color": "#202123",
+        "border-bottom": "",
+        "line-height": "1.4"
+      },
+      "h4": {
+        "text-align": "left",
+        "font-weight": "650",
+        "font-size": "18px",
+        "margin-top": "20px",
+        "margin-bottom": "10px",
+        "color": "#202123",
+        "border-bottom": "",
+        "line-height": "1.5"
+      },
+      "h5": {
+        "text-align": "left",
+        "font-weight": "650",
+        "font-size": "16px",
+        "margin-top": "18px",
+        "margin-bottom": "8px",
+        "color": "#202123",
+        "border-bottom": "",
+        "line-height": "1.55"
+      },
+      "h6": {
+        "text-align": "left",
+        "font-weight": "650",
+        "font-size": "15px",
+        "margin-top": "16px",
+        "margin-bottom": "8px",
+        "color": "#6b6b6b",
+        "border-bottom": "",
+        "line-height": "1.55"
+      },
+      "p": {
+        "margin-bottom": "16px",
+        "margin-top": "0px",
+        "line-height": "1.75",
+        "color": "#2f2f2f",
+        "text-align": "left",
+        "text-indent": "0px",
+        "letter-spacing": "-0.01em",
+        "sentence-gap": "4px"
+      },
+      "strong": {
+        "font-weight": "700",
+        "color": "#202123"
+      },
+      "em": {
+        "font-style": "italic",
+        "color": "#2f2f2f"
+      },
+      "u": {
+        "text-decoration-color": "#0d0d0d",
+        "text-decoration-style": "solid",
+        "text-underline-offset": "3px",
+        "text-decoration": "underline"
+      },
+      "del": {
+        "text-decoration": "line-through",
+        "color": "#6b6b6b"
+      },
+      "ul": {
+        "padding-left": "28px",
+        "list-style-type": "disc",
+        "color": "#2f2f2f"
+      },
+      "ol": {
+        "padding-left": "28px",
+        "color": "#2f2f2f",
+        "list-style-type": "decimal"
+      },
+      "li": {
+        "margin-bottom": "5px",
+        "padding-inline-start": "3px",
+        "line-height": "1.7"
+      },
+      "taskList": {
+        "boxSize": "16px",
+        "checkedEffect": "none",
+        "textGap": "9px",
+        "color": "#2f2f2f"
+      },
+      "hr": {
+        "border-top-color": "#e5e5e5",
+        "border-top-width": "1px",
+        "border-top-style": "solid",
+        "margin-top": "28px",
+        "margin-bottom": "28px",
+        "width": "100%"
+      },
+      "table": {
+        "width": "100%",
+        "border-collapse": "collapse",
+        "border-style": "solid",
+        "border-width": "1px",
+        "border-color": "#9ca3af",
+        "margin-top": "22px",
+        "margin-bottom": "22px",
+        "font-size": "15px",
+        "border-radius": "8px",
+        "overflow": "hidden"
+      },
+      "th": {
+        "background-color": "#f7f7f8",
+        "padding": "5px 8px",
+        "border-style": "solid",
+        "border-width": "1px",
+        "border-color": "#cbd5e1",
+        "font-weight": "650",
+        "text-align": "left",
+        "color": "#202123",
+        "font-size": "inherit"
+      },
+      "td": {
+        "padding": "5px 8px",
+        "border-style": "solid",
+        "border-width": "1px",
+        "border-color": "#cbd5e1",
+        "color": "#2f2f2f",
+        "font-size": "inherit"
+      },
+      "blockquote": {
+        "padding": "2px 0 2px 18px",
+        "color": "#6b6b6b",
+        "background-color": "transparent",
+        "border-radius": "0",
+        "margin-top": "20px",
+        "margin-bottom": "20px",
+        "font-weight": "normal",
+        "border-left": "3px solid #d9d9d9",
+        "font-size": "16px"
+      },
+      "codeBlock": {
+        "background-color": "#f7f7f8",
+        "color": "#242424",
+        "padding": "16px",
+        "border-radius": "8px",
+        "font-size": "13.5px",
+        "border": "1px solid #e5e5e5"
+      },
+      "codeBlockTitle": {
+        "background-color": "#ececec",
+        "color": "#5f5f5f",
+        "padding": "8px 12px",
+        "border-radius": "8px 8px 0 0",
+        "border": "1px solid #e5e5e5"
+      },
+      "a": {
+        "color": "#2563eb",
+        "text-decoration": "underline",
+        "font-weight": "bold"
+      },
+      "img": {
+        "width": "100%",
+        "border-radius": "8px",
+        "margin-top": "20px",
+        "margin-bottom": "20px",
+        "margin-left": "auto",
+        "margin-right": "auto",
+        "background-color": "white",
+        "padding": "0px",
+        "box-shadow": "none"
+      },
+      "code": {
+        "background-color": "#f7f7f8",
+        "color": "#242424",
+        "padding": "2px 6px",
+        "border-radius": "5px",
+        "font-weight": "normal",
+        "border": "1px solid #e5e5e5"
+      },
+      "video": {
+        "width": "100%",
+        "height": "315px",
+        "border-radius": "8px",
+        "box-shadow": "none",
+        "margin-top": "20px",
+        "margin-bottom": "20px",
+        "margin-left": "auto",
+        "margin-right": "auto",
+        "display": "block",
+        "float": "none"
+      },
+      "math": {
+        "color": "#2f2f2f",
+        "font-size": "16px",
+        "text-align": "center",
+        "margin-top": "20px",
+        "margin-bottom": "20px"
+      },
+      "map": {
+        "width": "100%",
+        "height": "400px",
+        "border-radius": "8px",
+        "box-shadow": "none",
+        "margin-top": "20px",
+        "margin-bottom": "20px",
+        "margin-left": "auto",
+        "margin-right": "auto"
+      },
+      "footnote": {
+        "font-size": "13px",
+        "color": "#6b6b6b",
+        "line-height": "1.5",
+        "margin-top": "12px",
+        "margin-bottom": "12px",
+        "font-weight": "normal"
+      }
+    },
+    "hrStructure": {
+      "borderTopStyle": "solid",
+      "borderTopWidth": "1px",
+      "marginTopBottom": "28px",
+      "lineWidth": "100%"
+    },
+    "checkboxStructure": {
+      "boxSize": "16px",
+      "textGap": "9px",
+      "color": "#2f2f2f",
+      "checkedEffect": "none"
+    },
+    "tableStructure": {
+      "outerBorderWidth": "1px",
+      "rowBorderWidth": "1px",
+      "colBorderWidth": "0px"
+    },
+    "customCss": "",
+    "layout": {
+      "schemaVersion": 1,
+      "type": "picturebook",
+      "cover": "full-image",
+      "imageRatio": 0.5,
+      "imageFit": "cover",
+      "gap": "6mm",
+      "pageNumbers": true
+    }
+  },
+  {
+    "id": "profile-1792072480655",
+    "name": "Story Book - 오른쪽 그림 표지",
+    "description": "온리비 어서(Onrivi Author)의 공식 기본 서식 테마입니다. 정갈한 텍스트 배치와 최적화된 용지 규격을 제공합니다.",
+    "pageStyle": {
+      "fontFamily": "\"EBS 훈민정음 새론\", serif",
+      "fontSize": "20px",
+      "lineHeight": "1.75",
+      "letterSpacing": "-0.01em",
+      "backgroundColor": "#ffffff",
+      "paperSize": "a4",
+      "marginTop": "18mm",
+      "marginBottom": "18mm",
+      "marginLeft": "12mm",
+      "marginRight": "12mm",
+      "orientation": "landscape",
+      "headingSizeOffset": "0px",
+      "tabSize": "2",
+      "exportPageBreakLevel": "none"
+    },
+    "rules": {
+      "h1": {
+        "font-size": "32px",
+        "font-weight": "700",
+        "color": "#202123",
+        "padding-left": "0px",
+        "margin-bottom": "18px",
+        "border-bottom": "",
+        "margin-top": "32px",
+        "text-align": "left",
+        "text-decoration": "none",
+        "font-style": "normal",
+        "line-height": "1.25",
+        "letter-spacing": "-0.025em"
+      },
+      "h2": {
+        "font-size": "24px",
+        "font-weight": "700",
+        "color": "#202123",
+        "border-bottom": "",
+        "padding-bottom": "8px",
+        "margin-top": "28px",
+        "text-decoration": "none",
+        "font-style": "normal",
+        "margin-bottom": "14px",
+        "text-align": "left",
+        "line-height": "1.35",
+        "letter-spacing": "-0.02em"
+      },
+      "h3": {
+        "text-align": "left",
+        "font-weight": "650",
+        "font-size": "20px",
+        "margin-top": "24px",
+        "margin-bottom": "12px",
+        "color": "#202123",
+        "border-bottom": "",
+        "line-height": "1.4"
+      },
+      "h4": {
+        "text-align": "left",
+        "font-weight": "650",
+        "font-size": "18px",
+        "margin-top": "20px",
+        "margin-bottom": "10px",
+        "color": "#202123",
+        "border-bottom": "",
+        "line-height": "1.5"
+      },
+      "h5": {
+        "text-align": "left",
+        "font-weight": "650",
+        "font-size": "16px",
+        "margin-top": "18px",
+        "margin-bottom": "8px",
+        "color": "#202123",
+        "border-bottom": "",
+        "line-height": "1.55"
+      },
+      "h6": {
+        "text-align": "left",
+        "font-weight": "650",
+        "font-size": "15px",
+        "margin-top": "16px",
+        "margin-bottom": "8px",
+        "color": "#6b6b6b",
+        "border-bottom": "",
+        "line-height": "1.55"
+      },
+      "p": {
+        "margin-bottom": "16px",
+        "margin-top": "0px",
+        "line-height": "1.75",
+        "color": "#2f2f2f",
+        "text-align": "left",
+        "text-indent": "0px",
+        "letter-spacing": "-0.01em",
+        "sentence-gap": "4px"
+      },
+      "strong": {
+        "font-weight": "700",
+        "color": "#202123"
+      },
+      "em": {
+        "font-style": "italic",
+        "color": "#2f2f2f"
+      },
+      "u": {
+        "text-decoration-color": "#0d0d0d",
+        "text-decoration-style": "solid",
+        "text-underline-offset": "3px",
+        "text-decoration": "underline"
+      },
+      "del": {
+        "text-decoration": "line-through",
+        "color": "#6b6b6b"
+      },
+      "ul": {
+        "padding-left": "28px",
+        "list-style-type": "disc",
+        "color": "#2f2f2f"
+      },
+      "ol": {
+        "padding-left": "28px",
+        "color": "#2f2f2f",
+        "list-style-type": "decimal"
+      },
+      "li": {
+        "margin-bottom": "5px",
+        "padding-inline-start": "3px",
+        "line-height": "1.7"
+      },
+      "taskList": {
+        "boxSize": "16px",
+        "checkedEffect": "none",
+        "textGap": "9px",
+        "color": "#2f2f2f"
+      },
+      "hr": {
+        "border-top-color": "#e5e5e5",
+        "border-top-width": "1px",
+        "border-top-style": "solid",
+        "margin-top": "28px",
+        "margin-bottom": "28px",
+        "width": "100%"
+      },
+      "table": {
+        "width": "100%",
+        "border-collapse": "collapse",
+        "border-style": "solid",
+        "border-width": "1px",
+        "border-color": "#9ca3af",
+        "margin-top": "22px",
+        "margin-bottom": "22px",
+        "font-size": "15px",
+        "border-radius": "8px",
+        "overflow": "hidden"
+      },
+      "th": {
+        "background-color": "#f7f7f8",
+        "padding": "5px 8px",
+        "border-style": "solid",
+        "border-width": "1px",
+        "border-color": "#cbd5e1",
+        "font-weight": "650",
+        "text-align": "left",
+        "color": "#202123",
+        "font-size": "15px"
+      },
+      "td": {
+        "padding": "5px 8px",
+        "border-style": "solid",
+        "border-width": "1px",
+        "border-color": "#cbd5e1",
+        "color": "#2f2f2f",
+        "font-size": "15px"
+      },
+      "blockquote": {
+        "padding": "2px 0 2px 18px",
+        "color": "#6b6b6b",
+        "background-color": "transparent",
+        "border-radius": "0",
+        "margin-top": "20px",
+        "margin-bottom": "20px",
+        "font-weight": "normal",
+        "border-left": "3px solid #d9d9d9",
+        "font-size": "20px"
+      },
+      "codeBlock": {
+        "background-color": "#f7f7f8",
+        "color": "#242424",
+        "padding": "16px",
+        "border-radius": "8px",
+        "font-size": "13.5px",
+        "border": "1px solid #e5e5e5"
+      },
+      "codeBlockTitle": {
+        "background-color": "#ececec",
+        "color": "#5f5f5f",
+        "padding": "8px 12px",
+        "border-radius": "8px 8px 0 0",
+        "border": "1px solid #e5e5e5"
+      },
+      "a": {
+        "color": "#2563eb",
+        "text-decoration": "underline",
+        "font-weight": "bold"
+      },
+      "img": {
+        "width": "100%",
+        "border-radius": "8px",
+        "margin-top": "20px",
+        "margin-bottom": "20px",
+        "margin-left": "auto",
+        "margin-right": "auto",
+        "background-color": "white",
+        "padding": "0px",
+        "box-shadow": "none"
+      },
+      "code": {
+        "background-color": "#f7f7f8",
+        "color": "#242424",
+        "padding": "2px 6px",
+        "border-radius": "5px",
+        "font-weight": "normal",
+        "border": "1px solid #e5e5e5"
+      },
+      "video": {
+        "width": "100%",
+        "height": "315px",
+        "border-radius": "8px",
+        "box-shadow": "none",
+        "margin-top": "20px",
+        "margin-bottom": "20px",
+        "margin-left": "auto",
+        "margin-right": "auto",
+        "display": "block",
+        "float": "none"
+      },
+      "math": {
+        "color": "#2f2f2f",
+        "font-size": "16px",
+        "text-align": "center",
+        "margin-top": "20px",
+        "margin-bottom": "20px"
+      },
+      "map": {
+        "width": "100%",
+        "height": "400px",
+        "border-radius": "8px",
+        "box-shadow": "none",
+        "margin-top": "20px",
+        "margin-bottom": "20px",
+        "margin-left": "auto",
+        "margin-right": "auto"
+      },
+      "footnote": {
+        "font-size": "13px",
+        "color": "#6b6b6b",
+        "line-height": "1.5",
+        "margin-top": "12px",
+        "margin-bottom": "12px",
+        "font-weight": "normal"
+      }
+    },
+    "hrStructure": {
+      "borderTopStyle": "solid",
+      "borderTopWidth": "1px",
+      "marginTopBottom": "28px",
+      "lineWidth": "100%"
+    },
+    "checkboxStructure": {
+      "boxSize": "16px",
+      "textGap": "9px",
+      "color": "#2f2f2f",
+      "checkedEffect": "none"
+    },
+    "tableStructure": {
+      "outerBorderWidth": "1px",
+      "rowBorderWidth": "1px",
+      "colBorderWidth": "0px"
+    },
+    "customCss": "",
+    "layout": {
+      "schemaVersion": 1,
+      "type": "picturebook",
+      "cover": "image-right",
+      "imageRatio": 0.5,
+      "imageFit": "cover",
+      "gap": "6mm",
+      "pageNumbers": true
+    }
   }
 ];
 // ====================================================================

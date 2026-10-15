@@ -4,6 +4,7 @@
  * -----------------------------------------------------------------------
  * 변경내역
  * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-10-15** — [서명/발신인 서식 왼쪽 정렬 명칭 동기화]: 툴팁 라벨을 '서명/발신인 (왼쪽 정렬)'으로 갱신
  * 🚨 @PATCH : **2026-10-01** — [서명/발신인 단축키 변경] 다른 이름으로 저장(Ctrl+Shift+S)과의 충돌 방지를 위해 서명/발신인 단축키를 Ctrl+Alt+R로 변경
  * 🚨 @PATCH : **2026-10-01** — [서명/발신인 버튼 추가] 서명/발신인(우측 정렬, Ctrl+Alt+R) 버튼 탑재 및 SHORTCUTS 동기화
  * 🚨 @PATCH : **2026-09-23** — [서식 툴바 인용구 한글/영문 Alert 태그 듀얼 지원] 인용구 선택 드롭다운에 한글/영문 태그([!참고] · [!NOTE] 등) 듀얼 표기 및 너비 확장
@@ -127,7 +128,7 @@ export default function FormattingToolbar() {
       <FormatBtn label={<img src="/icons/Farm.png" alt="이미지" className="w-5 h-5 object-contain dark:invert" />} title="이미지" onAction={() => dispatch('IMAGE')} />
       <FormatBtn label={<img src="/icons/FilmReel.png" alt="동영상삽입" className="w-5 h-5 object-contain dark:invert" />} title="동영상삽입" onAction={() => dispatch('YOUTUBE')} />
       <FormatBtn label={<img src="/icons/Calendar.png" alt="현재 날짜/시간" className="w-5 h-5 object-contain dark:invert" />} title="현재 날짜/시간" onAction={() => dispatch('NOW')} />
-      <FormatBtn label={<Icon name="Signature" size={18} className="text-zinc-800 dark:text-zinc-100" />} title={tooltip('서명/발신인 (우측 정렬)', SHORTCUTS.signature)} onAction={() => dispatch('SIGNATURE')} />
+      <FormatBtn label={<Icon name="Signature" size={18} className="text-zinc-800 dark:text-zinc-100" />} title={tooltip('서명/발신인 (왼쪽 정렬)', SHORTCUTS.signature)} onAction={() => dispatch('SIGNATURE')} />
 
       <Divider />
 

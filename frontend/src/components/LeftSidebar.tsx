@@ -1,5 +1,10 @@
 // ====================================================================
 // 📊 [OMD-UI-LeftSidebar-0001] LeftSidebar.tsx ➔ 에디터 좌측 탐색기 사이드바
+// 🚨 @PATCH : **2026-10-15** — [웹드라이브 작업장 상태 시 내 PC 로컬 작업장 원클릭 복구 버튼 신설]:
+//             1) 웹드라이브(GDRIVE) 상태에서 상단 워크스페이스 바에 [🔌 로컬 복귀] 버튼을 명확히 노출
+//             2) 웹드라이브 작업장 폴더가 비어있을 때 사용자가 당황하지 않도록 [🏠 내 PC 로컬 작업장으로 복귀] 원클릭 카드 제공
+// 🚨 @PATCH : **2026-10-15** — [개인 웹드라이브 명칭 및 계정 선택 표준화]:
+//             '내 구글 드라이브 연결' 및 '구글 드라이브 재접속' 버튼/타이틀을 '개인 웹드라이브 연결' 및 '개인 웹드라이브 재접속'으로 일원화
 // 🚨 @PATCH : **2026-10-14** — [전역 검색(GlobalSearch) 작업장 경로 3중 연동 및 실시간 하이브리드 검색 지원]:
 //             1) GlobalSearch에 rootFolder.name 부재 시 localStorage의 onrivi_workspace_path를 자동 연계하여 데스크톱 작업장 검색 무결성 보장
 // 🚨 @PATCH : **2026-10-13** — [React Hooks exhaustive-deps 린트 경고 완전 해소 및 의존성 최적화]:
@@ -28,6 +33,8 @@
 
 import NewDocumentModal from '@/components/NewDocumentModal';
 import { IMPORT_ACCEPT, IMPORT_PICKER_OPTIONS, isSupportedImportFile } from '@/lib/importFormats';
+import { importStartFolder } from '@/lib/importStartFolder';
+import { assertUndoNameAvailable } from '@/lib/explorerUndo';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { getEffectiveResourceFolder } from '@/lib/profileStorage';
 import { useDragHighlight } from '@/hooks/useDragHighlight';
@@ -49,7 +56,7 @@ import { useEditorContext } from '@/context/EditorContext';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { knowledgeClient, canAccessKnowledgeDb } from '@/lib/knowledge/knowledgeClient';
 import { loadSecureData } from '@/lib/secureStorage';
-import { uploadDriveImage, getSavedDriveToken, hasValidDriveToken, getSavedWorkspaceInfo, moveDriveItem, copyDriveFile, copyDriveFolderRecursive } from '@/lib/gdrive/googleDriveClient';
+import { uploadDriveImage, getSavedDriveToken, hasValidDriveToken, getSavedWorkspaceInfo, moveDriveItem, moveDriveItemWithUndo, restoreDriveItem, copyDriveFile, copyDriveFolderRecursive, prepareGoogleDriveAuth, readDriveImportFile } from '@/lib/gdrive/googleDriveClient';
 import { copyImageToClipboard } from '@/lib/mediaMarkup';
 
 // ====================================================================
@@ -123,8 +130,9 @@ import { copyImageToClipboard } from '@/lib/mediaMarkup';
 // 🔗 @CALLS : fetchDrives, handleLazyLoad, onPromptConfirm, onFileOpenAndJump, executeJumpAndHighlight, FileTreeItem, GlobalSearch, PromptModal
 // ====================================================================
 // 📂 브라우저 File System Access API 폴더 재귀 복원기 (되돌리기 지원용)
-const restoreFsaDirectory = async (parentHandle: any, folderName: string, items: { relativePath: string; kind: 'file' | 'directory'; content?: string }[]) => {
-  if (!parentHandle) return;
+const restoreFsaDirectory = async (parentHandle: any, folderName: string, items: { relativePath: string; kind: 'file' | 'directory'; content?: string | Blob }[]) => {
+  if (!parentHandle) throw new Error('복원할 폴더의 접근 권한을 확인해 주세요.');
+  await assertUndoNameAvailable(parentHandle, folderName);
   const folderHandle = await parentHandle.getDirectoryHandle(folderName, { create: true });
   const dirHandles = new Map<string, any>();
   dirHandles.set('', folderHandle);
@@ -753,6 +761,7 @@ export default function LeftSidebar() {
   type UndoActionItem = MoveActionItem | DeleteActionItem;
 
   const undoHistoryRef = useRef<UndoActionItem[]>([]);
+  const undoBusyRef = useRef(false);
   const [hasUndoableMove, setHasUndoableMove] = useState(false);
   const [lastUndoType, setLastUndoType] = useState<'move' | 'delete'>('move');
 
@@ -790,6 +799,9 @@ export default function LeftSidebar() {
 
   // ↩️ 실행 취소(되돌리기) 핸들러 - 이동 및 삭제 완벽 복원
   const handleUndoMove = useCallback(async () => {
+    if (undoBusyRef.current || isRestrictedUser) return;
+    undoBusyRef.current = true;
+    try {
     const history = undoHistoryRef.current;
     if (history.length === 0) {
       showToast('되돌릴 작업이 없습니다.', 'info');
@@ -812,10 +824,15 @@ export default function LeftSidebar() {
         const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
 
         // 1. Electron 데스크톱 환경
-        if ((workspaceType === 'local' || moveWorkspaceType === 'local') && api) {
+        if (moveWorkspaceType === 'cloud') {
+          const token = getSavedDriveToken();
+          if (!token || !lastAction.driveId || !lastAction.srcParentDriveId) throw new Error('웹드라이브 연결과 원래 폴더를 확인해 주세요.');
+          if (lastAction.accountEmail && lastAction.accountEmail !== getSavedWorkspaceInfo()?.userEmail) throw new Error('이 작업을 실행한 웹드라이브 계정으로 연결해 주세요.');
+          await moveDriveItem(token, lastAction.driveId, lastAction.srcParentDriveId, lastAction.destParentDriveId);
+        } else if ((moveWorkspaceType || workspaceType) === 'local' && api) {
           if (api?.moveFile) {
-            const res = await api.moveFile(destPath, srcPath);
-            if (res && res.error) throw new Error(res.error);
+            const res = await api.moveFile(destPath, srcPath, { failIfExists: true });
+            if (res?.success === false || res?.error) throw new Error(res.error || '원래 위치로 이동하지 못했습니다.');
           } else if (api?.renameFile) {
             await api.renameFile(destPath, srcPath);
           } else {
@@ -848,6 +865,7 @@ export default function LeftSidebar() {
         }
         // 2. 브라우저 FSA 환경
         else if (destParentHandle && sourceParentHandle) {
+          await assertUndoNameAvailable(sourceParentHandle, name);
           if (isDir) {
             const copyDirRecursive = async (sourceDirHandle: any, targetParentHandle: any, dirName: string) => {
               const newDir = await targetParentHandle.getDirectoryHandle(dirName, { create: true });
@@ -881,7 +899,7 @@ export default function LeftSidebar() {
           vfsMoveItem(destPath, srcDirPath);
         }
 
-        dispatchMovedEvent(destPath, srcDirPath, srcPath, name);
+        if (moveWorkspaceType !== 'cloud') dispatchMovedEvent(destPath, srcDirPath, srcPath, name);
         await refreshFileList(true);
         window.dispatchEvent(new CustomEvent('file:refresh-all-directories', {
           detail: { force: true, targetDir: srcDirPath }
@@ -897,9 +915,18 @@ export default function LeftSidebar() {
     } else if (lastAction.type === 'delete') {
       const { path, parentPath, name, kind, content = '', backupPath, items = [], parentHandle } = lastAction;
       const isDir = kind === 'directory';
+      const deleteWorkspaceType = lastAction.workspaceType || workspaceType;
       try {
-        if (isDir) {
-          if (workspaceType === 'browser') {
+        if (deleteWorkspaceType === 'cloud') {
+          const token = getSavedDriveToken();
+          if (!token || !lastAction.driveId) throw new Error('웹드라이브 연결과 복원할 항목 ID를 확인해 주세요.');
+          if (lastAction.accountEmail && lastAction.accountEmail !== getSavedWorkspaceInfo()?.userEmail) throw new Error('이 항목을 삭제한 웹드라이브 계정으로 연결해 주세요.');
+          await restoreDriveItem(token, lastAction.driveId);
+          await refreshFileList(true);
+          window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+          showToast(`삭제되었던 '${name}'을(를) 웹드라이브에 복원했습니다.`, 'success');
+        } else if (isDir) {
+          if (deleteWorkspaceType === 'browser') {
             if (parentHandle) {
               await restoreFsaDirectory(parentHandle, name, items);
             } else {
@@ -923,10 +950,8 @@ export default function LeftSidebar() {
             const api = (window as any).electronAPI;
             if (api?.restoreFolderFromUndo && backupPath) {
               const res = await api.restoreFolderFromUndo(backupPath, path);
-              if (res && res.error) throw new Error(res.error);
-            } else if (api?.createFolder) {
-              await api.createFolder(parentPath, name);
-            }
+              if (res?.success === false || res?.error) throw new Error(res.error || '폴더 복원에 실패했습니다.');
+            } else throw new Error('폴더 백업을 찾을 수 없어 복원하지 못했습니다.');
           }
 
           // 📂 복원된 폴더 자동 펼침 상태 복구
@@ -947,8 +972,9 @@ export default function LeftSidebar() {
           showToast(`삭제되었던 '${name}' 폴더를 탐색기에 복원했습니다.`, 'success');
         } else {
           // 단일 파일 복원
-          if (workspaceType === 'browser') {
+          if (deleteWorkspaceType === 'browser') {
             if (parentHandle && kind === 'file') {
+              await assertUndoNameAvailable(parentHandle, name);
               const handle = await parentHandle.getFileHandle(name, { create: true });
               const w = await handle.createWritable();
               await w.write(content);
@@ -964,8 +990,9 @@ export default function LeftSidebar() {
             if (api?.createFile && api?.saveFile) {
               const res = await api.createFile(parentPath, name);
               if (res?.success) {
-                await api.saveFile(res.path || path, content);
-              }
+                const saved = await api.saveFile(res.path || path, content);
+                if (saved === false || saved?.success === false) throw new Error(saved?.error || '복원한 파일을 저장하지 못했습니다.');
+              } else throw new Error(res?.error || '복원할 파일을 만들지 못했습니다.');
             } else {
               // 🛡️ [웹 SaaS 백엔드 미구현 404 원천 차단]: electronAPI가 없는 웹 브라우저 환경에서는 VFS 복원 수행
               const { vfsCreateFile, vfsWriteFile } = await import('@/lib/virtualFileSystem');
@@ -987,7 +1014,8 @@ export default function LeftSidebar() {
         window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: history.length, lastType: 'delete' } }));
       }
     }
-  }, [workspaceType, refreshFileList, showToast, dispatchMovedEvent]);
+    } finally { undoBusyRef.current = false; }
+  }, [workspaceType, refreshFileList, showToast, dispatchMovedEvent, isRestrictedUser]);
 
   // ⌨️ 되돌리기 단축키(Ctrl+Z) 통합 트리거 (잘라내기 취소 우선, 그 다음 이동/삭제 되돌리기)
   const triggerUndo = useCallback(() => {
@@ -1115,7 +1143,7 @@ export default function LeftSidebar() {
 
         if (isCut) {
           const srcParentDriveId = (srcNode as any).parentDriveId || (srcNode as any).parentId;
-          await moveDriveItem(token, srcDriveId, destDriveId, srcParentDriveId);
+          await moveDriveItemWithUndo(token, srcDriveId, destDriveId, srcParentDriveId, srcNode);
           setClipboardNode(null);
           if (typeof window !== 'undefined') {
             (window as any)._omdClipboardNode = null;
@@ -1516,6 +1544,7 @@ export default function LeftSidebar() {
   // ⌨️ [전역 탐색기 단축키] Esc(잘라내기 취소) 및 Ctrl+Z(이동 되돌리기) 연동
   useEffect(() => {
     const handleGlobalShortcuts = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
       const isMacPlatform = typeof navigator !== 'undefined' && /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
       const isCtrl = isMacPlatform ? e.metaKey : e.ctrlKey;
 
@@ -1566,6 +1595,8 @@ export default function LeftSidebar() {
 
   const importFileInputRef = useRef<HTMLInputElement>(null);
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
+  const [showImportSource, setShowImportSource] = useState(false);
+  const selectingImportRef = useRef(false);
   const importNameRef = useRef<string | null>(null);
   const targetImportNodeRef = useRef<FileNode | null>(null);
   const targetImportParentHandleRef = useRef<any>(null);
@@ -1578,15 +1609,61 @@ export default function LeftSidebar() {
     setPendingImportFile(file);
   }, [showToast]);
 
-  const openImportPicker = useCallback(async () => {
-    if (isRestrictedUser || isImporting) return;
+  const openImportPicker = useCallback(async (source?: 'local' | 'drive') => {
+    if (isRestrictedUser || isImporting || selectingImportRef.current) return;
+    if (!source) { setShowImportSource(true); return; }
+    setShowImportSource(false);
+    const start = importStartFolder(rootFolder, targetImportNodeRef.current, targetImportParentHandleRef.current, fileList, getSavedWorkspaceInfo()?.workspacePath);
+    if (source === 'drive') {
+      selectingImportRef.current = true;
+      const prepared = !getSavedDriveToken() || !hasValidDriveToken() ? prepareGoogleDriveAuth({ isStandalone: true }) : null;
+      try {
+        const token = prepared ? await prepared.request() : getSavedDriveToken();
+        if (!token) throw new Error('웹드라이브 인증이 필요합니다.');
+        const { pickAccessibleDriveFolder } = await import('@/lib/gdrive/WorkspaceFolderPicker');
+        const initialPath = !prepared ? start.drivePath : [{ id: 'root', name: '내 드라이브' }];
+        const selected = await pickAccessibleDriveFolder(token, initialPath, {
+          title: '웹드라이브에서 파일 가져오기',
+          description: '계정·드라이브·폴더를 선택한 뒤 가져올 문서를 눌러 주세요. 원본 파일은 유지됩니다.',
+          selectFile: true,
+          acceptFile: item => isSupportedImportFile(item.name) && !item.mimeType.startsWith('application/vnd.google-apps.'),
+        });
+        if (selected) chooseImportDestination(await readDriveImportFile(selected.token || token, selected));
+      } catch (error: any) {
+        if (error?.name !== 'AbortError') showToast(error?.message || '웹드라이브 파일을 가져오지 못했습니다.', 'error');
+      } finally {
+        prepared?.close();
+        selectingImportRef.current = false;
+      }
+      return;
+    }
+    const api = (window as any).electronAPI;
+    if (api?.chooseImportDocument) {
+      try {
+        const selected = await api.chooseImportDocument(start.localPath);
+        if (!selected) return;
+        const bytes = await api.readTransferFile(selected.path);
+        chooseImportDestination(new File([bytes], selected.name));
+      } catch (error: any) {
+        if (error?.name !== 'AbortError') showToast(error?.message || '파일 선택창을 열지 못했습니다.', 'error');
+      }
+      return;
+    }
     const picker = (window as any).showOpenFilePicker;
     if (typeof picker !== 'function') {
       importFileInputRef.current?.click();
       return;
     }
     try {
-      const [handle] = await picker.call(window, IMPORT_PICKER_OPTIONS);
+      const options = { ...IMPORT_PICKER_OPTIONS, id: 'onrivi-import-document', ...(start.localHandle ? { startIn: start.localHandle } : {}) };
+      let handles;
+      try {
+        handles = await picker.call(window, options);
+      } catch (error: any) {
+        if (!start.localHandle || !['NotFoundError', 'TypeError'].includes(error.name)) throw error;
+        handles = await picker.call(window, IMPORT_PICKER_OPTIONS);
+      }
+      const [handle] = handles;
       const file = await handle.getFile();
       chooseImportDestination(file);
     } catch (error: any) {
@@ -1594,7 +1671,7 @@ export default function LeftSidebar() {
         showToast(error?.message || '파일 선택창을 열지 못했습니다.', 'error');
       }
     }
-  }, [isRestrictedUser, isImporting, chooseImportDestination, showToast]);
+  }, [isRestrictedUser, isImporting, chooseImportDestination, showToast, rootFolder, fileList]);
 
   // ⌨️ [루트 액션 트리거]
   const triggerCreateRootFile = useCallback(() => {
@@ -1668,6 +1745,7 @@ export default function LeftSidebar() {
   useEffect(() => {
     if (!contextMenu) return;
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
       const isMacPlatform = typeof navigator !== 'undefined' && /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
       const isCtrl = isMacPlatform ? e.metaKey : e.ctrlKey;
 
@@ -1813,7 +1891,7 @@ export default function LeftSidebar() {
         if (srcDriveId === rootDriveId) return;
 
         const srcParentDriveId = (draggedNode as any)?.parentDriveId || (draggedNode as any)?.parentId;
-        await moveDriveItem(token, srcDriveId, rootDriveId, srcParentDriveId);
+        await moveDriveItemWithUndo(token, srcDriveId, rootDriveId, srcParentDriveId, { name: sourceName, kind: sourceKind });
         showToast(`'${sourceName}' 루트로 이동 완료`, 'success');
 
         await refreshFileList(true);
@@ -2068,7 +2146,7 @@ export default function LeftSidebar() {
       if (isRestrictedUser) return;
       targetImportNodeRef.current = e?.detail?.node || null;
       targetImportParentHandleRef.current = e?.detail?.parentHandle || null;
-      void openImportPicker();
+      void openImportPicker(e?.detail?.source);
     };
     window.addEventListener('TRIGGER_IMPORT', handleTriggerImport);
     return () => window.removeEventListener('TRIGGER_IMPORT', handleTriggerImport);
@@ -2584,6 +2662,16 @@ export default function LeftSidebar() {
   };
 
   const importControls = <>
+    {showImportSource && <div className="fixed inset-0 z-[1000000] bg-black/60 flex items-center justify-center p-4" onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setShowImportSource(false); } }}>
+      <section role="dialog" aria-modal="true" aria-label="파일 가져올 위치 선택" className="bg-white dark:bg-zinc-900 text-slate-900 dark:text-slate-100 rounded-xl shadow-xl p-6 w-full max-w-md space-y-4">
+        <h2 className="text-lg font-bold">파일 열기 · 가져오기</h2>
+        <p className="text-sm">가져올 파일의 위치를 선택해 주세요. 파일은 Markdown(.md)으로 변환한 뒤 선택한 작업장 폴더에 저장합니다.</p>
+        <button type="button" autoFocus className="block w-full border rounded-lg p-3 text-left" onClick={() => void openImportPicker('local')}>📁 내 PC(로컬)에서 가져오기</button>
+        <button type="button" className="block w-full border rounded-lg p-3 text-left" onClick={() => void openImportPicker('drive')}>☁️ 웹드라이브에서 가져오기</button>
+        <p className="text-xs">DOCX · HWP · PDF · EPUB · TXT · MD · HTML</p>
+        <div className="text-right"><button type="button" className="border rounded px-4 py-2" onClick={() => setShowImportSource(false)}>취소</button></div>
+      </section>
+    </div>}
     <input type="file" ref={importFileInputRef} style={{display:'none'}} accept={IMPORT_ACCEPT} onChange={event => {const file=event.target.files?.[0];event.target.value='';if(file)chooseImportDestination(file);}} />
     <NewDocumentModal isOpen={!!pendingImportFile} onClose={() => setPendingImportFile(null)} fileList={fileList} rootFolder={rootFolder} workspaceType={workspaceType} initialName={pendingImportFile?.name.replace(/\.[^.]+$/, '') || '문서'} dialogTitle="파일 가져올 폴더와 이름" initialFolderNode={targetImportNodeRef.current} onConfirm={async (name,node) => {
       if (!pendingImportFile) return;
@@ -2687,11 +2775,11 @@ export default function LeftSidebar() {
                 e.stopPropagation();
                 if (disconnectGoogleDrive) disconnectGoogleDrive();
               }}
-              title="구글 드라이브 연결 해제"
-              className="px-2 py-1 text-[11px] font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded transition-colors shrink-0 flex items-center gap-1"
+              title="개인 웹드라이브 연결을 해제하고 내 PC 로컬 작업장으로 돌아갑니다."
+              className="px-2 py-1 text-[11px] font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
             >
               <span>🔌</span>
-              <span>해제</span>
+              <span>로컬 복귀</span>
             </button>
           )}
         </div>
@@ -3036,7 +3124,7 @@ export default function LeftSidebar() {
                   </div>
                   <div className="space-y-1 px-1">
                     <h4 className="font-extrabold text-[13px] text-zinc-900 dark:text-zinc-100">
-                      구글 드라이브 재접속 필요
+                      개인 웹드라이브 재접속 필요
                     </h4>
                     <p className="text-[11px] text-zinc-600 dark:text-zinc-400 leading-relaxed break-keep">
                       보안을 위해 1시간 후 구글 인증 세션이 만료되었습니다. 작성하신 문서와 폴더는 안전하게 보관되어 있습니다.
@@ -3055,12 +3143,12 @@ export default function LeftSidebar() {
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                           </svg>
-                          <span>구글 연결 중...</span>
+                          <span>연결 중...</span>
                         </>
                       ) : (
                         <>
                           <Icon name="RotateCw" size={13} strokeWidth={2.2} />
-                          <span>구글 드라이브 다시 연결</span>
+                          <span>개인 웹드라이브 다시 연결</span>
                         </>
                       )}
                     </button>
@@ -3076,13 +3164,35 @@ export default function LeftSidebar() {
                   </div>
                 </div>
               ) : fileList.length === 0 ? (
-                <div className="text-zinc-400 dark:text-zinc-500 text-[12px] text-center py-5 space-y-1">
-                  <p>연결된 폴더에 파일이 없습니다.</p>
-                  {rootFolder?.type === 'GDRIVE' && (
+                <div className="text-zinc-500 dark:text-zinc-400 text-[12px] text-center py-6 px-3 space-y-3">
+                  <p className="font-semibold text-zinc-700 dark:text-zinc-300">
+                    {rootFolder?.type === 'GDRIVE' ? '☁️ 웹드라이브 작업장에 파일이 없습니다.' : '연결된 폴더에 파일이 없습니다.'}
+                  </p>
+                  {rootFolder?.type === 'GDRIVE' ? (
+                    <div className="flex flex-col gap-2 pt-1">
+                      {disconnectGoogleDrive && (
+                        <button
+                          type="button"
+                          onClick={() => disconnectGoogleDrive()}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-[#1d4ed8] hover:bg-[#1e40af] text-white rounded-lg text-[12px] font-bold shadow transition-all cursor-pointer"
+                        >
+                          <span>🏠</span>
+                          <span>내 PC 로컬 작업장으로 복귀</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => triggerCreateRootFile()}
+                        className="w-full px-3 py-1.5 border border-slate-300 dark:border-zinc-700 hover:bg-black/5 dark:hover:bg-white/5 text-zinc-700 dark:text-zinc-300 rounded-lg text-[11px] font-medium transition-all cursor-pointer"
+                      >
+                        + 새 문서 만들기
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type="button"
                       onClick={() => triggerCreateRootFile()}
-                      className="text-[#1d4ed8] hover:underline text-[11px] font-medium"
+                      className="text-[#1d4ed8] hover:underline text-[11px] font-medium cursor-pointer"
                     >
                       + 새 문서 만들기
                     </button>
@@ -3164,7 +3274,7 @@ export default function LeftSidebar() {
                 className="w-full flex items-center justify-center gap-2 px-3 py-3 bg-[#1d4ed8] hover:bg-[#1e40af] text-white rounded-xl text-[13px] font-extrabold shadow-md shadow-blue-500/25 hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer"
               >
                 <span className="text-base">☁️</span>
-                <span>내 구글 드라이브 연결</span>
+                <span>개인 웹드라이브 연결</span>
               </button>
 
               <div className="w-full flex items-center gap-2 my-1">

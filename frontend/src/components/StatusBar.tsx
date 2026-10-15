@@ -1,6 +1,7 @@
 // ====================================================================
 // 📊 [OMD-EDIT-StatusBar-0003] StatusBar.tsx ➔ StatusBar
 // 🎯 @KICK  : 하단 상태표시줄 - 글자 수, 단어 수, 서식 프로필, 저장 상태, 뷰포트 모드, 행/열 정보 및 지식 색인 실시간 진행률 표시
+// 🚨 @PATCH : **2026-10-15** — [화면 흔들림 방어]: 모드 전환 및 사이드바 토글 버튼의 transition-all을 transition-colors로 고정하여 뷰포트 레이아웃 재계산 및 미세 떨림 방지
 // 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(Loader2, CheckCircle2, AlertTriangle, BookOpen) 제거, Icon 컴포넌트(Loading, CheckCircle, AlertWarning)로 교체
 // 🚨 @PATCH : **2026-09-16** — [지식 베이스 색인 실시간 진행 표시기(Progress Badge) 연동]: 백그라운드 지식 수집/색인 중(knowledge:queue-progress) 현재 파일명, 진행률(%), 완료 및 실패 상태를 상태바 중앙에 실시간 스피너 배지로 상시 노출하여 작업 가시성 100% 확보
 //             **2026-09-13** — [플로팅 서식 툴바 및 팝업리스트 가시성 보장을 위한 StatusBar z-index 조정]: 상태표시줄의 z-index를 z-40에서 z-20으로 낮추어 플로팅 툴바 드롭다운 및 모달 위계 충돌 방지
@@ -497,7 +498,7 @@ function StatusBar() {
         {setIsSidebarOpen && (
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className={`px-2 py-1 rounded-md text-[12px] font-semibold transition-all hover:bg-black/10 dark:hover:bg-white/10 ${
+            className={`px-2 py-1 rounded-md text-[12px] font-semibold transition-colors hover:bg-black/10 dark:hover:bg-white/10 ${
               isSidebarOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-zinc-500'
             }`}
             title={isSidebarOpen ? t('sidebarHide') : t('sidebarShow')}
@@ -513,7 +514,7 @@ function StatusBar() {
               <button
                 onClick={() => setIsA4GuardEnabled(!isA4GuardEnabled)}
                 title={isA4GuardEnabled ? "조판 가드 끄기 (Disable Layout Guard)" : "조판 가드 켜기 (Enable Layout Guard)"}
-                className={`px-3 py-1.5 text-[12px] font-bold transition-all duration-150 select-none border-r border-black/10 dark:border-white/10 ${
+                className={`px-3 py-1.5 text-[12px] font-bold transition-colors select-none border-r border-black/10 dark:border-white/10 ${
                   isA4GuardEnabled
                     ? 'bg-amber-500 text-white'
                     : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/8 dark:hover:bg-white/8'
@@ -533,7 +534,7 @@ function StatusBar() {
                   <button
                     onClick={() => setPreviewMode('preview')}
                     title={isEditDisabled ? "미리보기 전용 모드 (읽기 전용/제한 상태)" : "미리보기 - 렌더링된 문서만 표시"}
-                    className={`px-3 py-1.5 text-[12px] font-bold transition-all duration-150 select-none ${
+                    className={`px-3 py-1.5 text-[12px] font-bold transition-colors select-none ${
                       previewMode === 'preview'
                         ? 'bg-emerald-500 text-white'
                         : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/8 dark:hover:bg-white/8'
@@ -544,7 +545,7 @@ function StatusBar() {
                     disabled={isEditDisabled}
                     onClick={() => !isEditDisabled && setPreviewMode('both')}
                     title={disabledTitle || "분할모드 - 에디터와 미리보기 함께 표시"}
-                    className={`px-3 py-1.5 text-[12px] font-bold transition-all duration-150 select-none ${
+                    className={`px-3 py-1.5 text-[12px] font-bold transition-colors select-none ${
                       isEditDisabled ? 'opacity-40 cursor-not-allowed' : ''
                     } ${
                       previewMode === 'both' || previewMode === 'css-style'

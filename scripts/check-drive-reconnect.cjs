@@ -32,6 +32,18 @@ Function('exports','require','window','document','localStorage','sessionStorage'
   await [...intervals.values()][0]();
   assert.equal(await auth,'reconnected-token');assert.equal(local.getItem(key),'reconnected-token');
   assert.equal(opens,before);assert.equal(intervals.size,0);
+  gesture=true;
+  const otherAccount=exportsObject.prepareGoogleDriveAuth({isStandalone:true});
+  gesture=false;
+  const otherAuth=otherAccount.request();
+  fetchHandler=async(url,options)=>{
+    if(!url.endsWith('/oauth/status'))return Response.json({});
+    assert.equal(JSON.parse(options.body).standalone,true);
+    return Response.json({access_token:'other-account-token',expires_in:3600});
+  };
+  await [...intervals.values()][0]();
+  assert.equal(await otherAuth,'other-account-token');
+  assert.equal(local.getItem(key),'reconnected-token','other-account save must preserve workspace access token');
   // Require request-token identity at every Drive error call site.
   const tree=ts.createSourceFile('client.ts',source,ts.ScriptTarget.Latest,true);
   const visit=node=>{if(ts.isCallExpression(node)&&node.expression.getText(tree)==='parseDriveError')assert.equal(node.arguments.length,3,node.getText(tree));ts.forEachChild(node,visit);};visit(tree);

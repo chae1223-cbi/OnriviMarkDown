@@ -20,9 +20,10 @@ function registerDriveOAuth({ ipcMain, app, shell, safeStorage, getWindow }) {
     if (!response.ok) { const error = new Error(result.error || 'Google Drive 인증 요청에 실패했습니다.'); error.code = result.code; throw error; }
     return result;
   }
-  ipcMain.handle('gdrive:request-auth', async event => {
+  ipcMain.handle('gdrive:request-auth', async (event, options) => {
     if (!trusted(event)) throw new Error('허용되지 않은 인증 요청입니다.');
-    if (authenticating) return authenticating;
+    const standalone = options?.isStandalone === true;
+    if (authenticating) throw new Error('Google Drive 인증이 진행 중입니다. 완료 후 다시 시도해 주세요.');
     if (!safeStorage.isEncryptionAvailable()) throw new Error('운영체제의 인증 정보 암호화 저장소를 사용할 수 없습니다.');
     authenticating = new Promise((resolve, reject) => {
       const base = origin(), state = crypto.randomBytes(32).toString('base64url'), verifier = crypto.randomBytes(32).toString('base64url');
@@ -45,7 +46,7 @@ function registerDriveOAuth({ ipcMain, app, shell, safeStorage, getWindow }) {
         try {
           const tokens = await post(base, 'exchange', { ticket, verifier });
           if (!/^[\w-]{43}$/.test(tokens.session_token || '') || !tokens.access_token) throw new Error('인증 응답이 올바르지 않습니다.');
-          await fs.writeFile(filename(), safeStorage.encryptString(JSON.stringify({ origin: base, session: tokens.session_token })), { mode: 0o600 });
+          if (!standalone) await fs.writeFile(filename(), safeStorage.encryptString(JSON.stringify({ origin: base, session: tokens.session_token })), { mode: 0o600 });
           response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
           response.end('<!doctype html><meta charset="utf-8"><p>Google Drive 연결이 완료되었습니다. 앱으로 돌아가세요.</p>');
           finish(null, { access_token: tokens.access_token, expires_in: tokens.expires_in });

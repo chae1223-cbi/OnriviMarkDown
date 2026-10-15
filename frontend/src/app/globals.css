@@ -18,6 +18,11 @@
 }
 
 /* ===================================================================
+ * 🚨 @PATCH : **2026-10-15** — [슬래시 자동완성 팝업 서식 설명 열 왼쪽 정렬 통일]:
+ *             Monaco Suggest Widget의 서식 설명(.details-label / .right)이 우측 끝으로 밀려 우측 정렬되던 레이아웃을 flex-start 및 고정 열 너비(220px) 기반의 단정한 왼쪽 정렬(Left-align)로 전면 개편
+ * 🚨 @PATCH : **2026-10-15** — [화면 흔들림(Layout Shift & Scrollbar Jitter) 완전 해결]:
+ *             1) 에디터/데스크톱 뷰포트에서 html, body 너비·높이 100% 고정 및 overflow: hidden 강제 적용으로 17px 윈도우 스크롤바 생성/소멸에 의한 전체 화면 좌우 요동 원천 차단
+ *             2) scrollbar-gutter: stable 표준화로 어떤 동적 이벤트 발생 시에도 뷰포트 지오메트리 100% 불변 유지
  * 🚨 @PATCH : **2026-10-13** — [나란히 보기 마크다운 영역 배경색 분리, 라인번호 거터 제거 및 읽기 전용 커서 숨김]: 문서 보기(#ffffff)와 경계가 구분되도록 마크다운 영역 배경을 분리하고, 라인번호 거터(.monaco-editor .margin, .line-numbers)와 읽기 전용 마크다운 영역(#onrivi-markdown-pane)의 입력 커서 바를 숨김 처리
  * 🚨 @PATCH : **2026-10-10** — [탐색기(LeftSidebar) 스크롤바 폭 100% 확대(6px->12px) 및 시인성 강화]: 기존 6px 규격의 얇은 스크롤바 폭을 12px(100% 확대)로 확장하고, 은은한 트랙과 고대비 썸(Thumb) 및 호버 반응을 탑재한 .explorer-scrollbar 유틸리티 신설
  * 🚨 @PATCH : **2026-10-02** — [이미지 드래그 앤 드롭 실시간 위치 가이드라인 및 드롭 타겟 라인 하이라이트 스타일 탑재]: 드래그 중인 이미지가 삽입될 행과 위치를 사용자가 마우스를 놓기 전에 100% 식별할 수 있도록 .onrivi-drop-line-highlight 스타일 추가
@@ -223,6 +228,10 @@
 
 /* 💡 [ONRIVI-DS-SYSTEM-003 Modern Technical Editorial] 전역 텍스트 렌더링 & 가독성 엔진 최적화 */
 html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
   font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -231,6 +240,20 @@ html, body {
   letter-spacing: -0.012em;
   word-break: normal;
   overflow-wrap: break-word;
+}
+
+/* 🛡️ [화면 흔들림 및 윈도우 스크롤바 덜컹거림 완전 차단] */
+body:has(#onrivi-markdown-pane),
+body:has(.custom-preview-container),
+body:has(.preview-toolbar-root),
+html:has(#onrivi-markdown-pane),
+html:has(.custom-preview-container) {
+  overflow: hidden !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  width: 100vw !important;
+  max-width: 100vw !important;
+  scrollbar-gutter: stable;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -608,13 +631,76 @@ option {
   pointer-events: auto !important; /* 버튼 자체는 클릭 가능해야 함 */
 }
 
-/* 🔥 자동완성(Suggest Widget) 팝업 레이어 — 클릭 이벤트 완전 보장 */
-.monaco-editor .suggest-widget {
+/* 🔥 자동완성(Suggest Widget) 팝업 레이어 & 서식 설명(Detail) 열 왼쪽 정렬 통일 */
+.monaco-editor .suggest-widget,
+.suggest-widget {
   z-index: 9999 !important;
   pointer-events: auto !important;  /* 마우스 클릭이 자동완성 팝업에 정상 도달 */
+  min-width: 520px !important;
 }
-.monaco-editor .suggest-widget * {
+.monaco-editor .suggest-widget *,
+.suggest-widget * {
   pointer-events: auto !important;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main,
+.suggest-widget .monaco-list .monaco-list-row > .contents > .main,
+.monaco-editor .suggest-widget .monaco-list-row .contents .main,
+.suggest-widget .monaco-list-row .contents .main {
+  display: flex !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 0 !important;
+  width: 100% !important;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left,
+.suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left,
+.monaco-editor .suggest-widget .monaco-list-row .contents .main .left,
+.suggest-widget .monaco-list-row .contents .main .left {
+  flex: 0 0 220px !important;
+  width: 220px !important;
+  min-width: 220px !important;
+  max-width: 220px !important;
+  display: flex !important;
+  align-items: center !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right,
+.suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right,
+.monaco-editor .suggest-widget .monaco-list-row .contents .main .right,
+.suggest-widget .monaco-list-row .contents .main .right {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  display: flex !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  text-align: left !important;
+  margin-left: 14px !important;
+  max-width: none !important;
+  overflow: hidden !important;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .details-label,
+.suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .details-label,
+.monaco-editor .suggest-widget .monaco-list-row .contents .main .right .details-label,
+.suggest-widget .monaco-list-row .contents .main .right .details-label {
+  text-align: left !important;
+  margin-left: 0 !important;
+  width: 100% !important;
+  display: inline-block !important;
+  opacity: 0.7 !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+}
+
+.monaco-editor .suggest-widget .monaco-list-row .contents .main .right .details-label .monaco-tokenized-source,
+.suggest-widget .monaco-list-row .contents .main .right .details-label .monaco-tokenized-source {
+  text-align: left !important;
+  display: inline-block !important;
 }
 
 /* 프리뷰 라인 클릭/동기화 하이라이트 효과 — 은은한 배경 하이라이트 (세로 바 제거) */

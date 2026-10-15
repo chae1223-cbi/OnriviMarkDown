@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 5. 폴더 선택 대화상자 띄우기 (전체 검색 범위 선택용)
   selectMediaFile: (options) => ipcRenderer.invoke('dialog:selectMediaFile', options),
   selectFolder: (defaultPath) => ipcRenderer.invoke('dialog:selectFolder', defaultPath),
+  chooseImportDocument: (defaultPath) => ipcRenderer.invoke('dialog:chooseImportDocument', defaultPath),
 
   // 5.5. 파일 저장 대화상자 띄우기
   showSaveDialog: (options) => ipcRenderer.invoke('dialog:showSaveDialog', options),
@@ -60,7 +61,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   copyFile: (srcPath, destPath) => ipcRenderer.invoke('file:copy', srcPath, destPath),
 
   // 9-2. 파일/폴더 이동 (Cut & Paste)
-  moveFile: (srcPath, destPath) => ipcRenderer.invoke('file:move', srcPath, destPath),
+  moveFile: (srcPath, destPath, options) => ipcRenderer.invoke('file:move', srcPath, destPath, options),
 
   // 9-3. 시스템 탐색기 / Finder 열기 및 위치 표시
   openPath: (targetPath) => ipcRenderer.invoke('system:openPath', targetPath),
@@ -186,7 +187,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openMermaidWindow: (svgHtml, options) => ipcRenderer.invoke('mermaid:open-window', svgHtml, options),
 
   // 29. 구글 드라이브 데스크톱 외부 브라우저 안전 인증 (Handoff 및 루프백 연동)
-  requestDesktopGDriveAuth: () => ipcRenderer.invoke('gdrive:request-auth'),
+  requestDesktopGDriveAuth: (options) => ipcRenderer.invoke('gdrive:request-auth', options),
   refreshDesktopGDriveAuth: () => ipcRenderer.invoke('gdrive:refresh-auth'),
   disconnectDesktopGDriveAuth: () => ipcRenderer.invoke('gdrive:disconnect-auth'),
 

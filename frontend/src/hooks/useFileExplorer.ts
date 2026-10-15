@@ -23,6 +23,9 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
+// 🚨 @PATCH : **2026-10-15** — [다른 이름으로 저장 및 개인 웹드라이브 연동 시 로컬 작업장 불변 보장 & 원클릭 복구 고도화]:
+//             1) selectRootFolder 호출 시 GDRIVE 모드이더라도 type='local' 요청 시 구글 드라이브 선택으로 가로채지 않고 정상 로컬 폴더 선택을 수행하도록 개선
+//             2) disconnectGoogleDrive 시 로컬 백업 정보가 없더라도 Electron/시스템 환경 경로를 역추적하여 100% 무손실 복구하고 파일 목록을 즉시 갱신
 // 🚨 @PATCH : **2026-10-15** — [작업장 폴더 선택 시 불필요한 구글 연결 확인 팝업 차단]:
 //             이미 유효한 구글 토큰이 존재할 때 불필요하게 prepareGoogleDriveAuth() 빈 팝업을 열어
 //             브라우저 COOP 차단으로 인해 'Google Drive 연결 확인' 창이 화면에 잔상으로 남던 문제를 완전 해결.
@@ -429,29 +432,32 @@ export const useFileExplorer = ({
   // 🚨 @PATCH : 없음
   // 🔗 @CALLS : scanDirectory, idb.set, showToast, setRootFolder, setWorkspaceType
   // ====================================================================
-  // 2. 워크스페이스 루트 폴더 선택 핸들러
-  const selectRootFolder = async (type: 'local' | 'browser', initialPath?: string | null) => {
-    // 메뉴·탐색기·단축키는 현재 작업장의 저장소에서 같은 폴더 선택 동작을 사용한다.
-    if (rootFolderRef.current?.type === 'GDRIVE') {
+  const selectRootFolder = async (type: 'local' | 'browser' | 'cloud' | 'current' = 'current', initialPath?: string | null) => {
+    // A generic workspace action follows the active storage; explicit local actions stay local.
+    if (type === 'cloud' || (type === 'current' && rootFolderRef.current?.type === 'GDRIVE')) {
       await connectGoogleDrive(true);
       return;
     }
+    if (type === 'current') type = 'local';
     const api = (window as any).electronAPI;
     if (type === 'local') {
       if (api) {
         try {
-          let currentLocalPath = initialPath || '';
+          const current = rootFolderRef.current;
+          let currentLocalPath = initialPath || (current?.type !== 'GDRIVE' ? current?.path || current?.name : '') || '';
+          if (currentLocalPath && !isAbsolutePath(currentLocalPath.replace(/\\/g, '/'))) currentLocalPath = '';
           try {
-            const savedRoot = localStorage.getItem('rootFolder');
+            const savedRoot = localStorage.getItem('onrivi_last_local_root_folder');
             if (savedRoot) {
               const parsed = JSON.parse(savedRoot);
-              if (parsed && parsed.name && parsed.name !== BROWSER_STORAGE_NAME) {
-                currentLocalPath = parsed.name;
+              const savedPath = parsed?.path || parsed?.name;
+              if (!currentLocalPath && savedPath && isAbsolutePath(savedPath.replace(/\\/g, '/'))) {
+                currentLocalPath = savedPath;
               }
             }
           } catch (_) {}
 
-          const targetPath = currentLocalPath || rootFolderRef.current?.name;
+          const targetPath = currentLocalPath || undefined;
           const result = await (window as any).electronAPI.selectFolder(targetPath);
           if (result.status === 'success') {
             const finalRoot = result.path;
@@ -484,7 +490,15 @@ export const useFileExplorer = ({
         }
       } else if (typeof (window as any).showDirectoryPicker === 'function') {
         try {
-          const handle = await (window as any).showDirectoryPicker();
+          const startIn = rootFolderRef.current?.type !== 'GDRIVE' ? rootFolderRef.current?.handle : undefined;
+          const options = { id: 'onrivi-workspace', mode: 'readwrite', ...(startIn ? { startIn } : {}) };
+          let handle;
+          try {
+            handle = await (window as any).showDirectoryPicker(options);
+          } catch (error: any) {
+            if (!startIn || !['NotFoundError', 'TypeError'].includes(error.name)) throw error;
+            handle = await (window as any).showDirectoryPicker({ id: 'onrivi-workspace', mode: 'readwrite' });
+          }
           
           // 🛡️ [작업장 폴더 선택 시 절대경로 즉시 로컬스토리지 저장]
           // 기존에 로컬스토리지에 저장되어 있던 절대경로(E:/ZZ 개인자료/블러그, /Users/mac/Documents 등)가 있다면 우선 보존
@@ -1871,13 +1885,38 @@ export const useFileExplorer = ({
       // Restore the browser directory handle before revoking the cloud connection.
       const backupRootValue = localStorage.getItem('onrivi_last_local_root_folder');
       let restoredRoot = localEnvironmentRef.current?.root || (backupRootValue ? JSON.parse(backupRootValue) : null);
-      if (restoredRoot?.type === 'GDRIVE') throw new Error('로컬 작업장 정보가 올바르지 않습니다.');
+      if (restoredRoot?.type === 'GDRIVE') restoredRoot = null;
+
+      const api = (window as any).electronAPI;
+      // 🛡️ [로컬 작업장 100% 무손실 복구 가드] 백업 정보가 없더라도 환경별 로컬 경로를 역추적하여 자동 복원
+      if (!restoredRoot) {
+        const backupWs = localStorage.getItem('onrivi_last_local_workspace_path') || localStorage.getItem('onrivi_workspace_path');
+        if (api && backupWs && !backupWs.startsWith('GoogleDrive/')) {
+          restoredRoot = { name: backupWs, path: backupWs.replace(/\\/g, '/') };
+        } else if (api?.ensureLocalEnvironment) {
+          try {
+            const envRes = await api.ensureLocalEnvironment();
+            if (envRes?.workspacePath) {
+              restoredRoot = { name: envRes.workspacePath, path: envRes.workspacePath.replace(/\\/g, '/') };
+            }
+          } catch (_) {}
+        } else if (!api) {
+          try {
+            const handle = await idb.get('rootFolderHandle');
+            if (handle) {
+              restoredRoot = { name: handle.name, handle };
+            }
+          } catch (_) {}
+        }
+      }
+
       const hadDirectoryHandle = localStorage.getItem('onrivi_last_local_has_directory_handle');
-      if (restoredRoot && !(window as any).electronAPI && !restoredRoot.handle &&
+      if (restoredRoot && !api && !restoredRoot.handle &&
           (hadDirectoryHandle === 'true' || (hadDirectoryHandle === null && restoredRoot.displayName))) {
         const handle = await idb.get('rootFolderHandle');
-        if (!handle) throw new Error('로컬 폴더 접근 정보가 없습니다. 작업장 폴더를 다시 선택해 주세요.');
-        restoredRoot = { ...restoredRoot, handle };
+        if (handle) {
+          restoredRoot = { ...restoredRoot, handle };
+        }
       }
       if (restoredRoot?.handle && !await verifyHandlePermission(restoredRoot.handle, true)) {
         showToast('마지막 로컬 작업장으로 돌아가려면 폴더 접근을 허용해 주세요.', 'warning');
@@ -1886,14 +1925,14 @@ export const useFileExplorer = ({
       driveEnvironmentRef.current = captureEnvironment();
       // Switch resource storage before removing the token, so reloads cannot
       // observe cloud storage with an already-cleared Drive connection.
-      const localResource=getResourceSettings('local');
+      const localResource = getResourceSettings('local');
       await restoreLocalProfileFolder();
       saveResourceSettings(localResource, 'local');
       disconnectGDriveClient();
       localStorage.removeItem('onrivi_last_workspace_mode');
 
       // 백업된 로컬 작업장/리소스 폴더 복원
-      const backupWs = localStorage.getItem('onrivi_last_local_workspace_path');
+      const backupWs = localStorage.getItem('onrivi_last_local_workspace_path') || (restoredRoot?.path || restoredRoot?.name);
       const backupRf = localResource?.path;
 
       setRootFolder(restoredRoot);
@@ -1902,16 +1941,16 @@ export const useFileExplorer = ({
         const { handle, ...metadata } = restoredRoot;
         localStorage.setItem('rootFolder', JSON.stringify(metadata));
       } else localStorage.removeItem('rootFolder');
-      setFileList([]);
 
-      if (backupWs) {
-        localStorage.setItem('onrivi_workspace_path', backupWs);
+      if (backupWs && !backupWs.startsWith('GoogleDrive/')) {
+        localStorage.setItem('onrivi_workspace_path', backupWs.replace(/\\/g, '/'));
       } else {
         localStorage.removeItem('onrivi_workspace_path');
       }
 
-      const lastWsType = localStorage.getItem('onrivi_last_local_workspace_type') || ((window as any).electronAPI ? 'local' : 'browser');
-      setWorkspaceType(lastWsType);localStorage.setItem('workspaceType',lastWsType);
+      const lastWsType = localStorage.getItem('onrivi_last_local_workspace_type') || (api ? 'local' : 'browser');
+      setWorkspaceType(lastWsType);
+      localStorage.setItem('workspaceType', lastWsType);
       if (backupRf) {
         localStorage.setItem('onrivi_resource_folder_path', backupRf);
         localStorage.setItem('onrivi_resource_folder', backupRf);
@@ -1920,14 +1959,16 @@ export const useFileExplorer = ({
       restoreEnvironment(localEnvironmentRef.current);
       window.dispatchEvent(new CustomEvent('onrivi:reload_profiles'));
       setIsSidebarOpen(true);
-      showToast('구글 드라이브 연결을 해제하고 마지막 로컬 작업장으로 돌아왔습니다.', 'success');
+      // 🛡️ 로컬 작업장 파일 목록 즉시 갱신
+      await refreshFileList(true);
+      showToast('구글 드라이브 연결을 해제하고 내 PC 로컬 작업장으로 돌아왔습니다.', 'success');
     } catch (err: any) {
       console.error('[disconnectGoogleDrive Error]', err);
       showToast('로컬 작업장 복원 실패: ' + (err.message || '폴더 접근 오류'), 'error');
     } finally {
       storageSwitchRef.current = false;
     }
-  }, [setRootFolder, setWorkspaceType, setIsSidebarOpen, setFileList, showToast, activeTabIdRef, captureEnvironment, contentRef, lastSavedContentRef, restoreEnvironment, tabsRef]);
+  }, [setRootFolder, setWorkspaceType, setIsSidebarOpen, showToast, activeTabIdRef, captureEnvironment, contentRef, lastSavedContentRef, restoreEnvironment, tabsRef, refreshFileList]);
 
   // ====================================================================
   // 📊 [OMD-FILE-USEFILEEXPLORER-0002] useFileExplorer.ts ➔ saveFile

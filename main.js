@@ -3012,6 +3012,19 @@ ipcMain.handle('dialog:selectMediaFile', async (_event, options = {}) => {
   return {canceled:false,name:path.basename(selected),mimeType:types[extension],bytes:new Uint8Array(await fs.promises.readFile(selected))};
 });
 
+ipcMain.handle('dialog:chooseImportDocument', async (event, defaultPath) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) return null;
+  const start = typeof defaultPath === 'string' && path.isAbsolute(defaultPath) && fs.existsSync(defaultPath) && fs.statSync(defaultPath).isDirectory()
+    ? defaultPath : app.getPath('documents');
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: '가져올 파일 선택', defaultPath: start, properties: ['openFile'],
+    filters: [{ name: '지원 문서 (DOCX, HWP, PDF, EPUB, TXT, MD, HTML)', extensions: ['docx', 'hwp', 'pdf', 'epub', 'txt', 'md', 'markdown', 'html', 'htm'] }],
+  });
+  if (result.canceled || !result.filePaths.length) return null;
+  const selectedPath = result.filePaths[0];
+  return { path: selectedPath, name: path.basename(selectedPath) };
+});
+
 ipcMain.handle('dialog:selectFolder', async (event, defaultPath) => {
   if (!mainWindow) return { status: 'canceled' };
   
@@ -3025,12 +3038,8 @@ ipcMain.handle('dialog:selectFolder', async (event, defaultPath) => {
     ? cleanDefault
     : app.getPath('documents');
 
-  // 💡 [요구사항 2] 윈도우 OS 표준 다이얼로그의 폴더 입력란에 현재 폴더명이 자동으로 입력되게 하기 위한 보정
-  // 윈도우 OS에서는 openDirectory와 openFile을 동시에 주면 부모 폴더가 열리면서 폴더명이 입력창에 pre-fill되게 할 수 있습니다.
-  let properties = ['openDirectory', 'createDirectory'];
-  if (process.platform === 'win32') {
-    properties = ['openDirectory', 'openFile', 'createDirectory'];
-  }
+  // Open inside the current workspace and accept directories only.
+  const properties = ['openDirectory', 'createDirectory'];
 
   const result = await dialog.showOpenDialog(mainWindow, {
     title: defaultPath ? `워크스페이스 폴더 선택 - ${defaultPath}` : '워크스페이스 폴더 선택',
@@ -3383,10 +3392,11 @@ ipcMain.handle('file:copy', async (event, srcPath, destPath) => {
 });
 
 // 9-2. 파일/폴더 이동 (Cut & Paste / Move)
-ipcMain.handle('file:move', async (event, srcPath, destPath) => {
+ipcMain.handle('file:move', async (event, srcPath, destPath, options) => {
   try {
     const cleanSrc = srcPath.normalize('NFC');
     let cleanDest = destPath.normalize('NFC');
+    if (options?.failIfExists && fs.existsSync(cleanDest)) throw new Error('원래 위치에 같은 이름의 항목이 있습니다. 이름을 변경한 뒤 다시 되돌려 주세요.');
 
     if (!fs.existsSync(cleanSrc)) {
       throw new Error(`원본 파일 또는 폴더가 존재하지 않습니다: ${cleanSrc}`);
@@ -3526,6 +3536,7 @@ ipcMain.handle('file:restoreFolderFromUndo', async (event, backupPath, targetPat
     const cleanBackup = backupPath.normalize('NFC');
     const cleanTarget = targetPath.normalize('NFC');
     if (!fs.existsSync(cleanBackup)) return { success: false, error: '백업 디렉토리가 존재하지 않습니다: ' + cleanBackup };
+    if (fs.existsSync(cleanTarget)) return { success: false, error: '복원할 위치에 같은 이름의 항목이 이미 있습니다.' };
 
     const targetParent = path.dirname(cleanTarget);
     if (!fs.existsSync(targetParent)) {

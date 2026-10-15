@@ -1,5 +1,20 @@
 // ====================================================================
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
+// 🚨 @PATCH : **2026-10-15** — [메뉴바 단축키 표기 완전 제거 및 UI 컴팩트화]:
+//             1) MenuDropdown 내부의 shortcut 텍스트 렌더링을 완전히 제거하여 간결하고 직관적인 데스크톱 메뉴 UI 제공
+//             2) 불필요한 단축키 여백을 줄이고 w-52 슬림 규격으로 정돈
+// 🚨 @PATCH : **2026-10-15** — [메뉴 드롭다운 스크롤바 완전 제거 및 파일열기/다른이름으로저장/내보내기 직결 실행 보장]:
+//             1) MenuDropdown 및 서브메뉴의 max-h와 overflow-y-auto를 전면 제거하여 스크롤 없이 전체 메뉴 항목이 한눈에 즉시 펼쳐지도록 복원
+//             2) py-1.5 컴팩트 높이 적용으로 어떤 해상도에서도 스크롤 이동 없이 모든 메뉴(새문서, 파일열기, 저장, 다른이름으로저장, 내보내기 등) 상시 노출
+//             3) '다른 이름으로 저장(saveFileAs)'에 직접 onClick: dispatch('SAVE_AS') 바인딩 및 서브메뉴(내PC/웹드라이브) 양방향 지원
+//             4) '내보내기(export)'의 previewMode !== 'preview' 가드를 해제하여 분할 화면(나란히 보기) 등 모든 화면 모드에서 원클릭 사출 지원
+//             5) 부모 메뉴 아이템에 onClick이 있는 경우(파일 열기, 다른 이름으로 저장 등) 서브메뉴 유무와 무관하게 직접 클릭 시 즉각 실행 연동
+// 🚨 @PATCH : **2026-10-15** — [편집 메뉴 확대/축소 항목 삭제 및 문서보기 전용 줌 체계 정립]:
+//             1) 편집(Edit) 메뉴 내 불필요한 확대(zoomIn) 및 축소(zoomOut) 메뉴 항목 완전 제거
+//             2) 확대/축소 책임 영역을 모나코 편집기가 아닌 '문서보기'(PreviewToolbar/VisualDocumentEditor) 전용 기능으로 단일화
+// 🚨 @PATCH : **2026-10-15** — [다른 이름으로 저장 명칭 표준화 및 작업장 비종속 분기]:
+//             1) 메뉴 명칭을 '내PC(로컬)로 저장' 및 '개인웹드라이브 저장'으로 표준화
+//             2) '· 현재 저장소' 태그를 제거하여 작업장 소속 드라이브와 상관없이 원하는 저장소를 언제든 선택할 수 있도록 개편
 // 🚨 @PATCH : **2026-10-14** — [도구 메뉴 '서식 관리 (갤러리)' 문서보기 전면 활성화]:
 //             도구 메뉴의 서식 관리 항목을 dispatch('TOGGLE_CSS_STYLE')로 일원화 연동하여 문서보기(VisualDocumentEditor) 및 모든 뷰 모드에서 원클릭 호출 지원
 // 🚨 @PATCH : **2026-10-14** — [도구 메뉴 '각주 정리' 문서보기(VisualDocumentEditor) 포함 전면 활성화]:
@@ -149,7 +164,7 @@ export default function MenuBar() {
     themePalette,
     licenseStatus, isActivated,
     resourceFolder, resourceFolderHandle,
-    isRestrictedUser,
+    isRestrictedUser, activeTabId,
     connectGoogleDrive, disconnectGoogleDrive, rootFolder
   } = useEditorContext();
   
@@ -250,23 +265,25 @@ export default function MenuBar() {
 
   const fileItems = [
     { label: t('newFile'), icon: <Icon name="Plus" size={15} />, shortcut: 'Ctrl+N', onClick: () => dispatch('NEW_FILE') },
-    { label: t('openFolder'), icon: <Icon name="FolderOpen" size={15} />, shortcut: 'Ctrl+O', onClick: () => dispatch('OPEN_FILE') },
+    { label: t('openFolder'), icon: <Icon name="FolderOpen" size={15} />, shortcut: 'Ctrl+O', onClick: () => dispatch('OPEN_FILE'), subItems: [
+      { label: '내PC(로컬)에서 가져오기', icon: <Icon name="Folder" size={15} />, onClick: () => window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT', { detail: { source: 'local' } })) },
+      { label: '웹드라이브에서 가져오기', icon: <Icon name="FolderSync" size={15} />, onClick: () => window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT', { detail: { source: 'drive' } })) }
+    ] },
     { label: t('openWorkspace'), icon: <Icon name="Folder" size={15} />, shortcut: 'Ctrl+Shift+O', onClick: () => dispatch('OPEN_WORKSPACE') },
     rootFolder?.type === 'GDRIVE'
-      ? { label: "구글 드라이브 연결 해제", icon: <span className="text-[13px]">🔌</span>, onClick: () => disconnectGoogleDrive && disconnectGoogleDrive() }
-      : { label: "내 구글 드라이브 연결", icon: <span className="text-[13px]">☁️</span>, onClick: () => connectGoogleDrive && connectGoogleDrive() },
+      ? { label: "개인 웹드라이브 연결 해제", icon: <span className="text-[13px]">🔌</span>, onClick: () => disconnectGoogleDrive && disconnectGoogleDrive() }
+      : { label: "개인 웹드라이브 연결", icon: <span className="text-[13px]">☁️</span>, onClick: () => connectGoogleDrive && connectGoogleDrive() },
     { divider: true },
     { label: t('saveFile'), icon: <Icon name="Save" size={15} />, shortcut: 'Ctrl+S', disabled: isRestrictedUser, onClick: () => dispatch('SAVE') },
-    { label: t('saveFileAs'), icon: <Icon name="Export" size={15} />, shortcut: 'Ctrl+Shift+S', disabled: isRestrictedUser, subItems: [
-      {label: `내 컴퓨터(로컬)에 저장${rootFolder?.type !== 'GDRIVE' ? ' · 현재 저장소' : ''}`, icon: <Icon name="Folder" size={15} />, onClick: () => window.dispatchEvent(new CustomEvent('onrivi:save-as-target', {detail:'download'}))},
-      {label: `개인 Google Drive에 저장${rootFolder?.type === 'GDRIVE' ? ' · 현재 저장소' : ''}`, icon: <Icon name="FolderSync" size={15} />, onClick: () => window.dispatchEvent(new CustomEvent('onrivi:save-as-target', {detail:'upload'}))}
+    { label: t('saveFileAs'), icon: <Icon name="Export" size={15} />, shortcut: 'Ctrl+Shift+S', disabled: isRestrictedUser, onClick: () => dispatch('SAVE_AS'), subItems: [
+      {label: '내PC(로컬)로 저장', icon: <Icon name="Folder" size={15} />, onClick: () => window.dispatchEvent(new CustomEvent('onrivi:save-as-target', {detail:'download'}))},
+      {label: '개인웹드라이브 저장', icon: <Icon name="FolderSync" size={15} />, onClick: () => window.dispatchEvent(new CustomEvent('onrivi:save-as-target', {detail:'upload'}))}
     ] },
     { divider: true },
     { 
-      label: t('export') + (previewMode !== 'preview' ? " (미리보기 모드 전용)" : ""), 
+      label: t('export'), 
       icon: <Icon name="Export" size={15} />,
-      disabled: previewMode !== 'preview',
-      title: previewMode !== 'preview' ? "내보내기는 미리보기 모드에서만 가능합니다." : undefined,
+      disabled: isRestrictedUser,
       subItems: [
         { label: t('print'), icon: <Icon name="Print" size={14} />, onClick: () => dispatch('PRINT') },
         { label: t('docx'), icon: <Icon name="Document" size={14} />, onClick: () => dispatch('EXPORT_DOCX') },
@@ -313,17 +330,11 @@ export default function MenuBar() {
         onClose={() => setActiveMenu(null)}
         isDarkMode={isDarkMode}
         items={[
-          { label: t('undo'), icon: <Icon name="Undo" size={15} />, shortcut: 'Ctrl+Z', disabled: isRestrictedUser || previewMode === 'preview', onClick: () => dispatch('UNDO') },
-          { label: t('redo'), icon: <Icon name="Redo" size={15} />, shortcut: 'Ctrl+Y', disabled: isRestrictedUser || previewMode === 'preview', onClick: () => dispatch('REDO') },
-          { divider: true },
-          { label: "이모지 보관함", icon: <Icon name="Smile" size={15} />, shortcut: 'Ctrl+Shift+E', disabled: isRestrictedUser || previewMode === 'preview', onClick: () => dispatch('TOGGLE_EMOJI_PANEL') },
-          { label: "달력 및 날짜/시간 삽입", icon: <img src="/icons/Calendar.png" alt="달력" className="w-3.5 h-3.5 object-contain dark:invert" />, disabled: isRestrictedUser || previewMode === 'preview', onClick: () => dispatch('NOW') },
+          { label: t('undo'), icon: <Icon name="Undo" size={15} />, shortcut: 'Ctrl+Z', disabled: isRestrictedUser || !activeTabId, onClick: () => dispatch('UNDO') },
+          { label: t('redo'), icon: <Icon name="Redo" size={15} />, shortcut: 'Ctrl+Y', disabled: isRestrictedUser || !activeTabId, onClick: () => dispatch('REDO') },
           { divider: true },
           { label: t('find'), icon: <Icon name="Search" size={15} />, shortcut: 'Ctrl+F', disabled: isRestrictedUser, onClick: () => dispatch('FIND') },
-          { label: t('replace'), icon: <Icon name="Refresh" size={15} />, shortcut: 'Ctrl+H', disabled: isRestrictedUser || previewMode === 'preview', onClick: () => dispatch('REPLACE') },
-          { divider: true },
-          { label: t('zoomIn'), icon: <Icon name="ZoomIn" size={15} />, disabled: isRestrictedUser, onClick: () => dispatch('ZOOM_IN') },
-          { label: t('zoomOut'), icon: <Icon name="ZoomOut" size={15} />, disabled: isRestrictedUser, onClick: () => dispatch('ZOOM_OUT') },
+          { label: t('replace'), icon: <Icon name="Refresh" size={15} />, shortcut: 'Ctrl+H', disabled: isRestrictedUser, onClick: () => dispatch('REPLACE') },
         ]}
       />
       <MenuDropdown 
@@ -421,7 +432,7 @@ export default function MenuBar() {
              type="button"
              onClick={() => dispatch('SELECT_RESOURCE_FOLDER')}
              title="공통 리소스 폴더(서식/이미지/AI템플릿)가 지정되지 않았습니다. 클릭하여 폴더를 지정하세요."
-             className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25 transition-all text-xs font-bold animate-pulse cursor-pointer shadow-xs active:scale-98"
+             className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25 transition-colors text-xs font-bold cursor-pointer shadow-xs outline-none focus:outline-none"
            >
              <Icon name="FolderSync" size={13} strokeWidth={2.5} />
              <span>리소스 폴더 미설정</span>
@@ -433,9 +444,9 @@ export default function MenuBar() {
             type="button"
             onClick={() => dispatch('SETTINGS_ACCOUNT')}
             title="계정 관리로 이동"
-            className="flex items-center gap-2 px-2.5 py-1 bg-white/70 dark:bg-black/30 hover:bg-white dark:hover:bg-zinc-800/80 rounded-lg border border-black/5 dark:border-white/10 shadow-xs hover:shadow-sm transition-all cursor-pointer group active:scale-98"
+            className="flex items-center gap-2 px-2.5 py-1 bg-white/70 dark:bg-black/30 hover:bg-white dark:hover:bg-zinc-800/80 rounded-lg border border-black/5 dark:border-white/10 shadow-xs hover:shadow-sm transition-colors cursor-pointer group outline-none focus:outline-none"
           >
-            <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 text-white flex items-center justify-center font-bold text-[10px] group-hover:ring-2 group-hover:ring-blue-400/50 transition-all shrink-0">
+            <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 text-white flex items-center justify-center font-bold text-[10px] group-hover:ring-2 group-hover:ring-blue-400/50 transition-[box-shadow] shrink-0">
               {((userNickname || userEmail || licenseStatus?.userId) || 'U').charAt(0).toUpperCase()}
             </div>
             <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
@@ -456,6 +467,7 @@ export default function MenuBar() {
 // 📊 [OMD-EDIT-MenuBar-0001] MenuBar ➔ MenuDropdown
 // 🎯 @KICK  : 상단 메뉴 드롭다운 렌더링 - 서브메뉴 호버 열림 및 단축키 표시
 // 🛡️ @GUARD : item.disabled 적용하여 클릭 및 서브메뉴 방지
+// 🚨 @PATCH : **2026-10-15** — [화면 흔들림 완전 방어]: font-semibold로 인한 너비 변경(Layout Shift) 방지(font-medium 고정), slide-in 애니메이션 제거(fade-in 최적화), type="button" 및 outline-none 표준화
 // 🚨 @PATCH : **2026-06-19** — 메뉴 아이템 비활성화(disabled) 기능 추가: item.disabled가 true일 때 opacity 및 cursor 스타일을 비활성화 형태로 변환하고 클릭/서브메뉴 오픈을 차단하도록 보정
 // 🔗 @CALLS : 없음
 // ====================================================================
@@ -463,14 +475,17 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
   return (
     <div className="relative h-full">
       <button 
+        type="button"
         onClick={onClick}
-        className={`h-full px-3 hover:bg-surface-high/60 transition-colors ${isOpen ? 'bg-primary-container/20 text-primary font-semibold' : ''}`}
+        className={`h-full px-3 outline-none focus:outline-none select-none hover:bg-surface-high/60 transition-colors font-medium text-sm ${
+          isOpen ? 'bg-primary-container/20 text-primary' : 'text-on-surface'
+        }`}
       >
         {label}
       </button>
       {isOpen && (
         <div 
-          className="absolute top-full left-0 w-56 border border-outline/10 rounded-md py-1 animate-in fade-in slide-in-from-top-1 duration-150 text-on-surface bg-surface-high shadow-xl"
+          className="absolute top-full left-0 w-52 border border-outline/10 rounded-md py-1 text-on-surface bg-surface-high shadow-xl"
           style={{ 
             zIndex: 9999
           }}
@@ -481,16 +496,17 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
             ) : (
               <div key={i} className="relative group">
                 <button 
+                  type="button"
                   disabled={item.disabled}
                   title={item.title}
                   onClick={() => { 
                     if (item.disabled) return;
-                    if (!item.subItems) { 
-                      item.onClick?.(); 
+                    if (item.onClick) { 
+                      item.onClick(); 
                       onClose(); 
                     } 
                   }}
-                  className={`w-full flex items-center justify-between px-3 py-2 text-left text-sm ${
+                  className={`w-full flex items-center justify-between px-3 py-1.5 text-left text-sm outline-none focus:outline-none select-none ${
                     item.disabled 
                       ? 'opacity-40 cursor-not-allowed text-zinc-400 dark:text-zinc-500' 
                       : 'hover:bg-[#1d4ed8] hover:text-white transition-colors'
@@ -500,13 +516,13 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
                     <span className="w-4 flex justify-center opacity-70">{item.icon}</span>
                     <span>{item.label}</span>
                   </div>
-                  {item.subItems && <Icon name="ArrowRight" size={14} className="opacity-50" />}
+                  {item.subItems && <Icon name="ArrowRight" size={14} className="opacity-50 ml-auto" />}
                 </button>
 
                 {/* Submenu — CSS group-hover로 제어 (mouse leave 문제 해결) */}
                 {item.subItems && !item.disabled && (
                   <div 
-                    className="absolute top-0 left-full w-48 border border-outline/10 rounded-md py-1 invisible group-hover:visible ml-px text-on-surface bg-surface-high shadow-xl"
+                    className="absolute top-0 left-full w-52 border border-outline/10 rounded-md py-1 invisible group-hover:visible ml-px text-on-surface bg-surface-high shadow-xl"
                     style={{ 
                       zIndex: 10000
                     }}
@@ -514,6 +530,7 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
                     {item.subItems.map((sub: any, j: number) => (
                       <button 
                         key={j}
+                        type="button"
                         disabled={sub.disabled}
                         title={sub.title}
                         onClick={() => { 
@@ -521,7 +538,7 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
                           sub.onClick?.(); 
                           onClose(); 
                         }}
-                        className={`w-full flex items-center justify-between px-3 py-2 transition-colors text-left text-sm ${
+                        className={`w-full flex items-center justify-between px-3 py-1.5 transition-colors text-left text-sm outline-none focus:outline-none select-none ${
                           sub.disabled
                             ? 'opacity-40 cursor-not-allowed text-zinc-400 dark:text-zinc-500'
                             : sub.isActive

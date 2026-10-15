@@ -120,6 +120,7 @@
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Fragment } from 'prosemirror-model';
+import type { SearchEditorHost } from '@/lib/documentFind';
 import { createPortal } from 'react-dom';
 import TableModal from '@/components/TableModal';
 import LinkModal from '@/components/LinkModal';
@@ -1105,6 +1106,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
 
     const view = new EditorView(hostEl, {
       state: cached?.source === content ? cached.state : EditorState.create({ doc: codec.doc, plugins: [history(), visualMarkdownInputRules(), createFootnoteHeaderPlugin(), keymap({
+        'Mod-z': undo, 'Mod-y': redo, 'Mod-Shift-z': redo,
         Backspace: chainCommands(removeHeadingAtStart, backspaceInCodeBlock, undoInputRule, baseKeymap.Backspace),
         Delete: chainCommands(deleteInCodeBlock, baseKeymap.Delete),
         'Mod-Shift-k': (state, dispatch) => {
@@ -1738,8 +1740,12 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         });
         const viewport=hostEl.closest('.custom-preview-container') as HTMLElement|null;
         const topBefore=viewport?.scrollTop;
+        const leftBefore=viewport?.scrollLeft;
+        const preserveViewport=transaction.getMeta('onrivi:preserve-viewport') === true;
         view.updateState(view.state.apply(transaction));
-        if(transaction.docChanged && viewport && topBefore!==undefined && viewport.scrollTop!==topBefore){
+        if(preserveViewport && viewport && topBefore!==undefined){
+          viewport.scrollTop=topBefore; viewport.scrollLeft=leftBefore || 0;
+        } else if(transaction.docChanged && viewport && topBefore!==undefined && viewport.scrollTop!==topBefore){
           try{const bounds=viewport.getBoundingClientRect(),caret=view.coordsAtPos(view.state.selection.head);
             if(caret.top>=bounds.top+8 && caret.bottom<=bounds.bottom-8)viewport.scrollTop=topBefore;
           }catch{/* Let ProseMirror scroll when the caret is outside the viewport. */}
@@ -1779,7 +1785,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           const next = codec.serialize(view.state.doc);
           emitted.current = next;
           callback.current(next);
-          if(cursorCallback.current){
+          if(cursorCallback.current && !preserveViewport){
             cancelAnimationFrame(cursorFrame.current);
             cursorFrame.current=requestAnimationFrame(()=>{
               if(viewRef.current!==view || !view.hasFocus() || view.composing)return;
@@ -2057,6 +2063,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         }, blur() { manualFloatingRef.current = false; setSelection(false); setSlash(false); return false; } },
     });
     viewRef.current = view;
+    (hostEl as SearchEditorHost).onriviSearchView = view;
+    hostEl.setAttribute('data-onrivi-search-editor', '');
     caretRef.current = installVisualCaret(view);
     const scrollContainer=hostEl.closest('.custom-preview-container') as HTMLElement|null;
     // A scene editor mounts inside an already-scrolled picturebook. Resetting
@@ -2112,6 +2120,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       }
       pendingImages.forEach(target => { target.valid = false; }); pendingImages.clear();
       caretRef.current?.destroy(); caretRef.current = null;
+      delete (hostEl as SearchEditorHost).onriviSearchView;
+      hostEl.removeAttribute('data-onrivi-search-editor');
       view.destroy(); viewRef.current = null;
     };
     // Document identity is supplied as the parent key; local input never remounts.

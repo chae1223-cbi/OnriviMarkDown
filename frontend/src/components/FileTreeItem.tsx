@@ -81,7 +81,7 @@ import {
   renameDriveItem,
   createDriveMarkdownFile,
   createDriveFolder,
-  moveDriveItem
+  moveDriveItemWithUndo
 } from '@/lib/gdrive/googleDriveClient';
 import { msg } from '@/lib/systemMessages';
 import { useToast } from '@/components/ToastProvider';
@@ -91,25 +91,16 @@ import { knowledgeClient, canAccessKnowledgeDb } from '@/lib/knowledge/knowledge
 import { buildDirectWorkspacePath, computeRelativeFolderPath } from '@/lib/knowledge/pathResolver';
 
 // 📂 브라우저 File System Access API 폴더 재귀 스냅샷 추출기 (되돌리기 지원용)
-export const snapshotFsaDirectory = async (dirHandle: any, prefix = ''): Promise<{ relativePath: string; kind: 'file' | 'directory'; content?: string }[]> => {
-  const items: { relativePath: string; kind: 'file' | 'directory'; content?: string }[] = [];
-  try {
-    for await (const [name, entry] of (dirHandle as any).entries()) {
-      const rel = prefix ? `${prefix}/${name}` : name;
-      if (entry.kind === 'directory') {
-        items.push({ relativePath: rel, kind: 'directory' });
-        const sub = await snapshotFsaDirectory(entry, rel);
-        items.push(...sub);
-      } else if (entry.kind === 'file') {
-        try {
-          const file = await entry.getFile();
-          const content = await file.text();
-          items.push({ relativePath: rel, kind: 'file', content });
-        } catch {}
-      }
+export const snapshotFsaDirectory = async (dirHandle: any, prefix = ''): Promise<{ relativePath: string; kind: 'file' | 'directory'; content?: string | Blob }[]> => {
+  const items: { relativePath: string; kind: 'file' | 'directory'; content?: string | Blob }[] = [];
+  for await (const [name, entry] of dirHandle.entries()) {
+    const rel = prefix ? `${prefix}/${name}` : name;
+    if (entry.kind === 'directory') {
+      items.push({ relativePath: rel, kind: 'directory' });
+      items.push(...await snapshotFsaDirectory(entry, rel));
+    } else if (entry.kind === 'file') {
+      items.push({ relativePath: rel, kind: 'file', content: await entry.getFile() });
     }
-  } catch (e) {
-    console.warn('[snapshotFsaDirectory Error]', e);
   }
   return items;
 };
@@ -548,7 +539,7 @@ const FileTreeItem = ({
           }
           if (srcDriveId === destDriveId) return;
           const srcParentDriveId = (draggedNode as any)?.parentDriveId || (draggedNode as any)?.parentId;
-          await moveDriveItem(token, srcDriveId, destDriveId, srcParentDriveId);
+          await moveDriveItemWithUndo(token, srcDriveId, destDriveId, srcParentDriveId, { name: sourceName, kind: sourceKind });
           showToast(`'${sourceName}' 이동 완료`, 'success');
           onRefreshAll?.();
           refreshParent();
@@ -1190,12 +1181,12 @@ const FileTreeItem = ({
           try {
             if (isDriveNode) {
               // Drive folders remain intact in the trash; never back them up through OS APIs.
-              if (!isDir) content = await readDriveFileContent(driveToken!, driveItemId);
+              // The original file ID and contents are preserved in Drive trash.
             } else if (!isDir) {
               if (workspaceType === 'browser') {
                 if (node.handle) {
                   const f = await node.handle.getFile();
-                  content = await f.text();
+                  content = f;
                 } else if (node.path) {
                   content = vfsReadFile(node.path) || '';
                 }
@@ -1243,20 +1234,19 @@ const FileTreeItem = ({
                   const res = await api.backupFolderForUndo(node.path);
                   if (res?.success && res.backupPath) {
                     backupPath = res.backupPath;
-                  }
+                  } else throw new Error(res?.error || '폴더를 백업하지 못했습니다.');
                 }
               }
             }
           } catch (err) {
-            console.warn('[handleDelete] 삭제 전 내용 스냅샷 실패:', err);
+            throw new Error('복원용 백업을 만들지 못해 삭제하지 않았습니다: ' + ((err as any).message || err));
           }
 
           const normalizedPath = (node.path || node.name).replace(/\\/g, '/');
           const lastSlash = normalizedPath.lastIndexOf('/');
           const parentPath = lastSlash !== -1 ? normalizedPath.substring(0, lastSlash) : '';
 
-          window.dispatchEvent(new CustomEvent('file:push-undo-action', {
-            detail: {
+          const undoAction = {
               type: 'delete',
               name: node.name,
               path: node.path || node.name,
@@ -1266,9 +1256,10 @@ const FileTreeItem = ({
               backupPath,
               items,
               parentHandle,
-              workspaceType
-            }
-          }));
+              workspaceType: isDriveNode ? 'cloud' : workspaceType,
+              driveId: isDriveNode ? driveItemId : undefined,
+              accountEmail: isDriveNode ? getSavedWorkspaceInfo()?.userEmail : undefined,
+          };
 
           if (isDriveNode) {
             const token = getSavedDriveToken();
@@ -1356,6 +1347,7 @@ const FileTreeItem = ({
             refreshParent();
             window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
           }
+          window.dispatchEvent(new CustomEvent('file:push-undo-action', { detail: undoAction }));
           // 🚀 삭제된 파일/폴더와 연관된 탭들을 즉시 닫도록 이벤트 발송 (클라우드 driveId, 정확한 path, isDir 전수 전송)
           // 🛡️ [동일 파일명 오종료 방어]: 단순 파일명(currentFileName === node.name) 비교로 openFile(null)을 호출하지 않고
           // MainEditorApp의 handleCloseTabByPath에서 정확한 경로/ID 기반으로 대상 탭만 안전하게 종료합니다.

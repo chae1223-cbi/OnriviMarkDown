@@ -1,5 +1,25 @@
 /**
  * 프로그램명 : OnriviAuthor 
+// 🚨 @PATCH : **2026-10-15** — [그림책/동화책(Story Book) 2종 시스템 서식 자동 인식 연동 및 ID 갱신]: Frontmatter의 css_profile에 'Story Book-전체표지'(profile-1792073192013 및 profile-1792072443551) 및 'Story Book - 오른쪽 그림 표지'(오타 'Stroy Book' 포함)가 지정되었을 때 해당 신규 시스템 서식으로 즉시 매칭되도록 보강
+// 🚨 @PATCH : **2026-10-15** — [화면 흔들림 완전 해결 및 나란히 보기(분할 모드) 내보내기 전면 활성화]:
+//             1) 뷰포트 overflow: hidden 및 100% 규격 강제 보장으로 동적 이벤트 발생 시 17px 윈도우 스크롤바 생성/소멸에 의한 전체 화면 좌우 요동 원천 차단
+//             2) 나란히 보기(both) 및 모든 뷰 모드에서 내보내기(PRINT, DOCX, HWPX, HTML, EPUB, PNG)를 즉시 실행할 수 있도록 가드 완화 (편집 모드일 때만 미리보기로 자동 전환 후 사출)
+//             3) 분할 화면 모드에서 마크다운 영역과 미리보기 영역에 flexBasis 50%를 고정하여 가로 50/50 분할 지오메트리 절대 불변 확립
+// 🚨 @PATCH : **2026-10-15** — [미리보기 전용 툴바에 '바꾸기(Replace)' 버튼 추가 및 모드 토글 연동]:
+//             1) PreviewToolbar에 onToggleReplace 및 isReplaceOpen 바인딩, 바꾸기(Replace) 아이콘 버튼 신설
+//             2) 찾기(Find) 및 바꾸기(Replace) 간 원클릭 전환, 단축키(Ctrl+H) 및 툴바 클릭 시 바꾸기 패널 즉시 오픈
+// 🚨 @PATCH : **2026-10-15** — [편집 에디터 확대/축소 기능 제거 및 문서보기 전용 줌 체계 단일화]:
+//             1) 에디터 포커스 시 글자 크기(setFontSize)를 변경하던 키보드 단축키(Ctrl+=, Ctrl+-, Ctrl+0) 및 Monaco mouseWheelZoom 제거
+//             2) ZOOM_IN / ZOOM_OUT 커맨드 발화 시 편집기 글자 크기가 아닌 '문서보기'(previewZoomScale) 화면 배율을 조절하도록 역할 재정립
+// 🚨 @PATCH : **2026-10-15** — [웹드라이브 작업 중 타 웹드라이브 계정으로의 자유 저장 및 작업장 영구 불변성 확립]:
+//             1) 웹드라이브(계정 A)를 작업장으로 열어둔 상태에서도 '다른 이름으로 저장'을 통해 계정 B(또는 새 계정)로 작업장 세션 중단 없이 완전 독립 저장 지원
+//             2) 저장 완료 알림 토스트에 저장 대상 구글 계정 이메일([userEmail])을 표기하여 시인성 보장
+//             3) 작업장(rootFolder, workspaceType) 절대 불변 보장 및 현재 작업장 내부 폴더에 저장했을 때만 부분 파일 목록 갱신(refreshFileList)
+// 🚨 @PATCH : **2026-10-15** — [다른 이름으로 저장 시 파일명 자유 변경 및 작업장 불변 저장 엔진 고도화]:
+//             1) '내PC(로컬)로 저장': OS 표준 파일 저장 대화상자(saveFileAs/showSaveFilePicker) 및 웹 다운로드 시 파일명 지정(prompt) 지원
+//             2) '개인웹드라이브 저장': Google Drive 폴더 탐색 모달 내 파일명 실시간 변경 입력창(showFileNameInput/initialFileName) 연동 및 기존 .md 파일 클릭 선택 지원
+//             3) 중복 파일명 감지 시 덮어쓰기 확인(confirm) 창을 제공하여 의도치 않은 중복/유실 방어
+//             4) ⚠️ 핵심: 저장 후 기존 작업장(rootFolder, workspaceType, localStorage)이 변경되던 결함을 완벽 제거하여 작업장과 무관하게 독립 저장 완결
 // 🚨 @PATCH : **2026-10-14** — [구글 이미지 검색/외부 웹 이미지 드래그 앤 드롭 새 창 팝업 원천 차단 및 CORS 우회 다운로드 연동]:
 //             1) window 및 document capture 단계에서 dragenter, dragover, drop을 가로채 e.preventDefault() 및 dropEffect='copy'를 강제 적용하여 브라우저/Electron의 파일 URL 새 창 내비게이션 완전 차단
 //             2) parseDroppedDataToBlob 및 fetchExternalImageFile(Electron net.fetch 연동)을 통해 구글 이미지 검색(encrypted-tbn0.gstatic.com 등) 및 웹 이미지 드롭 시 바이너리를 media 폴더에 파일로 자동 다운로드 저장
@@ -407,7 +427,9 @@ import {
   getSavedWorkspaceInfo,
   readDriveFileContent,
   uploadDriveImage,
-  initDriveTokenAutoRefresh
+  initDriveTokenAutoRefresh,
+  hasValidDriveToken,
+  prepareGoogleDriveAuth
 } from '@/lib/gdrive/googleDriveClient';
 
 
@@ -844,6 +866,25 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     setIsSidebarOpen(true);
     setSidebarTab('explorer');
   }, [setIsSidebarOpen, setSidebarTab]);
+
+  // 🛡️ [전역 화면 흔들림 및 윈도우 스크롤바 생성 완전 방어]
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.style.overflow = 'hidden';
+    document.documentElement.style.height = '100%';
+    document.documentElement.style.width = '100%';
+    document.body.style.overflow = 'hidden';
+    document.body.style.height = '100%';
+    document.body.style.width = '100%';
+    return () => {
+      document.documentElement.style.overflow = '';
+      document.documentElement.style.height = '';
+      document.documentElement.style.width = '';
+      document.body.style.overflow = '';
+      document.body.style.height = '';
+      document.body.style.width = '';
+    };
+  }, []);
   const [isEmojiPanelOpen, setIsEmojiPanelOpen] = useState(false);
   const emojiSavedPositionRef = useRef<{ lineNumber: number; column: number; selection?: any } | null>(null);
   const [mounted, setMounted] = useState(false);  // @mounted : mounted state 
@@ -881,6 +922,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   });
   const [previewZoomScale, setPreviewZoomScale] = useState<number>(1);
   const [isPreviewFindOpen, setIsPreviewFindOpen] = useState<boolean>(false);
+  const [previewFindReplaceMode, setPreviewFindReplaceMode] = useState(false);
   const isPreviewFindOpenRef = useRef(false);
   useEffect(() => { isPreviewFindOpenRef.current = isPreviewFindOpen; }, [isPreviewFindOpen]);
   const previewZoomScaleRef = useRef(1);
@@ -1429,7 +1471,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       setProfileStorageRevision(revision => revision + 1);
     };
     const handleDriveTokenExpired = () => {
-      showToast('☁️ 구글 드라이브 인증이 만료되었습니다. 파일 메뉴에서 [내 구글 드라이브 연결]을 눌러 재인증해 주세요.', 'warning');
+      showToast('☁️ 개인 웹드라이브 인증이 만료되었습니다. 파일 메뉴에서 [개인 웹드라이브 연결]을 눌러 재인증해 주세요.', 'warning');
     };
     if (typeof window !== 'undefined') {
       window.addEventListener('onrivi:drive_token_updated', handleDriveTokenUpdate);
@@ -4098,7 +4140,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const isPaneReadOnly = tabs.length === 0 || isRestrictedUser || previewMode === 'both';
       editorRef.current.updateOptions({
         fontSize: fontSize || 16,
-        mouseWheelZoom: true,
+        mouseWheelZoom: false,
         lineHeight: Math.round((fontSize || 16) * 1.75), // 글자 크기에 비례하는 동일 행간
         fontWeight: editorFontWeight === 'bold' ? '700' : editorFontWeight === 'semibold' ? '600' : editorFontWeight === 'medium' ? '500' : '400',
         fontFamily: "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Noto Sans KR', 'Malgun Gothic', sans-serif",
@@ -4210,7 +4252,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         p.id === profileId || 
         p.name === profileId ||
         ((data.css_profile === 'ChatGPT 스타일 콘텐츠' || data.css_profile === '온리비어서 표준 서식' || data.css_profile === 'Onrivi 기본서식') && p.id === SYSTEM_PROFILES[0].id) ||
-        ((data.css_profile === 'GitHub 기술 블로그/명세서' || data.css_profile === 'system-2') && p.id === 'github-readme-style')
+        ((data.css_profile === 'GitHub 기술 블로그/명세서' || data.css_profile === 'system-2') && p.id === 'github-readme-style') ||
+        ((data.css_profile === 'Stroy Book - 오른쪽 그림 표지' || data.css_profile === 'Story Book - 오른쪽 그림 표지') && p.id === 'profile-1792072480655') ||
+        ((data.css_profile === 'Story Book-전체표지' || data.css_profile === 'Story Book - 전체표지' || data.css_profile === 'profile-1792072443551' || data.css_profile === 'profile-1792073192013') && (p.id === 'profile-1792073192013' || p.id === 'profile-1792072443551'))
       );
       if (targetProfile) {
         if (targetProfile.id !== activeProfileId) {
@@ -7602,69 +7646,172 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   const transferBusyRef = useRef(false);
   const [transferProgress, setTransferProgress] = useState('');
-  const [saveAsTarget, setSaveAsTarget] = useState<'download'|'upload'|null>(null);
-  const handleTargetSaveAs = async (name: string) => {
-    if (transferBusyRef.current || isRestrictedUser || isDuplicateInstance || isLicenseChecking) throw new Error('현재 저장할 수 없습니다.');
-    const markdown = editorRef.current?.getValue() ?? contentRef.current;
-    const sourceTabId = activeTabIdRef.current;
-    const sourceIsDrive = Boolean(currentFileNode?.driveId || currentFileNode?.driveFileId);
-    const direction = saveAsTarget!;
-    const sourcePath = currentFileNode?.path?.replace(/\\/g,'/');
-    const initialLocalFolder = sourceIsDrive ? undefined : {path:sourcePath?.slice(0,sourcePath.lastIndexOf('/')),handle:currentFileParentHandleRef.current || rootFolder?.handle};
-    let initialDrivePath;
-    if (sourceIsDrive && direction==='upload') {
-      const info = JSON.parse(localStorage.getItem('onrivi_gdrive_workspace_info') || 'null');
-      if (info?.rootFolderId) {
-        const findParentPath = (nodes, trail=[]) => { for (const item of nodes) { if (item.driveId===currentFileNode?.driveId && item.kind==='file') return trail; if (item.children) { const found=findParentPath(item.children,[...trail,{id:item.driveId || item.id,name:item.name}]); if(found)return found; } } };
-        initialDrivePath = [{id:info.rootFolderId,name:'OnriviAuthor'}, ...(info.workspacePath || [{id:rootFolder.driveFolderId || rootFolder.id,name:rootFolder.name}]), ...(findParentPath(fileList) || [])];
-      }
+
+  // 💾 [내PC(로컬)로 저장] — 작업장 변경 없이 원하는 로컬 폴더에 파일 저장
+  const handleSaveToLocal = useCallback(async () => {
+    if (transferBusyRef.current || isRestrictedUser || isDuplicateInstance || isLicenseChecking) {
+      showToast('현재 문서를 저장할 수 없습니다.', 'warning');
+      return;
     }
-    transferBusyRef.current=true;
-    setTransferProgress('저장할 폴더를 선택해 주세요.');
-    try {
-      const result = await transferDocument({direction,name,markdown,sourceKind:sourceIsDrive?'drive':'local',initialLocalFolder,initialDrivePath,onProgress:setTransferProgress,onSaved:saved=>{
-        if (activeTabIdRef.current!==sourceTabId || (editorRef.current?.getValue() ?? contentRef.current)!==markdown) { showToast('새 위치에 저장했습니다. 편집 내용이 변경되어 현재 문서는 유지합니다.', 'warning'); return; }
-        currentFileNodeRef.current=saved.node;
-        currentFileNameRef.current=saved.node.name;
-        currentFileParentHandleRef.current=saved.parentHandle || null;
-        rootFolderRef.current=saved.root;
-        workspaceTypeRef.current=saved.workspaceType;
-        lastSavedContentRef.current=saved.markdown;
-        setCurrentFileNode(saved.node); setCurrentFileName(saved.node.name);
-        setRootFolder(saved.root); setWorkspaceType(saved.workspaceType);
-        const updatedTabs = tabsRef.current.map(tab=>tab.id===sourceTabId ? {...tab,name:saved.node.name,path:saved.node.path,node:saved.node,driveFileId:saved.node.driveId || undefined,driveId:saved.node.driveId || undefined,parentHandle:saved.parentHandle,content:saved.markdown,isModified:false} : tab);
-        tabsRef.current=updatedTabs; setTabs(updatedTabs);
-        contentRef.current=saved.markdown; setContent(saved.markdown);
-        if (saved.markdown!==markdown) editorRef.current?.setValue(saved.markdown);
-        localStorage.setItem('rootFolder',JSON.stringify(saved.root));
-        localStorage.setItem('workspaceType',saved.workspaceType);
-        localStorage.setItem('onrivi_last_workspace_mode',saved.workspaceType==='cloud'?'cloud':'local');
-        if (saved.workspaceType==='cloud') {
-          const info = JSON.parse(localStorage.getItem('onrivi_gdrive_workspace_info') || 'null');
-          if(info) localStorage.setItem('onrivi_gdrive_workspace_info',JSON.stringify({...info,workspaceFolderId:saved.root.driveFolderId,workspaceFolderName:saved.root.name,workspacePath:undefined}));
-        } else {
-          if(saved.root.handle) idb.set('rootFolderHandle',saved.root.handle);
-          localStorage.setItem('onrivi_workspace_path',saved.root.path);
-          localStorage.setItem('onrivi_last_local_workspace_path',saved.root.path);
-          localStorage.setItem('onrivi_last_local_root_folder',JSON.stringify({...saved.root,handle:undefined}));
+    const markdown = editorRef.current?.getValue() ?? contentRef.current;
+    const suggestedName = currentFileName || '새 문서.md';
+    const api = (window as any).electronAPI;
+
+    // 1. 데스크톱(Electron) 환경: 표준 파일 저장 대화상자 직접 호출 (작업장 변경 없이 파일만 저장)
+    if (api?.saveFileAs) {
+      try {
+        const defaultDir = rootFolder?.path && rootFolder?.type !== 'GDRIVE' ? rootFolder.path : undefined;
+        const file = await api.saveFileAs(markdown, suggestedName, defaultDir, [
+          { name: 'Markdown Files (*.md)', extensions: ['md'] },
+          { name: 'All Files (*.*)', extensions: ['*'] }
+        ]);
+        if (!file || file.canceled) return;
+        showToast(`내 PC에 저장되었습니다: ${file.name}`, 'success');
+        // ⚠️ [사용자 규칙] 작업장(rootFolder, workspaceType)은 절대 변경하지 않는다!
+        if (rootFolder?.path && rootFolder?.type !== 'GDRIVE' && file.path?.startsWith(rootFolder.path)) {
+          await refreshFileList();
         }
-        const env=saved.workspaceType==='cloud'?'cloud':'local';
-        saveResourceSettings(getResourceSettings(env),env);
-        setSaveStatus('saved');
-      }});
-      showToast(`다른 이름으로 저장 완료: ${result}`, 'success');
-      setSaveAsTarget(null);
-      await refreshFileList();
-    } catch (error:any) {
-      if(error.name==='AbortError') { setSaveAsTarget(null); return; }
-      throw error;
-    } finally { transferBusyRef.current=false; setTransferProgress(''); }
-  };
-  useEffect(()=>{
-    const open=(event:Event)=>{const target=(event as CustomEvent).detail;if(target==='download'||target==='upload')setSaveAsTarget(target);};
-    window.addEventListener('onrivi:save-as-target',open);
-    return ()=>window.removeEventListener('onrivi:save-as-target',open);
-  },[]);
+      } catch (e: any) {
+        showToast(e.message || '내 PC 저장에 실패했습니다.', 'error');
+      }
+      return;
+    }
+
+    // 2. 웹 브라우저 환경 (showSaveFilePicker 지원 시: Chrome, Edge 등)
+    if (typeof window !== 'undefined' && (window as any).showSaveFilePicker) {
+      try {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: suggestedName.endsWith('.md') ? suggestedName : `${suggestedName}.md`,
+          types: [{
+            description: 'Markdown Files (*.md)',
+            accept: { 'text/markdown': ['.md', '.markdown'] }
+          }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(markdown);
+        await writable.close();
+        showToast(`내 PC에 저장되었습니다: ${handle.name}`, 'success');
+        // ⚠️ [사용자 규칙] 작업장은 절대 변경하지 않는다!
+      } catch (e: any) {
+        if (e.name !== 'AbortError') showToast(e.message || '내 PC 저장에 실패했습니다.', 'error');
+      }
+      return;
+    }
+
+    // 3. 브라우저 직접 다운로드 폴백
+    try {
+      let targetName = window.prompt('저장할 파일 이름을 입력해 주세요:', suggestedName);
+      if (targetName === null) return; // 사용자 취소
+      targetName = targetName.trim() || suggestedName;
+      if (!targetName.endsWith('.md')) targetName = `${targetName}.md`;
+
+      const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = targetName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`내 PC에 저장되었습니다: ${a.download}`, 'success');
+    } catch (e: any) {
+      showToast(e.message || '내 PC 저장에 실패했습니다.', 'error');
+    }
+  }, [currentFileName, isDuplicateInstance, isLicenseChecking, isRestrictedUser, refreshFileList, rootFolder, showToast]);
+
+  // ☁️ [개인웹드라이브 저장] — 작업장 변경 없이 원하는 구글 드라이브 폴더 및 파일명으로 저장
+  const handleSaveToWebDrive = useCallback(async () => {
+    if (transferBusyRef.current || isRestrictedUser || isDuplicateInstance || isLicenseChecking) {
+      showToast('현재 문서를 저장할 수 없습니다.', 'warning');
+      return;
+    }
+    const markdown = editorRef.current?.getValue() ?? contentRef.current;
+    const defaultName = currentFileName || '새 문서.md';
+
+    transferBusyRef.current = true;
+    const preparedAuth = !getSavedDriveToken() || !hasValidDriveToken()
+      ? prepareGoogleDriveAuth({ isStandalone: true }) : null;
+    try {
+      const { getSavedDriveToken, hasValidDriveToken, requestGoogleDriveAuth, ensureDriveFolder, createDriveMarkdownFile, listDriveChildren, saveDriveFileContent } = await import('@/lib/gdrive/googleDriveClient');
+      let token = getSavedDriveToken();
+      if (!token || !hasValidDriveToken()) {
+        token = await preparedAuth!.request();
+      }
+      if (!token) {
+        showToast('개인웹드라이브 인증이 필요합니다.', 'warning');
+        return;
+      }
+
+      const { pickAccessibleDriveFolder } = await import('@/lib/gdrive/WorkspaceFolderPicker');
+      let initialPath = [{ id: 'root', name: '내 드라이브' }];
+      try {
+        const rootId = await ensureDriveFolder(token, 'OnriviAuthor', 'root');
+        initialPath = [{ id: 'root', name: '내 드라이브' }, { id: rootId, name: 'OnriviAuthor' }];
+      } catch {
+        // 폴더 권한에 따라 기본 루트로 진행
+      }
+
+      const driveDestination = await pickAccessibleDriveFolder(token, initialPath, {
+        title: '개인웹드라이브 저장 (드라이브·폴더 및 파일명 지정)',
+        description: '저장할 계정·드라이브·폴더와 파일명을 선택해 주세요. 저장 후에도 현재 작업장은 유지됩니다.',
+        confirmText: '이 폴더에 저장',
+        initialFileName: defaultName,
+        showFileNameInput: true,
+      });
+      if (!driveDestination) return; // 사용자 취소
+
+      const activeToken = driveDestination.token || token;
+      const chosenName = (driveDestination.fileName || defaultName).trim();
+      const finalName = /\.md$/i.test(chosenName) ? chosenName : `${chosenName}.md`;
+
+      transferBusyRef.current = true;
+      setTransferProgress('개인웹드라이브에 저장 중...');
+      const siblings = await listDriveChildren(activeToken, driveDestination.id);
+      const existingFile = siblings.find(item => !item.isFolder && item.name.toLowerCase() === finalName.toLowerCase());
+
+      const emailLabel = driveDestination.userEmail ? ` [${driveDestination.userEmail}]` : '';
+
+      if (existingFile) {
+        const overwrite = window.confirm(`선택한 폴더에 '${finalName}' 파일이 이미 존재합니다.\n덮어쓰시겠습니까?`);
+        if (!overwrite) {
+          showToast('저장이 취소되었습니다.', 'info');
+          return;
+        }
+        await saveDriveFileContent(activeToken, existingFile.id, markdown);
+        showToast(`개인웹드라이브에 저장되었습니다 (덮어쓰기)${emailLabel}: ${driveDestination.name}/${finalName}`, 'success');
+      } else {
+        await createDriveMarkdownFile(activeToken, driveDestination.id, finalName, markdown);
+        showToast(`개인웹드라이브에 저장되었습니다${emailLabel}: ${driveDestination.name}/${finalName}`, 'success');
+      }
+
+      // ⚠️ [사용자 규칙] 작업장(rootFolder, workspaceType)은 절대 변경하지 않는다!
+      if (rootFolder?.type === 'GDRIVE' && (rootFolder?.id === driveDestination.id || rootFolder?.driveFolderId === driveDestination.id)) {
+        await refreshFileList();
+      }
+    } catch (e: any) {
+      if (e.name !== 'AbortError') {
+        showToast(e.message || '개인웹드라이브 저장에 실패했습니다.', 'error');
+      }
+    } finally {
+      preparedAuth?.close();
+      transferBusyRef.current = false;
+      setTransferProgress('');
+    }
+  }, [currentFileName, isDuplicateInstance, isLicenseChecking, isRestrictedUser, refreshFileList, rootFolder, showToast]);
+
+  useEffect(() => {
+    const handleSaveAsTarget = (event: Event) => {
+      const target = (event as CustomEvent).detail;
+      if (target === 'download') {
+        handleSaveToLocal();
+      } else if (target === 'upload') {
+        handleSaveToWebDrive();
+      }
+    };
+    window.addEventListener('onrivi:save-as-target', handleSaveAsTarget);
+    return () => window.removeEventListener('onrivi:save-as-target', handleSaveAsTarget);
+  }, [handleSaveToLocal, handleSaveToWebDrive]);
   useEffect(() => {
     const transfer = async (event: Event) => {
       const direction = (event as CustomEvent).detail;
@@ -7749,6 +7896,20 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       'SETTINGS', 'SETTINGS_SHORTCUTS', 'SETTINGS_ACCOUNT', 'HELP', 'LICENSE'
     ];
     if (isRestrictedUser && !restrictedCommands.includes(type)) return;
+    if (type === 'UNDO' || type === 'REDO') {
+      if (previewModeRef.current === 'edit') {
+        if (type === 'UNDO') handlers.undo(); else handlers.redo();
+      } else if (!previewRef.current?.querySelector('.visual-document-editor, .picturebook-scene-input') || !visualCommandRef.current?.(type)) {
+        showToast('문서의 본문 편집에서 실행취소·다시실행을 사용할 수 있습니다.', 'info');
+      }
+      return;
+    }
+    if ((type === 'FIND' || type === 'REPLACE') && previewModeRef.current !== 'edit') {
+      setPreviewFindReplaceMode(type === 'REPLACE');
+      if (type === 'REPLACE') setDirectEditEnabled(true);
+      setIsPreviewFindOpen(true);
+      return;
+    }
     if (type === 'NOW' || type === 'CALENDAR') {
       if (typeof payload === 'string' && payload) {
         handleInsertFormattedDate(payload);
@@ -7805,9 +7966,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'OPEN_FILE':
         window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT'));
         return;
-      case 'OPEN_WORKSPACE': selectRootFolder('local', null); return;
+      case 'OPEN_WORKSPACE': selectRootFolder('current', null); return;
       case 'SAVE': handlers.save(); return;
-      case 'SAVE_AS': setSaveAsTarget(currentFileNodeRef.current?.driveId || currentFileNodeRef.current?.driveFileId ? 'upload' : 'download'); return;
+      case 'SAVE_AS':
+        if (rootFolder?.type === 'GDRIVE' || currentFileNodeRef.current?.driveId || currentFileNodeRef.current?.driveFileId) {
+          handleSaveToWebDrive();
+        } else {
+          handleSaveToLocal();
+        }
+        return;
       case 'EXIT': handlers.exit(); return;
 
       // 내보내기 관련
@@ -7826,9 +7993,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           setPreviewMode('preview');
           return;
         }
-        // 🔒 [내보내기 방어 가드] 기능 제거됨
-        if (previewMode !== 'preview') {
-          showToast('내보내기는 미리보기 전용 모드에서만 가능합니다. (상단 도구 > 미리보기 선택)', 'warning');
+        // 🔒 [내보내기 방어 가드]: 나란히 보기(both) 및 미리보기(preview) 모두 즉시 사출 지원, 편집 모드일 때만 자동 전환
+        if (previewMode !== 'preview' && previewMode !== 'both') {
+          pendingVisualExportRef.current = type;
+          setPreviewMode('preview');
           return;
         }
         if (type === 'PRINT') handlers.print();
@@ -7841,9 +8009,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         return;
       }
 
-      // 보기/제어 관련
-      case 'ZOOM_IN': handlers.zoomIn(); return;
-      case 'ZOOM_OUT': handlers.zoomOut(); return;
+      // 보기/제어 관련 (문서보기 확대/축소로 일원화)
+      case 'ZOOM_IN':
+        setPreviewZoomScale(prev => Math.min(2.0, Math.round((prev + 0.1) * 10) / 10));
+        return;
+      case 'ZOOM_OUT':
+        setPreviewZoomScale(prev => Math.max(0.5, Math.round((prev - 0.1) * 10) / 10));
+        return;
+      case 'ZOOM_RESET':
+        setPreviewZoomScale(1.0);
+        return;
       case 'UNDO': handlers.undo(); return;
       case 'REDO': handlers.redo(); return;
       case 'FIND': handlers.find(); return;
@@ -8407,6 +8582,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const findModifier = e.ctrlKey || (e.metaKey && /Mac|iPod|iPhone|iPad/i.test(navigator.userAgent));
+      if (!e.isComposing && findModifier && !e.altKey && !e.shiftKey && previewModeRef.current !== 'edit' && ['f', 'h'].includes(e.key.toLowerCase())) {
+        e.preventDefault(); e.stopPropagation();
+        dispatchCommand(e.key.toLowerCase() === 'h' ? 'REPLACE' : 'FIND');
+        return;
+      }
       // The visual editor owns selection, IME and editing shortcuts. Saving
       // still uses the common file handler and its immediately updated source.
       if ((e.target as HTMLElement)?.closest?.('.picturebook-scene-input')) {
@@ -8626,61 +8807,36 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           }
         }
 
-        // 3. 에디터에 포커스가 없을 때 (미리보기 화면을 보고 있거나 클릭했을 때, 또는 미리보기 전용 모드)
-        if (!editorHasFocus || previewModeRef.current === 'preview' || isPreviewFindOpenRef.current) {
-          // (1) Ctrl + F: 미리보기 찾기 위젯 오픈
-          if (isCtrl && !isShift && !isAlt && (e.key === 'F' || e.key === 'f' || e.code === 'KeyF')) {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsPreviewFindOpen(true);
-            return;
-          }
-
-          // (2) Ctrl + = 또는 Ctrl + +: 미리보기 확대 (+10%)
-          if (isCtrl && !isShift && !isAlt && (e.key === '=' || e.key === '+' || e.code === 'Equal' || e.code === 'NumpadAdd')) {
-            e.preventDefault();
-            e.stopPropagation();
-            setPreviewZoomScale(prev => Math.min(2.0, Math.round((prev + 0.1) * 10) / 10));
-            return;
-          }
-
-          // (3) Ctrl + -: 미리보기 축소 (-10%)
-          if (isCtrl && !isShift && !isAlt && (e.key === '-' || e.key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract')) {
-            e.preventDefault();
-            e.stopPropagation();
-            setPreviewZoomScale(prev => Math.max(0.5, Math.round((prev - 0.1) * 10) / 10));
-            return;
-          }
-
-          // (4) Ctrl + 0: 미리보기 배율 100% 리셋
-          if (isCtrl && !isShift && !isAlt && (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0')) {
-            e.preventDefault();
-            e.stopPropagation();
-            setPreviewZoomScale(1.0);
-            return;
-          }
-        }
-      }
-
-      // 에디터 포커스가 활성화되어 있을 때만 에디터 단축키 인터셉터 작동
-      // 4. 에디터 포커스가 활성화되어 있을 때의 Ctrl + = / Ctrl + - / Ctrl + 0 (에디터 글자 크기 조절)
-      if (editorHasFocus && isCtrl && !isShift && !isAlt) {
-        if (e.key === '=' || e.key === '+' || e.code === 'Equal' || e.code === 'NumpadAdd') {
+        // 3. 문서보기(미리보기) 화면 배율 확대/축소/100% 리셋 및 찾기
+        // (1) Ctrl + F: 미리보기 포커스 또는 전용 모드 시 찾기 위젯 오픈
+        if ((!editorHasFocus || previewModeRef.current === 'preview' || isPreviewFindOpenRef.current) && isCtrl && !isShift && !isAlt && (e.key === 'F' || e.key === 'f' || e.code === 'KeyF')) {
           e.preventDefault();
           e.stopPropagation();
-          setFontSize(prev => Math.min(prev + 2, 32));
+          setIsPreviewFindOpen(true);
           return;
         }
-        if (e.key === '-' || e.key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract') {
+
+        // (2) Ctrl + = 또는 Ctrl + +: 문서보기 확대 (+10%)
+        if (isCtrl && !isShift && !isAlt && (e.key === '=' || e.key === '+' || e.code === 'Equal' || e.code === 'NumpadAdd')) {
           e.preventDefault();
           e.stopPropagation();
-          setFontSize(prev => Math.max(prev - 2, 12));
+          setPreviewZoomScale(prev => Math.min(2.0, Math.round((prev + 0.1) * 10) / 10));
           return;
         }
-        if (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0') {
+
+        // (3) Ctrl + -: 문서보기 축소 (-10%)
+        if (isCtrl && !isShift && !isAlt && (e.key === '-' || e.key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract')) {
           e.preventDefault();
           e.stopPropagation();
-          setFontSize(16);
+          setPreviewZoomScale(prev => Math.max(0.5, Math.round((prev - 0.1) * 10) / 10));
+          return;
+        }
+
+        // (4) Ctrl + 0: 문서보기 배율 100% 리셋
+        if (isCtrl && !isShift && !isAlt && (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0')) {
+          e.preventDefault();
+          e.stopPropagation();
+          setPreviewZoomScale(1.0);
           return;
         }
       }
@@ -8741,7 +8897,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 캡처(true) 모드로 등록하여 최우선순위로 가로챕니다.
     window.addEventListener('keydown', handleGlobalKeyDown, true);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
-  }, [customHotkeys, dispatchCommand, mapIdToCommandType, floatingToolbar.visible, setFloatingToolbar, floatingQuoteDropdown.open, isRestrictedUser, setFontSize, isEmojiPanelOpen]);
+  }, [customHotkeys, dispatchCommand, mapIdToCommandType, floatingToolbar.visible, setFloatingToolbar, floatingQuoteDropdown.open, isRestrictedUser, isEmojiPanelOpen]);
 
   // 🛡️ [데스크톱/브라우저 전역 파일 드롭 방어]
   // 에디터나 미리보기 컨테이너 외부(사이드바, 타이틀바 등)에 파일 드롭 시 Electron/브라우저가 파일 URL로 새창을 띄우거나 페이지 이동하는 것 100% 원천 차단
@@ -8911,7 +9067,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     setCurrentFileName, lastSavedContentRef, toc, scrollToLine, openFile: handleFileClick,
     askConfirm: (config: any) => setConfirmConfig({ isOpen: true, ...config }),
     isMergeMode, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes, toggleMergeNodeSelect,
-    onOpenMergeModal: handleOpenMergeModal, onSelectRootFolder: () => selectRootFolder('local', null),
+    onOpenMergeModal: handleOpenMergeModal, onSelectRootFolder: () => selectRootFolder('current', null),
     onRestoreFolder: restoreFolderPermission,
     isHelpModalOpen, setIsHelpModalOpen, helpTitle, setHelpTitle, helpContent, setHelpContent,
     tabs,
@@ -9200,11 +9356,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           </div>
         )}
 
-        <div className={`flex h-screen overflow-hidden flex-col text-on-surface transition-colors duration-300 ${mounted && isDarkMode ? 'dark' : ''} bg-surface relative`}>
+        <div className={`flex h-screen overflow-hidden flex-col text-on-surface ${mounted && isDarkMode ? 'dark' : ''} bg-surface relative`}>
 
           {/* 🛡️ 동일 브라우저 다중 탭 또는 다른 브라우저/기기 동시 접속 시 - 비차단형 제한사용자 안내 배너 */}
           {((isDuplicateInstance && isEditorPlan) || (licenseStatus.isConcurrentLimited && (licenseStatus.hasEditorSubscription || isEditorPlan))) && activeMainView !== 'knowledge' && (
-            <aside aria-label="동시 접속 제한 모드 안내" className="w-full bg-amber-500/10 dark:bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200 z-50 shrink-0 select-none animate-in fade-in duration-150">
+            <aside aria-label="동시 접속 제한 모드 안내" className="w-full bg-amber-500/10 dark:bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200 z-50 shrink-0 select-none">
               <div className="flex items-center gap-2 font-medium">
                 <span className="text-base leading-none">⚠️</span>
                 <span>
@@ -9219,7 +9375,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 type="button"
                 disabled={isTakingOver}
                 onClick={handleTakeover}
-                className="px-3 py-1 bg-[#1d4ed8] hover:bg-[#05b34c] active:scale-95 text-white font-extrabold rounded-lg shadow-xs transition-all cursor-pointer border-none shrink-0 ml-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1 bg-[#1d4ed8] hover:bg-[#05b34c] text-white font-extrabold rounded-lg shadow-xs transition-colors cursor-pointer border-none shrink-0 ml-4 disabled:opacity-50 disabled:cursor-not-allowed outline-none focus:outline-none"
               >
                 {isTakingOver ? '편집 권한 전환 중...' : '이 화면에서 편집 시작하기'}
               </button>
@@ -9593,10 +9749,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
                     <div
                       id="onrivi-markdown-pane"
-                      className={`flex-1 min-w-0 relative transition-colors duration-300 no-print bg-[#eef2f6] dark:bg-[#0b1120] pl-7 pr-4 sm:pl-9 sm:pr-6 ${
+                      className={`flex-1 min-w-0 relative no-print bg-[#eef2f6] dark:bg-[#0b1120] pl-7 pr-4 sm:pl-9 sm:pr-6 ${
                         previewMode === 'both' ? 'border-l-2 border-slate-300 dark:border-slate-700 shadow-[inset_4px_0_12px_rgba(15,23,42,0.06)]' : ''
                       } ${editorHighContrast ? 'editor-high-contrast' : ''} editor-weight-${editorFontWeight}`}
-                      style={{ order:1, display: (previewMode === 'preview' || activeTab?.isStyleTab === true) ? 'none' : 'block' }}
+                      style={{
+                        order: 1,
+                        width: previewMode === 'both' ? '50%' : '100%',
+                        flexBasis: previewMode === 'both' ? '50%' : '100%',
+                        display: (previewMode === 'preview' || activeTab?.isStyleTab === true) ? 'none' : 'block'
+                      }}
                     >
                       <Editor
                         height="100%"
@@ -10356,21 +10517,39 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                     <div
                       className="flex-1 flex flex-col bg-surface-container-low text-on-surface overflow-hidden print:overflow-visible relative"
                       style={{
-                        order:0,
+                        order: 0,
                         width: previewMode === 'preview' ? '100%' : '50%',
+                        flexBasis: previewMode === 'preview' ? '100%' : '50%',
                         display: (previewMode === 'edit' || activeTab?.isStyleTab === true) ? 'none' : 'flex'
                       }}
                     >
 
 
-                      {/* 🛠️ 미리보기 전용 컨트롤 툴바 (찾기, 축소, 100% 리셋, 확대, 클립보드 복사) */}
+                      {/* 🛠️ 미리보기 전용 컨트롤 툴바 (찾기, 바꾸기, 축소, 100% 리셋, 확대, 클립보드 복사) */}
                       <PreviewToolbar
                         zoomScale={previewZoomScale}
                         onZoomIn={() => setPreviewZoomScale(prev => Math.min(2.0, Math.round((prev + 0.1) * 10) / 10))}
                         onZoomOut={() => setPreviewZoomScale(prev => Math.max(0.5, Math.round((prev - 0.1) * 10) / 10))}
                         onZoomReset={() => setPreviewZoomScale(1.0)}
-                        onToggleFind={() => setIsPreviewFindOpen(prev => !prev)}
-                        isFindOpen={isPreviewFindOpen}
+                        onToggleFind={() => {
+                          if (isPreviewFindOpen && !previewFindReplaceMode) {
+                            setIsPreviewFindOpen(false);
+                          } else {
+                            setPreviewFindReplaceMode(false);
+                            setIsPreviewFindOpen(true);
+                          }
+                        }}
+                        isFindOpen={isPreviewFindOpen && !previewFindReplaceMode}
+                        onToggleReplace={() => {
+                          if (isPreviewFindOpen && previewFindReplaceMode) {
+                            setIsPreviewFindOpen(false);
+                          } else {
+                            setPreviewFindReplaceMode(true);
+                            setDirectEditEnabled(true);
+                            setIsPreviewFindOpen(true);
+                          }
+                        }}
+                        isReplaceOpen={isPreviewFindOpen && previewFindReplaceMode}
                         onCopyPreview={handleCopyPreviewContent}
                       />
 
@@ -10378,6 +10557,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                       <PreviewFindWidget
                         previewContainerRef={previewRef}
                         isOpen={isPreviewFindOpen}
+                        replaceMode={previewFindReplaceMode}
+                        replaceEnabled={!isRestrictedUser && !!activeTabId && currentFileName !== '도움말.md'}
+                        documentKey={activeTabId}
                         onClose={() => setIsPreviewFindOpen(false)}
                       />
 
@@ -11002,7 +11184,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           />
 
           {transferProgress && <div role="status" aria-live="polite" className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[999999] rounded-xl border bg-white dark:bg-zinc-900 px-5 py-3 shadow-xl text-sm">{transferProgress}</div>}
-          <NewDocumentModal isOpen={Boolean(saveAsTarget)} onClose={()=>setSaveAsTarget(null)} fileList={[]} rootFolder={null} workspaceType={workspaceType} initialName={currentFileName || '새 문서.md'} dialogTitle={saveAsTarget==='upload'?'개인 Google Drive에 다른 이름으로 저장':'내 컴퓨터에 다른 이름으로 저장'} hideFolderSelection confirmLabel="저장 폴더 선택" onConfirm={handleTargetSaveAs} isDarkMode={isDarkMode} />
           {/* 📄 [새 문서 생성 대화상자] 폴더 선택 및 파일명 지정 모달 */}
           <NewDocumentModal
             isOpen={isNewDocumentModalOpen}
