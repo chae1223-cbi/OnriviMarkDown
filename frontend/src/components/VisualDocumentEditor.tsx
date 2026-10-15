@@ -2663,7 +2663,15 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       return true;
     };
     commandRef.current = bridge;
-    return () => { if (commandRef.current === bridge) commandRef.current = null; };
+    // Picturebook scene textareas share this ref. Reclaim it when this editor
+    // receives focus again, rather than sending toolbar actions to the old field.
+    const element = host.current;
+    const activate = () => { commandRef.current = bridge; };
+    element?.addEventListener('focusin', activate);
+    return () => {
+      element?.removeEventListener('focusin', activate);
+      if (commandRef.current === bridge) commandRef.current = null;
+    };
     // Commands read the current view state; do not reinstall on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commandRef, readOnly]);

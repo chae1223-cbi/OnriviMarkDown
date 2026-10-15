@@ -78,6 +78,14 @@ function App(){
   assert.equal((await warning.locator('.book-issue-text').textContent()).trim(),'실제 장면 밖 본문');
   const colors=await warning.locator('.book-issue-text').evaluate(el=>({color:getComputedStyle(el).color,background:getComputedStyle(el).backgroundColor,size:getComputedStyle(el).fontSize}));
   assert.equal(colors.color,'rgb(23, 32, 51)');assert.equal(colors.background,'rgb(255, 255, 255)');assert.equal(colors.size,'14px');
+  await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.qaCopiedText=text;}}}));
+  await warning.getByRole('button',{name:'복사',exact:true}).click();
+  await page.waitForFunction(()=>window.qaCopiedText==='실제 장면 밖 본문');
+  await warning.getByRole('button',{name:'편집',exact:true}).click();
+  await warning.getByRole('textbox',{name:'장면 밖 본문 편집'}).fill('');
+  await warning.getByRole('button',{name:'적용',exact:true}).click();
+  await page.waitForFunction(()=>!document.querySelector('.book-validation'));
+  assert.ok((await page.evaluate(()=>window.qaSource)).includes('css_profile: profile-book-test'));
   console.log('PASS: picture replacement, stale guards, scene edit viewport preservation and insertion immediately after selected scene');
  }finally{await browser.close();}
 })().catch(err=>{console.error(err);process.exitCode=1;});

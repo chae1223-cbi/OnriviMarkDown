@@ -24,7 +24,17 @@ export function normalizeBookLayout(value: unknown): CssProfile['layout'] {
 }
 
 export interface BookScene { image: string; body: string; cover: boolean; start: number; end: number; opening: string; raw: string }
-export interface BookOutsideBlock { afterScene: number; startLine: number; endLine: number; text: string; location: string }
+export interface BookOutsideBlock { afterScene: number; startLine: number; endLine: number; text: string; location: string; ranges: { start: number; end: number }[] }
+
+export function replaceOutsideBookText(markdown: string, block: BookOutsideBlock, text: string): string {
+  let next = markdown;
+  // Only the diagnosed text is replaced. Hidden metadata and scene blocks stay intact.
+  for (let i = block.ranges.length - 1; i >= 0; i--) {
+    const { start, end } = block.ranges[i];
+    next = next.slice(0, start) + (i === 0 ? text : '') + next.slice(end);
+  }
+  return next;
+}
 
 type OutsideLine = { afterScene: number; line: number; text: string; literal?: boolean };
 /** Exclude document metadata without changing source offsets or scene content. */
@@ -108,13 +118,17 @@ export function parseBookScenes(markdown: string, sourceLineOffset = 0): { scene
   const definitions = outside.filter(line => /^\s{0,3}\[[^\]]+\]:/.test(line)).join('\n');
   const outsideBlocks: BookOutsideBlock[] = [];
   const bodyLines = outsideBodyLines(markdown.replace(/\r\n/g, '\n'), outsideLines, sourceLineOffset);
+  const lineStarts: number[] = [];
+  let character = 0;
+  for (const line of lines) { lineStarts.push(character); character += line.length + 1; }
   for (let afterScene = 0; afterScene <= scenes.length; afterScene++) {
     const entries = bodyLines.filter(entry => entry.afterScene === afterScene && entry.text.trim() && !/^\s{0,3}\[[^\]]+\]:/.test(entry.text));
     if (!entries.length) continue;
     const location = !scenes.length ? '장면으로 묶이지 않은 본문' : afterScene === 0 ? '첫 장면 앞' : afterScene === scenes.length ? `마지막 장면(장면 ${afterScene}) 뒤` : `장면 ${afterScene}과 장면 ${afterScene + 1} 사이`;
     const startLine = entries[0].line, endLine = entries[entries.length - 1].line;
     const text = bodyLines.filter(entry => entry.afterScene === afterScene && entry.line >= startLine && entry.line <= endLine).map(entry => entry.text).join('\n');
-    outsideBlocks.push({ afterScene, startLine, endLine, text, location });
+    const ranges = entries.map(entry => ({ start: lineStarts[entry.line - sourceLineOffset - 1], end: lineStarts[entry.line - sourceLineOffset - 1] + entry.text.length }));
+    outsideBlocks.push({ afterScene, startLine, endLine, text, location, ranges });
     const excerpt = entries[0].text.trim().slice(0, 65);
     errors.push(`${location}, 원문 ${startLine}${endLine !== startLine ? `~${endLine}` : ''}행에 장면 밖 본문이 있습니다: “${excerpt}${entries[0].text.trim().length > 65 ? '…' : ''}”. 해당 글을 장면의 닫는 표시 ::: 앞에 넣거나 새 :::scene 장면으로 묶어 주세요.`);
   }

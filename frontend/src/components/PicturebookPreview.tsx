@@ -1,5 +1,8 @@
 // ====================================================================
 // 📊 [OMD-COMP-PicturebookPreview-0001] PicturebookPreview.tsx
+// 🚨 @PATCH : **2026-10-15** — [그림책 이미지 복사·편집 플로팅 액션 버튼 간격 최적화(book-image-controls)]:
+//             1) 복사 버튼(right: 90px)과 편집 버튼(right: 12px) 간의 30px 이상 과도했던 간격을 book-image-controls 플렉스 컨테이너(gap: 6px)로 묶어 자연스럽고 가깝게 밀착 배치
+//             2) 텍스트 변화('복사' -> '복사됨') 시에도 겹침 없이 좌측으로 부드럽게 확장되도록 개선하고 hover/focus-within 반응 무결성 유지
 // 🚨 @PATCH : **2026-10-14** — [그림책 뷰어 0장면 시 텍스트 잘림(48px) 해결 및 일반 마크다운 미리보기 폴백 지원]:
 //             1) height: 48px 고정 높이로 인해 안내문과 예시 텍스트가 가로로 반토막 잘리던 CSS 레이아웃 버그 완전 제거
 //             2) 문서에 :::scene 블록이 없을 때(0장면) 빈 화면 대신 일반 마크다운 미리보기(renderMarkdown)를 즉시 표시하여 원고 내용을 선명하게 열람·편집 가능하도록 개선
@@ -14,7 +17,7 @@ import PicturebookSceneInput, { type PicturebookEditorOptions } from './Pictureb
 import { copyMediaSource, copyImageToClipboard } from '@/lib/mediaMarkup';
 import type { CssProfile } from '@/types/cssProfile';
 import { PAPER_SIZES } from '@/constants/paperSizes';
-import { parseBookScenes, replaceBookScene, replaceSceneImage, moveBookSceneUp, sceneEditableBody, replaceSceneBody, duplicateBookScene, BOOK_SAMPLE } from '@/lib/picturebook';
+import { parseBookScenes, replaceBookScene, replaceSceneImage, moveBookSceneUp, sceneEditableBody, replaceSceneBody, duplicateBookScene, replaceOutsideBookText, type BookOutsideBlock, BOOK_SAMPLE } from '@/lib/picturebook';
 import { parseDroppedDataToBlob, fetchExternalImageFile } from '@/lib/resourceMedia';
 import { desktopClipboardImage } from '@/lib/desktopClipboard';
 
@@ -32,6 +35,8 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
   const [editError,setEditError] = useState('');
   const [copiedScene,setCopiedScene] = useState<number|null>(null);
   const [copyError,setCopyError] = useState('');
+  const [outsideEdit, setOutsideEdit] = useState<{ block: BookOutsideBlock; source: string; value: string } | null>(null);
+  const [outsideCopied, setOutsideCopied] = useState<number | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const sceneList = useRef<HTMLDetailsElement>(null);
   const [scale, setScale] = useState(1);
@@ -144,7 +149,10 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
       .picturebook-root .book-page { box-sizing:border-box; position:relative; flex:none; overflow:hidden; margin:0 auto 24px; outline:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,.12); }
       .picturebook-root .book-text .visual-document-surface { min-height:0; padding:0; }
       .picturebook-root .book-image { min-width:0; min-height:0; overflow:hidden; }
-      .picturebook-root .book-image { position:relative; }
+      .picturebook-root .book-image-controls { position:absolute; top:12px; right:12px; z-index:5; display:flex; align-items:center; gap:6px; opacity:0; pointer-events:none; transition:opacity .15s ease; }
+      .picturebook-root .book-image:hover > .book-image-controls, .picturebook-root .book-image:focus-within > .book-image-controls { opacity:1; pointer-events:auto; }
+      @media (hover:none) { .picturebook-root .book-image > .book-image-controls { opacity:1; pointer-events:auto; } }
+      .picturebook-root .book-image-controls .book-image-edit, .picturebook-root .book-image-controls .book-image-copy { position:static!important; opacity:1!important; pointer-events:auto!important; top:auto!important; right:auto!important; }
       .picturebook-root .book-image-copy { right:90px!important; }
       .picturebook-root .book-image-edit { position:absolute; top:12px; right:12px; z-index:5; opacity:0; pointer-events:none; padding:8px 14px; border:1px solid #cbd5e1; border-radius:8px; background:white; color:#1e293b; box-shadow:0 2px 8px rgba(0,0,0,.15); cursor:pointer; }
       .picturebook-root .book-image:hover > .book-image-edit,.picturebook-root .book-image:focus-within > .book-image-edit { opacity:1; pointer-events:auto; }
@@ -258,8 +266,29 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
             ))}
             {parsed.outsideBlocks.map(block => <details key={block.startLine} className="pt-2">
               <summary className="cursor-pointer">{block.location} · 원문 {block.startLine}행의 문제 본문 확인</summary>
-              <pre className="book-issue-text mt-2 rounded whitespace-pre-wrap break-words font-sans max-h-72 overflow-auto">{block.text}</pre>
+              {outsideEdit?.block.startLine === block.startLine ? <div data-editor-controls>
+                <textarea autoFocus aria-label="장면 밖 본문 편집" className="book-issue-text w-full mt-2 rounded" rows={6} value={outsideEdit.value}
+                  onChange={event => setOutsideEdit({ ...outsideEdit, value: event.target.value })} />
+                <button type="button" onClick={() => {
+                  if (contentRef.current !== outsideEdit.source) { setEditError('편집 중 원문이 변경되었습니다. 취소 후 다시 편집해 주세요.'); return; }
+                  onChange?.(replaceOutsideBookText(outsideEdit.source, outsideEdit.block, outsideEdit.value));
+                  setOutsideEdit(null); setEditError('');
+                }}>적용</button>
+                <button type="button" className="ml-2" onClick={() => setOutsideEdit(null)}>취소</button>
+              </div> : <pre className="book-issue-text mt-2 rounded whitespace-pre-wrap break-words font-sans max-h-72 overflow-auto">{block.text}</pre>}
+              <div className="flex flex-wrap gap-2 mt-2" data-editor-controls>
+                <button type="button" onClick={async () => {
+                  try {
+                    const text = outsideEdit?.block.startLine === block.startLine ? outsideEdit.value : block.text;
+                    const api = (window as any).electronAPI;
+                    if (api?.copyTextToClipboard) await api.copyTextToClipboard(text);
+                    else await navigator.clipboard.writeText(text);
+                    setOutsideCopied(block.startLine); setCopyError('');
+                  } catch { setCopyError('본문을 복사하지 못했습니다. 클립보드 권한을 확인해 주세요.'); }
+                }}>{outsideCopied === block.startLine ? '복사됨' : '복사'}</button>
+                {onChange && <button type="button" onClick={() => { setOutsideEdit({ block, source: contentRef.current, value: block.text }); setEditError(''); }}>편집</button>}
               {parsed.scenes.length > 0 && <button type="button" className="border rounded px-2 py-1 mt-1" onClick={() => goToScene(Math.max(0, block.afterScene - 1))}>관련 장면으로 이동</button>}
+              </div>
             </details>)}
           </div>
         )}
@@ -305,11 +334,15 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
           }}>
             <div className="book-image" style={{ order: scene.cover && !full ? 2 : 0 }}>
               {renderMarkdown(scene.image)}
-              {scene.image && <button type="button" className="onrivi-media-control book-image-edit book-image-copy book-screen-only no-print" title="이미지 복사"
-                aria-label={`${i + 1}페이지 사진 복사`} onClick={event => { event.stopPropagation(); void copyImageToClipboard(scene.image, event.currentTarget.closest('.book-image')?.querySelector('img')).then((ok) => { if (ok) { setCopiedScene(i); setCopyError(''); } else { setCopyError('이미지 복사에 실패했습니다.'); } }).catch(() => setCopyError('클립보드 복사에 실패했습니다.')); }}>{copiedScene === i ? '복사됨' : '복사'}</button>}
-              {onImageEdit && <button type="button" className="onrivi-media-control book-image-edit book-screen-only"
-                aria-label={`${scene.cover ? '표지' : `${i + 1}페이지`} 사진 편집`}
-                onClick={event => { event.stopPropagation(); onImageEdit(i); }}>편집</button>}
+              {(scene.image || onImageEdit) && (
+                <div className="book-image-controls book-screen-only no-print">
+                  {scene.image && <button type="button" className="onrivi-media-control book-image-edit book-image-copy" title="이미지 복사"
+                    aria-label={`${i + 1}페이지 사진 복사`} onClick={event => { event.stopPropagation(); void copyImageToClipboard(scene.image, event.currentTarget.closest('.book-image')?.querySelector('img')).then((ok) => { if (ok) { setCopiedScene(i); setCopyError(''); } else { setCopyError('이미지 복사에 실패했습니다.'); } }).catch(() => setCopyError('클립보드 복사에 실패했습니다.')); }}>{copiedScene === i ? '복사됨' : '복사'}</button>}
+                  {onImageEdit && <button type="button" className="onrivi-media-control book-image-edit"
+                    aria-label={`${scene.cover ? '표지' : `${i + 1}페이지`} 사진 편집`}
+                    onClick={event => { event.stopPropagation(); onImageEdit(i); }}>편집</button>}
+                </div>
+              )}
             </div>
             <div className="book-text" data-book-text="true" style={editingScene === i ? { overflow: 'auto' } : undefined}>
               {onChange && <div className="book-screen-only no-print" data-editor-controls>
