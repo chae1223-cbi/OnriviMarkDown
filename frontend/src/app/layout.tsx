@@ -14,6 +14,9 @@ const WebSessionRevocationGuard = dynamic(
 // 📊 [OMD-CORE-layout-0002] layout ➔ metadata
 // 🎯 @KICK  : Next.js Metadata 객체 - 페이지 제목, 설명, 아이콘 경로 설정
 // 🛡️ @GUARD : 없음
+// 🚨 @PATCH : **2026-10-15** — [파비콘(/favicon.ico) 404 오류 해결 및 표준 메타데이터 아이콘 연동]:
+//             1) 브라우저 기본 /favicon.ico 요청 시 404 리소스 로드 실패를 방지하기 위해 public/ 및 app/에 표준 favicon.ico 에셋 배치
+//             2) layout.tsx metadata.icons에 favicon.ico 표준 icon/shortcut 및 apple-touch-icon 정밀 연동
 // 🚨 @PATCH : **2026-10-02** — [WebSessionRevocationGuard Supabase 지연 로드 연동]: 루트 layout.js 번들에서 2.8MB Supabase 라이브러리 및 하위 의존성을 완전히 분리하여 첫 화면 진입 및 새로고침 시 번들 eval 파싱 지연 및 layout.js:500 SyntaxError 원천 차단
 // 🚨 @PATCH : **2026-09-30** — [WebSessionRevocationGuard 동적 지연 로드(dynamic ssr:false) 적용]: 루트 layout.js 번들에서 670KB Supabase 라이브러리를 분리하여 브라우저 eval 파싱 지연 및 SyntaxError 원천 차단, 첫 화면 즉시 렌더링 보장
 // 🚨 @PATCH : **2026-09-26** — [SEO 메타데이터 외부 노트 내보내기 서식 복원 키워드 보강]: description 및 keywords에 마크다운 서식 깨짐 복원, 마크다운 표 복원, 외부 노트 내보내기 호환 키워드 반영 (네이버 권장 80자 이내 78자 최적화)
@@ -54,8 +57,12 @@ export const metadata: Metadata = {
     images: ['https://onrivi.com/og-image.png'],
   },
   icons: {
-    icon: "/icon_onriveauther.png?v=1",
-    shortcut: "/icon_onriveauther.png?v=1",
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon_onriveauther.png?v=1" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/icon_onriveauther.png?v=1",
   }
 };
 
