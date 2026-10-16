@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getDefaultHotkeys, getDefaultCommands } from "@/lib/toolbarConfig";
 import { THEME_MAP } from "@/lib/editorThemes";
 import { idb } from '@/lib/indexedDbHelper';
+import { initializeBrowserDefaultStorage } from '@/lib/browserDefaultStorage';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { normalizeAIModelName } from '@/lib/gemini';
@@ -367,6 +368,12 @@ export const useEditorSettings = (
       );
       setIsAddonEnv(detectedAddon);
 
+      try {
+        await initializeBrowserDefaultStorage();
+      } catch (error) {
+        console.warn('[Onrivi Author] 브라우저 기본 저장소 초기화 실패:', error);
+        showToast('브라우저 저장소를 준비하지 못했습니다. 작업장 폴더나 구글 드라이브를 연결해 주세요.', 'warning');
+      }
       const rawSavedWorkspaceType = localStorage.getItem('workspaceType') || localStorage.getItem('onrivi_last_workspace_mode') || 'local';
       const isLastCloud = rawSavedWorkspaceType === 'cloud' || rawSavedWorkspaceType === 'gdrive' || localStorage.getItem('onrivi_last_workspace_mode') === 'cloud';
       const activeWorkspaceType = detectedAddon ? 'browser' : (isLastCloud ? 'cloud' : rawSavedWorkspaceType);

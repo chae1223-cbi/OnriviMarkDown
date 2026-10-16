@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { reportClientLog } from '@/lib/clientLogs';
+import { browserPickerStartIn } from '@/lib/browserPickerStartIn';
 import { useCallback } from 'react';
 import { waitForExportContent } from '@/lib/exportPreparation';
 import { exportPDF, exportHTML, exportEPUB, exportPNG, exportDOCX, exportHWPX } from '@/lib/exportHandlers';
@@ -719,7 +720,7 @@ export const useEditorHandlers = ({
           const fileHandle = await (window as any).showSaveFilePicker({
             suggestedName,
             excludeAcceptAllOption: true,
-            startIn,
+            startIn: await browserPickerStartIn(startIn),
             types: [{
               description: 'Markdown Files (*.md)',
               accept: {
@@ -869,7 +870,7 @@ export const useEditorHandlers = ({
           const fileHandle = await (window as any).showSaveFilePicker({
             suggestedName: suggestedName || 'untitled.md',
             excludeAcceptAllOption: true,
-            startIn,
+            startIn: await browserPickerStartIn(startIn),
             types: [{
               description: 'Markdown Files (*.md)',
               accept: {

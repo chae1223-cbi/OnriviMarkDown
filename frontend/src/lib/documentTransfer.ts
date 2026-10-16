@@ -1,4 +1,5 @@
 import { idb } from '@/lib/indexedDbHelper';
+import { browserPickerStartIn } from './browserPickerStartIn';
 import { getResourceSettings, activateDriveAccount } from '@/lib/resourceSettings';
 import { ensureDriveFolder, getSavedDriveToken, hasValidDriveToken, requestGoogleDriveAuth, fetchGoogleUserInfo, getSavedWorkspaceInfo, setupOnriviDriveWorkspace, listDriveChildren, uploadDriveImage, createDriveMarkdownFile, readDriveFileContent } from '@/lib/gdrive/googleDriveClient';
 
@@ -49,7 +50,8 @@ async function chooseLocalFolder(initial?: LocalFolder): Promise<LocalFolder | n
     return selected?.status === 'success' ? {path: selected.path} : null;
   }
   if (!(window as any).showDirectoryPicker) throw new Error('내 컴퓨터 폴더 선택은 Chrome 또는 Edge에서 사용해 주세요.');
-  return {handle: await (window as any).showDirectoryPicker({mode:'readwrite', ...(initial?.handle ? {startIn:initial.handle} : {})})};
+  const startIn = await browserPickerStartIn(initial?.handle);
+  return {handle: await (window as any).showDirectoryPicker({mode:'readwrite', ...(startIn ? {startIn} : {})})};
 }
 
 async function writeLocalCopy(folder: LocalFolder, relativePath: string, blob: Blob) {

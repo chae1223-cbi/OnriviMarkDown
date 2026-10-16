@@ -1,5 +1,6 @@
 import { getResourceSettings } from './resourceSettings';
 import { idb } from './indexedDbHelper';
+import { browserPickerStartIn } from './browserPickerStartIn';
 import { getSavedDriveToken } from './gdrive/googleDriveClient';
 import { pickDriveResourceFile, pickLocalResourceFile } from './gdrive/ResourceFilePicker';
 
@@ -37,7 +38,8 @@ export async function pickResourceMedia(kind:'image'|'video', workspaceType?:str
   if (!handle || handle.name !== settings.path) throw new Error('현재 로컬 리소스 폴더를 다시 연결해 주세요.');
   try {
     if ((window as any).showOpenFilePicker) {
-      const [selected] = await (window as any).showOpenFilePicker({id:`onrivi-${kind}`,startIn:handle,multiple:false,excludeAcceptAllOption:true,types:[mediaFileTypes[kind]]});
+      const startIn = await browserPickerStartIn(handle);
+      const [selected] = await (window as any).showOpenFilePicker({id:`onrivi-${kind}`,startIn,multiple:false,excludeAcceptAllOption:true,types:[mediaFileTypes[kind]]});
       return selected ? selected.getFile() : null;
     }
     return await pickLocalResourceFile(handle,accepted);

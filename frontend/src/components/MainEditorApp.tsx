@@ -1626,12 +1626,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🌟 [전체사용자 공통 리소스 폴더 미설정 시 초기 안내 모달 트리거]
   useEffect(() => {
     if (!mounted) return;
-    const isMissing = !resourceFolder && !resourceFolderHandle;
+    const isMissing = !getResourceSettings()?.path && !resourceFolder && !resourceFolderHandle;
+    if (!isMissing) {
+      setIsResourceGuideModalOpen(false);
+      return;
+    }
     const isFullUser = !isDuplicateInstance && !isRestrictedUser && licenseStatus.isActivated && !licenseStatus?.isExpired;
 
     if (isMissing && isFullUser && !isDismissedGuide) {
       const timer = setTimeout(() => {
-        setIsResourceGuideModalOpen(true);
+        if (!getResourceSettings()?.path) setIsResourceGuideModalOpen(true);
       }, 500);
       return () => clearTimeout(timer);
     }
