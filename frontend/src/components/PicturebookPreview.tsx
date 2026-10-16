@@ -1,5 +1,15 @@
 // ====================================================================
 // 📊 [OMD-COMP-PicturebookPreview-0001] PicturebookPreview.tsx
+// 🚨 @PATCH : **2026-10-16** — [그림책 본문편집/편집완료 시인성 직관화 및 장면 에디터 변환 시 화면 흔들림(CLS/Scroll Jump/타이포그래피 쉬프트) 원천 제거]:
+//             1) 본문편집/편집완료 버튼 시인성 개선: 뷰 모드(코발트 블루 ✏️ 본문 편집)와 편집 모드(에메랄드 그린 ✓ 편집 완료 + [편집 중] 펄스 뱃지)의 시각적 분리 및 본문 포커스 인셋 프레임 적용
+//             2) 변환 시 본문 점프(24px) 제거: .book-text 내부의 renderMarkdown과 VisualDocumentEditor 첫 자식의 margin-top을 0!important로 통일
+//             3) 타이포그래피/줄바꿈 완전 일치: 문단(p) 상하 마진, line-height, word-break를 양측 100% 동기화하여 글자 흔들림 차단
+//             4) 편집 토글 시 스크롤 위치 고정: toggleEditingScene 및 useLayoutEffect로 프리뷰 컨테이너의 scrollTop을 완벽 보존
+//             5) 편집 중 임시 오버플로우 경고 배너 억제: VisualDocumentEditor 마운트 시 일시적 DOM 높이 팽창으로 상단 배너가 깜빡이며 전체 페이지를 밀어내던 현상 제거
+// 🚨 @PATCH : **2026-10-16** — [그림책 열기 시 화면 흔들림(Scale 점프 및 이미지 로딩 중 경고 배너 점멸) 원천 제거]:
+//             1) 초기 마운트 시 scale이 무조건 1(원본 297mm)로 시작해 축소 비율로 튀던 현상을 방지하기 위해 미리보기 컨테이너 폭 기반 초기 scale 동기 산출 적용
+//             2) 이미지 비동기 디코딩 중(!image.complete)에 상단 경고 배너(.book-validation)가 일시 노출되었다가 로드 직후 사라지며 전체 페이지가 상하로 크게 흔들리던 레이아웃 시프트(CLS) 제거 (data-book-invalid 내보내기 가드는 그대로 유지)
+//             3) 그림 영역(.book-image) 내부 로딩 스켈레톤 크기를 100%로 고정하고 스케일 변경 임계치를 안정화하여 스크롤바 간섭 진동 차단
 // 🚨 @PATCH : **2026-10-15** — [그림책 이미지 복사·편집 플로팅 액션 버튼 간격 최적화(book-image-controls)]:
 //             1) 복사 버튼(right: 90px)과 편집 버튼(right: 12px) 간의 30px 이상 과도했던 간격을 book-image-controls 플렉스 컨테이너(gap: 6px)로 묶어 자연스럽고 가깝게 밀착 배치
 //             2) 텍스트 변화('복사' -> '복사됨') 시에도 겹침 없이 좌측으로 부드럽게 확장되도록 개선하고 hover/focus-within 반응 무결성 유지
@@ -39,23 +49,55 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
   const [outsideCopied, setOutsideCopied] = useState<number | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const sceneList = useRef<HTMLDetailsElement>(null);
-  const [scale, setScale] = useState(1);
-  const [issues, setIssues] = useState<string[]>([]);
+  const lastScrollTopRef = useRef<number | null>(null);
   const parsed = useMemo(() => parseBookScenes(content, sourceLineOffset), [content, sourceLineOffset]);
   const paper = PAPER_SIZES[profile.pageStyle.paperSize?.toLowerCase()] || PAPER_SIZES.a4;
   const landscape = profile.pageStyle.orientation === 'landscape';
   const width = landscape ? paper.height : paper.width;
   const height = landscape ? paper.width : paper.height;
   const layout = profile.layout!;
+  const [scale, setScale] = useState(() => {
+    if (typeof document !== 'undefined' && width > 0) {
+      const containerEl = document.querySelector<HTMLElement>('.custom-preview-container, .preview-page-sheet');
+      if (containerEl && containerEl.clientWidth > 0) {
+        return Math.min(1, containerEl.clientWidth / (width * 96 / 25.4));
+      }
+    }
+    return 1;
+  });
+  const [issues, setIssues] = useState<string[]>([]);
+  const [hasLoadingMedia, setHasLoadingMedia] = useState(false);
+
+  // 스크롤 위치를 안전하게 유지하며 편집 모드 전환
+  const toggleEditingScene = (targetIndex: number | null) => {
+    const container = root.current?.closest<HTMLElement>('.custom-preview-container, .preview-page-sheet');
+    if (container) {
+      lastScrollTopRef.current = container.scrollTop;
+    }
+    setEditingScene(targetIndex);
+  };
+
   useLayoutEffect(()=>{
+    // 편집 모드 전환 전후 프리뷰 컨테이너의 스크롤 위치 유지 (위아래 덜컥거림 완전 차단)
+    if (lastScrollTopRef.current !== null) {
+      const container = root.current?.closest<HTMLElement>('.custom-preview-container, .preview-page-sheet');
+      if (container && Math.abs(container.scrollTop - lastScrollTopRef.current) > 0.5) {
+        container.scrollTop = lastScrollTopRef.current;
+      }
+      lastScrollTopRef.current = null;
+    }
     if(editingScene===null)return;
     const page=root.current?.querySelectorAll<HTMLElement>('.book-page')[editingScene];
     page?.querySelector<HTMLElement>('.visual-document-surface')?.focus({preventScroll:true});
   },[editingScene]);
+
   useLayoutEffect(() => {
     const element = root.current;
-    if (element?.clientWidth) setScale(Math.min(1, element.clientWidth / (width * 96 / 25.4)));
-  }, [width]);
+    if (element && element.clientWidth > 0) {
+      const nextScale = Math.min(1, element.clientWidth / (width * 96 / 25.4));
+      setScale(prev => Math.abs(prev - nextScale) > 0.005 ? nextScale : prev);
+    }
+  }, [width, parsed.scenes.length]);
 
   useEffect(() => {
     const element = root.current;
@@ -68,19 +110,32 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
       element.querySelectorAll<HTMLElement>('[data-line]:not(.book-page)').forEach(child => {
         child.removeAttribute('data-line');
       });
-      const nextScale = Math.min(1, element.clientWidth / (width * 96 / 25.4));
-      setScale(previous => Math.abs(previous-nextScale) > .002 ? nextScale : previous);
+      if (element.clientWidth > 0) {
+        const nextScale = Math.min(1, element.clientWidth / (width * 96 / 25.4));
+        setScale(previous => Math.abs(previous - nextScale) > 0.005 ? nextScale : previous);
+      }
       const next: string[] = [];
       if (element.querySelector('[data-export-state="error"]')) next.push('그림을 불러오지 못했습니다. 파일 경로와 드라이브 연결을 확인해 주세요.');
       element.querySelectorAll<HTMLElement>('[data-book-text]').forEach((text, i) => {
+        // 현재 편집 중인 장면은 에디터 컨트롤/도구로 인해 일시적 높이 변동이 생기므로 배너 깜빡임(화면 진동) 방지
+        if (editingScene === i) {
+          delete text.dataset.bookOverflow;
+          return;
+        }
         if (text.scrollHeight > text.clientHeight + 2 || text.scrollWidth > text.clientWidth + 2) {
           next.push(`${i + 1}페이지의 글이 영역을 넘습니다. 글을 줄이거나 장면을 나눠 주세요.`);
           text.dataset.bookOverflow = 'true';
         } else delete text.dataset.bookOverflow;
       });
+      let pendingMedia = Boolean(element.querySelector('[data-export-state="loading"]'));
       element.querySelectorAll<HTMLImageElement>('.book-image img').forEach((image, i) => {
-        if (!image.complete || !image.naturalWidth) next.push(`${i + 1}페이지의 그림을 불러오지 못했거나 준비 중입니다.`);
+        if (!image.complete) {
+          pendingMedia = true;
+        } else if (!image.naturalWidth) {
+          next.push(`${i + 1}페이지의 그림을 불러오지 못했거나 준비 중입니다.`);
+        }
       });
+      setHasLoadingMedia(prev => prev === pendingMedia ? prev : pendingMedia);
       setIssues(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
     };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(() => { frame=0; check(); }); };
@@ -94,7 +149,7 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
     document.fonts.ready.then(schedule);
     const timer = setTimeout(check, 100);
     return () => { disposed = true; clearTimeout(timer); cancelAnimationFrame(frame); observer.disconnect(); mutation.disconnect(); element.removeEventListener('load', schedule, true); element.removeEventListener('error', schedule, true); };
-  }, [content, profile, width]);
+  }, [content, profile, width, editingScene]);
 
   const allIssues = [...parsed.errors, ...issues];
   const replaceScenePhoto = async (index:number, file:File, expectedRaw?:string, documentId=editorOptions?.documentId) => {
@@ -144,11 +199,11 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
     });
   };
   return <div ref={root} className="markdown-viewer-root onrivi-content-root picturebook-root"
-    data-picturebook="true" data-book-invalid={allIssues.length ? 'true' : 'false'} data-export-content={fingerprint}>
+    data-picturebook="true" data-book-invalid={(allIssues.length > 0 || hasLoadingMedia) ? 'true' : 'false'} data-export-content={fingerprint}>
     <style>{`
       .picturebook-root .book-page { box-sizing:border-box; position:relative; flex:none; overflow:hidden; margin:0 auto 24px; outline:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,.12); }
-      .picturebook-root .book-text .visual-document-surface { min-height:0; padding:0; }
       .picturebook-root .book-image { min-width:0; min-height:0; overflow:hidden; }
+      .picturebook-root .book-image [data-export-state="loading"] { display:block!important; width:100%!important; height:100%!important; margin:0!important; border-radius:0!important; animation:none!important; }
       .picturebook-root .book-image-controls { position:absolute; top:12px; right:12px; z-index:5; display:flex; align-items:center; gap:6px; opacity:0; pointer-events:none; transition:opacity .15s ease; }
       .picturebook-root .book-image:hover > .book-image-controls, .picturebook-root .book-image:focus-within > .book-image-controls { opacity:1; pointer-events:auto; }
       @media (hover:none) { .picturebook-root .book-image > .book-image-controls { opacity:1; pointer-events:auto; } }
@@ -165,14 +220,40 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
       .picturebook-root .book-page .book-image .markdown-viewer-root img { width:100%!important; height:100%!important; max-height:none!important; margin:0!important; object-fit:${layout.imageFit}!important; }
       .picturebook-root .book-image .markdown-viewer-root button { display:none!important; }
       .picturebook-root .book-image figcaption { display:none!important; }
-      .picturebook-root .book-text { min-width:0; min-height:0; overflow:hidden; }
-      .picturebook-root .book-text .markdown-viewer-root { padding:0!important; min-height:0!important; }
       .picturebook-root .book-cover-full .book-text { position:absolute; bottom:8%; left:8%; right:8%; max-height:45%; padding:16px; background:rgba(255,255,255,.9); }
       .picturebook-root [data-book-overflow] { outline:2px solid #ef4444; }
       .picturebook-root .book-validation { background:#fff8e6!important; color:#713f12!important; font-size:14px!important; line-height:1.65!important; }
       .picturebook-root .book-validation summary { color:#713f12!important; font-size:14px!important; font-weight:700!important; padding:6px 0!important; }
       .picturebook-root .book-validation .book-issue-text { color:#172033!important; background:#fff!important; opacity:1!important; -webkit-text-fill-color:#172033!important; font-size:14px!important; line-height:1.7!important; border:1px solid #d6c8a3!important; padding:14px!important; }
       .picturebook-root .book-validation button { color:#172033!important; background:#fff!important; border:1px solid #ad8c47!important; font-size:14px!important; padding:6px 12px!important; }
+
+      /* 본문 영역 크기 고정 및 스크롤바에 의한 레이아웃 시프트(CLS) 차단 */
+      .picturebook-root .book-text { box-sizing:border-box; min-width:0; min-height:0; overflow-x:hidden; overflow-y:auto; scrollbar-width:thin; padding:4px; }
+      .picturebook-root .book-text .markdown-viewer-root { padding:0!important; min-height:0!important; }
+      .picturebook-root .book-text .visual-document-surface { min-height:0; padding:0; line-height:inherit!important; font-family:inherit!important; font-size:inherit!important; color:inherit!important; }
+
+      /* 🚨 뷰 모드와 에디터 모드 간 첫 번째 자식의 margin-top 차이(24px) 원천 제거 */
+      .picturebook-root .book-text .markdown-viewer-root > div > :first-child,
+      .picturebook-root .book-text .visual-document-surface > :first-child { margin-top:0!important; }
+
+      /* 🚨 뷰 모드와 에디터 모드의 문단/헤딩/줄바꿈 타이포그래피 완전 일치 (흔들림 0) */
+      .picturebook-root .book-text .markdown-viewer-root p,
+      .picturebook-root .book-text .visual-document-surface p { margin-top:0!important; margin-bottom:0.5em!important; line-height:inherit!important; word-break:break-word!important; overflow-wrap:break-word!important; }
+      .picturebook-root .book-text .markdown-viewer-root :is(h1,h2,h3,h4,h5,h6),
+      .picturebook-root .book-text .visual-document-surface :is(h1,h2,h3,h4,h5,h6) { line-height:1.35!important; word-break:break-word!important; overflow-wrap:break-word!important; }
+
+      /* 본문 컨트롤 바 고정 간격 및 정렬 */
+      .picturebook-root .book-text > [data-editor-controls] { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:10px!important; min-height:30px; }
+
+      /* 🚨 현재 편집 중인 본문 영역의 고대비 시인성 프레임 (외곽 크기 영향 없는 inset 그림자) */
+      .picturebook-root .book-text[data-editing="true"] { box-shadow:inset 0 0 0 2px #059669, inset 0 0 8px rgba(5,150,105,0.1); border-radius:6px; background:rgba(5,150,105,0.015); }
+
+      /* 본문 편집 / 편집 완료 액션 버튼 전용 스타일 */
+      .picturebook-btn-edit { background:#1d4ed8!important; color:#ffffff!important; border:1px solid #1e40af!important; font-weight:700!important; cursor:pointer; }
+      .picturebook-btn-edit:hover { background:#1e40af!important; }
+      .picturebook-btn-done { background:#059669!important; color:#ffffff!important; border:1px solid #047857!important; font-weight:800!important; box-shadow:0 0 0 2px rgba(16,185,129,0.35)!important; cursor:pointer; }
+      .picturebook-btn-done:hover { background:#047857!important; }
+
       @media print { .picturebook-root .book-page { zoom:1!important; margin:0!important; outline:none!important; box-shadow:none!important; break-after:page; break-inside:avoid; } .picturebook-root .book-page:last-of-type { break-after:auto; } .book-screen-only {display:none!important;} }
     `}</style>
     {editError && <p className="book-screen-only p-3 mb-3 rounded-lg bg-red-50 text-red-600 text-xs font-bold" role="alert">{editError}</p>}
@@ -239,14 +320,24 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
           </div>
           {parsed.scenes.map((scene, i) => <div key={i} data-scene-list-item className="border-t py-3">
             <button type="button" className="mr-2 border rounded px-2" aria-label={`${scene.cover ? '표지' : `장면 ${i+1}`}으로 이동`} onClick={()=>goToScene(i)}>장면으로 이동</button>
-            <button type="button" className="mr-2 border rounded px-2" onClick={()=>{setEditingScene(i);goToScene(i);}}>본문 편집</button>
-            <button type="button" className="mr-2 border rounded px-2" onClick={()=>{setEditingScene(null);onChange(duplicateBookScene(content,i));}}>복제</button>
+            <button
+              type="button"
+              className={`mr-2 border rounded px-2.5 py-0.5 text-xs font-bold transition-all ${editingScene === i ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs' : 'text-[#1d4ed8] border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40'}`}
+              onClick={() => {
+                if (editingScene === i) toggleEditingScene(null);
+                else { toggleEditingScene(i); goToScene(i); }
+              }}
+            >
+              {editingScene === i ? '✓ 편집 완료' : '✏️ 본문 편집'}
+            </button>
+            {editingScene === i && <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mr-2">[편집 중]</span>}
+            <button type="button" className="mr-2 border rounded px-2" onClick={()=>{toggleEditingScene(null);onChange(duplicateBookScene(content,i));}}>복제</button>
             <strong>{scene.cover ? '표지' : `장면 ${i+1}`}</strong>
             <button type="button" className="ml-3 border rounded px-2" disabled={i === 0 || scene.cover || parsed.scenes[i-1]?.cover}
-              onClick={() => {setEditingScene(null);onChange(moveBookSceneUp(content,i));}}>위로</button>
+              onClick={() => {toggleEditingScene(null);onChange(moveBookSceneUp(content,i));}}>위로</button>
             <button type="button" className="ml-2 border rounded px-2" disabled={scene.cover || i===parsed.scenes.length-1}
-              onClick={()=>{setEditingScene(null);onChange(moveBookSceneUp(content,i+1));}}>아래로</button>
-            <button type="button" className="ml-2 border rounded px-2" onClick={() => { if (window.confirm('이 장면을 문서에서 삭제할까요?')) {setEditingScene(null);onChange(content.slice(0,scene.start) + content.slice(scene.end));} }}>삭제</button>
+              onClick={()=>{toggleEditingScene(null);onChange(moveBookSceneUp(content,i+1));}}>아래로</button>
+            <button type="button" className="ml-2 border rounded px-2" onClick={() => { if (window.confirm('이 장면을 문서에서 삭제할까요?')) {toggleEditingScene(null);onChange(content.slice(0,scene.start) + content.slice(scene.end));} }}>삭제</button>
             <PicturebookSceneInput key={`${editorOptions?.documentId || 'book'}:${i}`} label={`${i+1}번째 장면 원고`} value={scene.raw} options={editorOptions}
               onCommit={text => {
                 const current = parseBookScenes(contentRef.current).scenes[i];
@@ -344,13 +435,41 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
                 </div>
               )}
             </div>
-            <div className="book-text" data-book-text="true" style={editingScene === i ? { overflow: 'auto' } : undefined}>
+            <div className="book-text" data-book-text="true" data-editing={editingScene === i ? 'true' : 'false'}>
               {onChange && <div className="book-screen-only no-print" data-editor-controls>
-                <button type="button" className="onrivi-media-control" onMouseDown={event=>event.preventDefault()} onClick={() => setEditingScene(editingScene === i ? null : i)}>{editingScene === i ? '편집 완료' : '본문 편집'}</button>
-                <button type="button" className="onrivi-media-control ml-2" onClick={() => returnToSceneList(i)}>↑ 장면 목록으로</button>
+                <button
+                  type="button"
+                  className={`onrivi-media-control inline-flex items-center gap-1.5 px-3 py-1 text-xs rounded shadow-xs transition-all active:scale-95 ${editingScene === i ? 'picturebook-btn-done' : 'picturebook-btn-edit'}`}
+                  aria-pressed={editingScene === i}
+                  onMouseDown={event=>event.preventDefault()}
+                  onClick={() => toggleEditingScene(editingScene === i ? null : i)}
+                >
+                  {editingScene === i ? (
+                    <>
+                      <svg className="w-3.5 h-3.5 inline-block shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                      </svg>
+                      편집 완료
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5 inline-block shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                      본문 편집
+                    </>
+                  )}
+                </button>
+                {editingScene === i && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 shadow-xs select-none" role="status">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    편집 중
+                  </span>
+                )}
+                <button type="button" className="onrivi-media-control ml-auto text-xs px-2.5 py-1 rounded border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors" onClick={() => returnToSceneList(i)}>↑ 장면 목록으로</button>
               </div>}
               {editingScene === i && onChange ? <VisualDocumentEditor key={`scene-${i}`} renderImage={renderMarkdown} content={sceneEditableBody(scene)}
-                documentId={editorOptions?.documentId}
+                documentId={editorOptions?.documentId ? `${editorOptions.documentId}:scene-${i}` : `scene-${i}`}
                 commandRef={editorOptions?.commandRef}
                 tabSize={editorOptions?.tabSize}
                 customCommands={editorOptions?.customCommands}

@@ -1,7 +1,12 @@
 /**
  * 프로그램명 : OnriviAuthor 
-// 🚨 @PATCH : **2026-10-16** — [전역 검색(GLOBAL_SEARCH / Ctrl+Shift+F) 단축키 및 포커스 연동 보강]:
-//             1) Ctrl+Shift+F 전역 단축키 바인딩 및 GLOBAL_SEARCH 실행 시 Monaco 에디터 포커스 강제 탈취를 방지하고 사이드바 검색 탭(sidebarTab='search') 즉시 전환 및 입력창 자동 포커스 연동
+// 🚨 @PATCH : **2026-10-16** — [그림책 본문편집/편집완료 전환 및 내용 변경 시 스크롤 점프/화면 흔들림 방어]:
+//             1) onPicturebookChange에서 updateContent(next, false, true)로 증분(incrementalVisual) 업데이트를 호출하여 Monaco 커서 리셋 및 setValue에 의한 화면 요동 차단
+//             2) 그림책 모드(.picturebook-root) 활성 시 processedContent 변경에 의한 모나코 커서 라인으로의 미리보기 강제 스크롤 동기화 간섭을 배제하여 편집 완료 시 맨 위로 튀는 현상 원천 제거
+// 🚨 @PATCH : **2026-10-16** — [그림책 열기 시 화면 흔들림 제거 및 전역 검색(GLOBAL_SEARCH / Ctrl+Shift+F) 포커스 연동 보강]:
+//             1) 그림책 문서를 열 때 useEffect 비동기 지연으로 인해 1프레임 동안 일반 세로(Portrait) 문서로 렌더링된 후 가로(Landscape) 그림책으로 튀던 현상을 방지하기 위해 resolveEffectiveDocumentProfile 동기 해석 도입
+//             2) 분할 모드(both) 미리보기 onScroll에서 마우스 호버 및 에디터 스크롤 락(isPreviewHovered / isScrollingRef) 가드 누락으로 인한 양방향 스크롤 핑퐁 진동 차단
+//             3) Ctrl+Shift+F 전역 단축키 바인딩 및 GLOBAL_SEARCH 실행 시 Monaco 에디터 포커스 강제 탈취를 방지하고 사이드바 검색 탭 즉시 전환 및 입력창 자동 포커스 연동
 // 🚨 @PATCH : **2026-10-15** — [그림책/동화책(Story Book) 2종 시스템 서식 자동 인식 연동 및 ID 갱신]: Frontmatter의 css_profile에 'Story Book-전체표지'(profile-1792073192013 및 profile-1792072443551) 및 'Story Book - 오른쪽 그림 표지'(오타 'Stroy Book' 포함)가 지정되었을 때 해당 신규 시스템 서식으로 즉시 매칭되도록 보강
 // 🚨 @PATCH : **2026-10-15** — [화면 흔들림 완전 해결 및 나란히 보기(분할 모드) 내보내기 전면 활성화]:
 //             1) 뷰포트 overflow: hidden 및 100% 규격 강제 보장으로 동적 이벤트 발생 시 17px 윈도우 스크롤바 생성/소멸에 의한 전체 화면 좌우 요동 원천 차단
@@ -4245,6 +4250,35 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   //             2) 문서에 css_profile 지정 자체가 없을 때 직전 탭 서식을 상속하지 않고 무조건 공식 기본 서식(system-1)으로 일원화
   // 🔗 @CALLS : extractFrontmatter, setActiveProfileId
   // ====================================================================
+  // 💡 문서 열기/탭 전환 시 useEffect 실행 전 첫 렌더링 프레임에서도 Frontmatter 서식(특히 가로형 그림책)을 즉시 동기 판별하여 세로->가로 점프 흔들림 원천 차단
+  const resolveEffectiveDocumentProfile = useCallback((docText: string) => {
+    const preferLive = previewMode === 'css-style' || isStyleModalOpen;
+    const stateProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+    if (preferLive) {
+      return documentBookProfile(docText, stateProfile, true);
+    }
+    const { data } = extractFrontmatter(docText || '');
+    if (data.css_profile) {
+      const profileId = data.css_profile.trim().replace(/^["']|["']$/g, '');
+      const matched = profiles.find(p =>
+        p.id === profileId ||
+        p.name === profileId ||
+        ((data.css_profile === 'ChatGPT 스타일 콘텐츠' || data.css_profile === '온리비어서 표준 서식' || data.css_profile === 'Onrivi 기본서식') && p.id === SYSTEM_PROFILES[0].id) ||
+        ((data.css_profile === 'GitHub 기술 블로그/명세서' || data.css_profile === 'system-2') && p.id === 'github-readme-style') ||
+        ((data.css_profile === 'Stroy Book - 오른쪽 그림 표지' || data.css_profile === 'Story Book - 오른쪽 그림 표지') && p.id === 'profile-1792072480655') ||
+        ((data.css_profile === 'Story Book-전체표지' || data.css_profile === 'Story Book - 전체표지' || data.css_profile === 'profile-1792072443551' || data.css_profile === 'profile-1792073192013') && (p.id === 'profile-1792073192013' || p.id === 'profile-1792072443551'))
+      );
+      if (matched) {
+        return documentBookProfile(docText, matched, false);
+      }
+      const snapshot = legacyBookProfile(docText);
+      if (snapshot?.layout) {
+        return snapshot;
+      }
+    }
+    return documentBookProfile(docText, stateProfile, false);
+  }, [profiles, activeProfileId, previewMode, isStyleModalOpen]);
+
   useEffect(() => {
     if (isStyleModalOpen) return;
     const { data } = extractFrontmatter(content);
@@ -4923,23 +4957,29 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const preview = previewRef.current;
       if (!editor || !preview || preview.querySelector('.visual-document-editor')) return;
 
-      const currentContent = editor.getValue?.() || content;
-      syncPreviewFromEditorScroll(preview, editor, currentContent);
-
+      const editorTop = editor.getScrollTop?.() ?? 0;
       const pos = editor.getPosition?.();
-      if (pos && pos.lineNumber) {
+      if (editorTop <= 2 && (!pos || pos.lineNumber <= 1)) {
+        if (preview.scrollTop !== 0) {
+          preview.scrollTop = 0;
+        }
+        return;
+      }
+
+      const currentContent = editor.getValue?.() || content;
+      if (pos && pos.lineNumber > 1) {
         syncPreviewToTargetLine(preview, pos.lineNumber, currentContent);
+      } else {
+        syncPreviewFromEditorScroll(preview, editor, currentContent);
       }
     };
 
-    // DOM 렌더링 완료 타이밍에 맞춰 3단계 보장 실행
+    // DOM 렌더링 완료 타이밍에 맞춰 보장 실행
     requestAnimationFrame(performSync);
-    const t1 = setTimeout(performSync, 60);
-    const t2 = setTimeout(performSync, 180);
+    const t1 = setTimeout(performSync, 80);
 
     return () => {
       clearTimeout(t1);
-      clearTimeout(t2);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTabId, previewMode]);
@@ -6422,6 +6462,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   useLayoutEffect(() => {
     if (previewMode !== 'both' || !previewRef.current || !editorRef.current) return;
     if (isScrollingRef.current === 'preview' || previewRef.current.querySelector('.visual-document-editor')) return;
+    // 💡 [그림책 스크롤 튐 방어] 그림책 모드일 때는 사용자가 미리보기 영역에서 직접 보고 있거나 편집 모드를 토글할 때
+    // 모나코 에디터의 이전 커서 라인(예: 1라인)으로 미리보기 스크롤이 강제 튕김 현상을 방지합니다.
+    if (previewRef.current.querySelector('.picturebook-root')) return;
 
     const currentPos = editorRef.current.getPosition?.();
     if (currentPos && currentPos.lineNumber) {
@@ -10707,7 +10750,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           }
                         }}
                         onScroll={(e) => {
-                          if (previewModeRef.current === 'both') {
+                          if (previewModeRef.current === 'both' && e.currentTarget.querySelector('.book-page[data-line]')) {
+                            if (!isPreviewHovered.current || isScrollingRef.current === 'editor') return;
                             const target=e.currentTarget,editor=editorRef.current;
                             if(!editor)return;
                             isScrollingRef.current='preview';
@@ -10808,7 +10852,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         }}
                       >
                         {(() => {
-                          const activeProfile = documentBookProfile(previewContent, profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE, previewMode === 'css-style' || isStyleModalOpen);
+                          const activeProfile = resolveEffectiveDocumentProfile(previewContent);
                           const isLandscape = activeProfile.pageStyle.orientation === 'landscape';
                           // A4 조판 가드가 켜져 있으면 편집+미리보기 모드라도 렌더링 규격은 미리보기 모드와 동일하게 취급
                           const isPreviewOnly = previewMode === 'preview' || isA4GuardEnabled;
@@ -11013,7 +11057,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                 }}
                                 onPicturebookChange={!isRestrictedUser && directEditEnabled && currentFileName !== '도움말.md' ? (next) => {
                                   contentRef.current=next;
-                                  updateContent(next);
+                                  updateContent(next, false, true);
                                   setTabs(prev => prev.map(tab => tab.id === activeTabId ? { ...tab, content: next, isModified: true } : tab));
                                 } : undefined}
                                 originalContent={previewContent}
@@ -11051,7 +11095,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         )}
                         {/* 미리보기 전용 모드이거나 A4 조판 가드가 켜져 있을 때 스킨의 배경색과 외부 감싸기용 회색 배경 분리 지정 */}
                         {(() => {
-                          const activeProfile = documentBookProfile(previewContent, profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE, previewMode === 'css-style' || isStyleModalOpen);
+                          const activeProfile = resolveEffectiveDocumentProfile(previewContent);
                           const paperBg = activeProfile.pageStyle.backgroundColor || '#ffffff';
                           return (
                             <style id="onrivi-preview-page-css" key="onrivi-preview-page-css" dangerouslySetInnerHTML={{

@@ -4,6 +4,7 @@ import PicturebookPreview from './PicturebookPreview';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { exportContentFingerprint } from '@/lib/exportPreparation';
 import katex from 'katex';
+// 🚨 @PATCH : **2026-10-16** — [그림책 및 문서 열기 시 이미지 스켈레톤(h-32 animate-pulse) 1프레임 깜빡임 제거]: AsyncImage 초기 렌더링 시 동기적으로 결정 가능한 이미지 경로(데스크톱 media://local/serve, 웹/정적 URL, data:, blob:)를 useState 초기값에서 즉시 산출하여 불필요한 스켈레톤 교체 및 레이아웃 흔들림 원천 차단
 // 🚨 @PATCH : **2026-10-14** — [미리보기 이미지 클립보드 실제 비트맵 복사(copyImageToClipboard) 연동]: 이미지 호버 액션 '복사' 및 AsyncImage 복사 버튼 클릭 시 마크다운 텍스트 주소가 아닌 실제 이미지 비트맵을 OS 클립보드에 기록하여 다른 앱 및 ImageModal/에디터 붙여넣기 완벽 지원
 // 🚨 @PATCH : **2026-10-14** — [이미지 캡션 [그림 N] 자동 접두사 제거]: 마크다운 이미지 렌더링 시 figcaption::before의 [그림 1] 카운터 자동 표기를 제거하여 사용자가 입력한 순수 캡션만 노출되도록 개선
 // 🚨 @PATCH : **2026-10-14** — [도움말 에셋(/help/assets/) 정적 자산 로드 및 로컬 미디어 오탐 방어]: 마크다운 내 /help/assets/, ./assets/, assets/ 하위 도움말 이미지 참조 시 사용자 작업장 리소스 폴더(media/)로 오탐되어 '리소스 폴더 미지정' 경고가 발생하던 결함을 방어하고, 웹 및 Electron 데스크톱 앱(app://) 정적 로더로 100% 직결하여 실시간 정상 렌더링되도록 개선
@@ -217,7 +218,48 @@ function useResourceMediaRevision(source: string) {
 
 const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, resourceFolder, workspaceType, api, queryString, style, className, onImageLoaded, showCopyControl = true, ...props }: any) => {
   const revision = useResourceMediaRevision(src);
-  const [imgSrc, setImgSrc] = useState<string>('');
+  const computeSyncInitialSrc = (): string => {
+    try {
+      if (!src || typeof src !== 'string') return '';
+      if (/^(https?:|data:|blob:)/.test(src)) return src;
+      const driveWorkspace = getResourceSettings()?.kind === 'drive';
+      const mediaSource = src.split('?')[0].split('#')[0].replace(/\\/g, '/');
+      if (driveWorkspace && /(?:^|\/)media\//.test(mediaSource)) return '';
+      if (/(?:^|[\\/])media[\\/]/.test(src)) {
+        try {
+          requireResourceSettings();
+        } catch {
+          return '';
+        }
+      }
+      if (api) {
+        const pureSrcForApi = src.split('?')[0].split('#')[0];
+        const isHelpAssetApi = pureSrcForApi.includes('help/assets') || pureSrcForApi.startsWith('/help/assets/') || pureSrcForApi.startsWith('./assets/') || pureSrcForApi.startsWith('assets/');
+        if (isHelpAssetApi) {
+          const fileName = pureSrcForApi.split('/').pop() || '';
+          const webSrc = `/help/assets/${fileName}`;
+          return queryString ? (webSrc.includes('?') ? webSrc + '&' + queryString.substring(1) : webSrc + queryString) : webSrc;
+        }
+        let targetAbsolutePath = absolutePath;
+        if (src.startsWith('media://local/serve')) {
+          try {
+            const parsedUrl = new URL(src);
+            const extracted = parsedUrl.searchParams.get('url');
+            if (extracted) targetAbsolutePath = extracted;
+          } catch {
+            const m = src.match(/[?&]url=([^&]+)/);
+            if (m) targetAbsolutePath = decodeURIComponent(m[1]);
+          }
+        }
+        if (targetAbsolutePath && (!src.startsWith('media://') || src.startsWith('media://local/serve'))) {
+          return `media://local/serve?url=${encodeURIComponent(targetAbsolutePath)}&v=${revision}`;
+        }
+        return src;
+      }
+    } catch {}
+    return '';
+  };
+  const [imgSrc, setImgSrc] = useState<string>(computeSyncInitialSrc);
   const [errorMsg, setErrorMsg] = useState<string>('');
     const [copied, setCopied] = useState(false);
     const imgRef = useRef<HTMLImageElement>(null);

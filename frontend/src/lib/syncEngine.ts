@@ -4,6 +4,9 @@
 // 🎯 @KICK  : 에디터 스크롤 이벤트 전담 1:1 미리보기 동기화 및 최상단/최하단 완벽 밀착
 // 🛡️ @GUARD : 상위 1,000자 동적 Frontmatter 감지, 에디터 바닥 도달 시 미리보기 maxScrollTop 밀착,
 //             SCROLL_EPSILON(1px) 미세 떨림 방어, 0~maxScroll 클램핑
+// 🚨 @PATCH : **2026-10-16** — [그림책(Picturebook) 열기 및 최상단 장면 위치 시 스크롤 점프 흔들림 제거]:
+//             1) syncBookScene에서 문서 최상단(프론트매터 및 첫 번째 장면 시작부) 위치 시 상단 '그림책 장면 편집' 헤더를 건너뛰며 ~70px 아래로 강제 점프하던 현상을 수정하여 최상단(scrollTop = 0) 안정 유지
+//             2) syncPreviewFromEditorScroll에서 에디터 스크롤이 최상단(editorScrollTop <= 2)일 때 그림책 미리보기도 흔들림 없이 최상단(0)을 유지하도록 개선
 // 🚨 @PATCH : 2026-09-17 - [코드블록 및 다중행 블록 내부 커서 위치 추종 및 Safe Zone 클램핑 정상화]: 1) syncPreviewToTargetLine 및 syncPreviewFromEditorScroll에서 다중행 블록(height > 32px) 내부 행 타깃팅 시 maxBottom에 extraLines를 단순 누적하여 뷰포트 밖으로 치솟던 버그를 제거하고 블록 상단(minTop) 기준 오프셋 보정 적용, 2) 타깃 요소가 이미 Safe Zone(상단 40px, 하단 140px) 내에 정상 노출 중일 때는 불필요한 스크롤(delta=0)을 스킵하여 진동 및 위치 어긋남 원천 방어, 3) 뷰포트 초과 대형 블록 상단 정렬 가드 탑재
 //             2026-09-06 - [문단 내 개별 행(.onrivi-line) Safe Zone 동기화 정밀 연동] blockSelectors 최우선에 .onrivi-line을 추가하여 다중 행 문단 내부 커서 이동 및 타이핑 시 문단 전체가 아닌 커서가 위치한 개별 행을 기준으로 Safe Zone 정밀 정렬
 //             2026-09-05 - [단일 정렬 규칙 전면 도입] syncPreviewToTargetLine 및 syncPreviewFromEditorScroll Step5의 모든 블록 타입 분기(isAtLastBlock/isMedia/일반블록)를 단일 규칙(delta = elementBottom - BOTTOM_SAFE)으로 통합: 마우스 클릭이나 타이핑 시 커서 위치 요소의 끝(bottom)이 항상 BOTTOM_SAFE에 정렬되어 이미지·동영상·지도·표·문단 모두 무조건 끝 부분이 보이도록 보장
@@ -66,9 +69,17 @@ function syncBookScene(container: HTMLElement, line: number, column=1): boolean 
   const pages = Array.from(container.querySelectorAll<HTMLElement>('.book-page[data-line]'));
   if (!pages.length) return false;
   container.dataset.bookSyncLine = String(line);
+  const firstPageLine = Number(pages[0].dataset.line || 1);
+  if (line <= firstPageLine) {
+    if (container.scrollTop !== 0) container.scrollTop = 0;
+    return true;
+  }
   const candidates=pages.filter(item=>line>=Number(item.dataset.line) && line<=Number(item.dataset.bookEndLine));
   const page = [...candidates].reverse().find(item=>Number(item.dataset.line)<line || Number(item.dataset.bookStartColumn||1)<=column)
     || [...pages].reverse().find(item => Number(item.dataset.line) <= line) || pages[0];
+  if (page === pages[0] && container.scrollTop === 0) {
+    return true;
+  }
   const top = page.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
   const target = Math.max(0, Math.min(container.scrollHeight - container.clientHeight, top - 16));
   if (Math.abs(container.scrollTop - target) > 2) container.scrollTop = target;
@@ -81,13 +92,17 @@ export function syncPreviewFromEditorScroll(
   content: string = ''
 ): void {
   if (!previewContainer || !editor || previewContainer.clientHeight === 0) return;
+  const editorScrollTop = editor.getScrollTop?.() ?? 0;
   if (previewContainer.querySelector('.book-page[data-line]')) {
+    if (editorScrollTop <= 2) {
+      if (previewContainer.scrollTop !== 0) previewContainer.scrollTop = 0;
+      return;
+    }
     const range = editor.getVisibleRanges?.()[0];
     syncBookScene(previewContainer, range?.startLineNumber ?? editor.getPosition?.()?.lineNumber ?? 1,range?.startColumn ?? 1);
     return;
   }
 
-  const editorScrollTop = editor.getScrollTop?.() ?? 0;
   const editorScrollHeight = editor.getScrollHeight?.() ?? 0;
   const editorLayout = editor.getLayoutInfo?.();
   const editorHeight = editorLayout ? editorLayout.height : 0;

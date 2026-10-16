@@ -1,3 +1,9 @@
+// ====================================================================
+// 📊 [OMD-LIB-PICTUREBOOK-0001] picturebook.ts
+// 🚨 @PATCH : **2026-10-16** — [그림책 본문 편집 진입 시 선행 개행 제거로 즉시 변경/흔들림 방지]:
+//             sceneEditableBody에서 이미지 추출 후 남아있는 선행 줄바꿈(\n+)을 정제하여
+//             VisualDocumentEditor 마운트 시 불필요한 공백 생성 및 즉시 onChange 격발에 의한 화면 흔들림 방어
+// ====================================================================
 import type { CssProfile } from '@/types/cssProfile';
 import { extractFrontmatter } from './frontmatter';
 
@@ -211,7 +217,10 @@ export const BOOK_SAMPLE = `:::scene {cover}
 /** Edit only the selected scene, preserving its image and outside reference definitions. */
 export function sceneEditableBody(scene: BookScene): string {
   const image = scene.raw.match(/^\s*(!\[[^\]\n]*\](?:\([^\n]+\)|\[[^\]\n]*\]))[ \t]*$/m);
-  return image ? scene.raw.slice(0,image.index) + scene.raw.slice(image.index!+image[0].length) : scene.raw;
+  if (!image) return scene.raw.trim();
+  const before = scene.raw.slice(0, image.index).trim();
+  const after = scene.raw.slice(image.index! + image[0].length).replace(/^\n+/, '').trimEnd();
+  return before ? `${before}\n\n${after}` : after;
 }
 export function replaceSceneBody(markdown:string,index:number,body:string,expectedRaw:string):string {
   const scene=parseBookScenes(markdown).scenes[index];
