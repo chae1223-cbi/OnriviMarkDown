@@ -1,5 +1,6 @@
 // ====================================================================
 // 📊 [OMD-COMP-PicturebookPreview-0001] PicturebookPreview.tsx
+// 🚨 @PATCH : **2026-10-17** — [그림책 장면 문서보기 에디터 참조문헌 관리(ADD_REFERENCE) 연동]: VisualDocumentEditor에 onReferenceSettings 콜백을 연결하여 장면 편집 중에도 참조 파일 관리 모달(ReferenceManagerModal) 실행 지원
 // 🚨 @PATCH : **2026-10-16** — [그림책 본문편집/편집완료 시인성 직관화 및 장면 에디터 변환 시 화면 흔들림(CLS/Scroll Jump/타이포그래피 쉬프트) 원천 제거]:
 //             1) 본문편집/편집완료 버튼 시인성 개선: 뷰 모드(코발트 블루 ✏️ 본문 편집)와 편집 모드(에메랄드 그린 ✓ 편집 완료 + [편집 중] 펄스 뱃지)의 시각적 분리 및 본문 포커스 인셋 프레임 적용
 //             2) 변환 시 본문 점프(24px) 제거: .book-text 내부의 renderMarkdown과 VisualDocumentEditor 첫 자식의 margin-top을 0!important로 통일
@@ -477,6 +478,7 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
                 floatingToolbarVisible={editorOptions?.floatingToolbarVisible}
                 onFloatingToolbar={editorOptions?.onFloatingToolbar}
                 onStyleSettings={() => editorOptions?.onAction?.('TOGGLE_CSS_STYLE')}
+                onReferenceSettings={() => editorOptions?.onAction?.('ADD_REFERENCE')}
                 onCitation={editorOptions?.onCitation}
                 bibContent={editorOptions?.bibContent}
                 showBibliography={false}

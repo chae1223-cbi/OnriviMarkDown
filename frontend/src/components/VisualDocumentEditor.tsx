@@ -2,6 +2,9 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-visual-editor
+ * 🚨 @PATCH : **2026-10-17** — [문서보기(VisualDocumentEditor) 참조문헌 관리(ADD_REFERENCE) 및 인용(CITE/CITATION) 즉시 실행 연동]:
+ *             1) Props에 onReferenceSettings 콜백을 추가하고 executeItem('add_reference' / 'vibe'), nativeCommands, commandRef 브리지('ADD_REFERENCE')에 연결하여 문서보기에서도 참조 파일 관리 모달(ReferenceManagerModal)이 즉시 실행되도록 개선
+ *             2) commandRef 브리지에서 CITE/CITATION/ADD_REFERENCE/TOGGLE_CSS_STYLE 모달 호출 시 불필요한 view.focus() 호출로 모달 입력창 포커스가 탈취되지 않도록 처리하고, 인용 삽입 검증 시 view.state.doc.eq(pending.doc) 비교 및 단축키 preventDefault 적용으로 안정성 강화
  * 🚨 @PATCH : **2026-10-17** — [구분선(horizontal_rule / <hr>) 선택 시 구분선 앞 커서 자동 배치 및 즉시 타이핑 지원]:
  *             1) 구분선(<hr> 및 상하 여백 영역) 클릭·선택 시 placeCursorBeforeHorizontalRule을 호출하여 구분선 바로 앞(상단) 빈 문단으로 TextSelection 커서를 즉시 배치하고 포커스 및 깜빡임 캐럿 표시 보장
  *             2) 구분선 앞에 빈 문단이 없을 경우(문서 최상단, 텍스트 문단 직후, 기타 블록 직후 등) 구분선 바로 앞에 새 빈 문단(paragraph)을 자동 생성하고 커서를 진입시켜 즉시 타이핑 가능하도록 처리
@@ -690,12 +693,13 @@ type Props = { content: string; onChange: (markdown: string) => void; readOnly?:
   onSourceAction?: (id: string, source: string, from: number, to: number) => void;
   onToast?: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   onStyleSettings?: () => void;
+  onReferenceSettings?: () => void;
   onCitation?: () => void;
   bibContent?: string;
   showBibliography?: boolean;
 };
 
-export default function VisualDocumentEditor({ content, onChange, readOnly = false, tabSize=4, onSourceScroll, onSourceCursor, documentId, commandRef, customCommands = {}, customHotkeys = {}, onSourceAction, onFloatingToolbar, floatingToolbarVisible, renderImage, onImageFile, onImageDialog, onMediaDialog, onDocLinkDialog, onFormulaDialog, currentFilePath, onFileOpen, onToast, onStyleSettings, onCitation, bibContent='', showBibliography=true }: Props) {
+export default function VisualDocumentEditor({ content, onChange, readOnly = false, tabSize=4, onSourceScroll, onSourceCursor, documentId, commandRef, customCommands = {}, customHotkeys = {}, onSourceAction, onFloatingToolbar, floatingToolbarVisible, renderImage, onImageFile, onImageDialog, onMediaDialog, onDocLinkDialog, onFormulaDialog, currentFilePath, onFileOpen, onToast, onStyleSettings, onReferenceSettings, onCitation, bibContent='', showBibliography=true }: Props) {
   const citationEntries=React.useMemo(()=>{
     const parsed=parseBibliography(bibContent);
     return new Map(parsed.entries.filter(e=>!parsed.duplicates.some(k=>k.toLowerCase()===e.key.toLowerCase())).map(e=>[e.key.toLowerCase(),e]));
@@ -708,12 +712,14 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     if(removeSlash && slashRange.current){const range=slashRange.current;view.dispatch(view.state.tr.delete(range.from,range.to));slashRange.current=null;setSlash(false);}
     pendingCitation.current={doc:view.state.doc,selection:view.state.selection};citationCallback.current?.();
   };
+  const openCitationRef=useRef(openCitation);openCitationRef.current=openCitation;
+
   useEffect(()=>{
     const insert=(event:Event)=>{
       const pending=pendingCitation.current,view=viewRef.current;
       if(!pending || !view)return;
       event.preventDefault();pendingCitation.current=null;
-      if(view.state.doc!==pending.doc || !view.editable){onToastRef.current?.('문서가 변경되었습니다. 인용을 다시 선택해 주세요.','warning');return;}
+      if(!view.state.doc.eq(pending.doc) || !view.editable){onToastRef.current?.('문서가 변경되었습니다. 인용을 다시 선택해 주세요.','warning');return;}
       const key=(event as CustomEvent).detail?.key;
       if(typeof key!=='string'||!key||/[\]\r\n]/.test(key))return;
       view.dispatch(closeHistory(view.state.tr.setSelection(pending.selection).insertText(`[@${key}]`)).scrollIntoView());view.focus();
@@ -757,6 +763,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   onToastRef.current = onToast;
   const onStyleSettingsRef = useRef(onStyleSettings);
   onStyleSettingsRef.current = onStyleSettings;
+  const onReferenceSettingsRef = useRef(onReferenceSettings);
+  onReferenceSettingsRef.current = onReferenceSettings;
 
   const imageSequence = useRef(0);
   const [imageMounts, setImageMounts] = useState<{ id: number; element: HTMLElement; source: string }[]>([]);
@@ -2135,7 +2143,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           event.preventDefault(); beginImageRef.current(undefined, undefined, clipboardFile); return true;
         }
         const configured = configuredHotkeyItem(event, hotkeysRef.current);
-        if (configured) { synchronizeTextSelection(currentView); executeItemRef.current(configured.id); return true; }
+        if (configured) { event.preventDefault(); synchronizeTextSelection(currentView); executeItemRef.current(configured.id); return true; }
         if (slashOpenRef.current && menuItemsRef.current.length && ['ArrowDown', 'ArrowUp', 'Enter', 'Tab'].includes(event.key)) {
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             const length = menuItemsRef.current.length;
@@ -2775,6 +2783,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     math: () => { executeItem('math'); return true; }, latex: () => { executeItem('math'); return true; },
     footnote: () => { insertFootnote(); return true; }, fn: () => { insertFootnote(); return true; },
     citation: () => { openCitation(); return true; }, cite: () => { openCitation(); return true; },
+    add_reference: () => { onReferenceSettingsRef.current?.(); return true; }, vibe: () => { onReferenceSettingsRef.current?.(); return true; },
   };
   for (let level = 1; level <= 6; level++) nativeCommands[`h${level}`] = setHeadingBlock(level);
   const insertFootnote = (removeSlash = false) => {
@@ -3040,6 +3049,17 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       onStyleSettingsRef.current?.();
       return;
     }
+    if (id === 'add_reference' || id === 'vibe') {
+      if (removeSlash && slashRange.current) {
+        const range = slashRange.current;
+        view.dispatch(view.state.tr.delete(range.from, range.to));
+        slashRange.current = null; setSlash(false);
+      }
+      onReferenceSettingsRef.current?.();
+      return;
+    }
+
+
     if (nativeCommands[id]) { run(nativeCommands[id], removeSlash); return; }
     if (removeSlash && slashRange.current) {
       const range = slashRange.current;
@@ -3174,6 +3194,13 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         return true;
       }
       if (command === 'FOCUS') { viewRef.current?.focus(); return true; }
+      if (command === 'ADD_REFERENCE') { onReferenceSettingsRef.current?.(); return true; }
+      if (command === 'TOGGLE_CSS_STYLE') { onStyleSettingsRef.current?.(); return true; }
+      if (command === 'CITE' || command === 'CITATION') {
+        if (viewRef.current) synchronizeTextSelection(viewRef.current);
+        openCitationRef.current(false);
+        return true;
+      }
       if (commands[command]) { run(commands[command]); return true; }
       const aliases: Record<string, string> = { HR:'divider', CHECK:'checklist', CHECKLIST:'checklist', CITE:'citation', CITATION:'citation', FOOTNOTE:'footnote', FN:'footnote', DOCLINK:'taglink',
         NOW:'now', CALENDAR:'now',

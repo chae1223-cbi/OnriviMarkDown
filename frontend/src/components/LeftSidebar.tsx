@@ -72,6 +72,10 @@ import { copyImageToClipboard } from '@/lib/mediaMarkup';
 //             2) 검색(GlobalSearch) 결과 클릭 시 VisualDocumentEditor(ProseMirror) 블록 내의 검색어 및 텍스트를 감지하여 해당 위치로 중앙 스크롤, .preview-highlight-line 및 CSS Custom Highlight API 검색어 인라인 하이라이트 동시 적용
 //             3) onrivi:source-cursor 커스텀 이벤트를 발송하여 문서 보기 내부 ProseMirror 캐럿(Cursor) 및 텍스트 선택 영역을 실시간 동기화
 //             4) 문서 보기 스크롤 시 개요(TOC) 탭의 활성 헤딩 자동 추적(Auto-follow) 및 부모 헤딩 자동 펼침 연동
+// 🚨 @PATCH : **2026-10-17** — [탐색기 루트 폴더로의 파일/폴더 이동 및 붙여넣기(Cut & Paste/Drag & Drop) 전면 정상화]:
+//             1) 드래그 앤 드롭 이동 수정: handleDragOverRoot에 dropEffect = "move" 부여, e.dataTransfer.getData 소문자/전역참조 폴백 보장
+//             2) 루트 헤더 드롭 및 하이라이트 정상화: 루트 아이템 및 상단 워크스페이스 바, 스크롤 컨테이너 빈 영역에 onDragOver/onDrop 연동 및 코발트 블루 하이라이트(bg-[#1d4ed8]/10) 적용
+//             3) 루트 붙여넣기/선택 연동: 루트 아이템 클릭 및 mousedown 시 포커스 및 선택 상태(isSelectedRoot) 활성화, Ctrl+V 단축키 연동, 상단 바 우클릭 컨텍스트 메뉴 제공
 // 🚨 @PATCH : **2026-10-14** — [탐색기/리소스 폴더 이미지 파일 복사 시 네이티브 비트맵 클립보드 동기화(copyImageToClipboard)]: 탐색기에서 이미지 파일(.png, .jpg 등) 복사(Ctrl+C 또는 복사하기) 시 인메모리 노드 복사뿐만 아니라 OS 시스템 클립보드에도 실제 비트맵 이미지를 직접 기록하여 그림판/Word/카카오톡/ImageModal/에디터에 100% 정상 붙여넣기 지원
 // 🚨 @PATCH : **2026-09-30** — [미리보기 폴더 링크 클릭 시 탐색기 증발 결함 수정 및 트리 자동 전개 완비]: handleFocusTreeFolder에서 탐색기 탭 ID('explorer') 오기입('files' -> 'explorer')으로 인해 트리 영역이 hidden 처리되던 결함을 수정하고, 웹 환경에서 루트 폴더명이 접두어로 붙은 상대 경로(relativeToRoot)를 자동 분리하여 onrivi_expanded_paths에 동시 등록함으로써 하위/상위 폴더가 즉시 펼쳐지고 부드러운 스크롤 및 코발트 블루 링 하이라이트가 100% 완벽 연동되도록 조치
 // 🚨 @PATCH : **2026-09-18** — [폴더 삭제 되돌리기(Undo) 전면 지원 및 탐색기 덜렁거림·깜빡임 완전 해소]:
@@ -566,6 +570,19 @@ export default function LeftSidebar() {
   const [activeTocId, setActiveTocId] = useState<string>('');
 
   const [isDragOverRoot, setIsDragOverRoot] = useDragHighlight();
+  const [isSelectedRoot, setIsSelectedRoot] = useState(false);
+  const rootItemRef = useRef<HTMLDivElement>(null);
+  const explorerScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (rootItemRef.current && !rootItemRef.current.contains(e.target as Node)) {
+        setIsSelectedRoot(false);
+      }
+    };
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, []);
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const contextCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -1844,6 +1861,7 @@ export default function LeftSidebar() {
     }
     e.preventDefault();
     e.stopPropagation();
+    e.dataTransfer.dropEffect = "move";
     setIsDragOverRoot(true);
   };
 
@@ -1861,10 +1879,10 @@ export default function LeftSidebar() {
     e.stopPropagation();
     setIsDragOverRoot(false);
 
-    const sourcePath = e.dataTransfer.getData("sourcePath");
-    const sourceName = e.dataTransfer.getData("sourceName");
     const draggedNode = typeof window !== 'undefined' ? (window as any)._draggedNode : null;
-    const draggedNodeParent = typeof window !== 'undefined' ? (window as any)._draggedNodeParentHandle : null;
+    const sourcePath = e.dataTransfer.getData("sourcePath") || e.dataTransfer.getData("sourcepath") || draggedNode?.path || "";
+    const sourceName = e.dataTransfer.getData("sourceName") || e.dataTransfer.getData("sourcename") || draggedNode?.name || "";
+    const sourceKind = e.dataTransfer.getData("sourceKind") || e.dataTransfer.getData("sourcekind") || draggedNode?.kind || 'file';
     const sourceParentPath = typeof window !== 'undefined' ? (window as any)._draggedNodeParentPath : null;
 
     const actualRootPath = (workspaceType === 'local' ? rootFolder?.name : rootFolder?.path) || '';
@@ -1875,7 +1893,10 @@ export default function LeftSidebar() {
 
     if (!sourcePath || normSource === normRoot) return;
     // 이미 최상위(루트) 폴더에 있는 파일이면 이동하지 않음
-    if (normSourceParent && normSourceParent === normRoot) return;
+    if (normSourceParent && normSourceParent === normRoot) {
+      showToast('이미 최상위 루트 폴더에 위치해 있습니다.', 'info');
+      return;
+    }
 
     try {
       // 0. Google Drive(GDRIVE/cloud) 루트 이동
@@ -2752,7 +2773,20 @@ export default function LeftSidebar() {
         </div>
       
         {/* 항상 표시되는 워크스페이스 선택 바 */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-[#E2E8F0] dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.02] backdrop-blur-xs">
+        <div 
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 border-b border-[#E2E8F0] dark:border-white/[0.08] transition-colors backdrop-blur-xs ${
+            isDragOverRoot ? 'bg-blue-500/15 border-blue-400 dark:border-blue-500' : 'bg-white/40 dark:bg-white/[0.02]'
+          }`}
+          onDragOver={handleDragOverRoot}
+          onDragLeave={handleDragLeaveRoot}
+          onDrop={handleDropRoot}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            window.dispatchEvent(new CustomEvent('close-context-menus'));
+            setContextMenu({ x: e.clientX, y: e.clientY });
+          }}
+        >
           <span className="text-[11px] font-bold text-slate-600 dark:text-zinc-400 uppercase tracking-wide shrink-0">작업장 실폴더</span>
           {typeof window !== 'undefined' && !(window as any).electronAPI && rootFolder?.type !== 'GDRIVE' && (
             <button type="button" className="shrink-0 px-1.5 py-1 rounded text-[11px] font-bold text-blue-700 hover:bg-blue-50"
@@ -2802,6 +2836,7 @@ export default function LeftSidebar() {
       {/* 탭 바디 — 항상 마운트, hidden으로 표시/숨김 제어 */}
       <div className="flex-1 min-h-0 relative flex flex-col">
         <div 
+          ref={explorerScrollRef}
           className={`flex-1 overflow-y-auto [scrollbar-gutter:stable] explorer-scrollbar p-2 ${sidebarTab !== 'explorer' ? 'hidden' : ''}`}
           onContextMenu={(e) => {
             const target = e.target as HTMLElement;
@@ -2841,10 +2876,28 @@ export default function LeftSidebar() {
               onDrop={handleDropRoot}
             >
               <div 
+                ref={rootItemRef}
                 tabIndex={0}
                 role="treeitem"
-                aria-selected={false}
-                className="group relative flex items-center justify-between px-1.5 py-1 text-[12px] font-bold text-on-surface border-b border-outline-variant/20 mb-1 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer rounded-t transition-colors focus:outline-none focus:ring-1 focus:ring-[#1d4ed8]/40"
+                aria-selected={isSelectedRoot}
+                onMouseDown={() => {
+                  setIsSelectedRoot(true);
+                  rootItemRef.current?.focus();
+                }}
+                onClick={() => {
+                  setIsSelectedRoot(true);
+                  explorerScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                onDragOver={handleDragOverRoot}
+                onDragLeave={handleDragLeaveRoot}
+                onDrop={handleDropRoot}
+                className={`group relative flex items-center justify-between px-1.5 py-1 text-[12px] font-bold border-b border-outline-variant/20 mb-1 cursor-pointer rounded-t transition-colors focus:outline-none focus:ring-1 focus:ring-[#1d4ed8]/40 ${
+                  isSelectedRoot 
+                    ? 'bg-[#1d4ed8]/10 dark:bg-[#1d4ed8]/20 text-blue-700 dark:text-blue-400 font-extrabold shadow-xs rounded-lg' 
+                    : isDragOverRoot 
+                      ? 'bg-blue-500/20 ring-1 ring-blue-500 text-blue-700 dark:text-blue-400 font-extrabold' 
+                      : 'text-on-surface hover:bg-black/5 dark:hover:bg-white/5'
+                }`}
                 onKeyDown={(e) => {
                   const target = e.target as HTMLElement;
                   if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;

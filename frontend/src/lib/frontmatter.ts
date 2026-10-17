@@ -1,6 +1,8 @@
 /**
  * frontmatter.ts
  * 마크다운 파일 최상단의 YAML 메타데이터(Frontmatter)를 파싱하고 업데이트하는 유틸리티
+ * 🚨 @PATCH : **2026-10-17** — [공식 기본 서식(system-1) 메타데이터 불필요 강제 주입 방어]:
+ *             기본 서식('default' 및 'system-1')이고 문서에 기존 css_profile이 지정되어 있지 않은 순수 마크다운 문서의 경우 불필요한 Frontmatter 강제 주입을 배제하여 5초 자동 저장 무한 루프 및 한글 타이핑 방해 원천 차단
  */
 
 const FRONTMATTER_REGEX = /^---\s*\n([\s\S]*?)\n---\s*(\n|$)/;
@@ -54,9 +56,9 @@ export function updateCssProfileInFrontmatter(content: string, profileId: string
     return content;
   }
 
-  // 💡 기본 프로필('default')이고 문서에 원래 css_profile이 지정되어 있지 않은 경우,
+  // 💡 기본 프로필('default' 또는 'system-1')이고 문서에 원래 css_profile이 지정되어 있지 않은 경우,
   //    순수 마크다운 문서에 불필요하게 YAML 메타데이터를 강제 주입하지 않고 원본 유지
-  if ((!profileId || profileId === 'default') && !currentProfile) {
+  if ((!profileId || profileId === 'default' || profileId === 'system-1') && !currentProfile) {
     return content;
   }
   

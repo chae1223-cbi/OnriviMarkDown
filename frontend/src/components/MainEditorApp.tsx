@@ -1,5 +1,12 @@
 /**
  * 프로그램명 : OnriviAuthor 
+// 🚨 @PATCH : **2026-10-17** — [새 문서 생성 시 보기모드 정합화 및 5초 자동저장 한글 조합 파괴·무한루프 방지]:
+//             1) handleCreateNewDocument에서 setPreviewModeRaw('both') 대신 setPreviewMode(targetMode)를 호출하여 보기모드/에디터마운트 플래그/전역모드Ref를 1:1 일치시키고 키보드 입력 차단 방어
+//             2) autoSave 시 기본 서식(system-1) 메타 주입 방어 및 nextVal 변경 시 React 상태(setContent)와 동기화하여 5초 주기 자동 저장 무한 루프 완벽 제거
+//             3) visualSourceActionRef에서 previewMode !== 'both' 하드코딩 제약을 제거하여 문서보기(preview) 모드에서도 툴바/슬래시 서식 도구가 100% 정상 작동하도록 개선
+// 🚨 @PATCH : **2026-10-17** — [문서보기(preview) 모드 참조문헌 관리(ADD_REFERENCE) 및 인용(CITE/CITATION) 실행 완벽 연동]:
+//             1) dispatchCommand 최상단에서 ADD_REFERENCE를 즉시 처리(setIsReferenceModalOpen(true))하여 문서보기 상태에서 우측 툴바 참조문헌 버튼, 단축키(Ctrl+Shift+V), 슬래시 명령어(/vibe, /참조관리) 실행 시 참조 파일 관리 모달이 즉시 열리도록 개선
+//             2) VisualDocumentEditor에 onReferenceSettings 콜백을 전달하고 EditorCommandType 및 전역 단축키 핸들러에 참조문헌/인용 실행 경로를 보강하여 문서보기에서도 참조문헌 관리와 인용 삽입이 100% 동작하도록 연동
 // 🚨 @PATCH : **2026-10-17** — [인용문·코드블록·이미지·동영상·지도·표·수식 생성 시 하단 빈 행 자동 추가]:
 //             1) applyLinePrefix에서 인용문(quote) 및 콜아웃(Alert) 생성 시 하단에 빈 줄(\n\n)을 함께 추가하여 마우스 클릭으로 다음 작업을 즉시 이어갈 수 있도록 개선 (커서는 인용문 내부 유지)
 // 🚨 @PATCH : **2026-10-17** — [코드블록 언어 미지정/한글·임의 언어명 입력 시 코드블록 이하 일반 텍스트 색상 오염(보라색 변색) 결함 해결]:
@@ -479,7 +486,7 @@ export type EditorCommandType =
   | 'DOCLINK'                                                                          // ⑮ 문서링크
   | 'MERGE'                                                                             // ⑯ 파일 병합
   | 'AI_HELP'                                                                           // ⑰ AI 글쓰기 도우미
-  | 'ADD_REFERENCE'                                                                     // ⑱ 참조 파일 추가
+  | 'ADD_REFERENCE' | 'CITE' | 'CITATION'                                               // ⑱ 참조 파일 추가 및 인용문헌
   | 'AI_DRAFT' | 'OPEN_AI_WRITER' | 'SLASH_COMMAND' | 'AUTO_RENUMBER' | 'SIGNATURE';
 
 // 모듈 레벨 Monaco 설정: 컴포넌트 렌더 전에 loader 경로 확정 (레이스 컨디션 방지)
@@ -3311,6 +3318,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (previewModeRef.current === 'preview' && setPreviewModeRaw) {
         setPreviewModeRaw('both');
         previewModeRef.current = 'both';
+        isEditorMountedRef.current = true;
+        lastGeneralPreviewModeRef.current = 'both';
       }
 
       const normTarget = (filePath || '').replace(/\\/g, '/').toLowerCase().normalize('NFC');
@@ -4926,14 +4935,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           const nextVal = updateCssProfileInFrontmatter(content, activeProfileId, profile?.name);
           if (nextVal !== content) {
             saveContent = nextVal;
+            contentRef.current = nextVal;
+            setContent(nextVal);
             if (editorRef?.current) {
               const model = editorRef.current.getModel();
-              if (model) {
-                model.pushEditOperations(
-                  [],
-                  [{ range: model.getFullModelRange(), text: nextVal }],
-                  () => null
-                );
+              if (model && !model.isDisposed() && model.getValue() !== nextVal) {
+                if (!isComposingRef.current) {
+                  model.pushEditOperations(
+                    [],
+                    [{ range: model.getFullModelRange(), text: nextVal }],
+                    () => null
+                  );
+                }
               }
             }
           }
@@ -4946,7 +4959,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           console.log(`✏️ [Onrivi Guard] 자동 저장 완료 (${autoSave}초)`);
           // 자동 저장 후 현재 탭의 isModified 상태를 false로 복구
           setTabs(prev => prev.map(t =>
-            t.id === activeTabIdRef.current ? { ...t, isModified: false } : t
+            t.id === activeTabIdRef.current ? { ...t, isModified: false, content: saveContent } : t
           ));
         }
       }, autoSave * 1000); // 🕒 설정된 초(seconds) 기반 디바운스
@@ -7897,7 +7910,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     setCurrentFileName(finalName);
     lastSavedContentRef.current = '';
     setSaveStatus('saved');
-    setPreviewModeRaw('both');
+    const targetMode = isRestrictedUser ? 'preview' : (lastGeneralPreviewModeRef.current || 'preview');
+    setPreviewMode(targetMode);
     setIsNewDocumentModalOpen(false);
     await refreshFileList();
     showToast('새 문서를 만들었습니다.', 'success');
@@ -7958,6 +7972,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
     if (type === 'TOGGLE_CSS_STYLE') {
       setIsStyleModalOpen(true);
+      return;
+    }
+    if (type === 'ADD_REFERENCE') {
+      setIsReferenceModalOpen(true);
       return;
     }
     if (!executingVisualSourceActionRef.current && previewRef.current?.querySelector('.visual-document-editor, .picturebook-scene-input') && visualCommandRef.current?.(type)) return;
@@ -8417,11 +8435,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, []);
   useEffect(() => {
     const pending = visualSourceActionRef.current;
-    if (!pending || previewMode !== 'both' || !isEditorReady || content !== pending.source) return;
+    if (!pending || !isEditorReady || content !== pending.source) return;
     if (pending.tabId !== activeTabId || isRestrictedUser) { visualSourceActionRef.current = null; return; }
     const editor = editorRef.current;
     const model = editor?.getModel();
-    if (!model || model.getValue() !== pending.source) return;
+    if (!model) return;
+    if (model.getValue() !== pending.source) {
+      model.setValue(pending.source);
+    }
     const frame = requestAnimationFrame(() => {
       if (activeTabIdRef.current !== pending.tabId) return;
       const from = model.getPositionAt(pending.from);
@@ -8774,10 +8795,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (isCtrl) combinationPartsForGlobal.push('CTRL');
       if (isShift) combinationPartsForGlobal.push('SHIFT');
       if (isAlt) combinationPartsForGlobal.push('ALT');
-      combinationPartsForGlobal.push(e.key.toUpperCase());
+      const globalPhysicalKey = (isCtrl || isAlt) && e.code?.startsWith('Key')
+        ? e.code.substring(3).toUpperCase()
+        : (isCtrl || isAlt) && e.code?.startsWith('Digit')
+          ? e.code.substring(5)
+          : e.key.toUpperCase();
+      combinationPartsForGlobal.push(globalPhysicalKey);
       const combinationStrForGlobal = combinationPartsForGlobal.join('+');
 
-      const globalOnlyKeys = ['toggleFloatingToolbar', 'toggleToolbar', 'toggleSidebar', 'toggleMode', 'toggleTheme'];
+      const globalOnlyKeys = ['toggleFloatingToolbar', 'toggleToolbar', 'toggleSidebar', 'toggleMode', 'toggleTheme', 'add_reference', 'styleSettings'];
       let handledGlobal = false;
       for (const keyId of globalOnlyKeys) {
         const configuredHotkey = customHotkeys[keyId] || (TOOLBAR_ITEMS.find(item => item.id === keyId)?.defaultHotkey);
@@ -8874,7 +8900,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       }
 
-      if (!editorHasFocus) return;
+      const visualEditorEl = previewRef.current?.querySelector('.visual-document-editor');
+      const visualEditorHasFocus = Boolean(visualEditorEl?.contains(document.activeElement));
+      if (!editorHasFocus && !(previewModeRef.current === 'preview' && visualEditorEl && !visualEditorHasFocus)) return;
 
       let key = e.key.toUpperCase();
 
@@ -10943,7 +10971,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                   </button>
                                 </div>
                                 {directEditEnabled && !isRestrictedUser && activeTabId && currentFileName !== '도움말.md' && !activeProfile.layout ? (
-                                  <VisualDocumentEditor key={activeTabId} documentId={activeTabId} bibContent={bibContent} onCitation={()=>setIsCitationModalOpen(true)} tabSize={editorTabSize} onToast={showToast} onStyleSettings={() => setIsStyleModalOpen(true)} onSourceScroll={offset=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel() || isScrollingRef.current==='editor')return;isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);const position=editor.getModel().getPositionAt(offset);editor.setScrollTop(editor.getTopForLineNumber(position.lineNumber));}} onSourceCursor={(offset,reveal=true)=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel())return;const position=editor.getModel().getPositionAt(offset);isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);const top=editor.getScrollTop(),left=editor.getScrollLeft();editor.setPosition(position);if(reveal)editor.revealPositionInCenterIfOutsideViewport(position);else editor.setScrollPosition({scrollTop:top,scrollLeft:left});}} commandRef={visualCommandRef} customCommands={customSlashCommands} customHotkeys={customHotkeys}
+                                  <VisualDocumentEditor key={activeTabId} documentId={activeTabId} bibContent={bibContent} onCitation={()=>setIsCitationModalOpen(true)} onReferenceSettings={() => setIsReferenceModalOpen(true)} tabSize={editorTabSize} onToast={showToast} onStyleSettings={() => setIsStyleModalOpen(true)} onSourceScroll={offset=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel() || isScrollingRef.current==='editor')return;isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);const position=editor.getModel().getPositionAt(offset);editor.setScrollTop(editor.getTopForLineNumber(position.lineNumber));}} onSourceCursor={(offset,reveal=true)=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel())return;const position=editor.getModel().getPositionAt(offset);isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);const top=editor.getScrollTop(),left=editor.getScrollLeft();editor.setPosition(position);if(reveal)editor.revealPositionInCenterIfOutsideViewport(position);else editor.setScrollPosition({scrollTop:top,scrollLeft:left});}} commandRef={visualCommandRef} customCommands={customSlashCommands} customHotkeys={customHotkeys}
                                     onDocLinkDialog={(pos, insert) => {
                                       visualDocLinkPositionRef.current = pos;
                                       visualDocLinkInsertRef.current = insert;

@@ -24,6 +24,8 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
+// 🚨 @PATCH : **2026-10-17** — [세션 복원 시 미존재 파일 유령 탭 생성 방지]:
+//             앱 시작 세션 복원(restoreSessionTabs) 시 디스크에서 삭제/이동된 파일(readFromPath 실패)에 대해 빈 유령 탭을 무작정 생성하지 않고 안전하게 건너뛰도록 방어
 // 🚨 @PATCH : **2026-10-15** — [다른 이름으로 저장 및 개인 웹드라이브 연동 시 로컬 작업장 불변 보장 & 원클릭 복구 고도화]:
 //             1) selectRootFolder 호출 시 GDRIVE 모드이더라도 type='local' 요청 시 구글 드라이브 선택으로 가로채지 않고 정상 로컬 폴더 선택을 수행하도록 개선
 //             2) disconnectGoogleDrive 시 로컬 백업 정보가 없더라도 Electron/시스템 환경 경로를 역추적하여 100% 무손실 복구하고 파일 목록을 즉시 갱신
@@ -1387,6 +1389,7 @@ export const useFileExplorer = ({
     }
 
     if (workspaceType !== 'browser') {
+      if (sessionRestoringRef?.current) return;
       const filename = targetBaseNameWithMd || targetBaseName || '파일.md';
       const dummyNode: FileNode = {
         name: filename,
@@ -1615,10 +1618,17 @@ export const useFileExplorer = ({
             if (file) {
               fileContent = file.content;
               if (file.path) node.path = file.path;
+            } else {
+              if (sessionRestoringRef?.current) return;
+              showToast('파일을 읽을 수 없습니다.', 'error');
+              return;
             }
           } catch (e) {
             console.warn('[handleFileClick] 파일 읽기 실패:', node.path, e);
-            showToast('파일 읽기 실패', 'error');
+            if (!sessionRestoringRef?.current) {
+              showToast('파일 읽기 실패', 'error');
+            }
+            return;
           }
         } else if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
           const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(node.path)}`));
