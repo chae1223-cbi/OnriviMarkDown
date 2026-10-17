@@ -1,3 +1,4 @@
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 // ====================================================================
 // 📊 [OMD-LIB-resourceSettings-0001] src/lib/resourceSettings.ts
 // 🎯 @KICK  : 리소스 폴더 설정(로컬 vs 구글 드라이브) 완벽 격리 및 독립 저장/로드 관리

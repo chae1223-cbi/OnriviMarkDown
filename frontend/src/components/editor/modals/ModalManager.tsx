@@ -1,6 +1,7 @@
 /**
  * 프로그램명 : OnriviAuthor
  * 프로그램 ID : oaar-modal-manager
+ * 🚨 @PATCH : **2026-10-17** — [표 생성 시 하단 빈 행(\n\n) 보장]: TableModal에서 표 마크다운 삽입 시 항상 하단에 빈 행이 포함되도록 보장하여 마우스 클릭으로 다음 작업을 이어갈 수 있도록 지원
  * 🚨 @PATCH : **2026-10-14** — [표 생성 시 첫 번째 열 헤더("제목") 자동 선택 및 다단계 포커스 안착]: TableModal에서 표 생성 시 모델 내 첫 번째 헤더 라인(| 행)과 첫 번째 열("제목") 컬럼 범위를 동적으로 정밀 계산하고, 모달 언마운트 포커스 유실을 방어하기 위해 다단계(0ms, 40ms, 120ms, 250ms)로 커서 및 선택영역을 자동 안착시켜 즉시 타이핑 수정이 가능하도록 전면 개선
  * 🚨 @PATCH : **2026-10-14** — [수식 에디터 모달(FormulaModal) 기존 LaTeX(formulaModalInitialLatex) 전달 연동]: deps.formulaModalInitialLatex를 FormulaModal에 initialLatex로 주입하여 기존 수식 편집 완비
  * 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 미디어 대상 폴더 동적 경로 동기화]: resourceFolder(구글 드라이브 및 로컬)의 구분자 동적 판별 및 targetFolder media 경로 완전 동기화
@@ -558,6 +559,9 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
             // 만약 현재 커서 행이 완전히 빈 행이라면, code 시작 부분의 불필요한 빈 줄(\n)을 제거하여 해당 행부터 표 즉시 배치
             if (currentLineContent.trim() === '' && formattedCode.startsWith('\n')) {
               formattedCode = formattedCode.replace(/^\n/, '');
+            }
+            if (!formattedCode.endsWith('\n\n')) {
+              formattedCode = formattedCode.replace(/\n*$/, '\n\n');
             }
 
             const monaco = (window as any).monaco;

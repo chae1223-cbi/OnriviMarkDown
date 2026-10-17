@@ -35,6 +35,7 @@
 "use client";
 
 
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import NewDocumentModal from '@/components/NewDocumentModal';
 import { IMPORT_ACCEPT, IMPORT_PICKER_OPTIONS, isSupportedImportFile } from '@/lib/importFormats';
 import { importStartFolder } from '@/lib/importStartFolder';
@@ -2753,6 +2754,13 @@ export default function LeftSidebar() {
         {/* 항상 표시되는 워크스페이스 선택 바 */}
         <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-[#E2E8F0] dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.02] backdrop-blur-xs">
           <span className="text-[11px] font-bold text-slate-600 dark:text-zinc-400 uppercase tracking-wide shrink-0">작업장 실폴더</span>
+          {typeof window !== 'undefined' && !(window as any).electronAPI && rootFolder?.type !== 'GDRIVE' && (
+            <button type="button" className="shrink-0 px-1.5 py-1 rounded text-[11px] font-bold text-blue-700 hover:bg-blue-50"
+              title="파일을 삭제하지 않고 기본 브라우저 작업장으로 연결을 초기화합니다."
+              onClick={() => window.dispatchEvent(new Event('onrivi:reset-browser-workspace'))}>
+              초기화
+            </button>
+          )}
           <button
             onClick={onSelectRootFolder}
             className="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1 rounded-md text-left text-[12px] font-bold transition-all

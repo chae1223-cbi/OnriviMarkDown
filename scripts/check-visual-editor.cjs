@@ -13,7 +13,9 @@ const compile = file => ts.transpileModule(fs.readFileSync(file, 'utf8'), {
 const mediaExports = {};
 vm.runInNewContext(compile(path.join(frontend,'src/lib/mediaMarkup.ts')), {exports:mediaExports,require:req});
 const exportsObject = {};
-vm.runInNewContext(compile(path.join(frontend, 'src/lib/visualDocumentCodec.ts')), { exports: exportsObject, require: name => name === './mediaMarkup' ? mediaExports : req(name) });
+const bulletExports = {};
+vm.runInNewContext(compile(path.join(frontend,'src/lib/bulletNumberText.ts')), {exports:bulletExports,require:req});
+vm.runInNewContext(compile(path.join(frontend, 'src/lib/visualDocumentCodec.ts')), { exports: exportsObject, require: name => name === './bulletNumberText' ? bulletExports : name === './mediaMarkup' ? mediaExports : req(name) });
 const { createVisualDocumentCodec, visualSchema } = exportsObject;
 const multilineTable = createVisualDocumentCodec('| A |\n|---|\n| first<br>second |\n');
 assert.equal(multilineTable.doc.firstChild.type.name, 'table');
@@ -34,7 +36,7 @@ wheelExports.wheel({ctrlKey:true,deltaY:-100,preventDefault:()=>{prevented=true;
 assert.equal(zoomed,true,'Ctrl+wheel must retain preview zoom');
 console.log('PASS: actual preview wheel handler keeps native document scroll and Ctrl+wheel zoom');
 const pasteExports={};
-vm.runInNewContext(compile(path.join(frontend,'src/lib/visualMarkdownPaste.ts')),{exports:pasteExports,require:name=>name==='@/lib/visualDocumentCodec'?exportsObject:req(name)});
+vm.runInNewContext(compile(path.join(frontend,'src/lib/visualMarkdownPaste.ts')),{exports:pasteExports,require:name=>name==='./bulletNumberText'?bulletExports:name==='@/lib/visualDocumentCodec'?exportsObject:req(name)});
 const { EditorState } = req('prosemirror-state');
 const trailingCodec=createVisualDocumentCodec('tail');
 let trailingState=EditorState.create({doc:trailingCodec.doc});
@@ -131,7 +133,10 @@ async function visual() {
   fs.writeFileSync(path.join(dir, 'footnoteOrganizer.js'), compile(path.join(frontend, 'src/lib/footnoteOrganizer.ts')));
   // The focused text fixture does not exercise network image downloads.
   fs.writeFileSync(path.join(dir, 'resourceMedia.js'), 'exports.parseDroppedDataToBlob=async()=>null;exports.fetchExternalImageFile=async()=>null;');
+  if(process.argv.includes('--image-drops-only'))fs.writeFileSync(path.join(dir,'resourceMedia.js'),compile(path.join(frontend,'src/lib/resourceMedia.ts')));
+  fs.writeFileSync(path.join(dir,'dropStorageStubs.js'),'exports.idb={get:async()=>null};exports.requireResourceSettings=()=>{throw Error("unexpected storage access");};exports.getSavedDriveToken=()=>null;');
   fs.writeFileSync(path.join(dir, 'codec.js'), compile(path.join(frontend, 'src/lib/visualDocumentCodec.ts')));
+  fs.writeFileSync(path.join(dir, 'bulletNumberText.js'), compile(path.join(frontend,'src/lib/bulletNumberText.ts')));
   fs.writeFileSync(path.join(dir, 'editor.js'), compile(path.join(frontend, 'src/components/VisualDocumentEditor.tsx')));
   fs.writeFileSync(path.join(dir, 'inputRules.js'), compile(path.join(frontend, 'src/lib/visualMarkdownInputRules.ts')));
   fs.writeFileSync(path.join(dir, 'paste.js'), compile(path.join(frontend, 'src/lib/visualMarkdownPaste.ts')));
@@ -180,21 +185,23 @@ async function visual() {
       const [commands,setCommands] = React.useState({});
       const [hotkeys,setHotkeys] = React.useState({});
       const [shared,setShared]=React.useState(false);
+      const [documentId,setDocumentId]=React.useState('test-document');
       const [floating,setFloating]=React.useState({visible:false,top:0,left:0});
       const sharedCommand=React.useRef(null);
       window.setTestSource=setContent;
       window.setTestCommands=setCommands;
       window.setTestHotkeys=setHotkeys;
       window.setSharedToolbar=setShared;
+      window.setTestDocument=(id,source)=>{setDocumentId(id);setContent(source);};
       return React.createElement('div',{},
         React.createElement('button',{id:'toggle',onClick:()=>setVisible(!visible)},'보기 전환'),
         React.createElement('button',{id:'readonly',onClick:()=>setReadonly(!readonly)},'읽기 전용'),
         shared && floating.visible && React.createElement(Legacy,{floatingToolbar:floating,setFloatingToolbar:setFloating,commandRef:sharedCommand}),
-        visible && React.createElement(Editor,{content,onSourceScroll:offset=>{window.qaSourceScroll=offset;},onSourceCursor:(offset,reveal=true)=>{window.qaSourceCursor=offset;window.qaCursorReveal=reveal;},onChange:setContent,readOnly:readonly,documentId:'test-document',customCommands:commands,customHotkeys:hotkeys,commandRef:sharedCommand,
+        visible && React.createElement(Editor,{content,onSourceScroll:offset=>{window.qaSourceScroll=offset;},onSourceCursor:(offset,reveal=true)=>{window.qaSourceCursor=offset;window.qaCursorReveal=reveal;},onChange:setContent,readOnly:readonly,documentId,customCommands:commands,customHotkeys:hotkeys,commandRef:sharedCommand,
           renderImage:source=>React.createElement('img',{alt:'test preview',style:{width:320,height:160},src:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWo4AAAAASUVORK5CYII='}),
           onMediaDialog:(kind,source,insert)=>{window.qaMediaDialog={kind,source,insert};},
           onImageDialog:(source,insert)=>{window.qaImageDialog={source,insert};},
-          onImageFile:async file=>{window.qaImageUploads=(window.qaImageUploads||0)+1;return 'media/test-paste.png';},
+          onImageFile:async file=>{window.qaImageUploads=(window.qaImageUploads||0)+1;if(window.qaUploadFailure)throw Error('테스트 저장 실패');if(window.qaHoldUpload)await new Promise(resolve=>window.qaReleaseUpload=resolve);return window.qaUniquePaths?'media/'+file.name:'media/test-paste.png';},
           floatingToolbarVisible:floating.visible,
           onFloatingToolbar:shared?((visible,position)=>{setFloating(prev=>prev.visible===visible && (!visible || (prev.top===position.top+48 && prev.left===position.left))?prev:{visible,top:position.top+48,left:position.left});}):undefined,
           onSourceAction:(id,source,from,to)=>{window.qaSourceAction={id,source,from,to};}}),
@@ -203,10 +210,13 @@ async function visual() {
     createRoot(document.getElementById('root')).render(React.createElement(App));
   `);
   const webpack = req('webpack');
-  const focusedAliases = process.argv.includes('--spacing-emphasis-only') ? {
+  const focusedAliases = { '@/lib/bulletNumberText':path.join(dir,'bulletNumberText.js'), ...(process.argv.some(arg=>['--typing-scroll-only','--spacing-emphasis-only','--list-markers-only','--image-drops-only'].includes(arg)) ? {
     '@/lib/footnoteOrganizer': path.join(dir, 'footnoteOrganizer.js'),
     '@/lib/resourceMedia': path.join(dir, 'resourceMedia.js'),
-  } : {};
+    './resourceSettings':path.join(dir,'dropStorageStubs.js'),
+    './indexedDbHelper':path.join(dir,'dropStorageStubs.js'),
+    './gdrive/googleDriveClient':path.join(dir,'dropStorageStubs.js'),
+  } : {}) };
   // The read-only renderer includes KaTeX styles. Load its real CSS in the
   // browser fixture instead of relying on the production Next.js CSS loader.
   fs.writeFileSync(path.join(dir, 'css-loader.cjs'), `module.exports = function(source) {
@@ -229,6 +239,162 @@ async function visual() {
     page.on('pageerror', error => { errors.push(error.message); console.error('Browser error:',error.message); });
     await page.goto('file:///' + path.join(dir, 'index.html').replace(/\\/g, '/'));
     const surface = page.locator('.visual-document-surface');
+    if(process.argv.includes('--typing-scroll-only')) {
+      await surface.waitFor();
+      await page.evaluate(()=>window.setTestSource(Array.from({length:60},(_,i)=>`문단 ${i} 본문입니다.`).join('\n\n')));
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent.includes('문단 59'));
+      await page.addStyleTag({content:'.custom-preview-container{height:350px;overflow:auto;overflow-anchor:none!important}.visual-document-surface{font-size:20px;line-height:1.6}.visual-document-surface p{margin:16px 0}'});
+      await surface.evaluate(el=>{
+        el.closest('.visual-document-editor').classList.add('custom-preview-container');
+        const v=window.qaView;let pos;v.state.doc.descendants((n,p)=>{if(n.isTextblock&&n.textContent.includes('문단 30'))pos=p+1+n.content.size;});
+        v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc,pos)).scrollIntoView());v.focus();
+        const pane=el.closest('.custom-preview-container');
+        pane.scrollTop+=v.coordsAtPos(v.state.selection.head).top-pane.getBoundingClientRect().top-150;
+        window.qaScrollSamples=[];pane.addEventListener('scroll',()=>window.qaScrollSamples.push(pane.scrollTop));
+      });
+      await page.waitForTimeout(100);
+      const before=await surface.evaluate(el=>el.closest('.custom-preview-container').scrollTop);
+      await page.keyboard.type(' typing without moving viewport', {delay:15});
+      await page.waitForTimeout(150);
+      const after=await surface.evaluate(el=>el.closest('.custom-preview-container').scrollTop);
+      assert.ok(Math.abs(before-after)<=1,JSON.stringify({before,after}));
+      await page.keyboard.press('Control+End');
+      await page.keyboard.type(' long text '.repeat(45),{delay:2});
+      await page.waitForTimeout(150);
+      const result=await page.evaluate(()=>{const v=window.qaView,pane=v.dom.closest('.custom-preview-container'),r=v.coordsAtPos(v.state.selection.head),b=pane.getBoundingClientRect();return{top:r.top,bottom:r.bottom,viewTop:b.top,viewBottom:b.bottom,samples:window.qaScrollSamples};});
+      assert.ok(result.bottom<=result.viewBottom+1&&result.top>=result.viewTop-1,JSON.stringify(result));
+      assert.equal(errors.length,0);
+      console.log('PASS: visible-caret typing retains viewport; wrapped text at document end keeps caret visible');
+      return;
+    }
+    if(process.argv.includes('--image-drops-only')) {
+      await surface.waitFor();
+      await page.evaluate(()=>{window.qaUniquePaths=true;window.setTestSource('드롭 본문');});
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='드롭 본문');
+      const drop=async names=>page.evaluate(names=>{
+        const target=document.querySelector('.visual-document-surface p:last-child');const box=target.getBoundingClientRect();
+        const dt=new DataTransfer();names.forEach(name=>dt.items.add(new File([new Uint8Array([1,2,3])],name,{type:'image/png'})));
+        target.dispatchEvent(new DragEvent('drop',{dataTransfer:dt,bubbles:true,cancelable:true,clientX:box.left+3,clientY:box.top+3}));
+      },names);
+      await drop(['one.png','two.png']);
+      await page.waitForFunction(()=>document.querySelector('#source').value.includes('two.png'));
+      assert.equal(await page.evaluate(()=>window.qaImageUploads),2);
+      assert.equal(await surface.locator('.visual-image-block').count(),2);
+      let saved=await page.locator('#source').inputValue();assert.ok(saved.indexOf('one.png')<saved.indexOf('two.png'),saved);
+      await page.evaluate(()=>{
+        const source=URL.createObjectURL(new Blob([new Uint8Array([1,2,3])],{type:'image/png'}));
+        const target=document.querySelector('.visual-document-surface p:last-child'),box=target.getBoundingClientRect();
+        const dt=new DataTransfer();dt.setData('text/html','<img src="'+source+'">');
+        target.dispatchEvent(new DragEvent('drop',{dataTransfer:dt,bubbles:true,cancelable:true,clientX:box.left+3,clientY:box.top+3}));
+      });
+      await page.waitForFunction(()=>document.querySelectorAll('.visual-image-block').length===3);
+      assert.ok(!(await page.locator('#source').inputValue()).includes('blob:'));
+      await page.evaluate(()=>{window.qaUploadFailure=true;});
+      await drop(['failed.png']);
+      await page.getByRole('status').filter({hasText:'테스트 저장 실패'}).waitFor();
+      assert.ok(!(await page.locator('#source').inputValue()).includes('failed.png'));
+      await page.evaluate(()=>{window.qaUploadFailure=false;window.qaHoldUpload=true;});
+      await drop(['late.png']);
+      await page.waitForFunction(()=>!!window.qaReleaseUpload);
+      await page.evaluate(()=>window.setTestDocument('other-document','다른 문서'));
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='다른 문서');
+      await page.evaluate(()=>{window.qaHoldUpload=false;window.qaReleaseUpload();});
+      await page.waitForFunction(()=>document.querySelector('#source').value==='다른 문서');
+      // The global capture handler must let a picturebook scene own its drop.
+      const sceneResult=await page.evaluate(()=>{
+        const scene=document.createElement('section');scene.className='book-page';document.body.append(scene);
+        const dt=new DataTransfer();dt.items.add(new File(['x'],'scene.png',{type:'image/png'}));
+        let reached=false;scene.addEventListener('drop',event=>{event.preventDefault();reached=true;});
+        scene.dispatchEvent(new DragEvent('drop',{dataTransfer:dt,bubbles:true,cancelable:true}));scene.remove();
+        return reached;
+      });
+      assert.equal(sceneResult,true);
+      assert.deepEqual(errors,[]);
+      console.log('PASS: actual image-drop parser, ordered multi-file insertion, visible save failure, stale document guard and scene event ownership');
+      return;
+    }
+    if(process.argv.includes('--list-markers-only')) {
+      await surface.waitFor();
+      for(const selectedSource of ['앞 문장\n\n1. 가나다\n2. 2\\. 라마바\n   3. 아자차\n   4. 타파하','앞 문장\n\n1. 가나다\n\n2\\. 라마바\n3\\. 아자차\n4\\. 타파하']) {
+      await page.evaluate(source=>{window.setSharedToolbar(true);window.setTestSource(source);},selectedSource);
+      await surface.locator('ol li p').first().waitFor();
+      await surface.locator('ol li p').first().click();await page.keyboard.press('Home');await page.keyboard.press('Control+Shift+End');
+      await page.keyboard.press('Control+Space');
+      await page.getByTitle('숫자 목록',{exact:true}).last().click();
+      await page.waitForFunction(()=>document.querySelectorAll('.visual-document-surface ol > li').length===4,null,{timeout:5000}).catch(async error=>{console.error(await page.locator('#source').inputValue());throw error;});
+      assert.deepEqual(await surface.locator('ol > li').allTextContents(),['가나다','라마바','아자차','타파하']);
+      assert.equal(await surface.locator('li li').count(),0);
+      assert.equal(await surface.locator('p').first().textContent(),'앞 문장');
+      await page.evaluate(()=>window.setSharedToolbar(false));
+      }
+      await page.evaluate(()=>window.setTestSource('가나다\n2\\. 라마바\n3\\. 아자차\n4\\. 타파하'));
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent.includes('타파하'));
+      await surface.locator('p').first().click();await page.keyboard.press('Control+Home');await page.keyboard.type('1. ');
+      await page.waitForFunction(()=>document.querySelectorAll('.visual-document-surface ol > li').length===4,null,{timeout:5000}).catch(async error=>{console.error(await page.locator('#source').inputValue());throw error;});
+      assert.deepEqual(await surface.locator('ol > li').allTextContents(),['가나다','라마바','아자차','타파하']);
+      assert.equal(await surface.locator('li li').count(),0);
+      await page.evaluate(()=>window.setTestSource('- 1. 가나다\n- 2. 마바사\n- [ ] 3. 아자차'));
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent.includes('1. 가나다'));
+      assert.equal(await surface.locator('ol').count(),0);
+      assert.equal(await surface.locator('li li').count(),0);
+      await surface.locator('li p').first().click();await page.keyboard.press('Home');
+      await page.evaluate(()=>{
+        const data=new DataTransfer();data.setData('text/plain','1. 붙임\n2. 다음');
+        document.querySelector('.visual-document-surface').dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));
+      });
+      assert.equal(await surface.locator('ol').count(),0);
+      assert.ok((await surface.textContent()).includes('1. 붙임'));
+      await page.evaluate(()=>window.setTestSource('가나다'));
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='가나다');
+      await surface.locator('p').click();await page.keyboard.press('Home');await page.keyboard.type('1. ');
+      await surface.locator('ol li').waitFor();
+      await page.evaluate(()=>window.setTestSource('마바사'));
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='마바사');
+      await surface.locator('p').click();await page.keyboard.press('Home');await page.keyboard.type('1) ');
+      await surface.locator('ol li').waitFor();
+      await page.evaluate(()=>window.setTestSource(''));
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='');
+      await surface.locator('p').click();await page.keyboard.type('/ol');
+      await page.getByRole('menu').getByRole('button',{name:'/ol',exact:true}).click();
+      await surface.locator('ol li').waitFor();
+      await page.evaluate(()=>window.setTestSource('- **가나다**\n- [마바사](https://example.com)\n'));
+      await surface.locator('ul li').first().waitFor();
+      await surface.locator('li p').first().click();await page.keyboard.press('Home');
+      await page.keyboard.type('1. ');
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface ul li p')?.textContent==='1. 가나다');
+      assert.equal(await surface.locator('li li').count(),0);
+      assert.equal(await surface.locator('ol').count(),0);
+      assert.ok((await surface.locator('strong').textContent()).includes('가나다'));
+      await page.keyboard.press('Home');await page.keyboard.press('Delete');
+      assert.equal(await surface.locator('ul li').first().textContent(),'. 가나다');
+      assert.ok((await surface.locator('strong').textContent()).includes('가나다'));
+      // Let the input-rule undo boundary expire by replacing the external source.
+      await page.evaluate(()=>window.setTestSource('1. 앞 문장\n2. **가나다**\n3. [마바사](https://example.com)\n'));
+      await page.waitForFunction(()=>document.querySelectorAll('.visual-document-surface ol li').length===3);
+      await surface.locator('ol li p').nth(1).click();await page.keyboard.press('Home');await page.keyboard.press('Backspace');
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface > p strong')?.textContent==='가나다');
+      assert.equal(await surface.locator('a').textContent(),'마바사');
+      const value=await page.locator('#source').inputValue();
+      assert.ok(value.includes('**가나다**'));assert.ok(value.includes('[마바사](https://example.com)'));
+      assert.ok(value.includes('앞 문장'));
+      await page.keyboard.press('Control+z');
+      await page.waitForFunction(()=>document.querySelectorAll('.visual-document-surface ol li').length===3);
+      for(const marker of ['- ','- [ ] ']) {
+        await page.evaluate(marker=>window.setTestSource(['1. 가나다','2. 라마바','3. 아자차','4. 타파하'].map(text=>marker+text).join('\n')),marker);
+        await page.waitForFunction(()=>document.querySelectorAll('.visual-document-surface li').length===4);
+        await surface.locator('li p').first().click();await page.keyboard.press('Control+a');await page.keyboard.press('Control+Shift+0');
+        await page.waitForFunction(()=>document.querySelectorAll('.visual-document-surface > p').length===4);
+        assert.equal(await surface.locator('ol,ul,input[type="checkbox"]').count(),0);
+        const cleared=await page.locator('#source').inputValue();
+        for(let number=1;number<=4;number++)assert.ok(cleared.includes(number+'\\. '),cleared);
+        await page.evaluate(value=>window.setTestSource(value+'\n'),cleared);
+        await page.waitForFunction(()=>document.querySelectorAll('.visual-document-surface > p').length===4);
+        assert.equal(await surface.locator('ol,ul').count(),0);
+      }
+      assert.deepEqual(errors,[]);
+      console.log('PASS: bullet item numbers stay editable text; Backspace removes structural marker and preserves sibling text, bold, links and undo');
+      return;
+    }
     if (process.argv.includes('--spacing-emphasis-only')) {
       await surface.waitFor();
       const source = '# 안내서' + '\n'.repeat(45) + '**활동명(별명)**을 입력합니다.';

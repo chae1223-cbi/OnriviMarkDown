@@ -25,6 +25,7 @@
 // ====================================================================
 "use client";
 
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/components/ToastProvider';
 import { createPortal } from 'react-dom';

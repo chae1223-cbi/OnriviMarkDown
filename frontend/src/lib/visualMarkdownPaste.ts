@@ -1,6 +1,7 @@
 import { createVisualDocumentCodec } from '@/lib/visualDocumentCodec';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { Slice } from 'prosemirror-model';
+import { bulletNumbersAsText } from './bulletNumberText';
 
 type Codec = ReturnType<typeof createVisualDocumentCodec>;
 
@@ -28,7 +29,9 @@ export function mergePastedFrontmatter(current: string, incoming: string) {
 }
 
 export function markdownPasteTransaction(state: EditorState, codec: Codec, source: string) {
-  const pasted = createVisualDocumentCodec(source);
+  const {$from}=state.selection;
+  const insideBullet=Array.from({length:$from.depth},(_,index)=>$from.node(index+1).type.name).includes('bullet_list');
+  const pasted = createVisualDocumentCodec(bulletNumbersAsText(source,insideBullet));
   codec.adopt(pasted);
   const empty = state.doc.childCount === 1 && state.doc.firstChild?.type.name === 'paragraph' && !state.doc.firstChild.content.size;
   const transaction = empty

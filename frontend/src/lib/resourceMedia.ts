@@ -81,6 +81,7 @@ export async function importResourceMedia(source: string, browserHandle?: any): 
 export interface DroppedMediaItem {
   file?: File;
   webUrl?: string;
+  localPath?: string;
   name: string;
 }
 
@@ -161,6 +162,15 @@ export function parseDroppedDataToBlob(dt: DataTransfer): DroppedMediaItem | nul
 
   if (!candidate) return null;
 
+  // Other Markdown/desktop editors often provide only <img src="file:...">
+  // rather than an OS File. Never let the browser insert that unreadable URL.
+  if (/^(?:file:|[A-Za-z]:[\\/]|\\\\)/i.test(candidate)) {
+    return { localPath: candidate, name: candidate.split(/[\\/]/).pop() || 'image' };
+  }
+  if (imgMatch && !/^(?:https?:|data:|blob:)/i.test(candidate)) {
+    return { localPath: candidate, name: candidate.split(/[\\/]/).pop() || 'image' };
+  }
+
   // 구글 검색(Google Images)의 imgurl 파라미터가 있을 경우 원본 이미지 URL 추출
   if (candidate.includes('imgurl=')) {
     try {
@@ -224,6 +234,7 @@ export function parseDroppedDataToBlob(dt: DataTransfer): DroppedMediaItem | nul
   }
 
   // 5) 외부 웹 HTTP/HTTPS 이미지 URL (Google 검색 썸네일, 웹 이미지 등)
+  if(candidate.startsWith('blob:'))return {webUrl:candidate,name:`img_${Date.now()}.png`};
   if (candidate.startsWith('http://') || candidate.startsWith('https://')) {
     let clean = candidate.split('?')[0];
     let extMatch = clean.match(/\.(png|jpe?g|gif|webp|svg|avif|bmp|jfif|tiff?|ico)$/i);
@@ -275,6 +286,7 @@ export async function fetchExternalImageFile(url: string, suggestedName?: string
     const resp = await fetch(cleanUrl);
     if (resp.ok) {
       const blob = await resp.blob();
+      if (blob.type && !/^image\//i.test(blob.type) && !/^application\/octet-stream/i.test(blob.type)) return null;
       const mimeType = blob.type || 'image/jpeg';
       const ext = ({
         'image/jpeg': 'jpg',

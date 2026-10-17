@@ -1,5 +1,6 @@
 "use client";
 
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Search, FileText } from 'lucide-react';
 import { FileNode, scanDirectoryDeep } from '@/lib/indexedDbHelper';

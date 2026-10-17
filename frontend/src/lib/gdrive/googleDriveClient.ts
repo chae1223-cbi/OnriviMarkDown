@@ -56,6 +56,7 @@
 // 🚨 @PATCH : **2026-10-03** — [클라우드 드라이브 무설정 자동 연동 모듈 신규 구현]: 구글 계정 로그인만으로 /OnriviAuthor/작업장(Root) 및 /참조파일(리소스)을 원클릭 자동 생성하고, 파일 읽기/쓰기/생성/삭제 및 미디어 업로드를 100% 안전하게 지원
 // ====================================================================
 
+import { browserAccountStorage as localStorage, browserAccountSessionStorage as sessionStorage } from '@/lib/browserAccountStorage';
 import { getResourceSettings, saveResourceSettings } from '@/lib/resourceSettings';
 import CryptoJS from 'crypto-js';
 import { startActiveTokenRenewal } from './activeTokenRenewal';

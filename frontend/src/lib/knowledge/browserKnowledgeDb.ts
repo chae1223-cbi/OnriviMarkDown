@@ -36,6 +36,7 @@
 // 🔗 @CALLS : sql.js, ./markdownChunker, ./llmProvider, ./contextBuilder, ../indexedDbHelper, ./pathResolver
 // ====================================================================
 
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import CryptoJS from 'crypto-js';
 import type { 
   DocumentChunk, 

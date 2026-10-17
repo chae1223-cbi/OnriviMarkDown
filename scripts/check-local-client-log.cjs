@@ -15,6 +15,10 @@ const ts = require('node:module').createRequire(path.resolve('frontend/package.j
   const response = await exported.POST(request({level:'ERROR',action:'BROWSER_ERROR',message:'token=fixture-secret user@example.com https://example.com/private 오류'}));
   assert.equal(response.status,204); assert.equal(writes.length,1);
   assert.ok(writes[0][0].includes(path.join('.tmp','client-logs')));
+  assert.ok(!/[<>:"|?*]/.test(path.basename(writes[0][0])), 'Diagnostic filenames must be valid on Windows');
+  await fs.promises.mkdir(path.dirname(writes[0][0]), {recursive:true});
+  await fs.promises.writeFile(writes[0][0], writes[0][1], {mode:0o600});
+  assert.equal(await fs.promises.readFile(writes[0][0], 'utf8'), writes[0][1]);
   assert.ok(!writes[0][1].includes('fixture-secret')); assert.ok(!writes[0][1].includes('user@example.com')); assert.ok(!writes[0][1].includes('https://example.com/private'));
   assert.equal((await exported.POST(request({level:'ERROR',message:'실패'},'https://evil.example'))).status,403);
   assert.equal((await exported.POST(request({level:'INVALID',message:'잘못된 이벤트'}))).status,400);

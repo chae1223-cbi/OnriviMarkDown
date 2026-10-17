@@ -21,6 +21,7 @@
 // ====================================================================
 "use client";
 
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import React, { useState, useEffect } from "react";  // useState, useEffect : 상태관리 hook 
 import { NAV_LINKS, SITE_NAME } from "@/lib/constants"; //NAV_LINKS, SITE_NAME : 상수들 
 import Link from "next/link"; // next/link : 페이지 이동

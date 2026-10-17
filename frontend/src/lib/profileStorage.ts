@@ -1,3 +1,4 @@
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import { getResourceSettings, requireResourceSettings, saveResourceSettings } from '@/lib/resourceSettings';
 // 사용자 서식의 유일한 원본은 리소스 폴더의 profiles/userCssProfiles.json이다.
 // 선택한 저장소의 오류/빈 배열을 다른 파일이나 localStorage로 대체하지 않는다.

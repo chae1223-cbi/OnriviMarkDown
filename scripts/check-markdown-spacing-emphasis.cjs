@@ -7,12 +7,13 @@ const req = createRequire(path.resolve('frontend/package.json'));
 const ts = req('typescript');
 function load(file, overrides = {}) {
   const exports = {};
-  const code = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+  const code = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop:true } }).outputText;
   Function('exports', 'require', code)(exports, name => overrides[name] || req(name));
   return exports;
 }
 const media = load('frontend/src/lib/mediaMarkup.ts');
-const api = load('frontend/src/lib/visualDocumentCodec.ts', { './mediaMarkup': media });
+const bullet = load('frontend/src/lib/bulletNumberText.ts');
+const api = load('frontend/src/lib/visualDocumentCodec.ts', { './mediaMarkup': media, './bulletNumberText': bullet });
 const normalize = api.normalizeVisualMarkdownSpacing;
 const bloated = '# 안내서' + '\n'.repeat(45) + '**활동명(별명)**을 입력합니다.';
 assert.equal(normalize(bloated), '# 안내서\n\n**활동명(별명)**을 입력합니다.');

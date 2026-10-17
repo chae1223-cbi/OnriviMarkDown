@@ -32,6 +32,7 @@ import { organizeMarkdownFootnotes } from '@/lib/footnoteOrganizer';
 // ====================================================================
 // 📊 [OMD-EDIT-USEEDITORHANDLERS-0014] useEditorHandlers.ts ➔ useEditorHandlers
 // 🎯 @KICK  : 에디터 주요 액션 핸들러(저장, 내보내기, 서식 삽입 등)를 통합 관리
+// 🚨 @PATCH : **2026-10-17** — [빠른 표(quickTable) 생성 시 하단 빈 행 자동 추가]: quickTable 생성 마크다운 끝에 빈 줄(\n\n)을 추가하여 마우스 클릭으로 다음 작업을 이어갈 수 있도록 개선
 // 🚨 @PATCH : **2026-10-16** — [전역 검색(globalSearch) 호출 시 사이드바 오픈 및 검색 입력창 포커스 강제 연동]:
 //             globalSearch 실행 시 setIsSidebarOpen(true), setIsSearchOpen(true) 및 onrivi:focus-global-search 이벤트를 발송하여 어느 상태에서든 즉시 검색 탭이 열리고 포커스되도록 개선
 // 🚨 @PATCH : **2026-10-15** — [편집 에디터 글자 크기 확대/축소 핸들러 제거]:
@@ -1151,7 +1152,7 @@ export const useEditorHandlers = ({
     quickTable: () => {
       const editor = editorRef?.current;
       if (!editor) {
-        insertAtCursor('| 구분 | 데이터 1 | 데이터 2 |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |\n');
+        insertAtCursor('| 구분 | 데이터 1 | 데이터 2 |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |\n\n');
         return;
       }
       const model = editor.getModel();
@@ -1166,7 +1167,7 @@ export const useEditorHandlers = ({
       }
       const currentLineContent = model.getLineContent(selection.startLineNumber);
       const prefix = currentLineContent.trim().length > 0 ? '\n' : '';
-      const text = `${prefix}| 구분 | 데이터 1 | 데이터 2 |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |\n`;
+      const text = `${prefix}| 구분 | 데이터 1 | 데이터 2 |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |\n\n`;
       const monaco = (window as any).monaco;
       const range = monaco?.Range
         ? new monaco.Range(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn)

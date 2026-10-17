@@ -1,6 +1,7 @@
 // ====================================================================
 // 📊 [OMD-CORE-ToolbarConfig-0001] toolbarConfig.ts ➔ Toolbar Items Configuration
 // 🎯 @KICK  : 에디터 툴바, 플로팅 툴바 및 단축키/슬래시 커맨드 전역 설정 메타데이터
+// 🚨 @PATCH : **2026-10-17** — [인용문(기본 및 콜아웃 5종) 슬래시 커맨드 액션 연동 및 하단 빈 행 자동 추가]: quote, quoteNote, quoteTip, quoteImportant, quoteWarning, quoteCaution을 actionOnlyKeys에 등록하여 슬래시 명령어 실행 시에도 인용문 아래에 빈 행이 자동 추가되도록 통일
 // 🚨 @PATCH : **2026-10-15** — [서명/발신인 서식 왼쪽 정렬 기본 전환]: 서명/발신인 템플릿(signature)의 기본 정렬을 <div align="left">로 변경하고 슬래시 자동완성에 '서명/발신인 (왼쪽 정렬)'으로 갱신
 // 🚨 @PATCH : **2026-10-13** — [달력/날짜 슬래시 커맨드 별칭 확장]: now 커맨드에 '달력', '캘린더', '시간' 별칭 추가 연동
 // 🚨 @PATCH : **2026-10-01** — [서명/발신인 붉은색 인감도장 태그 적용]: 기본 템플릿의 도장 표식을 붉은색 원형 인감도장 태그(<span style="color:#dc2626; border:1.5px solid #dc2626; border-radius:50%; padding:0 3px; font-size:0.85em; font-weight:bold;">인</span>)로 업그레이드
@@ -29,12 +30,12 @@ export const TOOLBAR_ITEMS = [
   { id: 'divider', icon: '—', name: '구분선', group: '목록', tagFormat: '---', defaultHotkey: 'Ctrl+Alt+-', defaultCommand: 'hr', insertText: '\n---\n', kind: 15 },
   { id: 'orderedList', icon: '1.', name: '숫자 목록', group: '목록', tagFormat: '1. ', defaultHotkey: 'Ctrl+Shift+7', defaultCommand: 'ol', insertText: '1. ', kind: 17 },
   { id: 'list', icon: '☰', name: '글머리 기호', group: '목록', tagFormat: '- ', defaultHotkey: 'Ctrl+Shift+8', defaultCommand: 'ul', insertText: '- ', kind: 17 },
-  { id: 'quote', icon: '❝', name: '인용구(기본)', group: '목록', tagFormat: '> ', defaultHotkey: 'Ctrl+Q', defaultCommand: 'quote', insertText: '> ', kind: 17 },
-  { id: 'quoteNote', icon: 'ℹ️', name: '인용(참고·Note)', group: '목록', tagFormat: '> [!NOTE]', defaultHotkey: 'Ctrl+Shift+1', defaultCommand: 'note', insertText: '> [!NOTE]\n> ', kind: 17 },
-  { id: 'quoteTip', icon: '💡', name: '인용(팁·Tip)', group: '목록', tagFormat: '> [!TIP]', defaultHotkey: 'Ctrl+Shift+2', defaultCommand: 'tip', insertText: '> [!TIP]\n> ', kind: 17 },
-  { id: 'quoteImportant', icon: '📢', name: '인용(중요·Important)', group: '목록', tagFormat: '> [!IMPORTANT]', defaultHotkey: 'Ctrl+Shift+3', defaultCommand: 'important', insertText: '> [!IMPORTANT]\n> ', kind: 17 },
-  { id: 'quoteWarning', icon: '⚠️', name: '인용(주의·Warning)', group: '목록', tagFormat: '> [!WARNING]', defaultHotkey: 'Ctrl+Shift+4', defaultCommand: 'warning', insertText: '> [!WARNING]\n> ', kind: 17 },
-  { id: 'quoteCaution', icon: '🚨', name: '인용(경고·Caution)', group: '목록', tagFormat: '> [!CAUTION]', defaultHotkey: 'Ctrl+Shift+5', defaultCommand: 'caution', insertText: '> [!CAUTION]\n> ', kind: 17 },
+  { id: 'quote', icon: '❝', name: '인용구(기본)', group: '목록', tagFormat: '> ', defaultHotkey: 'Ctrl+Q', defaultCommand: 'quote', insertText: '> \n\n', kind: 17 },
+  { id: 'quoteNote', icon: 'ℹ️', name: '인용(참고·Note)', group: '목록', tagFormat: '> [!NOTE]', defaultHotkey: 'Ctrl+Shift+1', defaultCommand: 'note', insertText: '> [!NOTE]\n> \n\n', kind: 17 },
+  { id: 'quoteTip', icon: '💡', name: '인용(팁·Tip)', group: '목록', tagFormat: '> [!TIP]', defaultHotkey: 'Ctrl+Shift+2', defaultCommand: 'tip', insertText: '> [!TIP]\n> \n\n', kind: 17 },
+  { id: 'quoteImportant', icon: '📢', name: '인용(중요·Important)', group: '목록', tagFormat: '> [!IMPORTANT]', defaultHotkey: 'Ctrl+Shift+3', defaultCommand: 'important', insertText: '> [!IMPORTANT]\n> \n\n', kind: 17 },
+  { id: 'quoteWarning', icon: '⚠️', name: '인용(주의·Warning)', group: '목록', tagFormat: '> [!WARNING]', defaultHotkey: 'Ctrl+Shift+4', defaultCommand: 'warning', insertText: '> [!WARNING]\n> \n\n', kind: 17 },
+  { id: 'quoteCaution', icon: '🚨', name: '인용(경고·Caution)', group: '목록', tagFormat: '> [!CAUTION]', defaultHotkey: 'Ctrl+Shift+5', defaultCommand: 'caution', insertText: '> [!CAUTION]\n> \n\n', kind: 17 },
   { id: 'checklist', icon: '☑️', name: '체크리스트', group: '목록', tagFormat: '- [ ] ', defaultHotkey: 'Ctrl+Shift+C', defaultCommand: 'check', insertText: '- [ ] ', kind: 17 },
   { id: 'clear', icon: '🧹', name: '태그 취소', group: '목록', tagFormat: '서식 취소', defaultHotkey: 'Ctrl+Shift+0', defaultCommand: 'clear', insertText: '', kind: 17 },
   { id: 'cleanDoc', icon: '✨', name: '문서 서식 일괄 정리', group: '목록', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+L', defaultCommand: 'cleandoc', insertText: '', kind: 17 },
@@ -48,9 +49,9 @@ export const TOOLBAR_ITEMS = [
   { id: 'add_reference', icon: '📚', name: '바이브(참조관리)', group: '미디어', tagFormat: '바이브', defaultHotkey: 'Ctrl+Shift+V', defaultCommand: 'vibe', insertText: '', kind: 17 },
 
   // 5. 코드 및 고급 (Code & Advanced)
-  { id: 'codeblock', icon: '⌨️', name: '코드 블록', group: '코드', tagFormat: '```코드```', defaultHotkey: 'Ctrl+Shift+E', defaultCommand: 'code', insertText: '```markdown\n\n```', kind: 15 },
-  { id: 'table', icon: '📶', name: '표', group: '코드', tagFormat: '| 표 |', defaultHotkey: 'Ctrl+T', defaultCommand: 'table', insertText: '| 열 1 | 열 2 |\n| --- | --- |\n| 내용 | 내용 |', kind: 15 },
-  { id: 'math', icon: '🧮', name: '수식', group: '코드', tagFormat: '$$수식$$', defaultHotkey: 'Ctrl+M', defaultCommand: 'math', insertText: '$$수식$$', kind: 15 },
+  { id: 'codeblock', icon: '⌨️', name: '코드 블록', group: '코드', tagFormat: '```코드```', defaultHotkey: 'Ctrl+Shift+E', defaultCommand: 'code', insertText: '```markdown\n\n```\n\n', kind: 15 },
+  { id: 'table', icon: '📶', name: '표', group: '코드', tagFormat: '| 표 |', defaultHotkey: 'Ctrl+T', defaultCommand: 'table', insertText: '| 열 1 | 열 2 |\n| --- | --- |\n| 내용 | 내용 |\n\n', kind: 15 },
+  { id: 'math', icon: '🧮', name: '수식', group: '코드', tagFormat: '$$수식$$', defaultHotkey: 'Ctrl+M', defaultCommand: 'math', insertText: '$$수식$$\n\n', kind: 15 },
 
   // 6. 문서 (Document)
   { id: 'now', icon: '📅', name: '현재 날짜/시간', group: '문서', tagFormat: '날짜/시간', defaultHotkey: '', defaultCommand: 'now', insertText: '', kind: 15 },
@@ -172,8 +173,8 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
 
       // 💡 [한글 주석] 모달이 필요한 항목 (youtube 추가)
       const modalKeys = ['image', 'video', 'youtube', 'map', 'table', 'math', 'add_reference'];
-      // 💡 [한글 주석] 텍스트 선 삽입 없이 액션만 실행하는 항목 (모달 수반 고급 기능 및 동적 시간 삽입 'now', 서명 'signature', 표 행 편집, 코드블록 언어선택 연동)
-      const actionOnlyKeys = ['cleanDoc', 'clear', 'calendar', 'image', 'video', 'youtube', 'map', 'table', 'math', 'now', 'signature', 'insertTableRow', 'deleteTableRow', 'taglink', 'footnote', 'styleSettings', 'aiHelp', 'add_reference', 'citation', 'codeblock'];
+      // 💡 [한글 주석] 텍스트 선 삽입 없이 액션만 실행하는 항목 (모달 수반 고급 기능 및 동적 시간 삽입 'now', 서명 'signature', 표 행 편집, 코드블록 언어선택 연동, 인용문 하단 빈 행 추가)
+      const actionOnlyKeys = ['cleanDoc', 'clear', 'calendar', 'image', 'video', 'youtube', 'map', 'table', 'math', 'now', 'signature', 'insertTableRow', 'deleteTableRow', 'taglink', 'footnote', 'styleSettings', 'aiHelp', 'add_reference', 'citation', 'codeblock', 'quote', 'quoteNote', 'quoteTip', 'quoteImportant', 'quoteWarning', 'quoteCaution'];
 
       if (modalKeys.includes(item.id)) {
         command = {

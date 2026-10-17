@@ -9,6 +9,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import React, { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { activateBrowserAccount, getBrowserAccountScope } from '@/lib/browserAccountStorage';
 
 const MainEditorApp = dynamic(
   () =>
@@ -42,5 +45,37 @@ const MainEditorApp = dynamic(
 );
 
 export default function Page() {
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let cancelled = false, initialized = false;
+    let owner: string|null = null;
+    if ((window as any).electronAPI) { setReady(true); return; }
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      // Never reuse mounted editor state across accounts. Old pending writes
+      // retain the previous account scope until this page has unloaded.
+      if (initialized && (session?.user?.id || null) !== owner) {
+        setReady(false);
+        window.location.reload();
+      }
+    });
+    void supabase.auth.getSession().then(({data, error}) => {
+      if (cancelled) return;
+      if (error) throw error;
+      owner = data.session?.user?.id || null;
+      const previous = getBrowserAccountScope();
+      if (previous && previous !== (owner || 'guest')) {
+        window.location.reload();
+        return;
+      }
+      activateBrowserAccount(owner);
+      initialized = true;
+      setReady(true);
+    }).catch(() => {
+      if (!cancelled) setError('계정 저장소를 준비하지 못했습니다. 새로고침하거나 다시 로그인해 주세요.');
+    });
+    return () => { cancelled = true; listener?.subscription.unsubscribe(); };
+  }, []);
+  if (!ready) return <div role="status" className="p-6">{error || '계정별 작업장을 준비하고 있습니다…'}</div>;
   return <MainEditorApp />;
 }

@@ -1,9 +1,14 @@
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import { remarkCodeBlockMetadata } from '../lib/codeBlockMetadata';
 import { remarkKoreanStrong } from '@/lib/remarkKoreanStrong';
+import { bulletNumbersAsText } from '@/lib/bulletNumberText';
 import PicturebookPreview from './PicturebookPreview';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { exportContentFingerprint } from '@/lib/exportPreparation';
 import katex from 'katex';
+// 🚨 @PATCH : **2026-10-17** — [목록 항목 간 줄 여백(margin-bottom) 및 들여쓰기 너비(var(--list-indent)) 서식 프로필 1:1 반영]:
+//             1) .onrivi-content-root ul/ol의 hardcoded padding-left: 1.5em !important를 var(--list-indent, 1.5em)으로 변경하여 서식 프로필의 들여쓰기 설정이 즉각 적용되도록 개선
+//             2) .onrivi-content-root li의 hardcoded margin: 0 !important를 해제하고 margin-bottom: var(--li-margin-bottom, 6px) 및 dynamicCssString 연동을 허용하여 목록 및 체크박스 줄 여백이 정상 작동하도록 조치
 // 🚨 @PATCH : **2026-10-16** — [그림책 및 문서 열기 시 이미지 스켈레톤(h-32 animate-pulse) 1프레임 깜빡임 제거]: AsyncImage 초기 렌더링 시 동기적으로 결정 가능한 이미지 경로(데스크톱 media://local/serve, 웹/정적 URL, data:, blob:)를 useState 초기값에서 즉시 산출하여 불필요한 스켈레톤 교체 및 레이아웃 흔들림 원천 차단
 // 🚨 @PATCH : **2026-10-14** — [미리보기 이미지 클립보드 실제 비트맵 복사(copyImageToClipboard) 연동]: 이미지 호버 액션 '복사' 및 AsyncImage 복사 버튼 클릭 시 마크다운 텍스트 주소가 아닌 실제 이미지 비트맵을 OS 클립보드에 기록하여 다른 앱 및 ImageModal/에디터 붙여넣기 완벽 지원
 // 🚨 @PATCH : **2026-10-14** — [이미지 캡션 [그림 N] 자동 접두사 제거]: 마크다운 이미지 렌더링 시 figcaption::before의 [그림 1] 카운터 자동 표기를 제거하여 사용자가 입력한 순수 캡션만 노출되도록 개선
@@ -2377,7 +2382,7 @@ function MarkdownViewer({
   }, []);
 
   const processedContent = useMemo(() => {
-    let text = cleanContent;
+    let text = bulletNumbersAsText(cleanContent);
     if (bibContent) {
       const entries: any[] = [];
 
@@ -2506,6 +2511,7 @@ function MarkdownViewer({
         paddingBottom: marginBottom || '0',
         paddingLeft: marginLeft || '0',
         paddingRight: marginRight || '0',
+        ['--list-indent' as any]: listIndent || '28px',
       }}
     >
       <style>{`
@@ -2536,37 +2542,37 @@ function MarkdownViewer({
           white-space: normal !important;
           margin-top: 0.5em !important;
           margin-bottom: 0.5em !important;
-          padding-left: 1.5em !important;
+          padding-left: var(--list-indent, 1.5em);
         }
         .onrivi-content-root ul ul {
           list-style-type: circle !important;
           margin-top: 0.25em !important;
           margin-bottom: 0.25em !important;
-          padding-left: 1.5em !important;
+          padding-left: var(--list-indent, 1.5em);
         }
         .onrivi-content-root ul ul ul {
           list-style-type: square !important;
           margin-top: 0.25em !important;
           margin-bottom: 0.25em !important;
-          padding-left: 1.5em !important;
+          padding-left: var(--list-indent, 1.5em);
         }
         .onrivi-content-root ol ol {
           list-style-type: lower-alpha !important;
           margin-top: 0.25em !important;
           margin-bottom: 0.25em !important;
-          padding-left: 1.5em !important;
+          padding-left: var(--list-indent, 1.5em);
         }
         .onrivi-content-root ol ol ol {
           list-style-type: lower-roman !important;
           margin-top: 0.25em !important;
           margin-bottom: 0.25em !important;
-          padding-left: 1.5em !important;
+          padding-left: var(--list-indent, 1.5em);
         }
         .onrivi-content-root blockquote ul ul,
         .onrivi-content-root blockquote ol ol,
         .onrivi-content-root blockquote ul ol,
         .onrivi-content-root blockquote ol ul {
-          padding-left: 1.5em !important;
+          padding-left: var(--list-indent, 1.5em);
         }
         .onrivi-content-root ul + p,
         .onrivi-content-root ol + p {
@@ -2578,7 +2584,10 @@ function MarkdownViewer({
         }
         .onrivi-content-root li {
           white-space: normal !important;
-          margin: 0 !important;
+          margin-top: 0 !important;
+          margin-left: 0;
+          margin-right: 0;
+          margin-bottom: var(--li-margin-bottom, 6px);
           padding: 1px 0 !important;
           line-height: 1.6 !important;
         }

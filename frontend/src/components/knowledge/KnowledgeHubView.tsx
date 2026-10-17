@@ -17,6 +17,7 @@
 
 'use client';
 
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import { getEffectiveResourceFolder } from '@/lib/profileStorage';
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';

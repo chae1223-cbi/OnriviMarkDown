@@ -15,6 +15,7 @@
 // 🔗 @CALLS : ./browserKnowledgeDb, ../indexedDbHelper
 // ====================================================================
 
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import type {
   KnowledgeDocument,
   KnowledgeDocumentDetail,

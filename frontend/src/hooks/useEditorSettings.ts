@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getDefaultHotkeys, getDefaultCommands } from "@/lib/toolbarConfig";
 import { THEME_MAP } from "@/lib/editorThemes";

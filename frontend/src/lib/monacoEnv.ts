@@ -14,21 +14,15 @@ export function configureMonacoEnvironment(): void {
 
   if (isExtension) return; // page.tsx 모듈 레벨에서 처리됨
 
-  // Electron/Local Web: 로컬 Monaco 워커 사용
+  // Web routes (including /editor/) must resolve from the site root. Relative
+  // URLs are reserved for Electron's packaged file:// entry point.
+  const vsPath = (window as any).electronAPI ? './monaco-editor/min/vs' : '/monaco-editor/min/vs';
   (window as any).MonacoEnvironment = {
-    getWorkerUrl: (_moduleId: string, label: string) => {
-      const map: Record<string, string> = {
-        json: 'language/json/json.worker.js',
-        css: 'language/css/css.worker.js',
-        html: 'language/html/html.worker.js',
-        typescript: 'language/typescript/ts.worker.js',
-        javascript: 'language/typescript/ts.worker.js',
-      };
-      return `./monaco-editor/min/vs/${map[label] || 'base/worker/workerMain.js'}`;
-    }
+    // The bundled min/vs distribution uses the AMD worker bootstrap for every
+    // language, rather than the *.worker.js filenames in the ESM distribution.
+    getWorkerUrl: () => `${vsPath}/base/worker/workerMain.js`
   };
 
-  const vsPath = './monaco-editor/min/vs';
   try {
     loader.config({ paths: { vs: vsPath } });
   } catch {

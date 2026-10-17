@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { browserAccountStorage as localStorage, browserAccountSessionStorage as sessionStorage } from '@/lib/browserAccountStorage';
 import { reportClientLog } from '@/lib/clientLogs';
 import { getResourceSettings, saveResourceSettings, activateDriveAccount } from '@/lib/resourceSettings';
 import { restoreLocalProfileFolder } from '@/lib/profileStorage';
@@ -581,6 +582,26 @@ export const useFileExplorer = ({
   // 🔗 @CALLS : showToast, setRootFolder
   // ====================================================================
   // 3. 브라우저 저장소 권한 복구 핸들러
+  useEffect(() => {
+    let busy = false;
+    const reset = async () => {
+      if (busy || (window as any).electronAPI || rootFolderRef.current?.type === 'GDRIVE') return;
+      busy = true;
+      try {
+        const { resetBrowserWorkspace } = await import('@/lib/browserDefaultStorage');
+        const folder = await resetBrowserWorkspace();
+        rootFolderRef.current = folder;
+        setRootFolder(folder);
+        setWorkspaceType('browser');
+        setIsSidebarOpen(true);
+        showToast('작업장 연결을 기본 브라우저 작업장으로 초기화했습니다. 기존 파일과 열린 문서는 유지됩니다.', 'success');
+      } catch (error: any) { showToast(error.message || '작업장 초기화에 실패했습니다.', 'error'); }
+      finally { busy = false; }
+    };
+    window.addEventListener('onrivi:reset-browser-workspace', reset);
+    return () => window.removeEventListener('onrivi:reset-browser-workspace', reset);
+  }, [setRootFolder, setWorkspaceType, setIsSidebarOpen, showToast]);
+
   const restoreFolderPermission = async () => {
     if (!rootFolder?.handle) return;
     try {

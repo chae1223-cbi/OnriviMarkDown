@@ -19,6 +19,7 @@
 // 🔗 @CALLS : localStorage, knowledgeClient, /api/knowledge/init, /api/knowledge/backup, /api/knowledge/restore
 // ====================================================================
 
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import { getEffectiveResourceFolder } from '@/lib/profileStorage';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 

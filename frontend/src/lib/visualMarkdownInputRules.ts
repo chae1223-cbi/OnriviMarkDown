@@ -2,6 +2,10 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-vm-inputrules
+ * 🚨 @PATCH : **2026-10-17** — [콜아웃 인용문(> [!태그]), 코드블록(```), 구분선(--- / ***) 입력 규칙 실행 시 하단 빈 행(paragraph) 자동 추가]:
+ *             1) > [!태그] 및 인용문 내 [!태그] 변환 시 인용문 바로 아래에 빈 문단(paragraph)을 자동 추가하여 마우스 클릭으로 다음 작업 진행 지원
+ *             2) ```언어명 공백 타이핑으로 코드 블록 변환 시 코드 블록 바로 아래에 빈 문단(paragraph)을 자동 추가하고 커서는 코드 블록 내부에 유지
+ *             3) --- 또는 *** 공백 타이핑으로 구분선(horizontal_rule) 변환 시 하단에 빈 문단(paragraph)을 자동 보장하여 연속 타이핑 지원
  * 🚨 @PATCH : **2026-10-14** — [인용문 내 콜아웃 태그([!Note], [!참고] 등) 직접 타이핑 시 자동 변환 지원]:
  *             1) 인용문(blockquote) 내에서 [!Note], [!참고], [!TIP], [!WARNING] 등 태그 직접 타이핑 시 닫는 괄호(']') 입력 즉시 콜아웃 박스로 자동 전환되도록 공백 강제 제약 제거 및 유연한 정규식 개선
  *             2) 일반 문단에서 '> [!태그]' 타이핑 시에도 즉시 해당 스타일의 콜아웃 알림 상자로 자동 생성되도록 개선
@@ -25,6 +29,26 @@ import { InputRule, inputRules, textblockTypeInputRule, wrappingInputRule } from
 import { Fragment, MarkType } from 'prosemirror-model';
 import { EditorState, Transaction, TextSelection } from 'prosemirror-state';
 import { visualSchema } from '@/lib/visualDocumentCodec';
+import { selectedList } from '@/lib/visualListCommands';
+
+function convertExistingList(state: EditorState, kind:'bullet'|'ordered', start:number,end:number, order=1):Transaction|null {
+  const {$from}=state.selection;
+  if(start!==$from.start() || $from.parent.type!==visualSchema.nodes.paragraph)return null;
+  const tr=state.tr.delete(start,end);
+  const next=state.apply(tr);
+  selectedList(kind)(next, converted=>{
+    converted.steps.forEach(step=>tr.step(step));
+    if(kind==='ordered') {
+      const position=converted.selection.$from;
+      for(let depth=position.depth;depth>0;depth--)if(position.node(depth).type===visualSchema.nodes.ordered_list){
+        tr.setNodeMarkup(position.before(depth),undefined,{...position.node(depth).attrs,order});break;
+      }
+    }
+    // Input rules leave the caret at the start of the converted item.
+    tr.setSelection(TextSelection.near(tr.doc.resolve(converted.selection.from)));
+  });
+  return tr;
+}
 
 function markRule(expression: RegExp, type: MarkType) {
   return new InputRule(expression, (state, match, start, end) => {
@@ -103,7 +127,14 @@ export function visualMarkdownInputRules() {
           } else {
             tr = tr.delete(start, end);
           }
-          return tr.setNodeMarkup(bqPos, undefined, { alertType });
+          tr = tr.setNodeMarkup(bqPos, undefined, { alertType });
+          const afterPos = tr.mapping.map(position.after(depth));
+          if (afterPos === tr.doc.content.size || tr.doc.nodeAt(afterPos)?.type !== nodes.paragraph) {
+            const savedPos = tr.selection.from;
+            tr = tr.insert(afterPos, nodes.paragraph.create());
+            tr = tr.setSelection(TextSelection.create(tr.doc, savedPos));
+          }
+          return tr;
         }
       }
       return null;
@@ -124,7 +155,7 @@ export function visualMarkdownInputRules() {
       const newParagraph = nodes.paragraph.create(null, remainingText ? state.schema.text(remainingText) : null);
       const newBlockquote = nodes.blockquote.create({ alertType }, [newParagraph]);
 
-      const tr = state.tr.replaceWith(blockPos, blockPos + parent.nodeSize, newBlockquote);
+      const tr = state.tr.replaceWith(blockPos, blockPos + parent.nodeSize, [newBlockquote, nodes.paragraph.create()]);
       return tr.setSelection(TextSelection.create(tr.doc, blockPos + 2 + remainingText.length));
     })),
     // 체크리스트 (- [ ] 또는 - [x]) 타이핑 즉시 task list 변환
@@ -164,6 +195,8 @@ export function visualMarkdownInputRules() {
       const position = state.selection.$from;
       const parent = position.parent;
       if (parent.type !== nodes.paragraph || insideCell(state)) return null;
+      const converted=convertExistingList(state,'bullet',start,end);
+      if(converted)return converted;
       const blockStart = position.start();
       const blockPos = position.before();
       const beforeContent = parent.content.cut(0, start - blockStart);
@@ -191,10 +224,15 @@ export function visualMarkdownInputRules() {
       return tr;
     }),
     // 번호 리스트 (1., 2. 등) 타이핑 즉시 ordered_list 변환
-    new InputRule(/(?:^|\ufffc)\s*(\d+)\.\s$/, (state, match, start, end) => {
+    new InputRule(/(?:^|\ufffc)\s*(\d+)[.)]\s$/, (state, match, start, end) => {
       const position = state.selection.$from;
       const parent = position.parent;
       if (parent.type !== nodes.paragraph || insideCell(state)) return null;
+      // In an existing bullet/checklist, "1. " is editable item text.
+      // Changing its list type is an explicit toolbar action.
+      if(position.depth>=2 && position.node(position.depth-2).type===nodes.bullet_list)return null;
+      const converted=convertExistingList(state,'ordered',start,end,Number(match[1]));
+      if(converted)return converted;
       const blockStart = position.start();
       const blockPos = position.before();
       const beforeContent = parent.content.cut(0, start - blockStart);
@@ -221,11 +259,27 @@ export function visualMarkdownInputRules() {
       }
       return tr;
     }),
-    paragraphOnly(textblockTypeInputRule(/^```([a-zA-Z0-9_-]*)\s$/, nodes.code_block, match => ({ params: match[1] }))),
+    paragraphOnly(new InputRule(/^```([a-zA-Z0-9_-]*)\s$/, (state, match, start, end) => {
+      let tr = state.tr.delete(start, end).setBlockType(start, start, nodes.code_block, { params: match[1] });
+      const $from = tr.selection.$from;
+      if ($from.parent.type === nodes.code_block) {
+        const afterPos = $from.after();
+        const savedPos = tr.selection.from;
+        tr = tr.insert(afterPos, nodes.paragraph.create());
+        tr = tr.setSelection(TextSelection.create(tr.doc, savedPos));
+      }
+      return tr;
+    })),
     new InputRule(/^(?:---|\*\*\*)\s$/, (state, _match, start, end) => {
       if (state.selection.$from.parent.type !== nodes.paragraph || insideCell(state)) return null;
-      const transaction = state.tr.delete(start, end);
-      return transaction.replaceWith(start - 1, start + 1, nodes.horizontal_rule.create());
+      const hrNode = nodes.horizontal_rule.create();
+      let tr = state.tr.delete(start, end).replaceWith(start - 1, start + 1, hrNode);
+      const afterPos = start - 1 + hrNode.nodeSize;
+      if (afterPos === tr.doc.content.size || tr.doc.nodeAt(afterPos)?.type !== nodes.paragraph) {
+        tr = tr.insert(afterPos, nodes.paragraph.create());
+      }
+      tr = tr.setSelection(TextSelection.create(tr.doc, afterPos + 1));
+      return tr;
     }),
     markRule(/(?:^|[^*])(\*\*([^*\n]+)\*\*)$/, marks.strong),
     markRule(/(?:^|[^_])(__(.+?)__)$/, marks.strong),

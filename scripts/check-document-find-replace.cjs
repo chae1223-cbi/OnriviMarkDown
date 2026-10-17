@@ -4,6 +4,7 @@ const dir=path.resolve('.tmp/document-find-replace');fs.mkdirSync(dir,{recursive
 function compile(input,output){fs.writeFileSync(path.join(dir,output),ts.transpileModule(fs.readFileSync(input,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText);}
 compile('frontend/src/lib/documentFind.ts','find.js');compile('frontend/src/components/preview/PreviewFindWidget.tsx','widget.js');compile('frontend/src/lib/visualDocumentCodec.ts','codec.js');compile('frontend/src/lib/mediaMarkup.ts','mediaMarkup.js');
 const sample='---\ntitle: 숨긴메타\n---\n\n# 제목\n\n**고양이**는 고양이와 Cat cat\n\n서식 **연결** 검색\n\n> 인용 고양이\n\n| 열 |\n| --- |\n| 고양이 |\n\n[고양이](https://example.test/고양이)\n\n![고양이](media/고양이.png)\n\n```text\n고양이 [a]\n```\n';
+compile('frontend/src/lib/bulletNumberText.ts','bulletNumberText.js');
 const editorSource=fs.readFileSync('frontend/src/components/VisualDocumentEditor.tsx','utf8'),editorTree=ts.createSourceFile('editor.tsx',editorSource,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),bindings=[];
 function visitKeys(node){if(ts.isPropertyAssignment(node)&&['Mod-z','Mod-y','Mod-Shift-z'].includes(node.name.text))bindings.push(node.getText(editorTree));ts.forEachChild(node,visitKeys);}visitKeys(editorTree);assert.equal(bindings.length,3);
 fs.writeFileSync(path.join(dir,'entry.js'),`

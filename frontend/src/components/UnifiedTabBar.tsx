@@ -1,3 +1,4 @@
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Plus, Copy, ArrowRightToLine, ArrowLeftRight, XSquare, Pencil } from 'lucide-react';
 import PromptModal from '@/components/PromptModal';

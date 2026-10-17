@@ -41,6 +41,7 @@
 // ====================================================================
 "use client";
 
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import { getEffectiveResourceFolder } from '@/lib/profileStorage';
 import { readResourceJson, writeResourceJson } from '@/lib/resourceJson';
 import React, { useState, useEffect, useRef, useMemo } from 'react';

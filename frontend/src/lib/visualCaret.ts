@@ -3,6 +3,8 @@
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-vm-caret
  * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-10-17** — [이미지·미디어 블록(NodeSelection)에서 Ctrl+Enter로 다음 행 이동 시 커서 즉각 표시 보강]:
+ *             1) NodeSelection에서 빈 문단(TextSelection)으로 전환 직후 브라우저 네이티브 Selection Range가 지연되더라도 view.coordsAtPos 폴백을 통해 3px 코발트 커서가 즉시 렌더링되도록 개선
  * 🚨 @PATCH : **2026-10-14** — [머메이드 편집기(textarea) 및 각주(footnote) 입력 시 커서 완전 표시 및 visualCaret 충돌 방어]:
  *             1) document.activeElement가 textarea, input 또는 자식 contenteditable(.visual-footnote-text 등)일 때 visualCaret을 즉각 숨김 처리하여 유령 커서 방지
  *             2) selection.anchorNode가 각주/머메이드/코드언어 입력기 내부에 위치할 때도 visualCaret 노출을 억제하고 요소 자체의 고선명 네이티브 커서로 1:1 전환
@@ -66,18 +68,22 @@ export function installVisualCaret(view: EditorView) {
     }
 
     const selection = document.getSelection();
-    if (!view.editable || !view.hasFocus() || !selection?.isCollapsed || !selection.anchorNode
-      || !view.dom.contains(selection.anchorNode) || !view.state.selection.empty) return;
+    const hasEditorFocus = view.hasFocus() || Boolean(activeEl && (activeEl === view.dom || view.dom.contains(activeEl)));
+    const hasDomSelection = Boolean(selection?.isCollapsed && selection.anchorNode && view.dom.contains(selection.anchorNode));
+    if (!view.editable || !hasEditorFocus || !view.state.selection.empty || (selection && selection.rangeCount > 0 && !selection.isCollapsed)) return;
 
-    if (selection.anchorNode && (
+    if (selection?.anchorNode && (
       (selection.anchorNode as HTMLElement).closest?.('.visual-footnote-text, .visual-footnote-def, .visual-mermaid-editor, .visual-code-language, textarea, input') ||
       selection.anchorNode.parentElement?.closest('.visual-footnote-text, .visual-footnote-def, .visual-mermaid-editor, .visual-code-language, textarea, input')
     )) {
       return;
     }
     try {
-      const range = selection.getRangeAt(0);
-      const domRect = range.getClientRects()[0];
+      let domRect: DOMRect | undefined;
+      if (hasDomSelection && selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        domRect = range.getClientRects()[0];
+      }
       const rect = domRect && domRect.height > 0 ? domRect : view.coordsAtPos(view.state.selection.head);
       
       const caretHeight = Math.max(18, rect.bottom - rect.top);

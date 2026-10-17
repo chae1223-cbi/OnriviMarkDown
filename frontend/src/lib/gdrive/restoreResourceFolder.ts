@@ -13,6 +13,7 @@
 //             2) 재접속 시 참조폴더가 매번 초기화되거나 새로 생성되지 않고 기존 것을 100% 그대로 계승하도록 보장
 // ====================================================================
 
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import { getResourceSettings } from '@/lib/resourceSettings';
 
 // Reuse the last destination; transient authorization/network failures must not reset it.

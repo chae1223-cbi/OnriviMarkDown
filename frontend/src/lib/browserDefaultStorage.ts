@@ -1,8 +1,36 @@
 import { idb } from './indexedDbHelper';
 import { getResourceSettings, saveResourceSettings } from './resourceSettings';
 import { SYSTEM_PROFILES } from '@/constants/cssProfile';
+import { browserAccountStorage as localStorage, getBrowserAccountScope } from './browserAccountStorage';
 
 let initializing: Promise<void> | undefined;
+
+async function accountDirectory() {
+  const root = await navigator.storage.getDirectory();
+  const app = await root.getDirectoryHandle('OnriviAuthor', { create: true });
+  const account = getBrowserAccountScope();
+  if (!account) return app; // Legacy data stays untouched outside account folders.
+  const accounts = await app.getDirectoryHandle('accounts', { create: true });
+  return accounts.getDirectoryHandle(account, { create: true });
+}
+
+/** Reset only the selected workspace; documents and resource destinations survive. */
+export async function resetBrowserWorkspace() {
+  if ((window as any).electronAPI) throw new Error('웹 브라우저에서 사용하는 기능입니다.');
+  if (!navigator.storage?.getDirectory) throw new Error('브라우저 내부 저장소를 사용할 수 없습니다.');
+  const app = await accountDirectory();
+  const handle = await app.getDirectoryHandle('작업장', { create: true });
+  // Replace the persisted handle as well as string settings; either can restore
+  // a previously selected PC directory after a reload.
+  await idb.set('rootFolderHandle', handle);
+  for (const key of ['onrivi_workspace_path', 'onrivi_last_local_workspace_path',
+    'onrivi_last_local_root_folder', 'onrivi_last_local_workspace_type']) localStorage.removeItem(key);
+  const folder = { name: handle.name, displayName: '브라우저 작업장', storage: 'opfs', handle };
+  localStorage.setItem('rootFolder', JSON.stringify({ name: folder.name, displayName: folder.displayName, storage: folder.storage }));
+  localStorage.setItem('workspaceType', 'browser');
+  localStorage.setItem('onrivi_last_workspace_mode', 'browser');
+  return folder;
+}
 
 /** Set up real browser-private files only when no destination has been selected. */
 export function initializeBrowserDefaultStorage(): Promise<void> {
@@ -29,8 +57,7 @@ async function initialize() {
   }
   const needsResources = !savedResourceHandle && !existingResources;
   if (!needsWorkspace && !needsResources) return;
-  const root = await navigator.storage.getDirectory();
-  const app = await root.getDirectoryHandle('OnriviAuthor', { create: true });
+  const app = await accountDirectory();
   if (needsResources) {
     const resources = await app.getDirectoryHandle('참조파일', { create: true });
     for (const name of ['media', 'profiles', 'prompt', 'bible', 'db']) await resources.getDirectoryHandle(name, { create: true });

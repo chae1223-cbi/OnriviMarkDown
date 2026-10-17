@@ -65,6 +65,7 @@
 // 🔗 @CALLS : @/lib/knowledge/knowledgeClient, @/lib/knowledge/pathResolver, @/lib/knowledge/knowledgeGuard
 // ====================================================================
 
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import { useDragHighlight } from '@/hooks/useDragHighlight';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -1212,7 +1213,7 @@ const FileTreeItem = ({
                   // VFS 폴더 하위 항목 스냅샷
                   try {
                     const normPath = node.path.replace(/\\/g, '/').toLowerCase();
-                    const allKeys = Object.keys(localStorage);
+                    const allKeys = localStorage.keys();
                     for (const k of allKeys) {
                       if (k.startsWith('vfs:')) {
                         const filePath = k.slice(4);

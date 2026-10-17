@@ -15,6 +15,7 @@
 // ====================================================================
 "use client";
 
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Icon } from '@/components/icons/Icon';
 import { useEditorContext } from '@/context/EditorContext';

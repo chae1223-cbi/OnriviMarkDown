@@ -42,7 +42,8 @@
  *             4) unsupported 태그 검사에서 <u>를 제외하여 밑줄 문단이 별도 편집창(source_block)으로 격리되지 않고 본문에서 직접 편집되도록 개선
  */
 import { mediaDetails } from './mediaMarkup';
-import { Node as DocumentNode, Schema } from 'prosemirror-model';
+import { bulletNumbersAsText } from './bulletNumberText';
+import { Fragment, Node as DocumentNode, Schema } from 'prosemirror-model';
 import { defaultMarkdownParser, defaultMarkdownSerializer, MarkdownParser, MarkdownSerializer, schema as markdownSchema } from 'prosemirror-markdown';
 
 // Unsupported syntax remains an immutable source block. Never round-trip a whole
@@ -269,7 +270,7 @@ function normalizeQuotes(node: DocumentNode): DocumentNode {
   return node.type.create(attrs,children,node.marks);
 }
 export function createVisualDocumentCodec(markdown: string) {
-  markdown = normalizeVisualMarkdownSpacing(markdown);
+  markdown = bulletNumbersAsText(normalizeVisualMarkdownSpacing(markdown));
   const originals = new WeakMap<DocumentNode, string>();
   const rawSuffixes: string[] = [];
   const meta = markdown.match(/^(?:\uFEFF)?---[^\S\r\n]*\r?\n[\s\S]*?\r?\n---[^\S\r\n]*(?:\r?\n|$)/);
@@ -283,10 +284,17 @@ export function createVisualDocumentCodec(markdown: string) {
   lines.forEach(line => offsets.push(offsets[offsets.length - 1] + line.length));
   const nodes: DocumentNode[] = [];
   const tokenizer = defaultMarkdownParser.tokenizer;
-  const hasReferenceDefinitions = /^\s*\[(?!\^)[^\]]+\]:\s*\S/m.test(body);
-  const tokens = tokenizer.parse(body, {});
+  const referenceEnvironment: { references?: Record<string, unknown> } = {};
+  const tokens = tokenizer.parse(body, referenceEnvironment);
+  const references = referenceEnvironment.references || {};
+  const hasReferenceDefinitions = Object.keys(references).length > 0;
   const starts = Array.from(new Set(tokens.filter(token => token.level === 0 && token.map).map(token => token.map![0])));
-  lines.forEach((line, index) => { if (/^\s*\[[^\]]+\]:/.test(line) && !starts.includes(index)) starts.push(index); });
+  lines.forEach((line, index) => {
+    const footnote = /^\s*\[\^[^\]]+\]:/.test(line);
+    const definition = /^\s*\[[^\]]+\]:/.test(line)
+      && !tokens.some(token => token.map && token.map[0] <= index && index < token.map[1]);
+    if ((footnote || definition) && !starts.includes(index)) starts.push(index);
+  });
   let inMathBlock = false;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -326,20 +334,49 @@ export function createVisualDocumentCodec(markdown: string) {
       node = visualSchema.nodes.visual_math.create({ latex: latexContent });
     } else {
       const safeRaw=raw.replace(/<br\s*\/?\s*>/gi,'').replace(/<\/?u[^>]*>/gi,'');
-      const unsupported = /(^|\n)\s*(:::|<\/?[a-zA-Z]|\|)|!\[/m.test(safeRaw)
-        || /^\s*\[(?!\^)[^\]]+\]:/m.test(safeRaw)
+      const rawReferenceEnvironment: { references?: Record<string, unknown> } = {};
+      tokenizer.parse(safeRaw, rawReferenceEnvironment);
+      const usesReference = hasReferenceDefinitions && Array.from(safeRaw.matchAll(/(?<!\\)\[(?!\^)([^\]]+)\](?!\()/g))
+        .some(match => references[match[1].trim().replace(/\s+/g,' ').toUpperCase()] !== undefined);
+      const unsupportedSyntax = /(^|\n)\s*(:::|<\/?[a-zA-Z]|\|)/m.test(safeRaw)
+        || Object.keys(rawReferenceEnvironment.references || {}).length > 0
         || /<\/?[a-zA-Z][^>]*>|==/.test(safeRaw)
-        || (hasReferenceDefinitions && /(?<![-*+]\s*)\[(?!\^)(?!!)(?![ xX]\])[^\]]+\](?!\()/.test(safeRaw))
+        || usesReference
         || /^\s*```\s*mermaid/m.test(safeRaw);
+      const unsupported = unsupportedSyntax || /!\[/.test(safeRaw);
       try {
         const parsed = normalizeQuotes(visualParser.parse(raw,{preserveTrailingNewlines:i===ranges.length-1}));
         const plainCode = parsed.childCount === 1 && parsed.firstChild?.type.name === 'code_block'
           && !/^mermaid(?:\s|$)/i.test(parsed.firstChild.attrs.params || '');
         const nativeTable = parsed.childCount === 1 && parsed.firstChild?.type.name === 'table' && !/(^|\n)\s*(:::|```)/m.test(raw);
         const media = mediaDetails(raw);
-        const standaloneImage = parsed.childCount === 1 && parsed.firstChild?.type.name === 'paragraph'
-          && parsed.firstChild.childCount === 1 && parsed.firstChild.firstChild?.type.name === 'image';
-        node = media ? visualSchema.nodes.visual_media.create({source:raw,kind:media.kind}) : standaloneImage ? visualSchema.nodes.visual_image.create({ source: raw }) : (plainCode || nativeTable || (!unsupported)) && parsed.childCount === 1
+        const isImageParagraph = (child: DocumentNode): boolean => {
+          if (child.type.name !== 'paragraph' || child.firstChild?.type.name !== 'image') return false;
+          let onlyImage = true;
+          child.forEach((inline, _offset, index) => {
+            if (index > 0 && inline.type.name !== 'hard_break' && !(inline.isText && !inline.text?.trim())) onlyImage = false;
+          });
+          return onlyImage;
+        };
+        const standaloneImage = parsed.childCount === 1 && isImageParagraph(parsed.firstChild!);
+        let hasImage = false, mixedImageParagraph = false;
+        parsed.descendants(child => {
+          if (child.type.name === 'image') hasImage = true;
+          let containsImage = false; child.forEach(inline => { if (inline.type.name === 'image') containsImage = true; });
+          if (child.isTextblock && containsImage
+            && !isImageParagraph(child)) mixedImageParagraph = true;
+        });
+        const imageList = !unsupportedSyntax && hasImage && !mixedImageParagraph && parsed.childCount === 1
+          && ['ordered_list','bullet_list'].includes(parsed.firstChild!.type.name);
+        const separateImages = (child: DocumentNode): DocumentNode => {
+          if (isImageParagraph(child)) {
+            const imageSource = visualSerializer.serialize(visualSchema.nodes.doc.create(null, [child]));
+            return visualSchema.nodes.visual_image.create({source:imageSource});
+          }
+          const children: DocumentNode[] = []; child.forEach(item => children.push(separateImages(item)));
+          return child.isLeaf ? child : child.copy(Fragment.fromArray(children));
+        };
+        node = imageList ? separateImages(parsed.firstChild!) : media ? visualSchema.nodes.visual_media.create({source:raw,kind:media.kind}) : standaloneImage ? visualSchema.nodes.visual_image.create({ source: raw }) : (plainCode || nativeTable || (!unsupported)) && parsed.childCount === 1
           ? visualSchema.nodeFromJSON(parsed.firstChild!.toJSON())
           : visualSchema.nodes.source_block.create({ source: raw });
       } catch {
@@ -384,7 +421,11 @@ export function createVisualDocumentCodec(markdown: string) {
         }
         if (index && !(previousOriginal && original !== undefined) && result) {
           const prevSuffix = rawSuffixes[index - 1];
-          const sep = prevSuffix !== undefined ? prevSuffix : (previousNode?.type.name === 'heading' ? '\n' : '\n\n');
+          // Positional suffixes belong to the old source blocks. After a list
+          // is split into paragraphs, its old single newline must not merge
+          // the first two newly created paragraphs on the next parse.
+          const sep = previousNode?.type.name === 'paragraph' && node.type.name === 'paragraph'
+            ? '\n\n' : prevSuffix !== undefined ? prevSuffix : (previousNode?.type.name === 'heading' ? '\n' : '\n\n');
           if (sep === '\n') {
             if (!result.endsWith('\n')) result += '\n';
           } else {

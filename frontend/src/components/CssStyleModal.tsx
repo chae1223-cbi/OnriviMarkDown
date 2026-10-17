@@ -3,6 +3,7 @@
  * 파일명 : CssStyleModal.tsx
  * -----------------------------------------------------------------------
  * 변경내역
+ * 🚨 @PATCH : **2026-10-17** — [서식 미리보기 MarkdownViewer에 listIndent prop 명시적 바인딩]: 서식 모아보기 쇼케이스 및 실제 문서 뷰의 MarkdownViewer에 activeProfile의 ul/ol padding-left 값을 listIndent prop으로 전달하여 목록 들여쓰기가 실시간 반영되도록 보완
  * 🚨 @PATCH : **2026-09-27** — [웹 서식 주제 펼침 시 쇼케이스 첫 태그 이동]: 카드 일부가 보이면 이동하지 않던 nearest 스크롤을 우측 패널 기준 좌표 스크롤로 교체하고 동일 주제 재선택도 처리
  * 🚨 @PATCH : **2026-09-24** — [각주(Footnote) 펄스 연동 및 Card 7 스크롤 연동 신설]: footnote 태그 조작 시 .footnotes, section[data-footnotes] 요소를 찾아 실시간 펄스 하이라이트 및 Card 7 활성화/뷰포트 추종 연동
  * 🚨 @PATCH : **2026-09-24** — [본문 문단(P/BR) 펄스 및 뷰포트 추종 시 활성 모듈 카드 스코핑 보장]: 모듈 모드에서 p 또는 br 조작 시 activeModuleId 카드의 문단을 우선 타겟팅하여 Card 1로의 엉뚱한 뷰포트 점프 버그 원천 차단
@@ -389,6 +390,7 @@ export default function CssStyleModal({
                             content={mod.markdown}
                             originalContent={mod.markdown}
                             customCss={dynamicCssString}
+                            listIndent={activeProfile.rules.ul?.['padding-left'] || activeProfile.rules.ol?.['padding-left'] || '28px'}
                           />
                         </div>
                       </div>
@@ -411,6 +413,7 @@ export default function CssStyleModal({
                     content={documentDisplayContent}
                     originalContent={documentDisplayContent}
                     customCss={dynamicCssString}
+                    listIndent={activeProfile.rules.ul?.['padding-left'] || activeProfile.rules.ol?.['padding-left'] || '28px'}
                     picturebookProfile={activeProfile.layout?.type === 'picturebook' ? activeProfile : undefined}
                   />
                 </div>

@@ -9,6 +9,7 @@
  * DEFAULT_WELCOME_MD를 사용합니다.
  */
 
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import { FileNode } from './indexedDbHelper';
 import { msg } from './systemMessages';
 import { DEFAULT_WELCOME_MD } from '@/constants/welcomeContent';

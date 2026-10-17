@@ -11,6 +11,7 @@ import katex from 'katex';
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-formula-modal
+ * 🚨 @PATCH : **2026-10-17** — [블록 수식($$) 생성 시 하단 빈 행 자동 추가]: displayMode(블록 수식) 삽입 시 닫는 $$ 뒤에 빈 행(\n\n)을 자동 추가하여 마우스 클릭으로 다음 작업을 이어갈 수 있도록 개선
  * 🚨 @PATCH : **2026-10-14** — [수식 에디터 실시간 미리보기 크로미움 가상 스크롤바 글리치 제거 및 행렬 개행(\\) 보존]:
  *             1) #formula-live-preview의 중복 overflow-x-auto를 overflow-visible 및 상하 여백(py-2 px-1)으로 개선하여, 분수/루트 등 수식 우측에 회색 막대(|) 스크롤바가 노출되는 렌더링 결함 완전 해소
  *             2) cleanLatex의 불필요한 .replace(/\\\\/g, '\\') 처리를 제거하여 행렬(pmatrix) 및 다행 수식의 줄바꿈(\\) 문법 보존
@@ -193,7 +194,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode, in
     setHistory(newHistory);
     localStorage.setItem('onrivi-formula-history', JSON.stringify(newHistory));
 
-    const finalCode = displayMode ? `\n$$\n${latex.trim()}\n$$\n` : `$${latex.trim()}$ `;
+    const finalCode = displayMode ? `\n$$\n${latex.trim()}\n$$\n\n` : `$${latex.trim()}$ `;
     onInsert(finalCode);
     setLatex("");
     onClose();

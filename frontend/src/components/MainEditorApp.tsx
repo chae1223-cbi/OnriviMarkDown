@@ -1,5 +1,12 @@
 /**
  * 프로그램명 : OnriviAuthor 
+// 🚨 @PATCH : **2026-10-17** — [인용문·코드블록·이미지·동영상·지도·표·수식 생성 시 하단 빈 행 자동 추가]:
+//             1) applyLinePrefix에서 인용문(quote) 및 콜아웃(Alert) 생성 시 하단에 빈 줄(\n\n)을 함께 추가하여 마우스 클릭으로 다음 작업을 즉시 이어갈 수 있도록 개선 (커서는 인용문 내부 유지)
+// 🚨 @PATCH : **2026-10-17** — [코드블록 언어 미지정/한글·임의 언어명 입력 시 코드블록 이하 일반 텍스트 색상 오염(보라색 변색) 결함 해결]:
+//             1) beforeMount 및 editorSettingsSync에서 applySafeMarkdownMonarchTokenizer(monaco)를 연동하여 한글·유니코드·특수기호 언어명(예: ```아자아자) 및 무명 코드블록(```)의 여는/닫는 펜스를 완벽히 인식하고 코드블록 이하 본문으로 @codeblock 상태가 유출되는 현상 원천 차단
+// 🚨 @PATCH : **2026-10-17** — [서식관리 목록 항목 간 줄 여백(margin-bottom) 및 기본 들여쓰기 너비(padding-left) 실시간 동기화 완벽 정상화]:
+//             1) dynamicCssString 끝단에서 .custom-preview-container li에 하드코딩되어 있던 margin-bottom을 prof.rules.li['margin-bottom'] 값(liMarginBottom)으로 동적 대체하여 목록 및 태스크 체크박스 항목 간 줄 여백 슬라이더 조절이 1:1 실시간 반영되도록 개선
+//             2) .custom-preview-container ul/ol에 padding-left: ${listIndent} !important 및 --list-indent/--li-margin-bottom 변수를 주입하고 중첩 태스크 리스트 들여쓰기를 완벽 연동
 // 🚨 @PATCH : **2026-10-16** — [그림책 본문편집/편집완료 전환 및 내용 변경 시 스크롤 점프/화면 흔들림 방어]:
 //             1) onPicturebookChange에서 updateContent(next, false, true)로 증분(incrementalVisual) 업데이트를 호출하여 Monaco 커서 리셋 및 setValue에 의한 화면 요동 차단
 //             2) 그림책 모드(.picturebook-root) 활성 시 processedContent 변경에 의한 모나코 커서 라인으로의 미리보기 강제 스크롤 동기화 간섭을 배제하여 편집 완료 시 맨 위로 튀는 현상 원천 제거
@@ -313,14 +320,11 @@
  * =========================================================================
 */
 
+import { browserAccountStorage as localStorage, browserAccountSessionStorage as sessionStorage } from '@/lib/browserAccountStorage';
 import { getResourceSettings, saveResourceSettings, requireResourceSettings, getResourceEnvironment, activateDriveAccount } from '@/lib/resourceSettings';
 import { importedCheckboxEdit } from '@/lib/importCheckboxes';
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, useDeferredValue } from 'react';   // 리액트 훅 - 상태관리, 렌더링 제어 등
 import Editor, { loader } from '@monaco-editor/react'; // 모나코 에디터 - 코드 편집기
-const _monacoVsPath = typeof window !== 'undefined' && !!(window as any).electronAPI
-  ? './monaco-editor/min/vs'
-  : '/monaco-editor/min/vs';
-loader.config({ paths: { vs: _monacoVsPath } });
 import MarkdownViewer from '@/components/MarkdownViewer'; // 마크다운 뷰어 - 마크다운 뷰어
 import { createPortal } from 'react-dom';
 import VisualDocumentEditor from '@/components/VisualDocumentEditor';
@@ -362,7 +366,7 @@ import { knowledgeClient } from '@/lib/knowledge/knowledgeClient'; // 지식 베
 import { preprocessMarkdownForPreview, stripFrontmatter, getCodeBlockLineMask } from "@/lib/editorUtils"; // 마크다운 프리뷰
 import { syncPreviewFromEditorScroll, syncPreviewToTargetLine } from "@/lib/syncEngine"; // 동기화 엔진
 import { configuredHotkeyItem, getSlashCommands, getDefaultHotkeys, getDefaultCommands, TOOLBAR_ITEMS } from "@/lib/toolbarConfig"; // 툴바 설정
-import { EDITOR_THEMES, THEME_MAP } from "@/lib/editorThemes"; // 에디터 테마
+import { EDITOR_THEMES, THEME_MAP, applySafeMarkdownMonarchTokenizer } from "@/lib/editorThemes"; // 에디터 테마
 import { CssProfile } from "@/types/cssProfile"; // css 프로필 타입
 import { DEFAULT_PROFILE, SYSTEM_PROFILES, isSystemProfileId, normalizeCssProfile, resolveCssProfile } from "@/constants/cssProfile"; // 기본 프로필
 import { WELCOME_CONTENT } from "@/constants/welcomeContent"; // 웰컴 컨텐츠
@@ -4114,6 +4118,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       // 1. 테마 및 고대비(High Contrast) 모드 강제 적용
       if ((window as any).monaco) {
         const monaco = (window as any).monaco;
+        applySafeMarkdownMonarchTokenizer(monaco);
         EDITOR_THEMES.forEach(t => {
           const isDark = t.base === 'vs-dark';
           const defaultFg = isDark ? '#e2e8f0' : '#1e293b';
@@ -6191,7 +6196,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (prefixType === 'quote' && alertType && selection.isEmpty()) {
       const lineContent = model.getLineContent(startLine);
       if (lineContent.trim() === '') {
-        const insertText = `> [!${alertType}]\n> `;
+        const insertText = `> [!${alertType}]\n> \n\n`;
         editor.pushUndoStop();
         editor.executeEdits("insertAlertQuote", [{
           range: new (window as any).monaco.Range(startLine, 1, startLine, lineContent.length + 1),
@@ -6206,7 +6211,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
 
     const edits = [];
+    let addedAlertHeaderLine = false;
     let counter = 1;
+    const selectedIndents = Array.from({length:endLine-startLine+1},(_,index)=>model.getLineContent(startLine+index))
+      .filter(line=>line.trim()).map(line=>line.match(/^[ \t]*/)?.[0] || '');
+    const orderedIndent = selectedIndents.reduce((shortest,indent)=>indent.length<shortest.length?indent:shortest,selectedIndents[0] || '');
     if (prefixType === 'orderedList') {
       for (let j = startLine - 1; j > 0; j--) {
         const prevLine = model.getLineContent(j);
@@ -6237,6 +6246,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             forceMoveMarkers: true
           });
         } else if (i === startLine) {
+          addedAlertHeaderLine = true;
           // 첫 줄: 기존 인용구(> )가 있든 없든 상단에 > [!TYPE] 태그 배치
           const quoteMatch = lineContent.match(/^(\s*)(>+\s*)(.*)/);
           if (quoteMatch) {
@@ -6278,12 +6288,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       for (let i = startLine; i <= endLine; i++) {
         const lineContent = model.getLineContent(i);
         const match = lineContent.match(/^(\s*)(>+\s*)?((?:- \[[ xX]\]|[-*+]|\d+\.)\s+)?(.*)/);
+        if(prefixType==='orderedList' && !lineContent.trim())continue;
 
         if (match) {
-          const indent = match[1] || '';
+          const indent = prefixType==='orderedList' && endLine>startLine ? orderedIndent : match[1] || '';
           const quotes = match[2] || '';
           const listSymbol = match[3] || '';
-          const text = match[4] || '';
+          let text = match[4] || '';
+          // Tag cancellation deliberately escapes literal ordinals (2\.). An
+          // explicit numbered-list action must consume those as well as plain
+          // typed ordinals, rather than producing "2. 2\\. text".
+          if(prefixType==='orderedList') text=text.replace(/^(?:[ \t]*\d+\\?[.)](?:[ \t]+|(?=[가-힣])))+/, '');
 
           let newQuotes = quotes;
           let newListSymbol = listSymbol;
@@ -6344,6 +6359,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
     editor.pushUndoStop();
     editor.executeEdits("applyPrefix", edits);
+    if (prefixType === 'quote') {
+      const quoteEndLine = endLine + (addedAlertHeaderLine ? 1 : 0);
+      const quoteEndCol = model.getLineContent(quoteEndLine).length + 1;
+      editor.executeEdits("appendQuoteEmptyLine", [{
+        range: new (window as any).monaco.Range(quoteEndLine, quoteEndCol, quoteEndLine, quoteEndCol),
+        text: '\n\n',
+        forceMoveMarkers: false
+      }]);
+      editor.setPosition({ lineNumber: quoteEndLine, column: quoteEndCol });
+    }
     editor.pushUndoStop();
     setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
 
@@ -6351,7 +6376,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     try {
       const model = editor.getModel();
       if (model && typeof model.forceTokenization === 'function') {
-        for (let i = startLine; i <= endLine; i++) {
+        const maxTokenLine = Math.min(model.getLineCount(), endLine + (prefixType === 'quote' ? 3 : 0));
+        for (let i = startLine; i <= maxTokenLine; i++) {
           model.forceTokenization(i);
         }
       }
@@ -7383,9 +7409,21 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
 
 
+    const liMarginBottom = (prof.rules.li && prof.rules.li['margin-bottom']) || '6px';
+    const listIndent = (prof.rules.ul && prof.rules.ul['padding-left']) || (prof.rules.ol && prof.rules.ol['padding-left']) || '28px';
+
     // 💡 마커 색상: ul/ol 텍스트 색상을 상속받도록 강제 (Tailwind 기본색상 무시)
     // 💡 체크리스트(task-list-item): 중복 불릿(•) 기호 완전 소거 및 본문 텍스트 색상과 100% 일치
     css += `
+:root {
+  --list-indent: ${listIndent};
+  --li-margin-bottom: ${liMarginBottom};
+}
+.custom-preview-container,
+.onrivi-content-root {
+  --list-indent: ${listIndent};
+  --li-margin-bottom: ${liMarginBottom};
+}
 .custom-preview-container ul li::marker,
 .custom-preview-container ol li::marker {
   color: inherit !important;
@@ -7396,6 +7434,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   list-style-type: none !important;
   list-style-image: none !important;
   color: ${(prof.rules.taskList && prof.rules.taskList['color']) || bodyTextColor} !important;
+  margin-top: 0 !important;
+  margin-bottom: ${liMarginBottom} !important;
 }
 .custom-preview-container li.task-list-item::marker,
 .onrivi-content-root li.task-list-item::marker,
@@ -7410,36 +7450,64 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   list-style-type: none !important;
   padding-left: 0 !important;
 }
+.custom-preview-container li ul.contains-task-list,
+.onrivi-content-root li ul.contains-task-list,
+.custom-preview-container li ol.contains-task-list,
+.onrivi-content-root li ol.contains-task-list {
+  padding-left: ${listIndent} !important;
+}
 .custom-preview-container li,
-.custom-preview-container li > p,
-.custom-preview-container li p {
+.onrivi-content-root li {
   margin-top: 0 !important;
-  margin-bottom: 2px !important;
+  margin-bottom: ${liMarginBottom} !important;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
 }
-.custom-preview-container ul,
-.custom-preview-container ol {
-  margin-top: 4px !important;
-  margin-bottom: 4px !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-}
-.custom-preview-container ul + p,
-.custom-preview-container ol + p {
-  margin-top: 1.5em !important;
-}
-.custom-preview-container p + ul,
-.custom-preview-container p + ol {
-  margin-top: 1.2em !important;
-}
-/* NodeViews wrap list content in a div; nested lists must still stay tight. */
-.custom-preview-container li ul,
-.custom-preview-container li ol {
+.custom-preview-container li > p,
+.custom-preview-container li p,
+.onrivi-content-root li > p,
+.onrivi-content-root li p {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
+}
+.custom-preview-container li p + p,
+.onrivi-content-root li p + p {
+  margin-top: 0.45em !important;
+}
+.custom-preview-container ul,
+.custom-preview-container ol,
+.onrivi-content-root ul,
+.onrivi-content-root ol {
+  margin-top: 4px !important;
+  margin-bottom: 4px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  padding-left: ${listIndent} !important;
+}
+.custom-preview-container ul + p,
+.custom-preview-container ol + p,
+.onrivi-content-root ul + p,
+.onrivi-content-root ol + p {
+  margin-top: 1.5em !important;
+}
+.custom-preview-container p + ul,
+.custom-preview-container p + ol,
+.onrivi-content-root p + ul,
+.onrivi-content-root p + ol {
+  margin-top: 1.2em !important;
+}
+/* NodeViews wrap list content in a div; nested lists must still stay tight. */
+.custom-preview-container li ul,
+.custom-preview-container li ol,
+.onrivi-content-root li ul,
+.onrivi-content-root li ol {
+  margin-top: 0.25em !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  padding-left: ${listIndent} !important;
 }
 .custom-preview-container .visual-document-surface blockquote p,
 .custom-preview-container .onrivi-alert-content p {
@@ -9839,6 +9907,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         // 단일하게 담당합니다. 여기서도 updateContent를 호출하면 입력 한 번에
                         // 즉시 갱신과 100ms 지연 갱신이 모두 발생해 미리보기가 두 번 리렌더링됩니다.
                         beforeMount={(monaco) => {
+                          applySafeMarkdownMonarchTokenizer(monaco);
                           EDITOR_THEMES.forEach(t => {
                             const isDark = t.base === 'vs-dark';
                             const defaultFg = isDark ? '#e2e8f0' : '#1e293b';

@@ -1,3 +1,4 @@
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import CryptoJS from 'crypto-js';
 
 // 💡 [한글 주석] 로컬 저장 암호화용 고유 솔트 키 (빌드 난독화 대비용 상수 지정)

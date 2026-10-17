@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import { browserAccountDatabaseName } from './browserAccountStorage';
 import { Icon } from '@/components/icons/Icon';
 import { msg } from './systemMessages';
 
@@ -17,7 +18,7 @@ import { msg } from './systemMessages';
 // ====================================================================
 export const idb = {
   get: (key: string) => new Promise<any>((resolve, reject) => {
-    const req = indexedDB.open('onrivi-author-db', 1);
+    const req = indexedDB.open(browserAccountDatabaseName(), 1);
     req.onupgradeneeded = () => req.result.createObjectStore('store');
     req.onsuccess = () => {
       const db = req.result;
@@ -30,7 +31,7 @@ export const idb = {
     req.onerror = () => reject(req.error);
   }),
   set: (key: string, val: any) => new Promise<void>((resolve, reject) => {
-    const req = indexedDB.open('onrivi-author-db', 1);
+    const req = indexedDB.open(browserAccountDatabaseName(), 1);
     req.onupgradeneeded = () => req.result.createObjectStore('store');
     req.onsuccess = () => {
       const db = req.result;
@@ -42,7 +43,7 @@ export const idb = {
     req.onerror = () => reject(req.error);
   }),
   del: (key: string) => new Promise<void>((resolve, reject) => {
-    const req = indexedDB.open('onrivi-author-db', 1);
+    const req = indexedDB.open(browserAccountDatabaseName(), 1);
     req.onupgradeneeded = () => req.result.createObjectStore('store');
     req.onsuccess = () => {
       const db = req.result;
@@ -55,7 +56,7 @@ export const idb = {
     req.onerror = () => reject(req.error);
   }),
   clear: () => new Promise<void>((resolve, reject) => {
-    const req = indexedDB.open('onrivi-author-db', 1);
+    const req = indexedDB.open(browserAccountDatabaseName(), 1);
     req.onupgradeneeded = () => req.result.createObjectStore('store');
     req.onsuccess = () => {
       const db = req.result;

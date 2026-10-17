@@ -559,6 +559,13 @@ body {
   overflow-anchor: none;
 }
 
+/* The editing surface manages caret visibility. Browser anchoring must not
+   independently move the same viewport while its content is being typed. */
+.custom-preview-container:has(.visual-document-surface[contenteditable="true"]),
+.onrivi-preview-container:has(.visual-document-surface[contenteditable="true"]) {
+  overflow-anchor: none !important;
+}
+
 /* select 드롭다운 다크모드 강제 — option 팝업 레이어가 흰색으로 튀지 않도록 */
 .dark select,
 .dark option {

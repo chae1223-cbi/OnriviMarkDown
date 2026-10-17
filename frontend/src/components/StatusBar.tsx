@@ -15,6 +15,7 @@
 // ====================================================================
 "use client";
 
+import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from '@/components/icons/Icon';
 

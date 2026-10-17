@@ -1,3 +1,4 @@
+import { browserAccountStorage as localStorage, browserAccountSessionStorage as sessionStorage } from '@/lib/browserAccountStorage';
 /**
  * 프로그램명 : OnriviAuthor
  * 모듈명 : authSessionHelper.ts
@@ -67,7 +68,7 @@ export const clearAuthSessionStorage = (): void => {
     });
 
     // 2. Supabase 관련 세션 토큰(sb-*)만 선별 삭제
-    Object.keys(localStorage).forEach((key) => {
+    localStorage.keys().forEach((key) => {
       if (key.startsWith('sb-')) {
         localStorage.removeItem(key);
       }

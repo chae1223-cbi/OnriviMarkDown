@@ -323,7 +323,11 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
       const result = await res.json();
       if (!res.ok || !result.success) throw new Error(result?.message || '회원 탈퇴에 실패했습니다.');
       await supabase.auth.signOut({ scope: 'local' }); // 🚪 Supabase Auth 로컬 로그아웃
-      localStorage.clear(); // 🗑️ localStorage 전부 정리
+      // Other accounts in this browser keep their private workspace settings.
+      const accountPrefix = `onrivi:account:${user.id}:`;
+      Object.keys(localStorage).forEach(key => {
+        if (!key.startsWith('onrivi:account:') || key.startsWith(accountPrefix)) localStorage.removeItem(key);
+      });
       router.push('/signup?deleted=true');
     } catch (err: any) {
       showToast(`회원 탈퇴 실패: ${err.message}`, 'error');

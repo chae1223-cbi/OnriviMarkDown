@@ -1,4 +1,5 @@
 // @ts-nocheck
+// 🚨 @PATCH : **2026-10-17** - [코드블록/머메이드 및 다행 텍스트(수식 등) 삽입 시 하단 빈 행 자동 추가 및 커서 이동] insertBlockTag 종료 태그 뒤에 빈 행(\n\n)을 자동 추가하고, insertAtCursor에서 다행 텍스트 삽입 시 마지막 줄 끝으로 커서를 안착시켜 마우스 클릭 및 연속 작업을 지원
 // 🚨 @PATCH : **2026-10-02** - [미디어 삽입 Range 호환성 강화 및 즉각 상태 동기화] insertMediaAtCursor 내 Range 객체 생성 시 monaco 전역 참조 안전 폴백 및 updateContent 즉시 동기화 연동
 // 🚨 @PATCH : 2026-09-06 - [미디어 삽입 후 2행 자동 추가 및 커서 이동] insertMediaAtCursor 함수 신규 추가: 이미지·동영상·지도 마크다운 삽입 후 자동으로 빈 줄 2행을 추가하고 커서를 마지막 빈 행 끝에 위치시켜 즉시 이어 입력 가능하도록 구현
 
@@ -60,6 +61,13 @@ export const insertAtCursor = (editorRef: any, lastSelectionRef: any, text: stri
       editor.pushUndoStop();
       if (!inserted) return false;
       
+      const lines = text.split('\n');
+      const nextLine = range.startLineNumber + lines.length - 1;
+      const nextCol = lines.length > 1 ? lines[lines.length - 1].length + 1 : range.startColumn + text.length;
+      try {
+        editor.setPosition?.({ lineNumber: nextLine, column: nextCol });
+      } catch (_) {}
+
       try {
         const model = editor.getModel();
         if (model && typeof model.forceTokenization === 'function') {
@@ -240,7 +248,7 @@ export const insertBlockTag = (editorRef: any, startTag: string, endTag: string,
   const langMatch = startTag.match(/^```([a-zA-Z0-9_-]+)/);
 
   if (text) {
-    const newText = `${startTag}\n${text}\n${endTag}`;
+    const newText = `${startTag}\n${text}\n${endTag}\n\n`;
     editor.pushUndoStop();
     editor.executeEdits("insertBlockTag", [{
       range: selection,
@@ -268,7 +276,7 @@ export const insertBlockTag = (editorRef: any, startTag: string, endTag: string,
     }
   } else {
     const textToWrap = defaultText;
-    const newText = textToWrap ? `${startTag}\n${textToWrap}\n${endTag}` : `${startTag}\n\n${endTag}`;
+    const newText = textToWrap ? `${startTag}\n${textToWrap}\n${endTag}\n\n` : `${startTag}\n\n${endTag}\n\n`;
     editor.pushUndoStop();
     editor.executeEdits("insertBlockTag", [{
       range: selection,
