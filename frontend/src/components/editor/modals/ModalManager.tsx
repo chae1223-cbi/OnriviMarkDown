@@ -70,6 +70,11 @@ interface ModalManagerProps {
  * 차후 AI 설정 모달 등 새로운 플러그인 추가 시 이 컴포넌트만 수정하면 됨.
  */
 export default function ModalManager({ modals, deps }: ModalManagerProps) {
+  const citationTarget=React.useRef<{documentId?:string;model:any;selection:any}|null>(null);
+  React.useEffect(()=>{
+    if(modals.isCitationModalOpen)citationTarget.current={documentId:deps.activeTabId,model:deps.editorRef.current?.getModel(),selection:deps.editorRef.current?.getSelection()};
+    else {citationTarget.current=null;window.dispatchEvent(new Event('onrivi:cancel-citation'));}
+  },[modals.isCitationModalOpen]);
   const {
     isSettingsModalOpen, setIsSettingsModalOpen,                         // 환경설정 모달 열림/닫힘 상태
     settingsModalInitialTab, setSettingsModalInitialTab,                 // 환경설정 모달 초기 탭 설정
@@ -717,6 +722,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
 
       {/* 참조 관리(BibTeX) 모달 */}
       <ReferenceManagerModal
+        currentDocument={deps.content || ''}
         isOpen={isReferenceModalOpen}
         onClose={() => setIsReferenceModalOpen(false)}
         isDarkMode={isDarkMode}
@@ -727,7 +733,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
       />
       <CitationSelectionModal
         isOpen={isCitationModalOpen}
-        onClose={() => setIsCitationModalOpen(false)}
+        onClose={() => {window.dispatchEvent(new Event('onrivi:cancel-citation'));setIsCitationModalOpen(false);}}
         isDarkMode={isDarkMode}
         bibContent={deps.bibContent || ''}
         resourceFolderHandle={deps.resourceFolderHandle}
@@ -735,12 +741,16 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         rootFolder={rootFolder}
         resourceFolder={resourceFolder}
         onSelect={(citekey) => {
+          if(citationTarget.current?.documentId!==deps.activeTabId){deps.showToast('문서가 변경되었습니다. 인용을 다시 선택해 주세요.','warning');return;}
+          const event=new CustomEvent('onrivi:insert-citation',{cancelable:true,detail:{key:citekey}});
+          window.dispatchEvent(event);if(event.defaultPrevented)return;
           if (deps.editorRef.current) {
             const editor = deps.editorRef.current;
+            if(editor.getModel()!==citationTarget.current?.model){deps.showToast('문서가 변경되었습니다. 인용을 다시 선택해 주세요.','warning');return;}
             const position = editor.getPosition();
             if (position) {
               editor.executeEdits('citation', [{
-                range: new (window as any).monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                range: citationTarget.current?.selection || new (window as any).monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
                 text: `[@${citekey}]`,
                 forceMoveMarkers: true
               }]);

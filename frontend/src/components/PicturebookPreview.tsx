@@ -477,6 +477,9 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
                 floatingToolbarVisible={editorOptions?.floatingToolbarVisible}
                 onFloatingToolbar={editorOptions?.onFloatingToolbar}
                 onStyleSettings={() => editorOptions?.onAction?.('TOGGLE_CSS_STYLE')}
+                onCitation={editorOptions?.onCitation}
+                bibContent={editorOptions?.bibContent}
+                showBibliography={false}
                 onImageFile={editorOptions?.onImageFile ? file => editorOptions.onImageFile!(file as File) : undefined}
                 onImageDialog={editorOptions?.onImageDialog ? (source, insert) => editorOptions.onImageDialog!(text => {
                   const match = text.match(/!\[([^\]]*)\]\(([^\n]+)\)/);

@@ -1,3 +1,5 @@
+import {parseBibliography} from '@/lib/bibliography';
+import {loadBibliographyFiles} from '@/lib/bibliographyStorage';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Search, FileText } from 'lucide-react';
@@ -22,46 +24,6 @@ interface BibEntry {
   year: string;
 }
 
-// 간단한 정규식 기반 BibTeX 파서
-function parseBibContent(content: string): BibEntry[] {
-  if (!content) return [];
-  const entries: BibEntry[] = [];
-  
-  // @type{citekey,
-  //   title = {Title},
-  // ...}
-  const entryRegex = /@([a-zA-Z0-9_-]+)\s*{\s*([^,]+)/g;
-  
-  let match;
-  while ((match = entryRegex.exec(content)) !== null) {
-    const type = match[1];
-    const key = match[2].trim();
-    
-    // 이 엔트리의 끝부분을 대략적으로 찾기 (다음 @ 전까지 혹은 끝까지)
-    const startIndex = match.index + match[0].length;
-    const nextMatchIndex = content.indexOf('@', startIndex);
-    const blockText = nextMatchIndex !== -1 
-      ? content.substring(startIndex, nextMatchIndex)
-      : content.substring(startIndex);
-      
-    // 필드 추출 (title, author, year 등)
-    const getField = (fieldName: string) => {
-      const regex = new RegExp(`${fieldName}\\s*=\\s*(?:{([^}]*)}|"([^"]*)"|([^,\\s}]+))`, 'i');
-      const fieldMatch = blockText.match(regex);
-      return fieldMatch ? (fieldMatch[1] || fieldMatch[2] || fieldMatch[3] || '').trim() : '';
-    };
-
-    entries.push({
-      key,
-      type,
-      title: getField('title'),
-      author: getField('author'),
-      year: getField('year'),
-    });
-  }
-  return entries;
-}
-
 import { loadSecureData } from '@/lib/secureStorage';
 
 export default function CitationSelectionModal({
@@ -78,64 +40,13 @@ export default function CitationSelectionModal({
   const [mounted, setMounted] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [localBibContent, setLocalBibContent] = useState('');
+  const [loadError,setLoadError]=useState('');
 
-  const loadBibFiles = useCallback(async () => {
-    try {
-      const api = (window as any).electronAPI;
-      const freshResourceFolder = loadSecureData<string>('resourceFolder') || resourceFolder;
-      let mergedContent = '';
-
-      if (api && freshResourceFolder) {
-        // Desktop
-        try {
-          const bibleDir = `${freshResourceFolder}\\bible`;
-          const entries = await api.listDirectory(bibleDir);
-          for (const entry of entries) {
-            if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.bib') && entry.path) {
-              const fileObj = await api.readFromPath(entry.path);
-              if (fileObj?.content) mergedContent += '\n' + fileObj.content;
-            }
-          }
-        } catch (e) {
-          console.error("Desktop bible load error", e);
-        }
-      } else if (resourceFolderHandle) {
-        // Browser Resource Folder
-        try {
-          const bibleHandle = await resourceFolderHandle.getDirectoryHandle('bible');
-          for await (const [name, handle] of bibleHandle.entries()) {
-            if (handle.kind === 'file' && name.toLowerCase().endsWith('.bib')) {
-              const file = await handle.getFile();
-              const text = await file.text();
-              mergedContent += '\n' + text;
-            }
-          }
-        } catch (e) {
-          console.error("Browser resource folder bible load error", e);
-        }
-      } else if (rootFolder?.handle) {
-        // Browser Root Folder
-        try {
-          const bibleHandle = await rootFolder.handle.getDirectoryHandle('bible');
-          for await (const [name, handle] of bibleHandle.entries()) {
-            if (handle.kind === 'file' && name.toLowerCase().endsWith('.bib')) {
-              const file = await handle.getFile();
-              const text = await file.text();
-              mergedContent += '\n' + text;
-            }
-          }
-        } catch (e) {
-          console.error("Browser root folder bible load error", e);
-        }
-      } else {
-        // Web VFS fallback or bibContent prop
-        mergedContent = bibContent || '';
-      }
-      setLocalBibContent(mergedContent);
-    } catch (e) {
-      console.error("Error loading bib files", e);
-    }
-  }, [resourceFolderHandle, rootFolder, resourceFolder, bibContent]);
+  const loadBibFiles=useCallback(async()=>{
+    setLoadError('');
+    try{const files=await loadBibliographyFiles(resourceFolderHandle);setLocalBibContent(files.length?files.map(f=>f.content).join('\n'):bibContent||'');}
+    catch(e:any){setLocalBibContent('');setLoadError(e.message);}
+  },[resourceFolderHandle,bibContent]);
 
   useEffect(() => {
     setMounted(true);
@@ -147,7 +58,8 @@ export default function CitationSelectionModal({
     }
   }, [isOpen, loadBibFiles]);
 
-  const entries = useMemo(() => parseBibContent(localBibContent), [localBibContent]);
+  const parsed=useMemo(()=>parseBibliography(localBibContent),[localBibContent]);
+  const entries=parsed.entries;
 
   const filteredEntries = useMemo(() => {
     if (!searchTerm.trim()) return entries;
@@ -207,18 +119,20 @@ export default function CitationSelectionModal({
           </div>
 
           {/* 목록 */}
+          {(loadError || parsed.error || parsed.duplicates.length>0) && <p role="alert" className="p-3 text-red-700">{loadError || parsed.error || '중복 인용키: '+parsed.duplicates.join(', ')}</p>}
           <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[300px]">
             {filteredEntries.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-zinc-500 py-10">
                 <FileText size={48} className="mb-4 opacity-20" />
-                <p className="font-bold">표시할 참조문헌이 없습니다.</p>
+                <p className="font-bold">{loadError || parsed.error || '표시할 참조문헌이 없습니다.'}</p>
                 <p className="text-xs text-[#949494] mt-1">.bib 파일을 추가하거나 검색어를 변경해보세요.</p>
               </div>
             ) : (
-              filteredEntries.map(entry => (
+              filteredEntries.map((entry,index) => (
                 <div
-                  key={entry.key}
+                  key={entry.key+':'+index}
                   onClick={() => {
+                    if(parsed.duplicates.some(k=>k.toLowerCase()===entry.key.toLowerCase())){setLoadError('중복 인용키입니다. 참조문헌 관리에서 키를 변경해 주세요.');return;}
                     onSelect(entry.key);
                     onClose();
                   }}

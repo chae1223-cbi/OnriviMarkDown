@@ -8,6 +8,8 @@
 // ====================================================================
 "use client";
 
+import {parseBibliography,citedKeys} from '@/lib/bibliography';
+import {loadBibliographyFiles} from '@/lib/bibliographyStorage';
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Save, FileText, Database, Plus, Trash2 } from 'lucide-react';
@@ -27,6 +29,7 @@ interface ReferenceManagerModalProps {
   workspaceType?: string;
   rootFolder?: any;
   resourceFolder?: string | null;
+  currentDocument?: string;
 }
 
 interface BibFile {
@@ -54,6 +57,7 @@ export default function ReferenceManagerModal({
   workspaceType,
   rootFolder,
   resourceFolder,
+  currentDocument='',
 }: ReferenceManagerModalProps) {
   const { showToast } = useToast();
   const [mounted, setMounted] = useState(false);
@@ -67,6 +71,14 @@ export default function ReferenceManagerModal({
   const [content, setContent] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [entryForm,setEntryForm]=useState({key:'',author:'',year:'',title:'',publisher:'',url:'',doi:''});
+  const addFormEntry=()=>{
+    if(!new RegExp('^[\\p{L}\\p{N}_:\\-.+]+$','u').test(entryForm.key)||!entryForm.title.trim()){showToast('인용키와 제목을 입력해 주세요. 인용키에는 공백을 사용할 수 없습니다.','warning');return;}
+    const escape=(value:string)=>value.replace(/\\/g,'\\textbackslash{}').replace(/[{}]/g,m=>'\\'+m).replace(/[\r\n]+/g,' ');
+    const fields=Object.entries(entryForm).filter(([k,v])=>k!=='key'&&v.trim()).map(([k,v])=>`  ${k} = {${escape(v.trim())}}`).join(',\n');
+    setContent(previous=>previous.trimEnd()+`\n\n@misc{${entryForm.key},\n${fields}\n}\n`);
+    setEntryForm({key:'',author:'',year:'',title:'',publisher:'',url:'',doi:''});
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -89,73 +101,10 @@ export default function ReferenceManagerModal({
       showToast(e.message, 'error');
     }
   };
-  const loadBibFiles = useCallback(async () => {
-    try {
-      const api = (window as any).electronAPI;
-      const freshResourceFolder = getEffectiveResourceFolder(resourceFolder);
-      const loadedFiles: BibFile[] = [];
-
-      if (isDrive) {
-        const token = getSavedDriveToken();
-        const settings = getResourceSettings('cloud');
-        let folder = settings?.bibleFolderId || getSavedWorkspaceInfo()?.bibleFolderId;
-        if (!folder && (settings?.folderId || getSavedWorkspaceInfo()?.resourceFolderId)) {
-          try {
-            const parentId = settings?.folderId || getSavedWorkspaceInfo()?.resourceFolderId;
-            const children = await listDriveChildren(token!, parentId);
-            const bibleDir = children.find(c => c.isFolder && c.name === 'bible');
-            if (bibleDir) folder = bibleDir.id;
-          } catch {}
-        }
-        if (!token || !folder) throw new Error('드라이브 참고문헌 폴더 연결이 필요합니다.');
-        for (const f of await listDriveChildren(token, folder)) {
-          if (!f.isFolder && /\.bib$/i.test(f.name)) loadedFiles.push({name: f.name, driveId: f.id, content: await readDriveFileContent(token, f.id)});
-        }
-      } else if (api && freshResourceFolder) {
-        // Desktop
-        try {
-          try {
-            await api.createFolder(freshResourceFolder, 'bible');
-          } catch(e) {} // ignore if already exists
-          const bibleDir = `${freshResourceFolder}\\bible`;
-          const entries = await api.listDirectory(bibleDir);
-          for (const entry of entries) {
-            if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.bib') && entry.path) {
-              const fileObj = await api.readFromPath(entry.path);
-              loadedFiles.push({
-                name: entry.name,
-                path: entry.path,
-                content: fileObj?.content || ''
-              });
-            }
-          }
-        } catch (e) {
-          console.error("Desktop bible load error", e);
-        }
-      } else if (resourceFolderHandle) {
-        // Browser Resource Folder
-        try {
-          const bibleHandle = await resourceFolderHandle.getDirectoryHandle('bible', { create: true });
-          for await (const [name, handle] of bibleHandle.entries()) {
-            if (handle.kind === 'file' && name.toLowerCase().endsWith('.bib')) {
-              const file = await handle.getFile();
-              const text = await file.text();
-              loadedFiles.push({
-                name,
-                handle,
-                content: text
-              });
-            }
-          }
-        } catch (e) {
-          console.error("Browser resource folder bible load error", e);
-        }
-      }
-      setBibFiles(loadedFiles);
-    } catch (e) {
-      console.error("[loadBibFiles] Error loading bib files:", e);
-    }
-  }, [resourceFolderHandle, resourceFolder, isDrive]);
+  const loadBibFiles=useCallback(async()=>{
+    try{setBibFiles(await loadBibliographyFiles(resourceFolderHandle));}
+    catch(e:any){setBibFiles([]);showToast(e.message,'error');}
+  },[resourceFolderHandle,resourceFolder,isDrive]);
 
   const handleCreateNew = useCallback(() => {
     setSelectedFile(null);
@@ -209,7 +158,9 @@ export default function ReferenceManagerModal({
   };
 
   const handleDelete = async (file: BibFile) => {
-    if (!confirm(`'${file.name}' 파일을 삭제하시겠습니까?`)) return;
+    const used=new Set(citedKeys(currentDocument).map(k=>k.toLowerCase()));
+    const inUse=parseBibliography(file.content).entries.filter(e=>used.has(e.key.toLowerCase())).map(e=>e.key);
+    if (!confirm((inUse.length?'현재 문서에서 사용 중인 인용: '+inUse.join(', ')+'\n삭제하면 인용을 찾을 수 없게 됩니다.\n':'')+`'${file.name}' 파일을 삭제하시겠습니까?`)) return;
     setIsDeleting(true);
     try {
       const api = (window as any).electronAPI;
@@ -233,6 +184,7 @@ export default function ReferenceManagerModal({
       }
       await loadBibFiles();
       window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+        window.dispatchEvent(new CustomEvent('onrivi:bibliography-updated'));
     } catch (e: any) {
       showToast(`삭제 중 오류 발생: ${e.message}`, "error");
     } finally {
@@ -257,6 +209,12 @@ export default function ReferenceManagerModal({
       finalFileName += '.bib';
     }
 
+    const parsed=parseBibliography(content);
+    const otherKeys=new Set(bibFiles.filter(f=>f.name!==selectedFile?.name && f.name!==finalFileName).flatMap(f=>parseBibliography(f.content).entries.map(e=>e.key.toLowerCase())));
+    const duplicates=[...parsed.duplicates,...parsed.entries.filter(e=>otherKeys.has(e.key.toLowerCase())).map(e=>e.key)];
+    if(parsed.error || duplicates.length || !parsed.entries.length){showToast(parsed.error || (duplicates.length?'중복 인용키: '+duplicates.join(', '):'문헌 항목을 입력해 주세요.'),'error');return;}
+    if(!/^[^\\/]+\.bib$/i.test(finalFileName)){showToast('.bib 파일 이름을 확인해 주세요.','error');return;}
+    if(selectedFile?.name!==finalFileName && bibFiles.some(f=>f.name===finalFileName) && !confirm(`'${finalFileName}' 파일이 있습니다. 기존 내용을 바꾸시겠습니까?`))return;
     setIsSaving(true);
     try {
       const api = (window as any).electronAPI;
@@ -318,6 +276,7 @@ export default function ReferenceManagerModal({
         showToast(`'${finalFileName}' 저장 완료`, "success");
         // 파일 트리 리프레시 및 리스트 리로드
         window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+        window.dispatchEvent(new CustomEvent('onrivi:bibliography-updated'));
         await loadBibFiles();
         
         // Find and select the newly saved/updated file
@@ -439,6 +398,7 @@ export default function ReferenceManagerModal({
                 파일명 지정
               </label>
               <input
+                aria-label="참고문헌 파일명"
                 type="text"
                 value={fileName}
                 onChange={(e) => setFileName(e.target.value)}
@@ -473,11 +433,20 @@ export default function ReferenceManagerModal({
                 </button>
               </div>
               <textarea
+                aria-label="BibTeX 원문"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="@article{key,\n  title={Example Title},\n  author={Doe, John},\n  year={2026}\n}"
                 className="w-full flex-1 px-4 py-3 bg-[#F7F8F9] dark:bg-[#161616] border border-[#EFEFEF] dark:border-zinc-700 rounded-xl text-sm font-mono text-[#1F1F1F] dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/20 resize-none"
               />
+              <details className="text-sm border rounded-lg p-3">
+                <summary className="cursor-pointer font-bold">입력 폼으로 문헌 추가</summary>
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                  {Object.entries({key:'인용키 (예: kim2026)',title:'제목',author:'저자 (여러 명은 and로 구분)',year:'발행 연도',publisher:'출판사',url:'웹 주소',doi:'DOI'}).map(([field,label])=><label key={field}>{label}<input className="w-full border rounded p-2" value={entryForm[field as keyof typeof entryForm]} onChange={e=>setEntryForm(previous=>({...previous,[field]:e.target.value}))}/></label>)}
+                </div>
+                <button type="button" className="mt-2 border rounded p-2" onClick={addFormEntry}>문헌 추가</button>
+                <p>추가 후 아래 저장 버튼을 눌러 주세요.</p>
+              </details>
             </div>
           </div>
 

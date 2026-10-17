@@ -219,6 +219,14 @@ const visualParser = new MarkdownParser(visualSchema,visualTokenizer,{
 });
 export const visualSerializer = new MarkdownSerializer({
   ...defaultMarkdownSerializer.nodes,
+  text(state,node,parent,index) {
+    if(node.marks.some(mark=>mark.type.name==='code')){defaultMarkdownSerializer.nodes.text(state,node,parent,index);return;}
+    const value=node.text||'';let offset=0;
+    for(const match of Array.from(value.matchAll(new RegExp('\\[@([\\p{L}\\p{N}_:\\-.+]+)\\]','gu')))){
+      state.text(value.slice(offset,match.index));state.write(match[0]);offset=match.index!+match[0].length;
+    }
+    state.text(value.slice(offset));
+  },
   hard_break(state) { state.write('\n'); },
   bullet_list(state,node) { state.renderList(node.type.create({...node.attrs,tight:true},node.content),'  ',()=>'- '); },
   ordered_list(state,node) { const start=node.attrs.order || 1;const width=String(start+node.childCount-1).length;state.renderList(node.type.create({...node.attrs,tight:true},node.content),' '.repeat(width+2),index=>String(start+index).padStart(width,' ')+'. '); },

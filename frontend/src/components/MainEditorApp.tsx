@@ -320,6 +320,7 @@
  * =========================================================================
 */
 
+import {loadBibliographyFiles} from '@/lib/bibliographyStorage';
 import { browserAccountStorage as localStorage, browserAccountSessionStorage as sessionStorage } from '@/lib/browserAccountStorage';
 import { getResourceSettings, saveResourceSettings, requireResourceSettings, getResourceEnvironment, activateDriveAccount } from '@/lib/resourceSettings';
 import { importedCheckboxEdit } from '@/lib/importCheckboxes';
@@ -2742,109 +2743,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   //              Electron IPC(listDirectory) 직접 재귀 스캔 + fileList 트리 병렭 탐색.
   //              웹 환경: bib.handle → VFS → getApiUrl REST API 순서로 폴백 처리.
   // 🔗 @CALLS : electronAPI.listDirectory, electronAPI.readFromPath, vfsReadFile, getApiUrl
-  useEffect(() => {
-    if (!rootFolder?.name && !currentFileNode?.path) return;
-
-    const tryLoadBib = async () => {
-      const api = (window as any).electronAPI;
-      const bibPaths: { path: string; handle?: any }[] = [];
-      const seen = new Set<string>();
-
-      const addBib = (p: string, handle?: any) => {
-        const key = p.toLowerCase().replace(/\\/g, '/');
-        if (!seen.has(key)) { seen.add(key); bibPaths.push({ path: p, handle }); }
-      };
-
-      // ① Electron: listDirectory IPC로 워크스페이스 전체 재귀 탐색
-      if (api?.listDirectory && api?.readFromPath && rootFolder?.name) {
-        const scanDir = async (dirPath: string) => {
-          try {
-            const entries: any[] = await api.listDirectory(dirPath);
-            for (const entry of entries) {
-              if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.bib') && entry.path) {
-                addBib(entry.path);
-              } else if (entry.kind === 'directory' && entry.path) {
-                await scanDir(entry.path);
-              }
-            }
-          } catch { }
-        };
-        if (rootFolder?.name) await scanDir(rootFolder.name);
-        if (resourceFolder) {
-          // 리소스 폴더의 경우 전체가 아닌 bible 폴더만 한정하여 스캔
-          await scanDir(`${resourceFolder}\\bible`);
-        }
-      }
-
-      // ② fileList 트리(1단계 + 운영 중인 children) 재귀 탐색
-      const scanTree = (nodes: any[]) => {
-        nodes.forEach(n => {
-          if (n.kind === 'file' && n.name.toLowerCase().endsWith('.bib') && n.path) {
-            addBib(n.path, n.handle);
-          } else if (n.kind === 'directory' && n.children) {
-            scanTree(n.children);
-          }
-        });
-      };
-      scanTree(fileList);
-
-      // + Browser FileSystem Access API (리소스 폴더 탐색 - bible 한정)
-      if (resourceFolderHandle && !api?.listDirectory) {
-         const scanHandle = async (handle: any) => {
-           try {
-             for await (const [name, childHandle] of handle.entries()) {
-               if (childHandle.kind === 'file' && name.toLowerCase().endsWith('.bib')) {
-                 addBib(name, childHandle);
-               } else if (childHandle.kind === 'directory') {
-                 await scanHandle(childHandle);
-               }
-             }
-           } catch (e) {}
-         };
-         try {
-           const bibleHandle = await resourceFolderHandle.getDirectoryHandle('bible');
-           await scanHandle(bibleHandle);
-         } catch (e) {
-           // bible 폴더가 없으면 무시
-         }
-      }
-
-      if (bibPaths.length === 0) { setBibContent(''); return; }
-
-      // ③ 발견된 모든 .bib 파일 읽고 합치기
-      let mergedBibContent = '';
-      for (const bib of bibPaths) {
-        try {
-          if (bib.handle) {
-            // Browser FileSystem Access API (실제 폴더 선택)
-            const file = await bib.handle.getFile();
-            const text = await file.text();
-            if (text) mergedBibContent += '\n' + text;
-          } else if (api?.readFromPath) {
-            // Electron: 백슬래시 경로로 전달
-            const nativePath = bib.path.replace(/\//g, '\\');
-            const file = await api.readFromPath(nativePath);
-            if (file?.content) mergedBibContent += '\n' + file.content;
-          } else {
-            // 웹 환경: VFS 먼저 시도 → REST API 폴백
-            const { vfsReadFile: vfsRead } = await import('@/lib/virtualFileSystem');
-            const vfsContent = vfsRead(bib.path);
-            if (vfsContent) {
-              mergedBibContent += '\n' + vfsContent;
-            } else {
-              try {
-                const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(bib.path)}`));
-                if (res.ok) { const d = await res.json(); if (d?.content) mergedBibContent += '\n' + d.content; }
-              } catch { }
-            }
-          }
-        } catch { }
-      }
-      setBibContent(mergedBibContent.trim());
-    };
-    tryLoadBib();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentFileNode?.path, rootFolder?.name, fileList, workspaceType, resourceFolder, resourceFolderHandle]);
+  useEffect(()=>{
+    let disposed=false;
+    const load=async()=>{try{const files=await loadBibliographyFiles(resourceFolderHandle);if(!disposed)setBibContent(files.map(f=>f.content).join('\n'));}
+      catch(e){if(!disposed){setBibContent('');console.warn('[Bibliography]',e);}}};
+    void load();window.addEventListener('onrivi:bibliography-updated',load);
+    return()=>{disposed=true;window.removeEventListener('onrivi:bibliography-updated',load);};
+  },[workspaceType,resourceFolder,resourceFolderHandle]);
 
   // 📊 [OMD-LICENSE-MainEditorApp-POLLING]
   // 🚨 @PATCH: 2026-07-05 - 사용자 지시에 따라 무거운 백그라운드 실시간 감시(Polling) 및 강제 로그아웃 차단 로직 전면 제거.
@@ -11038,7 +10943,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                   </button>
                                 </div>
                                 {directEditEnabled && !isRestrictedUser && activeTabId && currentFileName !== '도움말.md' && !activeProfile.layout ? (
-                                  <VisualDocumentEditor key={activeTabId} documentId={activeTabId} tabSize={editorTabSize} onToast={showToast} onStyleSettings={() => setIsStyleModalOpen(true)} onSourceScroll={offset=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel() || isScrollingRef.current==='editor')return;isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);const position=editor.getModel().getPositionAt(offset);editor.setScrollTop(editor.getTopForLineNumber(position.lineNumber));}} onSourceCursor={(offset,reveal=true)=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel())return;const position=editor.getModel().getPositionAt(offset);isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);const top=editor.getScrollTop(),left=editor.getScrollLeft();editor.setPosition(position);if(reveal)editor.revealPositionInCenterIfOutsideViewport(position);else editor.setScrollPosition({scrollTop:top,scrollLeft:left});}} commandRef={visualCommandRef} customCommands={customSlashCommands} customHotkeys={customHotkeys}
+                                  <VisualDocumentEditor key={activeTabId} documentId={activeTabId} bibContent={bibContent} onCitation={()=>setIsCitationModalOpen(true)} tabSize={editorTabSize} onToast={showToast} onStyleSettings={() => setIsStyleModalOpen(true)} onSourceScroll={offset=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel() || isScrollingRef.current==='editor')return;isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);const position=editor.getModel().getPositionAt(offset);editor.setScrollTop(editor.getTopForLineNumber(position.lineNumber));}} onSourceCursor={(offset,reveal=true)=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel())return;const position=editor.getModel().getPositionAt(offset);isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);const top=editor.getScrollTop(),left=editor.getScrollLeft();editor.setPosition(position);if(reveal)editor.revealPositionInCenterIfOutsideViewport(position);else editor.setScrollPosition({scrollTop:top,scrollLeft:left});}} commandRef={visualCommandRef} customCommands={customSlashCommands} customHotkeys={customHotkeys}
                                     onDocLinkDialog={(pos, insert) => {
                                       visualDocLinkPositionRef.current = pos;
                                       visualDocLinkInsertRef.current = insert;
@@ -11096,6 +11001,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                 onMediaEdit={isRestrictedUser ? undefined : editDocumentMedia}
                                 picturebookProfile={activeProfile}
                                 picturebookEditorOptions={{documentId:activeTabId,tabSize:editorTabSize,customCommands:customSlashCommands,customHotkeys,commandRef:visualCommandRef,
+                                  bibContent,onCitation:()=>setIsCitationModalOpen(true),
                                   onAction:command=>dispatchCommand(command),
                                   floatingToolbarVisible:floatingToolbar.visible,
                                   onFloatingToolbar:(visible,position)=>{
@@ -11266,7 +11172,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               isActivated, autoClosingBrackets, setAutoClosingBrackets,
               editorFontWeight, setEditorFontWeight, editorHighContrast, setEditorHighContrast,
               geminiApiKey, setGeminiApiKey, aiModelName, setAiModelName,
-              licenseStatus, deviceId, handleSuccessActivation, handlers, content, currentFileNodeRef,
+              licenseStatus, deviceId, handleSuccessActivation, handlers, content, bibContent, activeTabId, currentFileNodeRef,
               setCurrentFileName, setCurrentFileNode, lastSavedContentRef, setSaveStatus, refreshFileList,
               showToast, editorRef, insertAtCursor, lastSelectionRef, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,
               formulaModalInitialLatex,

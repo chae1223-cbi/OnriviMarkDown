@@ -1,3 +1,5 @@
+import { rehypeBibliography } from '@/lib/bibliography';
+import BibliographySummary from '@/components/BibliographySummary';
 import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import { remarkCodeBlockMetadata } from '../lib/codeBlockMetadata';
 import { remarkKoreanStrong } from '@/lib/remarkKoreanStrong';
@@ -178,6 +180,7 @@ interface MarkdownViewerProps {
   marginLeft?: string;
   marginRight?: string;
   bibContent?: string;
+  suppressBibliography?: boolean;
   rootFolder?: any;
   resourceFolderHandle?: any;
   resourceFolder?: string;
@@ -1952,7 +1955,7 @@ const MathBlock = React.memo(function MathBlock({ code, dataLine }: { code: stri
 function MarkdownViewer({
   content, originalContent, lineMap, onCheckboxToggle, currentFilePath, rootFolderPath,
   onFileOpen, listIndent, marginTop, marginBottom, marginLeft, marginRight, bibContent, rootFolder, resourceFolderHandle, resourceFolder, workspaceType,
-  onImageLoaded, activeLine, customCss, picturebookProfile, onPicturebookChange, onMediaEdit, mediaControlsManaged
+  onImageLoaded, activeLine, customCss, picturebookProfile, onPicturebookChange, onMediaEdit, mediaControlsManaged, suppressBibliography
 }: MarkdownViewerProps) {
 
   const { showToast } = useToast();
@@ -2381,119 +2384,7 @@ function MarkdownViewer({
     };
   }, []);
 
-  const processedContent = useMemo(() => {
-    let text = bulletNumbersAsText(cleanContent);
-    if (bibContent) {
-      const entries: any[] = [];
-
-      const extractField = (body: string, field: string): string => {
-        const re = new RegExp(`\\b${field}\\s*=\\s*`, 'i');
-        const fieldMatch = re.exec(body);
-        if (!fieldMatch) return '';
-        let start = fieldMatch.index + fieldMatch[0].length;
-        if (start >= body.length) return '';
-        const ch = body[start];
-        if (ch === '{') {
-          start++;
-          let value = '';
-          let d = 1;
-          while (start < body.length && d > 0) {
-            if (body[start] === '{') d++;
-            else if (body[start] === '}') d--;
-            if (d > 0) value += body[start];
-            start++;
-          }
-          return value.trim();
-        } else if (ch === '"') {
-          start++;
-          let value = '';
-          while (start < body.length && body[start] !== '"') {
-            value += body[start];
-            start++;
-          }
-          return value.trim();
-        } else {
-          let value = '';
-          while (start < body.length && start < body.length && body[start] !== ',' && body[start] !== '}') {
-            value += body[start];
-            start++;
-          }
-          return value.trim();
-        }
-      };
-
-      const entryRegex = /@(\w+)\s*\{\s*([^,]+),/g;
-      let entryMatch;
-      while ((entryMatch = entryRegex.exec(bibContent)) !== null) {
-        const id = entryMatch[2].trim();
-        let depth = 1;
-        let i = entryMatch.index + entryMatch[0].length;
-        let body = '';
-        while (i < bibContent.length && depth > 0) {
-          const ch = bibContent[i];
-          if (ch === '{') depth++;
-          else if (ch === '}') depth--;
-          if (depth > 0) body += ch;
-          i++;
-        }
-        entryRegex.lastIndex = i + 1;
-
-        const title = extractField(body, 'title');
-        const author = extractField(body, 'author');
-        const year = extractField(body, 'year');
-        const journal = extractField(body, 'journal');
-
-        entries.push({ id, title, author, year, journal });
-      }
-
-      const entryMap = new Map<string, any>();
-      entries.forEach(e => entryMap.set(e.id.toLowerCase(), e));
-
-      const usedIds = new Set<string>();
-
-      const citationSpan = (id: string, lowerId: string) =>
-        `<span class="citation bg-blue-50  text-blue-600  px-1.5 py-0.5 rounded text-[0.9em] mx-1 shadow-sm border border-blue-200 "><a href="#bib-${lowerId}" style="text-decoration: none; color: inherit;">${id}</a></span>`;
-
-      text = text.replace(/\[@([a-zA-Z0-9_:\-.+]+)\]/g, (m, id) => {
-        const lower = id.toLowerCase();
-        if (!entryMap.has(lower)) return m;
-        usedIds.add(lower);
-        return citationSpan(id, lower);
-      });
-      text = text.replace(/(?<!\[)@([a-zA-Z0-9_:\-.+]+)/g, (m, id) => {
-        const lower = id.toLowerCase();
-        if (!entryMap.has(lower)) return m;
-        usedIds.add(lower);
-        return citationSpan(id, lower);
-      });
-
-      let usedEntries = entries.filter(entry => usedIds.has(entry.id.toLowerCase()));
-
-      usedEntries.sort((a: any, b: any) => {
-        const aKey = (a.author || a.id).toLowerCase();
-        const bKey = (b.author || b.id).toLowerCase();
-        return aKey.localeCompare(bKey);
-      });
-
-      if (usedEntries.length > 0) {
-        let bibHtml = `\n\n---\n\n<div id="refs" class="references csl-bib-body mt-8 mb-8 break-words">\n  <h2 class="text-2xl font-bold mb-4 border-b pb-2">참고문헌 (References)</h2>\n`;
-        usedEntries.forEach(entry => {
-          bibHtml += `  <div class="csl-entry mb-4 pl-4 -indent-4" id="bib-${entry.id.toLowerCase()}">\n`;
-          let display = '';
-          if (entry.author) display += `<strong>${entry.author}</strong> `;
-          if (entry.year) display += `(${entry.year}). `;
-          if (entry.title) display += `<em>${entry.title}</em>. `;
-          if (entry.journal) display += `${entry.journal}. `;
-          if (!display) display = entry.id;
-          
-          bibHtml += `    ${display}\n  </div>\n`;
-        });
-        bibHtml += `</div>\n`;
-        text += bibHtml;
-      }
-    }
-    return text;
-  }, [cleanContent, bibContent]);
+  const processedContent = useMemo(() => bulletNumbersAsText(cleanContent), [cleanContent]);
 
   return (
     <div
@@ -2742,6 +2633,7 @@ function MarkdownViewer({
             rehypeHighlight,
             rehypeSourceLinesPlugin,
             rehypePreserveFootnotes,
+            [rehypeBibliography, {content:bibContent || '',suppressList:suppressBibliography}],
           ]}
           remarkRehypeOptions={{ handlers: extendedTableHandlers }}
           components={useMemo(() => ({
@@ -3926,7 +3818,7 @@ function LayoutAwareViewer(props: MarkdownViewerProps) {
     return <div className="p-6 text-sm text-slate-500" role="status">그림책 서식을 불러오는 중입니다. 계속 표시되면 리소스 폴더의 서식 연결을 확인해 주세요.</div>;
   }
   if (props.picturebookProfile?.layout?.type !== 'picturebook') return <MarkdownViewer {...props} />;
-  return <PicturebookPreview content={body.replace(/\r\n/g, '\n')} profile={props.picturebookProfile}
+  return <><PicturebookPreview content={body.replace(/\r\n/g, '\n')} profile={props.picturebookProfile}
     onImageEdit={props.onPicturebookImageEdit}
     editorOptions={props.onPicturebookChange ? props.picturebookEditorOptions : undefined}
     sourceLineOffset={(original.slice(0, original.length-body.length).match(/\n/g) || []).length}
@@ -3934,7 +3826,8 @@ function LayoutAwareViewer(props: MarkdownViewerProps) {
     fingerprint={exportContentFingerprint(original)}
     renderMarkdown={part => <MarkdownViewer {...props} content={part} originalContent={undefined}
       lineMap={undefined}
-      picturebookProfile={undefined} onPicturebookChange={undefined} onCheckboxToggle={undefined} bibContent={undefined} />} />;
+      picturebookProfile={undefined} onPicturebookChange={undefined} onCheckboxToggle={undefined} suppressBibliography />} />
+    <BibliographySummary source={original} content={props.bibContent||''}/></>;
 }
 
 export default React.memo(LayoutAwareViewer);

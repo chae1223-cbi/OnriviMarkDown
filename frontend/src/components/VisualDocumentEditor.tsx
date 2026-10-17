@@ -147,6 +147,8 @@ import VisualReadOnlyMarkdownBlock from '@/components/VisualReadOnlyMarkdownBloc
 import { EditorState, Selection, TextSelection, NodeSelection, Command, Plugin, PluginKey } from 'prosemirror-state';
 import { EditorView, Decoration, DecorationSet } from 'prosemirror-view';
 import { mediaDetails, copyMediaSource, copyImageToClipboard, type MediaKind } from '@/lib/mediaMarkup';
+import BibliographySummary from '@/components/BibliographySummary';
+import {parseBibliography,citationPattern,citationLabel} from '@/lib/bibliography';
 import { desktopClipboardImage } from '@/lib/desktopClipboard';
 import { markdownPasteTransaction } from '@/lib/visualMarkdownPaste';
 import { baseKeymap, chainCommands, exitCode, lift, setBlockType, toggleMark, wrapIn } from 'prosemirror-commands';
@@ -465,7 +467,6 @@ const makeChecklist=selectedList('check');
 const indentDocument = (backward=false): Command => (state,dispatch,currentView) => {
   const {$from,from,to}=state.selection;
   for(let depth=$from.depth;depth>0;depth--)if($from.node(depth).type===visualSchema.nodes.list_item){
-    if($from.parentOffset>0 && $from.parentOffset<$from.parent.content.size)break;
     if(backward)return true;
     const listDepth=depth-1,list=$from.node(listDepth),container=$from.node(listDepth-1),index=$from.index(listDepth-1);
     if($from.index(listDepth)!==0 || index===0)return true;
@@ -689,9 +690,40 @@ type Props = { content: string; onChange: (markdown: string) => void; readOnly?:
   onSourceAction?: (id: string, source: string, from: number, to: number) => void;
   onToast?: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   onStyleSettings?: () => void;
+  onCitation?: () => void;
+  bibContent?: string;
+  showBibliography?: boolean;
 };
 
-export default function VisualDocumentEditor({ content, onChange, readOnly = false, tabSize=4, onSourceScroll, onSourceCursor, documentId, commandRef, customCommands = {}, customHotkeys = {}, onSourceAction, onFloatingToolbar, floatingToolbarVisible, renderImage, onImageFile, onImageDialog, onMediaDialog, onDocLinkDialog, onFormulaDialog, currentFilePath, onFileOpen, onToast, onStyleSettings }: Props) {
+export default function VisualDocumentEditor({ content, onChange, readOnly = false, tabSize=4, onSourceScroll, onSourceCursor, documentId, commandRef, customCommands = {}, customHotkeys = {}, onSourceAction, onFloatingToolbar, floatingToolbarVisible, renderImage, onImageFile, onImageDialog, onMediaDialog, onDocLinkDialog, onFormulaDialog, currentFilePath, onFileOpen, onToast, onStyleSettings, onCitation, bibContent='', showBibliography=true }: Props) {
+  const citationEntries=React.useMemo(()=>{
+    const parsed=parseBibliography(bibContent);
+    return new Map(parsed.entries.filter(e=>!parsed.duplicates.some(k=>k.toLowerCase()===e.key.toLowerCase())).map(e=>[e.key.toLowerCase(),e]));
+  },[bibContent]);
+  const bibRef=useRef(citationEntries);bibRef.current=citationEntries;
+  const citationCallback=useRef(onCitation);citationCallback.current=onCitation;
+  const pendingCitation=useRef<{doc:import('prosemirror-model').Node; selection:Selection}|null>(null);
+  const openCitation=(removeSlash=false)=>{
+    const view=viewRef.current;if(!view || !view.editable)return;
+    if(removeSlash && slashRange.current){const range=slashRange.current;view.dispatch(view.state.tr.delete(range.from,range.to));slashRange.current=null;setSlash(false);}
+    pendingCitation.current={doc:view.state.doc,selection:view.state.selection};citationCallback.current?.();
+  };
+  useEffect(()=>{
+    const insert=(event:Event)=>{
+      const pending=pendingCitation.current,view=viewRef.current;
+      if(!pending || !view)return;
+      event.preventDefault();pendingCitation.current=null;
+      if(view.state.doc!==pending.doc || !view.editable){onToastRef.current?.('문서가 변경되었습니다. 인용을 다시 선택해 주세요.','warning');return;}
+      const key=(event as CustomEvent).detail?.key;
+      if(typeof key!=='string'||!key||/[\]\r\n]/.test(key))return;
+      view.dispatch(closeHistory(view.state.tr.setSelection(pending.selection).insertText(`[@${key}]`)).scrollIntoView());view.focus();
+    };
+    window.addEventListener('onrivi:insert-citation',insert);
+    const cancel=()=>{pendingCitation.current=null;};
+    window.addEventListener('onrivi:cancel-citation',cancel);
+    return()=>{window.removeEventListener('onrivi:insert-citation',insert);window.removeEventListener('onrivi:cancel-citation',cancel);};
+  },[]);
+  useEffect(()=>{const view=viewRef.current;if(view)view.dispatch(view.state.tr.setMeta('onrivi:bibliography',true));},[bibContent]);
   const cursorFrame=useRef(0);
   useEffect(()=>()=>cancelAnimationFrame(cursorFrame.current),[]);
   const cursorCallback=useRef(onSourceCursor);cursorCallback.current=onSourceCursor;
@@ -1345,6 +1377,12 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     });
 
     const view = new EditorView(hostEl, {
+      decorations(state){
+        const entries=bibRef.current;const decorations:Decoration[]=[];
+        state.doc.descendants((node,pos)=>{if(!node.isText || node.marks.some(m=>m.type.name==='code') || state.doc.resolve(pos).parent.type.name==='code_block')return;
+          for(const match of Array.from((node.text||'').matchAll(citationPattern))){const key=match[1]||match[2],entry=entries.get(key.toLowerCase());decorations.push(Decoration.inline(pos+match.index!,pos+match.index!+match[0].length,{class:entry?'visual-citation':'visual-citation-missing',title:entry?citationLabel(entry)+': '+entry.title:'등록된 문헌 없음: '+key}));}
+        });return DecorationSet.create(state.doc,decorations);
+      },
       state: cached?.source === content ? cached.state : EditorState.create({ doc: codec.doc, plugins: [history(), visualMarkdownInputRules(), createFootnoteHeaderPlugin(), keymap({
         'Mod-z': undo, 'Mod-y': redo, 'Mod-Shift-z': redo,
         ArrowUp: moveUpFromEmptyOrderedItem,
@@ -2086,7 +2124,9 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         if(event.key==='Tab' || event.key==='Backspace')synchronizeTextSelection(currentView);
         if(event.key==='Tab'){
           const position=currentView.state.selection.$from;
-          if(!tableContext(currentView.state) && position.parent.isTextblock && position.parentOffset>0 && position.parentOffset<position.parent.content.size){
+          let inList=false;
+          for(let depth=position.depth;depth>0;depth--)if(position.node(depth).type===visualSchema.nodes.list_item){inList=true;break;}
+          if(!inList && currentView.state.selection.empty && !tableContext(currentView.state) && position.parent.isTextblock && position.parentOffset>0 && position.parentOffset<position.parent.content.size){
             event.preventDefault();return indentDocument(event.shiftKey)(currentView.state,currentView.dispatch,currentView);
           }
         }
@@ -2734,7 +2774,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     divider: blockCommands[blockCommands.length - 1][1], undo, redo,
     math: () => { executeItem('math'); return true; }, latex: () => { executeItem('math'); return true; },
     footnote: () => { insertFootnote(); return true; }, fn: () => { insertFootnote(); return true; },
-    citation: () => { insertFootnote(); return true; }, cite: () => { insertFootnote(); return true; },
+    citation: () => { openCitation(); return true; }, cite: () => { openCitation(); return true; },
   };
   for (let level = 1; level <= 6; level++) nativeCommands[`h${level}`] = setHeadingBlock(level);
   const insertFootnote = (removeSlash = false) => {
@@ -2861,7 +2901,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   const executeItem = (id: string, removeSlash = false) => {
     const view = viewRef.current;
     if (!view || readOnly) return;
-    if (['footnote', 'fn', 'citation', 'cite'].includes(id)) {
+    if (['citation','cite'].includes(id)){openCitation(removeSlash);return;}
+    if (['footnote', 'fn'].includes(id)) {
       insertFootnote(removeSlash);
       return;
     }
@@ -3032,7 +3073,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       NOW: () => { openDatePickerRef.current(); return true; }, CALENDAR: () => { openDatePickerRef.current(); return true; },
       MATH: () => { executeItemRef.current('math'); return true; }, LATEX: () => { executeItemRef.current('math'); return true; },
       FOOTNOTE: () => { insertFootnoteRef.current?.(); return true; }, FN: () => { insertFootnoteRef.current?.(); return true; },
-      CITATION: () => { insertFootnoteRef.current?.(); return true; }, CITE: () => { insertFootnoteRef.current?.(); return true; },
+      CITATION: () => { openCitation(); return true; }, CITE: () => { openCitation(); return true; },
       TOGGLE_CSS_STYLE: () => { onStyleSettingsRef.current?.(); return true; },
       ORGANIZE_FOOTNOTES: () => {
         if (!viewRef.current || readOnly || !codecRef.current) return true;
@@ -3134,7 +3175,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       }
       if (command === 'FOCUS') { viewRef.current?.focus(); return true; }
       if (commands[command]) { run(commands[command]); return true; }
-      const aliases: Record<string, string> = { HR:'divider', CHECK:'checklist', CHECKLIST:'checklist', CITE:'footnote', CITATION:'footnote', FOOTNOTE:'footnote', FN:'footnote', DOCLINK:'taglink',
+      const aliases: Record<string, string> = { HR:'divider', CHECK:'checklist', CHECKLIST:'checklist', CITE:'citation', CITATION:'citation', FOOTNOTE:'footnote', FN:'footnote', DOCLINK:'taglink',
         NOW:'now', CALENDAR:'now',
         VIDEO:'youtube', YOUTUBE:'youtube', ADD_REFERENCE:'add_reference', TOGGLE_CSS_STYLE:'styleSettings', AI_DRAFT:'aiHelp', CODE:'codeblock', LATEX:'math', MATH:'math' };
       const item = TOOLBAR_ITEMS.find(tool => tool.id === aliases[command] || tool.id.replace(/([A-Z])/g, '_$1').toUpperCase() === command);
@@ -3283,12 +3324,15 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       {!filtered.length && <span className="p-2 text-sm text-zinc-500">No commands</span>}
     </div>, document.body)}
     <div ref={host} />
+    {showBibliography&&<BibliographySummary source={content} content={bibContent}/>}
     {imageMounts.map(item => createPortal(renderImage?.(item.source) || <VisualReadOnlyMarkdownBlock source={item.source} />, item.element, String(item.id)))}
     <style>{`
       .custom-preview-container:has(.visual-document-editor) { overflow-anchor:none!important; scroll-behavior:auto!important; }
       .visual-document-surface { caret-color:transparent; outline:none; min-height:360px; padding:28px; white-space:pre-wrap; overflow-wrap:anywhere; color:inherit; background:inherit; font-family:inherit; font-size:inherit; line-height:1.75; }
       .visual-document-surface > :first-child { margin-top:0!important; }
       .visual-document-surface a { color:#1d4ed8; text-decoration:underline; cursor:pointer; }
+      .visual-citation { color:#1d4ed8; background:#eff6ff; border-radius:3px; }
+      .visual-citation-missing { color:#b91c1c; text-decoration:underline wavy; }
       .visual-document-surface a:hover { color:#1e40af; text-decoration:underline; }
       .custom-preview-container .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div),
       .onrivi-content-root .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div),

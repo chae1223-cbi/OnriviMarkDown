@@ -18,6 +18,8 @@ export interface PicturebookEditorOptions {
   floatingToolbarVisible?: boolean;
   onFloatingToolbar?: (visible:boolean,position:{top:number,left:number})=>void;
   onAction?: (command:string)=>void;
+  onCitation?: () => void;
+  bibContent?: string;
 }
 
 /** Keep the browser's IME buffer intact; parsed scene text is not a live value. */
