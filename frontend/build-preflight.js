@@ -1,4 +1,5 @@
 const { execFileSync } = require('child_process');
+require('./prepare-pagedjs.cjs');
 
 // 두 빌더는 소스 라우트를 임시 이동하므로 개발 서버와 동시에 실행할 수 없다.
 module.exports = function assertDevServerStopped() {

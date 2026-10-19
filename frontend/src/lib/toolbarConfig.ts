@@ -28,6 +28,7 @@ export const TOOLBAR_ITEMS = [
 
   // 3. 목록 및 문단 (List & Paragraph)
   { id: 'divider', icon: '—', name: '구분선', group: '목록', tagFormat: '---', defaultHotkey: 'Ctrl+Alt+-', defaultCommand: 'hr', insertText: '\n---\n', kind: 15 },
+  { id: 'pagebreak', icon: '↡', name: '페이지 나누기', group: '목록', tagFormat: '<!-- onrivi:page-break -->', defaultHotkey: '', defaultCommand: 'pagebreak', insertText: '\n\n<!-- onrivi:page-break -->\n\n', kind: 15 },
   { id: 'orderedList', icon: '1.', name: '숫자 목록', group: '목록', tagFormat: '1. ', defaultHotkey: 'Ctrl+Shift+7', defaultCommand: 'ol', insertText: '1. ', kind: 17 },
   { id: 'list', icon: '☰', name: '글머리 기호', group: '목록', tagFormat: '- ', defaultHotkey: 'Ctrl+Shift+8', defaultCommand: 'ul', insertText: '- ', kind: 17 },
   { id: 'quote', icon: '❝', name: '인용구(기본)', group: '목록', tagFormat: '> ', defaultHotkey: 'Ctrl+Q', defaultCommand: 'quote', insertText: '> \n\n', kind: 17 },
@@ -120,7 +121,7 @@ export const SLASH_ALIASES: Record<string, string[]> = {
   bold: ['굵게', '강조'], italic: ['기울임'], inlineCode: ['인라인코드'],
   underline: ['밑줄'], strikethrough: ['취소선'], footnote: ['각주'],
   citation: ['인용문헌'], h1: ['제목1'], h2: ['제목2'], h3: ['제목3'],
-  h4: ['제목4'], h5: ['제목5'], h6: ['제목6'], divider: ['구분선'],
+  h4: ['제목4'], h5: ['제목5'], h6: ['제목6'], divider: ['구분선'],pagebreak:['페이지나누기','페이지 나누기','쪽나누기'],
   orderedList: ['숫자목록'], list: ['글머리목록'],
   quote: ['인용'], quoteNote: ['참고', '노트'], quoteTip: ['팁'],
   quoteImportant: ['중요'], quoteWarning: ['주의'], quoteCaution: ['경고'],

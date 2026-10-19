@@ -11,7 +11,7 @@ export function activateBrowserAccount(userId: string | null) {
 export const getBrowserAccountScope = () => account;
 export const browserAccountDatabaseName = () => account ? `onrivi-author-db:account:${account}` : 'onrivi-author-db';
 
-const exactKeys = new Set(['rootFolder', 'workspaceType', 'resourceFolder', 'activeCssProfileId', 'onrivi_settings', 'onrivi_last_local_root_folder']);
+const exactKeys = new Set(['rootFolder', 'workspaceType', 'resourceFolder', 'activeCssProfileId', 'onrivi_settings', 'onrivi_last_local_root_folder','onrivi_default_watermark_settings']);
 export function isAccountStorageKey(key: string) {
   return key.startsWith('vfs:') || exactKeys.has(key) || /^onrivi_(?:.*workspace|.*resource|gdrive_|active_drive_account|drive_account_settings|saved_drive_accounts|emergency_gdrive_drafts|cached_drive_profiles|tabs_|content$|vfs_|.*draft|.*backup|recent_|web_base_path)/.test(key);
 }

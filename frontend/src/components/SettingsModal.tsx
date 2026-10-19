@@ -1,5 +1,6 @@
 // ====================================================================
 // 📊 [OMD-EDIT-SettingsModal-0006 ✅ FIXED] SettingsModal.tsx ➔ SettingsModal
+// 🚨 @PATCH : **2026-10-19** — [환경설정 일반설정에 기본 워터마크(위치/문구/이미지/진하기/회전/너비/첫페이지제외) 설정 UI 신설]: PDF 및 EPUB 내보내기 시 적용할 기본 워터마크 조판 컨트롤 및 실시간 스토리지 동기화 구현
 // 🚨 @PATCH : **2026-09-25** — [에디터 글꼴 크기(Font Size) 조절 UI 신설 및 가독성 개선]: 13px~22px 단계별 폰트 크기 선택 셀렉트박스를 신설하여 작은 글씨로 인한 눈 피로 완전 해소
 // 🚨 @PATCH : **2026-09-25** — [에디터 글꼴 굵기 SemiBold(600) 옵션 추가]: 500(Medium)과 700(Bold) 사이 '더 선명하게 (600 - SemiBold)' 옵션을 신설하여 D2Coding 및 고해상도 모니터 가독성 선택지 극대화
 // 🚨 @PATCH : **2026-09-23** — [에디터 글꼴 굵기(Font Weight) 및 고대비 텍스트(High Contrast) 설정 UI 탑재]: 난반사 및 어두운 환경에서 텍스트 흐림 방지를 위한 획 굵기(보통/선명하게/굵게) 조절 선택 및 고대비 모드 토글 연동
@@ -26,7 +27,9 @@
 "use client";
 
 import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { saveResourceMedia } from '@/lib/resourceMedia';
+import { listWatermarkResources,watermarkResourceIdentity,watermarkReferenceKey,validateWatermarkImage,WatermarkResource } from '@/lib/watermarkResources';
 import { useToast } from '@/components/ToastProvider';
 import { createPortal } from 'react-dom';
 import { ResourceFolderLocation } from '@/components/ResourceFolderLocation';
@@ -36,6 +39,7 @@ import { TOOLBAR_ITEMS, getDefaultHotkeys, getDefaultCommands } from '@/lib/tool
 import { testGeminiConnection, ONRIVI_AI_MODELS, getCachedAIModels, fetchGoogleAIStudioModels, normalizeAIModelName, OnriviAIModelItem } from '@/lib/gemini';
 import { supabase } from '@/lib/supabaseClient';
 import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
+import { getDefaultWatermarkSettings, saveDefaultWatermarkSettings, DocumentPrintSettings, WatermarkPosition, DEFAULT_WATERMARK_IMAGE, DEFAULT_WATERMARK_TEXT } from '@/lib/documentPrintSettings';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -43,6 +47,8 @@ interface SettingsModalProps {
   isDarkMode: boolean;
   setIsDarkMode: (v: boolean) => void;
   editorTabSize?: number;
+  spellCheck?: boolean;
+  setSpellCheck?: (value:boolean)=>void;
   setEditorTabSize?: (value:number)=>void;
   fontSize: number;
   setFontSize: (v: number) => void;
@@ -91,6 +97,7 @@ interface SettingsModalProps {
 export default function SettingsModal({
   isOpen, onClose, isDarkMode, setIsDarkMode,
   fontSize, setFontSize, editorTabSize=4, setEditorTabSize, wordWrap, setWordWrap,
+  spellCheck=false, setSpellCheck,
   autoSave, setAutoSave,
   previewMode, setPreviewMode,
   customHotkeys, setCustomHotkeys,
@@ -113,6 +120,64 @@ export default function SettingsModal({
   const [closing, setClosing] = useState(false);
   const [activeTab, setActiveTab] = useState<'general' | 'hotkeys' | 'account'>('general');
   const [availableAIModels, setAvailableAIModels] = useState<OnriviAIModelItem[]>(() => getCachedAIModels());
+
+  // 🌟 [기본 워터마크 설정 상태]
+  const [watermarkSettings, setWatermarkSettings] = useState<DocumentPrintSettings>(() => getDefaultWatermarkSettings());
+  const [watermarkResources,setWatermarkResources]=useState<WatermarkResource[]>([]),[watermarkBusy,setWatermarkBusy]=useState(false),[watermarkResourceError,setWatermarkResourceError]=useState(''),[watermarkPreview,setWatermarkPreview]=useState('');
+  const watermarkGeneration=useRef(0),settingsOpen=useRef(isOpen);settingsOpen.current=isOpen;
+  const reloadWatermarkResources=useCallback(async()=>{
+    const generation=++watermarkGeneration.current;
+    try{const entries=await listWatermarkResources();if(settingsOpen.current&&generation===watermarkGeneration.current){setWatermarkResources(entries);setWatermarkResourceError('');}}
+    catch(error:any){if(settingsOpen.current&&generation===watermarkGeneration.current){setWatermarkResources([]);setWatermarkResourceError(error.message);}}
+  },[]);
+  useEffect(()=>{
+    if(!isOpen)return;
+    void reloadWatermarkResources();
+    const refresh=()=>{void reloadWatermarkResources();};
+    window.addEventListener('onrivi:resource_folder_changed',refresh);window.addEventListener('onrivi:media-updated',refresh);
+    return()=>{watermarkGeneration.current++;window.removeEventListener('onrivi:resource_folder_changed',refresh);window.removeEventListener('onrivi:media-updated',refresh);};
+  },[isOpen,reloadWatermarkResources]);
+  useEffect(()=>{
+    let disposed=false,url='';setWatermarkPreview('');
+    if(!isOpen)return;
+    if(watermarkSettings.image.startsWith('data:')){setWatermarkPreview(watermarkSettings.image);return;}
+    const entry=watermarkResources.find(file=>watermarkReferenceKey(file.reference)===watermarkReferenceKey(watermarkSettings.image));
+    if(entry)void entry.read().then(blob=>{if(!disposed){url=URL.createObjectURL(blob);setWatermarkPreview(url);}}).catch(()=>{});
+    return()=>{disposed=true;if(url)URL.revokeObjectURL(url);};
+  },[isOpen,watermarkSettings.image,watermarkResources]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setWatermarkSettings(getDefaultWatermarkSettings());
+    }
+  }, [isOpen]);
+
+  const handleWatermarkImageUpload = async (file?: File) => {
+    if (!file) return;
+    setWatermarkBusy(true);
+    try {
+      const resource=watermarkResourceIdentity();
+      await validateWatermarkImage(file);
+      const reference=await saveResourceMedia(file,`watermark_${Date.now()}_${file.name}`);
+      if(!settingsOpen.current||watermarkResourceIdentity()!==resource)return;
+      setWatermarkSettings(previous=>({...previous,image:reference,imageResource:resource,kind:'image',rotation:0}));
+      await reloadWatermarkResources();showToast('리소스 폴더의 media에 워터마크 이미지를 저장했습니다.','success');
+    } catch (err: any) {
+      showToast('이미지 처리 실패: ' + (err?.message || '오류'), 'error');
+    }finally{setWatermarkBusy(false);}
+  };
+
+  const handleRemoveWatermarkImage = () => {
+    setWatermarkSettings(prev => ({ ...prev, image: DEFAULT_WATERMARK_IMAGE, imageResource:undefined,kind: 'image' }));
+    showToast('기본 온리비 어서 엠블럼으로 초기화되었습니다.', 'info');
+  };
+  const chooseWatermarkResource=async(key:string)=>{
+    const item=watermarkResources.find(file=>watermarkReferenceKey(file.reference)===key);if(!item)return;
+    setWatermarkBusy(true);
+    try{const resource=watermarkResourceIdentity();await validateWatermarkImage(await item.read());
+      if(settingsOpen.current&&resource===watermarkResourceIdentity())setWatermarkSettings(previous=>({...previous,image:item.reference,imageResource:resource,kind:'image',rotation:0}));
+    }catch(error:any){showToast(error.message,'error');}finally{setWatermarkBusy(false);}
+  };
 
   // 구글 AI 스튜디오 적용 공식 모델 목록 실시간 동적 동기화
   useEffect(() => {
@@ -488,7 +553,25 @@ export default function SettingsModal({
 
               <button
                 type="button"
-                onClick={() => {
+                disabled={watermarkBusy}
+                onClick={async () => {
+                  let committedWatermark=watermarkSettings;
+                  if(watermarkSettings.enabled&&watermarkSettings.kind==='image'){
+                    setWatermarkBusy(true);
+                    try{
+                      const resource=watermarkResourceIdentity();
+                      if(watermarkSettings.image.startsWith('data:')){
+                        const blob=await(await fetch(watermarkSettings.image)).blob();await validateWatermarkImage(blob);
+                        const extension=blob.type==='image/jpeg'?'jpg':blob.type==='image/webp'?'webp':'png';
+                        const reference=await saveResourceMedia(blob,`watermark_${Date.now()}.${extension}`);
+                        if(resource!==watermarkResourceIdentity())throw Error('리소스 폴더가 변경되었습니다. 이미지를 다시 선택해 주세요.');
+                        committedWatermark={...watermarkSettings,image:reference,imageResource:resource};
+                        setWatermarkSettings(committedWatermark);
+                      }else if(watermarkSettings.imageResource&&watermarkSettings.imageResource!==resource){
+                        throw Error('현재 리소스 폴더의 워터마크 이미지를 다시 선택해 주세요.');
+                      }
+                    }catch(error:any){showToast(error.message,'error');return;}finally{setWatermarkBusy(false);}
+                  }
                   const rawKey = (geminiApiKey || '').trim();
                   const cleanKey = rawKey.startsWith('U2FsdGVkX1')
                     ? ((loadSecureData<string>('onrivi_gemini_api_key') || loadSecureData<string>('geminiApiKey') || '').trim())
@@ -533,6 +616,12 @@ export default function SettingsModal({
                         if (currentRaw) api.saveSettings(JSON.parse(currentRaw));
                       }
                     } catch {}
+
+                  // 🌟 [기본 워터마크 영구 저장]
+                  saveDefaultWatermarkSettings(committedWatermark);
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('onrivi:watermark_changed', { detail: committedWatermark }));
+                  }
 
                   // 🌟 [별명 저장 연동] 사용자가 계정 관리에서 입력/수정한 별명을 100% 즉시 반영 및 저장!
                   const cleanNick = editNickName.trim();
@@ -610,6 +699,8 @@ export default function SettingsModal({
                   }
                 />
 
+                <SettingRow icon={<Icon name="TypeIcon" size={18} />} title="자동 맞춤법 밑줄" description="문서보기에서 브라우저 기본 검사의 빨간 밑줄을 표시합니다. 제품명·전문용어는 잘못 표시될 수 있으며 글은 자동으로 고치지 않습니다."
+                  control={<ToggleSwitch active={spellCheck} onChange={()=>setSpellCheck?.(!spellCheck)} />} />
                 <SettingRow icon={<Icon name="TypeIcon" size={18} />} title="탭 간격" description="문서 보기와 나란히 보기에서 Tab 입력 시 사용할 공백 칸 수입니다."
                   control={<select aria-label="탭 간격" value={editorTabSize} onChange={event=>setEditorTabSize?.(Number(event.target.value))} className="rounded-lg border px-4 py-2">
                     {[1,2,3,4,6,8,12,16].map(size=><option key={size} value={size}>{size}칸</option>)}
@@ -803,6 +894,243 @@ export default function SettingsModal({
                     </div>
                   </div>
                 </div>
+              
+
+              </div>
+
+              {/* 기본 워터마크 설정 그룹 */}
+              <div className="space-y-6">
+                <div className="flex items-center justify-between border-b pb-2 border-outline-variant/20 dark:border-white/10">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-serif text-[20px] font-semibold text-on-surface">기본 워터마크 (Watermark)</h3>
+                    <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-md bg-[#1d4ed8]/10 text-[#1d4ed8] dark:text-blue-400">
+                      PDF · EPUB 공통 적용
+                    </span>
+                  </div>
+                </div>
+
+                <SettingRow 
+                  icon={<Icon name="TypeIcon" size={18} />}
+                  title="워터마크 기본 적용"
+                  description="문서 내보내기(PDF/인쇄 및 EPUB 전자책) 시 기본으로 워터마크를 적용합니다. (문서별 설정이 없을 때 사용)"
+                  control={
+                    <ToggleSwitch 
+                      active={watermarkSettings.enabled} 
+                      onChange={() => setWatermarkSettings(prev => ({ ...prev, enabled: !prev.enabled }))} 
+                    />
+                  }
+                />
+
+                {watermarkSettings.enabled && (
+                  <div className={`p-6 rounded-2xl border space-y-5 ${isDarkMode ? 'bg-zinc-800/50 border-white/10' : 'bg-surface-container-low/50 border-outline-variant/20'}`}>
+                    {/* 워터마크 종류 선택 */}
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <label className="block text-[14px] font-semibold text-on-surface mb-0.5">워터마크 종류</label>
+                        <p className="text-[12px] text-on-surface-variant">표시할 워터마크 형태(문자 문구 또는 로고 이미지)를 선택합니다.</p>
+                      </div>
+                      <div className="flex rounded-xl p-1 bg-black/5 dark:bg-white/10 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setWatermarkSettings(prev => ({ ...prev, kind: 'text' }))}
+                          className={`px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all cursor-pointer ${
+                            watermarkSettings.kind === 'text'
+                              ? 'bg-white dark:bg-zinc-800 text-[#1d4ed8] dark:text-blue-400 shadow-xs'
+                              : 'text-on-surface-variant hover:text-on-surface'
+                          }`}
+                        >
+                          문자
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWatermarkSettings(prev => ({ ...prev, kind: 'image' }))}
+                          className={`px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all cursor-pointer ${
+                            watermarkSettings.kind === 'image'
+                              ? 'bg-white dark:bg-zinc-800 text-[#1d4ed8] dark:text-blue-400 shadow-xs'
+                              : 'text-on-surface-variant hover:text-on-surface'
+                          }`}
+                        >
+                          이미지
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 문자 워터마크 입력 */}
+                    {watermarkSettings.kind === 'text' ? (
+                      <div className="space-y-4 pt-2 border-t border-outline-variant/15 dark:border-white/5">
+                        <div>
+                          <label className="block text-[14px] font-semibold text-on-surface mb-1">워터마크 문구</label>
+                          <input
+                            type="text"
+                            maxLength={200}
+                            placeholder="워터마크 문구를 입력하세요 (기본값: Onrivi Author)"
+                            value={watermarkSettings.text}
+                            onChange={(e) => setWatermarkSettings(prev => ({ ...prev, text: e.target.value }))}
+                            className={`w-full px-4 py-2.5 rounded-xl text-[14px] font-semibold outline-none border transition-all ${
+                              isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white focus:border-[#1d4ed8]' : 'bg-white border-[#E0DED7] text-slate-900 focus:border-[#1d4ed8]'
+                            }`}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <label className="block text-[14px] font-semibold text-on-surface mb-0.5">글자 크기 (Font Size)</label>
+                            <p className="text-[12px] text-on-surface-variant">워터마크 글자의 크기를 지정합니다. (8px ~ 160px)</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <input
+                              type="number"
+                              min={8}
+                              max={160}
+                              value={watermarkSettings.fontSize}
+                              onChange={(e) => setWatermarkSettings(prev => ({ ...prev, fontSize: Math.max(8, Math.min(160, Number(e.target.value) || 48)) }))}
+                              className={`w-24 px-3 py-1.5 text-right rounded-lg text-[13px] font-bold border outline-none ${
+                                isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white' : 'bg-white border-zinc-300 text-zinc-900'
+                              }`}
+                            />
+                            <span className="text-[13px] text-on-surface-variant font-medium">px</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* 이미지 워터마크 업로드 */
+                      <div className="space-y-4 pt-2 border-t border-outline-variant/15 dark:border-white/5">
+                        <div>
+                          <label className="block text-[14px] font-semibold text-on-surface mb-1">워터마크 이미지 (로고·서명 등)</label>
+                          <p className="text-[12px] text-on-surface-variant mb-3">현재 리소스 폴더의 media 이미지에서 선택합니다. 새 이미지와 기본 엠블럼도 설정 저장 시 이 폴더에서 관리합니다.</p>
+                          <div className="mb-3 flex flex-wrap gap-2">
+                            <select aria-label="리소스 워터마크 이미지" disabled={watermarkBusy} className="min-w-0 max-w-full rounded border bg-white p-2 text-black"
+                              value={watermarkResources.some(file=>watermarkReferenceKey(file.reference)===watermarkReferenceKey(watermarkSettings.image))?watermarkReferenceKey(watermarkSettings.image):''}
+                              onChange={e=>{void chooseWatermarkResource(e.target.value);}}>
+                              <option value="">리소스 이미지 선택</option>{watermarkResources.map(file=><option key={file.reference} value={watermarkReferenceKey(file.reference)}>{file.name}</option>)}
+                            </select>
+                            <button type="button" className="rounded border px-3 py-2" disabled={watermarkBusy} onClick={()=>{void reloadWatermarkResources();}}>목록 새로고침</button>
+                          </div>
+                          {watermarkResourceError&&<p role="alert" className="mb-2 text-sm text-red-600">{watermarkResourceError}</p>}
+                          {watermarkBusy&&<p role="status">리소스 이미지를 준비하고 있습니다.</p>}
+                          
+                          <div className="flex items-center gap-3">
+                            <label className="px-4 py-2 rounded-xl text-[13px] font-bold bg-[#1d4ed8] hover:bg-[#1e40af] text-white shadow-xs cursor-pointer transition-all active:scale-98">
+                              <span>{watermarkSettings.image && watermarkSettings.image !== DEFAULT_WATERMARK_IMAGE ? '다른 이미지로 변경' : '새 이미지 등록'}</span>
+                              <input
+                                aria-label="워터마크 리소스 이미지 추가" disabled={watermarkBusy}
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp"
+                                onChange={(e) => {
+                                  void handleWatermarkImageUpload(e.target.files?.[0]);
+                                  e.target.value = '';
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                            {watermarkSettings.image && watermarkSettings.image !== DEFAULT_WATERMARK_IMAGE && (
+                              <button
+                                type="button"
+                                onClick={handleRemoveWatermarkImage}
+                                className="px-3.5 py-2 rounded-xl text-[12px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-200 dark:border-amber-900/50 transition-all cursor-pointer active:scale-98 flex items-center gap-1.5"
+                              >
+                                <Icon name="RotateCcw" size={13} />
+                                <span>기본 엠블럼으로 초기화</span>
+                              </button>
+                            )}
+                          </div>
+
+                          {watermarkSettings.image && (
+                            <div className="mt-3 flex items-center gap-3 p-3 rounded-xl border bg-black/5 dark:bg-white/5 border-outline-variant/15">
+                              <div className="w-16 h-16 rounded-lg border bg-white dark:bg-zinc-900 flex items-center justify-center overflow-hidden shrink-0 p-1">
+                                {watermarkPreview?<img src={watermarkPreview} alt="워터마크 미리보기" className="max-w-full max-h-full object-contain"/>:<span className="text-xs">리소스 연결 확인</span>}
+                              </div>
+                              <div className="text-[12px] text-on-surface-variant">
+                                <div className="font-semibold text-on-surface">
+                                  {watermarkSettings.image === DEFAULT_WATERMARK_IMAGE ? '🍀 기본 워터마크 이미지 (온리비 어서 공식 엠블럼)' : '등록된 사용자 지정 워터마크 이미지'}
+                                </div>
+                                <div>
+                                  {watermarkSettings.image === DEFAULT_WATERMARK_IMAGE ? '사용자 이미지를 등록하지 않은 경우 이 엠블럼이 기본 사출됩니다.' : '내보내기 시 각 페이지에 배치됩니다.'}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 위치 및 투명도, 각도, 너비 공통 설정 */}
+                    <div className="grid gap-4 pt-3 border-t border-outline-variant/15 dark:border-white/5 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-[13px] font-semibold text-on-surface mb-1">배치 위치</label>
+                        <select
+                          value={watermarkSettings.position}
+                          onChange={(e) => setWatermarkSettings(prev => ({ ...prev, position: e.target.value as WatermarkPosition }))}
+                          className={`w-full px-3 py-2 rounded-lg text-[13px] font-medium outline-none cursor-pointer border transition-colors ${
+                            isDarkMode ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-surface-container-low border-outline-variant/30 text-on-surface'
+                          }`}
+                        >
+                          <option value="center">가운데 (Center)</option>
+                          <option value="top-left">왼쪽 위 (Top Left)</option>
+                          <option value="top-right">오른쪽 위 (Top Right)</option>
+                          <option value="bottom-left">왼쪽 아래 (Bottom Left)</option>
+                          <option value="bottom-right">오른쪽 아래 (Bottom Right)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between text-[13px] font-semibold text-on-surface mb-1">
+                          <span>진하기 (투명도)</span>
+                          <span className="font-bold text-[#1d4ed8] dark:text-blue-400">{watermarkSettings.opacity}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={watermarkSettings.opacity}
+                          onChange={(e) => setWatermarkSettings(prev => ({ ...prev, opacity: Number(e.target.value) }))}
+                          className="w-full accent-[#1d4ed8] cursor-pointer"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between text-[13px] font-semibold text-on-surface mb-1">
+                          <span>회전 각도</span>
+                          <span className="font-bold text-[#1d4ed8] dark:text-blue-400">{watermarkSettings.rotation}°</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={-90}
+                          max={90}
+                          value={watermarkSettings.rotation}
+                          onChange={(e) => setWatermarkSettings(prev => ({ ...prev, rotation: Number(e.target.value) }))}
+                          className="w-full accent-[#1d4ed8] cursor-pointer"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between text-[13px] font-semibold text-on-surface mb-1">
+                          <span>너비 비율</span>
+                          <span className="font-bold text-[#1d4ed8] dark:text-blue-400">{watermarkSettings.width}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={5}
+                          max={95}
+                          value={watermarkSettings.width}
+                          onChange={(e) => setWatermarkSettings(prev => ({ ...prev, width: Number(e.target.value) }))}
+                          className="w-full accent-[#1d4ed8] cursor-pointer"
+                        />
+                      </div>
+                    </div>
+
+                    {/* 첫 페이지 제외 */}
+                    <div className="pt-2 border-t border-outline-variant/15 dark:border-white/5 flex items-center justify-between">
+                      <div>
+                        <div className="text-[14px] font-semibold text-on-surface">첫 페이지 / 표지 제외</div>
+                        <div className="text-[12px] text-on-surface-variant">첫 번째 페이지(표지)에는 워터마크를 노출하지 않습니다.</div>
+                      </div>
+                      <ToggleSwitch
+                        active={watermarkSettings.excludeFirst}
+                        onChange={() => setWatermarkSettings(prev => ({ ...prev, excludeFirst: !prev.excludeFirst }))}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

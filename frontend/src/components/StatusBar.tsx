@@ -1,6 +1,14 @@
 // ====================================================================
 // 📊 [OMD-EDIT-StatusBar-0003] StatusBar.tsx ➔ StatusBar
 // 🎯 @KICK  : 하단 상태표시줄 - 글자 수, 단어 수, 서식 프로필, 저장 상태, 뷰포트 모드, 행/열 정보 및 지식 색인 실시간 진행률 표시
+// 🚨 @PATCH : **2026-10-19** — [상태표시줄 간격 균등 배분 및 3대 영역(좌/중/우) 황금비율 레이아웃 개편]:
+//             1) 좌측: 조판 도구 3종(경계/나누기/인쇄) + 서식 선택 + 저장 상태를 배치하여 휑하던 좌측을 채우고 안정적인 문서 도구 영역 형성
+//             2) 중앙: 뷰 모드 세그먼트(Layout Guard / 문서 보기 / 나란히 보기) 및 지식 색인 배지를 배치하여 시각적 무게 중심 확보
+//             3) 우측: 프레임 토글(툴바/AI/사이드바) + 글자 수 + 단어 수 + 커서 위치(Ln/Col)를 고른 여백(mx-2 구분선)으로 정돈하여 우측 쏠림 및 과밀 현상 완전 해소
+// 🚨 @PATCH : **2026-10-19** — [상태바 목표치/프로그레스바 제거 및 3대 인쇄/조판 도구 아이콘 재배치]:
+//             1) 2,000자 목표치 텍스트 및 프로그레스바 UI를 완전히 제거하고 글자 수/단어 수를 우측 행/열(Ln, Col) 앞으로 이동
+//             2) 좌측 시작 위치에 '예상 페이지 경계 끄기/켜기(Book)', '페이지 나누기(Cut)', '인쇄/쪽 윤곽(Print)' 3개 액션 아이콘 버튼 신설
+//             3) 예상 페이지 경계(onrivi:toggle-page-guides) 상태 토글 및 양방향 동기화 연동
 // 🚨 @PATCH : **2026-10-15** — [화면 흔들림 방어]: 모드 전환 및 사이드바 토글 버튼의 transition-all을 transition-colors로 고정하여 뷰포트 레이아웃 재계산 및 미세 떨림 방지
 // 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(Loader2, CheckCircle2, AlertTriangle, BookOpen) 제거, Icon 컴포넌트(Loading, CheckCircle, AlertWarning)로 교체
 // 🚨 @PATCH : **2026-09-16** — [지식 베이스 색인 실시간 진행 표시기(Progress Badge) 연동]: 백그라운드 지식 수집/색인 중(knowledge:queue-progress) 현재 파일명, 진행률(%), 완료 및 실패 상태를 상태바 중앙에 실시간 스피너 배지로 상시 노출하여 작업 가시성 100% 확보
@@ -135,7 +143,8 @@ function StatusBar() {
     editorRef,
     geminiApiKey,
     showToast,
-    isRestrictedUser
+    isRestrictedUser,
+    dispatchCommand
   } = useEditorContext();
 
   const folderName = rootFolder?.name;
@@ -169,6 +178,36 @@ function StatusBar() {
       document.removeEventListener('keydown', onKeyDown, true);
     };
   }, [isProfileMenuOpen]);
+
+  // 📖 [예상 페이지 경계 가이드 동기화]
+  const [pageGuides, setPageGuides] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('onrivi_tabs_page_guides') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    const handleToggle = (e: any) => {
+      if (typeof e.detail === 'boolean') {
+        setPageGuides(e.detail);
+      } else {
+        setPageGuides(v => !v);
+      }
+    };
+    window.addEventListener('onrivi:toggle-page-guides', handleToggle);
+    return () => window.removeEventListener('onrivi:toggle-page-guides', handleToggle);
+  }, []);
+
+  const handleTogglePageGuides = () => {
+    const next = !pageGuides;
+    setPageGuides(next);
+    try {
+      localStorage.setItem('onrivi_tabs_page_guides', String(next));
+    } catch {}
+    window.dispatchEvent(new CustomEvent('onrivi:toggle-page-guides', { detail: next }));
+  };
 
   const [localCursor, setLocalCursor] = useState({ line: cursorLine || 1, column: cursorColumn || 1 });
 
@@ -297,8 +336,8 @@ function StatusBar() {
   const charCountNoSpace = content.replace(/\s/g, '').length;
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
   // 기자들을 위해 원고지 매수를 소수점 첫째 자리까지 표시 (제거됨)
-  const targetCharCount = 2000;
-  const progressPercent = Math.min(100, Math.round((charCount / targetCharCount) * 100));
+
+
 
 // ====================================================================
 // 📊 [OMD-EDIT-StatusBar-0002] StatusBar ➔ t
@@ -348,32 +387,102 @@ function StatusBar() {
       style={{ fontFamily: "'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', '맑은 고딕', sans-serif" }}
       className="h-12 bg-zinc-100 dark:bg-zinc-900 border-t border-black/5 dark:border-white/10 flex justify-between items-center px-4 text-[12px] font-bold text-gray-700 dark:text-zinc-300 relative z-20 whitespace-nowrap select-none"
     >
-      <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
-        {/* 💡 라이선스 뱃지(isExpired/isActivated)는 SettingsModal로 이동되었습니다. */}
-        <span className="shrink-0">|</span>
-        <span className="shrink-0 tabular-nums">{t('charCount')}: {charCount.toLocaleString()} (공백제외 {charCountNoSpace.toLocaleString()})</span>
-        <span className="shrink-0">|</span>
-        <span className="shrink-0 tabular-nums">{t('wordCount')}: {wordCount.toLocaleString()}</span>
-        <span className="hidden xl:inline shrink-0">|</span>
-        <div className="hidden xl:flex items-center gap-1.5 shrink-0">
-          <div className="w-16 h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-300"
-              style={{
-                width: `${progressPercent}%`,
-                backgroundColor: progressPercent >= 100 ? '#10b981' : '#3b82f6'
-              }}
-            />
-          </div>
-          <span className="tabular-nums shrink-0">
-            {Math.min(charCount, targetCharCount).toLocaleString()}/{targetCharCount.toLocaleString()} ({progressPercent}%)
-          </span>
-        </div>
+      {/* 1. 좌측 영역: 조판 액션 도구 & 서식 & 저장 상태 */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {/* 📖 예상 페이지 경계 켜기/끄기 */}
+        <button
+          type="button"
+          onClick={handleTogglePageGuides}
+          className={`p-1.5 rounded-md transition-colors flex items-center justify-center ${
+            pageGuides
+              ? 'text-blue-600 dark:text-blue-400 bg-blue-500/15 font-bold shadow-2xs'
+              : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
+          }`}
+          title={pageGuides ? "예상 페이지 경계 끄기" : "예상 페이지 경계 켜기"}
+          aria-label={pageGuides ? "예상 페이지 경계 끄기" : "예상 페이지 경계 켜기"}
+        >
+          <Icon name="Book" size={15} />
+        </button>
 
+        {/* ✂️ 페이지 나누기 */}
+        <button
+          type="button"
+          disabled={Boolean(isRestrictedUser || isExpired)}
+          onClick={() => dispatchCommand?.('PAGEBREAK')}
+          className="p-1.5 rounded-md transition-colors flex items-center justify-center text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
+          title="페이지 나누기"
+          aria-label="페이지 나누기"
+        >
+          <Icon name="Cut" size={15} />
+        </button>
+
+        {/* 🖨️ 인쇄 / 쪽 윤곽 */}
+        <button
+          type="button"
+          disabled={Boolean(isRestrictedUser)}
+          onClick={() => {
+            dispatchCommand?.('OPEN_EXPORT');
+            window.dispatchEvent(new Event('onrivi:open-print'));
+          }}
+          className="p-1.5 rounded-md transition-colors flex items-center justify-center text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
+          title="인쇄 / 쪽 윤곽"
+          aria-label="인쇄 / 쪽 윤곽"
+        >
+          <Icon name="Print" size={15} />
+        </button>
+
+        <span className="shrink-0 text-black/15 dark:text-white/15 mx-2">|</span>
+
+        {/* 서식 선택 드롭다운 */}
+        {displayProfileName && (
+          <div ref={profileMenuRef} className="hidden md:block relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsProfileMenuOpen(open => !open)}
+              aria-haspopup="listbox"
+              aria-expanded={isProfileMenuOpen}
+              className="flex items-center gap-1 max-w-[170px] xl:max-w-[240px] text-blue-600 dark:text-blue-400 font-semibold hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 rounded px-1.5 py-1"
+              title={`서식 선택: ${displayProfileName}`}
+            >
+              <span className="truncate">서식: {displayProfileName}</span>
+              <span aria-hidden="true" className="text-[10px]">▾</span>
+            </button>
+            {isProfileMenuOpen && (
+              <div role="listbox" aria-label="서식 선택" className="absolute bottom-full left-0 mb-2 w-64 max-h-72 overflow-y-auto rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl py-1 z-50 whitespace-normal">
+                {(profiles || []).map((profile: any) => (
+                  <button
+                    key={profile.id}
+                    type="button"
+                    role="option"
+                    aria-selected={profile.id === activeProfileId}
+                    onClick={() => { onSelectProfile?.(profile.id); setIsProfileMenuOpen(false); }}
+                    className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-zinc-800 ${profile.id === activeProfileId ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-slate-700 dark:text-zinc-200'}`}
+                  >
+                    <span className="truncate">{profile.name}</span>
+                    {profile.id === activeProfileId && <span aria-hidden="true">✓</span>}
+                  </button>
+                ))}
+                <div className="border-t border-slate-200 dark:border-zinc-700 mt-1 pt-1">
+                  <button type="button" onClick={() => { setIsProfileMenuOpen(false); onOpenStyleSettings?.(); }} className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-300 hover:bg-blue-50 dark:hover:bg-zinc-800">서식 관리…</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <span className="shrink-0 text-black/15 dark:text-white/15 mx-2">|</span>
+
+        {/* 저장 상태 표시 */}
+        <div className="min-w-[70px] flex justify-center shrink-0">
+          {saveStatusText && (
+            <span className={`${saveStatusColor} font-semibold text-center text-[11px]`}>{saveStatusText}</span>
+          )}
+        </div>
       </div>
 
-      {/* 🧠 지식 엔진 백그라운드 색인 실시간 진행 표시기 (Progress Badge) */}
-      <div className="flex items-center gap-2 shrink-0 ml-auto mr-2">
+      {/* 2. 중앙 영역: 뷰 모드 세그먼트 & 지식 색인 배지 */}
+      <div className="flex items-center gap-3 shrink-0 mx-auto">
+        {/* 🧠 지식 엔진 백그라운드 색인 실시간 진행 표시기 (Progress Badge) */}
         {knowledgeProgress.isProcessing ? (
           <div 
             onClick={() => window.open('/knowledge', '_blank')}
@@ -385,7 +494,7 @@ function StatusBar() {
               지식 색인 중 {knowledgeProgress.percent}% ({knowledgeProgress.completed}/{knowledgeProgress.total})
             </span>
             {knowledgeProgress.currentFile && (
-              <span className="hidden lg:inline text-[11px] font-mono text-zinc-700 dark:text-zinc-200 max-w-[150px] truncate">
+              <span className="hidden lg:inline text-[11px] font-mono text-zinc-700 dark:text-zinc-200 max-w-[130px] truncate">
                 - {knowledgeProgress.currentFile.split(/[/\\]/).pop()}
               </span>
             )}
@@ -405,111 +514,10 @@ function StatusBar() {
             <span className="font-extrabold text-[11px]">지식 색인 오류 ({knowledgeProgress.failedCount}건)</span>
           </div>
         ) : null}
-      </div>
 
-      <div className="flex items-center gap-2 shrink-0">
-        {displayProfileName && (
-          <>
-            <div ref={profileMenuRef} className="hidden md:block relative shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsProfileMenuOpen(open => !open)}
-                aria-haspopup="listbox"
-                aria-expanded={isProfileMenuOpen}
-                className="flex items-center gap-1 max-w-[170px] xl:max-w-[265px] text-blue-600 dark:text-blue-400 font-semibold hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 rounded"
-                title={`서식 선택: ${displayProfileName}`}
-              >
-                <span className="truncate">서식: {displayProfileName}</span>
-                <span aria-hidden="true">▾</span>
-              </button>
-              {isProfileMenuOpen && (
-                <div role="listbox" aria-label="서식 선택" className="absolute bottom-full right-0 mb-2 w-64 max-h-72 overflow-y-auto rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl py-1 z-50 whitespace-normal">
-                  {(profiles || []).map((profile: any) => (
-                    <button
-                      key={profile.id}
-                      type="button"
-                      role="option"
-                      aria-selected={profile.id === activeProfileId}
-                      onClick={() => { onSelectProfile?.(profile.id); setIsProfileMenuOpen(false); }}
-                      className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-zinc-800 ${profile.id === activeProfileId ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-slate-700 dark:text-zinc-200'}`}
-                    >
-                      <span className="truncate">{profile.name}</span>
-                      {profile.id === activeProfileId && <span aria-hidden="true">✓</span>}
-                    </button>
-                  ))}
-                  <div className="border-t border-slate-200 dark:border-zinc-700 mt-1 pt-1">
-                    <button type="button" onClick={() => { setIsProfileMenuOpen(false); onOpenStyleSettings?.(); }} className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-300 hover:bg-blue-50 dark:hover:bg-zinc-800">서식 관리…</button>
-                  </div>
-                </div>
-              )}
-            </div>
-            <span className="hidden md:inline shrink-0 text-black/20 dark:text-white/20">|</span>
-          </>
-        )}
-        <div className="w-[85px] flex justify-center shrink-0">
-          {saveStatusText && (
-            <span className={`${saveStatusColor} font-semibold text-center`}>{saveStatusText}</span>
-          )}
-        </div>
-        <span className="shrink-0 text-black/20 dark:text-white/20">|</span>
-        {/* 툴바 숨기기/보이기 */}
-        {setIsToolbarOpen && (
-          <button
-            onClick={() => setIsToolbarOpen(!isToolbarOpen)}
-            className={`px-2 py-1 rounded-md text-[12px] font-semibold transition-all hover:bg-black/10 dark:hover:bg-white/10 ${
-              isToolbarOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-zinc-500'
-            }`}
-            title={isToolbarOpen ? t('toolbarHide') : t('toolbarShow')}
-          >
-            <span className="leading-none">♻️</span>
-          </button>
-        )}
-        {/* AI 버튼 숨기기/보이기 (AI 연동 시에만 노출) */}
-        {setIsAiButtonVisible && Boolean(geminiApiKey) && (
-          <button
-            onClick={() => {
-              if (!geminiApiKey) {
-                showToast?.("AI 연동이 해제된 상태입니다. 환경설정에서 Gemini API Key를 등록해주세요.", "warning");
-                return;
-              }
-              const next = !isAiButtonVisible;
-              setIsAiButtonVisible(next);
-              try {
-                localStorage.setItem('onrivi_show_editor_ai_btn', String(next));
-              } catch {}
-            }}
-            disabled={!geminiApiKey}
-            className={`px-2 py-1 rounded-md text-[12px] font-semibold transition-all ${
-              !geminiApiKey
-                ? 'opacity-30 cursor-not-allowed grayscale text-gray-400 dark:text-zinc-600'
-                : isAiButtonVisible 
-                  ? 'text-purple-600 dark:text-purple-400 font-bold hover:bg-black/10 dark:hover:bg-white/10 cursor-pointer' 
-                  : 'text-gray-400 dark:text-zinc-500 hover:bg-black/10 dark:hover:bg-white/10 cursor-pointer'
-            }`}
-            title={
-              !geminiApiKey 
-                ? "AI 연동 해제됨 (환경설정에서 API 키 등록 필요)" 
-                : isAiButtonVisible ? t('aiButtonHide') : t('aiButtonShow')
-            }
-          >
-            <span className="leading-none">✨</span>
-          </button>
-        )}
-        {/* 사이드바 숨기기/보이기 */}
-        {setIsSidebarOpen && (
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className={`px-2 py-1 rounded-md text-[12px] font-semibold transition-colors hover:bg-black/10 dark:hover:bg-white/10 ${
-              isSidebarOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-zinc-500'
-            }`}
-            title={isSidebarOpen ? t('sidebarHide') : t('sidebarShow')}
-          >
-            <span className="leading-none">🗃️</span>
-          </button>
-        )}
-        {/* 모드 표시 세그먼트 (항상 표시) */}
+        {/* 모드 표시 세그먼트 */}
         {setPreviewMode && (
-          <div className="flex items-center bg-black/5 dark:bg-white/5 rounded-lg overflow-hidden border border-black/10 dark:border-white/10">
+          <div className="flex items-center bg-black/5 dark:bg-white/5 rounded-lg overflow-hidden border border-black/10 dark:border-white/10 shadow-2xs">
             {/* 조판 가드(Layout Guard) 토글 */}
             {setIsA4GuardEnabled && (
               <button
@@ -554,15 +562,89 @@ function StatusBar() {
                         : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/8 dark:hover:bg-white/8'
                     }`}
                   >{isEditDisabled ? '🔒' : ''}나란히 보기</button>
-
                 </>
               );
             })()}
           </div>
         )}
+      </div>
 
-        <span className="text-gray-300 dark:text-zinc-600 mx-1">|</span>
-        <span className="hover:text-[#0058bc] cursor-default text-[12px] tabular-nums font-mono min-w-[100px] text-right inline-block ml-1">
+      {/* 3. 우측 영역: UI 프레임 제어 & 계측 통계(글자 수/단어 수) & 커서 위치 */}
+      <div className="flex items-center gap-2 shrink-0">
+        {/* 툴바 숨기기/보이기 */}
+        {setIsToolbarOpen && (
+          <button
+            onClick={() => setIsToolbarOpen(!isToolbarOpen)}
+            className={`p-1.5 rounded-md text-[12px] font-semibold transition-all hover:bg-black/10 dark:hover:bg-white/10 ${
+              isToolbarOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-zinc-500'
+            }`}
+            title={isToolbarOpen ? t('toolbarHide') : t('toolbarShow')}
+          >
+            <span className="leading-none text-[13px]">♻️</span>
+          </button>
+        )}
+        {/* AI 버튼 숨기기/보이기 */}
+        {setIsAiButtonVisible && Boolean(geminiApiKey) && (
+          <button
+            onClick={() => {
+              if (!geminiApiKey) {
+                showToast?.("AI 연동이 해제된 상태입니다. 환경설정에서 Gemini API Key를 등록해주세요.", "warning");
+                return;
+              }
+              const next = !isAiButtonVisible;
+              setIsAiButtonVisible(next);
+              try {
+                localStorage.setItem('onrivi_show_editor_ai_btn', String(next));
+              } catch {}
+            }}
+            disabled={!geminiApiKey}
+            className={`p-1.5 rounded-md text-[12px] font-semibold transition-all ${
+              !geminiApiKey
+                ? 'opacity-30 cursor-not-allowed grayscale text-gray-400 dark:text-zinc-600'
+                : isAiButtonVisible 
+                  ? 'text-purple-600 dark:text-purple-400 font-bold hover:bg-black/10 dark:hover:bg-white/10 cursor-pointer' 
+                  : 'text-gray-400 dark:text-zinc-500 hover:bg-black/10 dark:hover:bg-white/10 cursor-pointer'
+            }`}
+            title={
+              !geminiApiKey 
+                ? "AI 연동 해제됨 (환경설정에서 API 키 등록 필요)" 
+                : isAiButtonVisible ? t('aiButtonHide') : t('aiButtonShow')
+            }
+          >
+            <span className="leading-none text-[13px]">✨</span>
+          </button>
+        )}
+        {/* 사이드바 숨기기/보이기 */}
+        {setIsSidebarOpen && (
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className={`p-1.5 rounded-md text-[12px] font-semibold transition-colors hover:bg-black/10 dark:hover:bg-white/10 ${
+              isSidebarOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-zinc-500'
+            }`}
+            title={isSidebarOpen ? t('sidebarHide') : t('sidebarShow')}
+          >
+            <span className="leading-none text-[13px]">🗃️</span>
+          </button>
+        )}
+
+        <span className="shrink-0 text-black/15 dark:text-white/15 mx-2">|</span>
+
+        {/* 글자 수 */}
+        <span className="shrink-0 tabular-nums font-mono text-zinc-700 dark:text-zinc-300">
+          {t('charCount')}: {charCount.toLocaleString()} (공백제외 {charCountNoSpace.toLocaleString()})
+        </span>
+
+        <span className="shrink-0 text-black/15 dark:text-white/15 mx-2">|</span>
+
+        {/* 단어 수 */}
+        <span className="shrink-0 tabular-nums font-mono text-zinc-700 dark:text-zinc-300">
+          {t('wordCount')}: {wordCount.toLocaleString()}
+        </span>
+
+        <span className="shrink-0 text-black/15 dark:text-white/15 mx-2">|</span>
+
+        {/* 행 / 열 커서 위치 */}
+        <span className="hover:text-[#0058bc] cursor-default text-[12px] tabular-nums font-mono min-w-[90px] text-right inline-block">
           Ln {localCursor.line}, Col {localCursor.column}
         </span>
       </div>

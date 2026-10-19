@@ -1,5 +1,29 @@
 /**
  * 프로그램명 : OnriviAuthor 
+// 🚨 @PATCH : **2026-10-19** — [자체 이모지 모달(EmojiPanel) 폐지 및 OS 네이티브 이모지 창(Windows: Win + ., macOS: Cmd+Ctrl+Space) 즉각 직접 호출]:
+//             1) 자체 커스텀 이모지 패널 모달 및 안내 토스트를 전면 배제하고, 버튼 클릭 시 OS 시스템 네이티브 이모지 패널을 즉시 화면에 팝업하도록 직결
+//             2) 데스크톱(Electron) 환경에서는 메인 프로세스(system:showEmojiPicker), 웹 브라우저 환경에서는 /api/system/emoji 라우트를 통해 가상 키(Win + .)를 직접 트리거
+//             3) 이모지 호출 전 에디터 포커스를 강제 확보하여 OS 이모지 창에서 선택한 이모지가 현재 커서 위치에 바로 자동 타이핑되도록 연동
+// 🚨 @PATCH : **2026-10-19** — [onrivi:open-print 리스너 TDZ(ReferenceError) 결함 즉시 해결]:
+//             dispatchCommand 선언부 이후로 onrivi:open-print useEffect의 배치 위치를 조정하여 런타임 초기화 순서 에러 완전 해소
+// 🚨 @PATCH : **2026-10-19** — [상태바 인쇄/쪽 윤곽 모달 호출(onrivi:open-print) 연동 및 PAGEBREAK 페이지 나누기 마커 삽입 명령 지원]:
+//             1) onrivi:open-print 이벤트 수신 시 dispatchCommand('OPEN_EXPORT')를 직결 실행하여 ExportModal 팝업
+//             2) dispatchCommand에 'PAGEBREAK' 분기를 신설하여 위지윅 문서보기(insertPageBreak) 및 모나코 편집기(<!-- onrivi:page-break -->) 양방향 지원
+// 🚨 @PATCH : **2026-10-19** — [세션 복원 시 플레이스홀더 경고(작업장 외부 문서 안내) draft 주입 차단 및 orange dot(isModified) 버그 해결]: 시스템 안내문은 사용자 수정본(draft)으로 복원하지 않고 무시하여 정상 파일 바인딩을 보장
+// 🚨 @PATCH : **2026-10-19** — [5초 자동저장 무한 루프 척결 및 나란히 보기(both) 마크다운 진동·흔들림 해결]:
+//             1) autoSave 실행 중 불필요한 Frontmatter 강제 주입(updateCssProfileInFrontmatter) 및 setContent/model.pushEditOperations 전면 배제 (백그라운드 물리 디스크 저장 전담)
+//             2) 저장 시작 직후 lastSavedContentRef 즉시 갱신 및 setTabs 불필요한 배열 재생성 가드로 무한 루프 및 텍스트 덮어쓰기 원천 차단
+//             3) autoSave useEffect 내 setCurrentFileNode 직접 호출을 배제하여 React 렌더링 무한 루프 종식
+//             4) VisualDocumentEditor onSourceScroll에서 Monaco 뷰포트 범위 내 라인은 강제 0점 스크롤(setScrollTop)하지 않고 뷰포트 이탈 시에만 revealLineInCenterIfOutsideViewport로 부드럽게 추종하여 나란히 모드 마크다운 진동·요동 완전 해소
+// 🚨 @PATCH : **2026-10-18** — [인용구(blockquote) 보기 상자 내부 문단 여백 콤팩트 동기화]:
+//             1) dynamicCssString 내 blockquote 하위 문단(p: 4px) 및 목록(ul/ol: 4px, li: 2px) 여백을 최적화하여 화면 미리보기와 PDF 사출물 간의 정합성 완성
+// 🚨 @PATCH : **2026-10-18** — [이미지 드래그 앤 드롭/붙여넣기 시 기존 파일 덮어쓰기 결함 완전 해결 및 안전 안내 통일]:
+//             1) 브라우저 기본 이미지명(images.jpg 등) 해시 치환 및 데스크톱 safe collision 방어와 연계하여 handlePasteImageFile의 덮어쓰기 안내를 안전 저장 토스트로 갱신
+// 🚨 @PATCH : **2026-10-17** — [세션 복원 조건 완화 및 5초 자동저장(autoSave) FileNode 결함 완전 해결]:
+//             1) 앱 구동 시 초기 웰컴 탭 등으로 인해 tabs.length > 0이더라도 물리 경로(path)가 있는 실제 탭이 없으면 이전 세션(getLastSession)을 100% 자동 복원하도록 조건 완화
+//             2) autoSave에서 currentFileNode가 비어있더라도 activeTab에 유효한 path/node가 있으면 effectiveFileNode를 즉시 복구·동기화하여 자동저장 불발 결함 해결
+// 🚨 @PATCH : **2026-10-17** — [문서보기(VisualDocumentEditor) 엔터 입력 시 빈 행 비정상 확장 및 타이핑 시 축소(레이아웃 시프트 & 커서 점프) 결함 완전 해결]:
+//             1) dynamicCssString의 sentence-gap p br 규칙에 :not(.ProseMirror-trailingBreak) 예외 가드를 적용하여, ProseMirror의 빈 문단 전용 개행 요소(<br.ProseMirror-trailingBreak>)가 display: block 및 margin-top: 4px 강제 적용으로 왜곡되어 빈 행이 49px로 비대해지거나 타이핑 시 위로 15px 튀어 오르는 버그 원천 해결
 // 🚨 @PATCH : **2026-10-17** — [새 문서 생성 시 보기모드 정합화 및 5초 자동저장 한글 조합 파괴·무한루프 방지]:
 //             1) handleCreateNewDocument에서 setPreviewModeRaw('both') 대신 setPreviewMode(targetMode)를 호출하여 보기모드/에디터마운트 플래그/전역모드Ref를 1:1 일치시키고 키보드 입력 차단 방어
 //             2) autoSave 시 기본 서식(system-1) 메타 주입 방어 및 nextVal 변경 시 React 상태(setContent)와 동기화하여 5초 주기 자동 저장 무한 루프 완벽 제거
@@ -370,6 +394,7 @@ import { getApiUrl } from '@/lib/apiUrlBuilder'; // api 서버 경로
 import { exportPDF, exportHTML, exportEPUB, exportPNG } from '@/lib/exportHandlers'; // 파일 내보내기 핸들러
 import { configureMonacoEnvironment } from '@/lib/monacoEnv'; // Monaco 환경 설정
 import { idb, FileNode, scanDirectory, scanDirectoryDeep, getFileIcon } from '@/lib/indexedDbHelper'; // indexedDB 헬퍼
+import { captureEditorSession, readEditorSession, matchesSessionTab, SessionTab, isPlaceholderWarning } from '@/lib/editorSession';
 import { knowledgeClient } from '@/lib/knowledge/knowledgeClient'; // 지식 베이스 클라이언트
 import { preprocessMarkdownForPreview, stripFrontmatter, getCodeBlockLineMask } from "@/lib/editorUtils"; // 마크다운 프리뷰
 import { syncPreviewFromEditorScroll, syncPreviewToTargetLine } from "@/lib/syncEngine"; // 동기화 엔진
@@ -1618,6 +1643,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const pendingExternalFileRef = useRef<string | null>(null); // 윈도우 파일 연결 경로 (마운트 전 확보용)
   const sessionRestoredRef = useRef<boolean>(false); // 세션 복원 최초 1회 실행 가드
+  const [desktopSessionReady,setDesktopSessionReady]=useState(false);
+  const initialSessionCheckedRef=useRef(false);
   const sessionRestoringRef = useRef<boolean>(false); // 세션 복원 진행 중 스킵 락
   const [driveLetter, setDriveLetter] = useState('D:');
   const [webBasePath, setWebBasePath] = useState<string>(() => {
@@ -3662,7 +3689,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     aiModelName,
     setAiModelName
   } = useEditorSettingsResult;
-  const {editorTabSize,setEditorTabSize}=useEditorSettingsResult;
+  const {editorTabSize,setEditorTabSize,spellCheck,setSpellCheck}=useEditorSettingsResult;
   useEffect(()=>{
     const isInsideMarkdownPane=(target:EventTarget|null)=>target instanceof Element && Boolean(target.closest('#onrivi-markdown-pane'));
     const blockWheel=(event:WheelEvent)=>{
@@ -4264,12 +4291,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
       // 🆕 최초 실행 시: .md 더블클릭 파일 우선, 없으면 마지막 세션 파일 복원
       // sessionRestoredRef로 effect 재실행 시 중복 호출 방지
-      if (api.getInitialFilePath && !sessionRestoredRef.current) {
+      if (mounted && api.getInitialFilePath && !sessionRestoredRef.current && !initialSessionCheckedRef.current) {
+        initialSessionCheckedRef.current=true;
         api.getInitialFilePath().then(async (filePath: string | null) => {
           if (filePath) {
             sessionRestoredRef.current = true;
             openExternalFile(filePath);
-          } else if (api.getLastSession && tabs.length === 0) {
+          } else if (readEditorSession(localStorage.getItem('onrivi_tabs_session'))) {
+            setDesktopSessionReady(true);
+          } else if (api.getLastSession && (tabs.length === 0 || !tabs.some(t => !!t.path && !t.isStyleTab))) {
             const sessionData = await api.getLastSession();
             if (sessionData && Array.isArray(sessionData.openFilePaths) && sessionData.openFilePaths.length > 0) {
               await restoreSessionTabs(sessionData.openFilePaths, sessionData.activeFilePath);
@@ -4279,8 +4309,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           } else {
             sessionRestoredRef.current = true; // 복원할 더블클릭 경로 없음
           }
-        }).catch(() => { sessionRestoredRef.current = true; });
+        }).catch(() => { setDesktopSessionReady(true); });
       }
+      if(mounted && !api.getInitialFilePath)setDesktopSessionReady(true);
 
       // restoreSettings에서 확보해 둔 pending 파일 경로 처리 (폴백)
       if (pendingExternalFileRef.current) {
@@ -4311,15 +4342,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const isElectron = !!api;
 
     // 일렉트론이 아닌 일반 웹 환경이고 아직 복원이 되지 않았다면 복구 프로세스 가동
-    if (!isElectron && !sessionRestoredRef.current) {
+    if ((!isElectron || desktopSessionReady) && !sessionRestoredRef.current && !sessionRestoringRef.current) {
       try {
-        const saved = localStorage.getItem('onrivi_tabs_session');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed && Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
-            const openFilePaths = parsed.tabs.map((t: any) => t.path).filter(Boolean);
-            const activeFilePath = parsed.activeTabId || null;
-            restoreSessionTabs(openFilePaths, activeFilePath);
+        const parsed = readEditorSession(localStorage.getItem('onrivi_tabs_session'));
+        if (parsed) {
+          if (parsed.tabs.length > 0) {
+            // Folder handles and Drive credentials must be ready before opening files.
+            if(parsed.tabs.some(t=>t.path || t.driveFileId) && (!rootFolder || (rootFolder as any).needPermission || (workspaceType === 'browser' && !rootFolder.handle)))return;
+            if((rootFolder as any)?.type==='GDRIVE' && (!hasValidDriveToken() ||
+              (parsed.tabs.some(t=>t.path&&!t.driveFileId) && fileList.length===0)))return;
+            void restoreSessionTabs([], null, parsed.tabs, parsed.activeTabId, parsed.previewMode);
             return;
           }
         }
@@ -4329,7 +4361,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       sessionRestoredRef.current = true; // 복원할 정보 없으면 플래그 해제
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted]);
+  }, [mounted, desktopSessionReady, rootFolder, fileList, isDriveAuthExpired]);
 
   // ====================================================================
   // 📊 [OMD-IO-MainEditorApp-0039] MainEditorApp.tsx ➔ session_auto_save
@@ -4343,23 +4375,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   useEffect(() => {
     // 💡 [치명적 버그 방어] 앱 마운트 초기 단계(세션 복원이 채 완료되지 않은 시점)에
     // 초기 빈 탭 상태([])가 session.json이나 localStorage를 덮어씌워 날려버리는 결함을 차단합니다.
-    if (!mounted || !sessionRestoredRef.current) return;
+    if (!mounted || !sessionRestoredRef.current || sessionRestoringRef.current) return;
 
     const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
 
     // 1. 브라우저 로컬 스토리지 보존 (웹 & 데스크탑 공용)
     if (typeof window !== 'undefined') {
       try {
-        const sessionTabsData = tabs.map(t => ({
-          id: t.id,
-          name: t.name,
-          path: t.path,
-          isStyleTab: t.isStyleTab
-        }));
-        localStorage.setItem('onrivi_tabs_session', JSON.stringify({
-          tabs: sessionTabsData,
-          activeTabId
-        }));
+        localStorage.setItem('onrivi_tabs_session', JSON.stringify(captureEditorSession(tabs,activeTabId,contentRef.current,previewModeRef.current)));
       } catch (e) {
         console.error('[session_auto_save] localStorage 쓰기 실패:', e);
       }
@@ -4374,7 +4397,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         activeFilePath
       }).catch(() => {});
     }
-  }, [mounted, tabs, activeTabId, currentFileNode]);
+  }, [mounted, tabs, activeTabId, currentFileNode, previewMode]);
 
   // ====================================================================
   // 📊 [OMD-IO-MainEditorApp-0041] MainEditorApp.tsx ➔ a4_guard_auto_save
@@ -4399,21 +4422,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   useEffect(() => {
     const handleBeforeUnload = () => {
+      if(!sessionRestoredRef.current || sessionRestoringRef.current)return;
       const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
       
       // 1. 브라우저 로컬 스토리지에 마지막 작성중인 문서 메타데이터 밀봉 플러시
       if (typeof window !== 'undefined') {
         try {
-          const sessionTabsData = tabsRef.current.map(t => ({
-            id: t.id,
-            name: t.name,
-            path: t.path,
-            isStyleTab: t.isStyleTab
-          }));
-          localStorage.setItem('onrivi_tabs_session', JSON.stringify({
-            tabs: sessionTabsData,
-            activeTabId: activeTabIdRef.current
-          }));
+          localStorage.setItem('onrivi_tabs_session', JSON.stringify(captureEditorSession(tabsRef.current,activeTabIdRef.current,contentRef.current,previewModeRef.current)));
         } catch (e) {}
       }
 
@@ -4529,7 +4544,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🚨 @PATCH : **2026-08-12** — 초기 생성 (멀티 탭 복원 충돌 버그 해결)
   // 🔗 @CALLS : api.readFromPath, setTabs, setActiveTabId, setContent, showToast
   // ====================================================================
-  const restoreSessionTabs = async (openFilePaths: string[], activeFilePath: string | null) => {
+  const restoreSessionTabs = async (openFilePaths: string[], activeFilePath: string | null, savedTabs?:SessionTab[], savedActiveId?:string|null, savedMode?:string) => {
     try {
       sessionRestoringRef.current = true;
       // 💡 [정식 문서 열기 적용] 단순히 탭만 임의로 배열에 쑤셔넣지 않고, 
@@ -4537,7 +4552,46 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       // 이렇게 해야 실제 로컬 파일 시스템 핸들 및 VFS 상태가 정상 바인딩되어 물리적 저장이 작동합니다.
       // React 상태 배치 갱신 지연으로 인한 탭 유실을 방지하기 위해 탭당 150ms의 마이크로 대기 시간을 부여합니다.
       
-      sessionRestoredRef.current = true; // 복원 프로세스 시작과 동시에 true 설정하여 덮어쓰기 즉시 차단!
+      if(savedTabs){
+        const restored=new Map<string,string>();
+        for(const saved of savedTabs){
+          try{
+            if(saved.driveFileId){
+              await handleFileClick({name:saved.name,path:saved.path,kind:'file',driveFileId:saved.driveFileId} as any);
+            }else if(saved.path){
+              await handleFileOpenByPath(saved.path);
+            }else if(saved.draft!==undefined){
+              createNewTab(saved.draft,saved.name,false);
+            }else continue;
+            // Let the normal file-open pipeline bind its real file node/handle.
+            await new Promise(resolve=>setTimeout(resolve,150));
+            const opened=saved.path || saved.driveFileId
+              ? tabsRef.current.find(t=>matchesSessionTab(t,saved))
+              : tabsRef.current.find(t=>t.id===activeTabIdRef.current);
+            if(!opened)continue;
+            restored.set(saved.id,opened.id);
+            const isDraftWarning = isPlaceholderWarning(saved.draft);
+            if(saved.draft!==undefined && !isDraftWarning){
+              if(opened.model && !opened.model.isDisposed?.())opened.model.setValue(saved.draft);
+              if(activeTabIdRef.current===opened.id){contentRef.current=saved.draft;updateContent(saved.draft,false,true);}
+            }
+            setTabs(previous=>previous.map(t=>t.id===opened.id?{...t,
+              ...(saved.draft!==undefined && !isDraftWarning?{content:saved.draft,isModified:true}:{}),
+              scrollTop:saved.scrollTop,previewMode:saved.previewMode || t.previewMode
+            }:t));
+            await new Promise(resolve=>setTimeout(resolve,0));
+          }catch(error){console.warn('[session restore] 문서 복원 실패:',saved.name,error);}
+        }
+        const target=restored.get(savedActiveId || '');
+        if(target){
+          // Force normal switchTab to apply the restored scroll position/mode.
+          if(activeTabIdRef.current===target)activeTabIdRef.current=null;
+          switchTab(target);
+        }
+        if(savedMode && ['edit','both','preview'].includes(savedMode) && !isRestrictedUser)setPreviewMode(savedMode as any);
+        if(restored.size)showToast(`이전에 열어 둔 문서 ${restored.size}개를 복원했습니다.`,'info');
+        return;
+      }
 
       // 💡 [중복 경로 사전 필터링] 정규화 기준 중복 파일 배제
       const seenPaths = new Set<string>();
@@ -4572,6 +4626,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       console.error("[restoreSessionTabs] 오류:", err);
     } finally {
       sessionRestoringRef.current = false;
+      sessionRestoredRef.current = true;
+      // Persist only after the entire restoration has completed.
+      setTabs(previous=>[...previous]);
     }
   };
 
@@ -4818,7 +4875,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const hasHandledWelcomeRef = useRef(false);
 
   useEffect(() => {
-    if (!mounted || isLicenseChecking || hasHandledWelcomeRef.current) return;
+    if (!mounted || isLicenseChecking || hasHandledWelcomeRef.current || sessionRestoringRef.current) return;
 
     console.log('[WELCOME#2] FIRED! isExpired=%o planName=%o tabsRef=%o', effectiveLicenseStatus.isExpired, effectiveLicenseStatus.planName, tabsRef.current.map((t: any) => t.name));
 
@@ -4860,11 +4917,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
       const isUnsaved = content !== lastSavedContentRef.current;
       setSaveStatus(isUnsaved ? 'unsaved' : 'saved');
-      setTabs(prev => prev.map(t =>
-        t.id === activeTabId
-          ? { ...t, isModified: isUnsaved }
-          : t
-      ));
+      setTabs(prev => {
+        const cur = prev.find(t => t.id === activeTabId);
+        if (cur && cur.isModified === isUnsaved) return prev;
+        return prev.map(t =>
+          t.id === activeTabId
+            ? { ...t, isModified: isUnsaved }
+            : t
+        );
+      });
     }
   }, [content, currentFileNode, activeTabId]);
 
@@ -4910,7 +4971,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 📊 [OMD-FILE-MainEditorApp-0047] MainEditorApp.tsx ➔ autoSave
   // 🎯 @KICK  : 콘텐츠 변경 및 autoSave 활성화 시 5초 디바운스 후 파일 자동 저장
   // 🛡️ @GUARD : 콘텐츠가 비어있거나, 미리보기 모드가 변경 중이거나, 콘텐츠가 변경되지 않았으면 건너뜀; 5초 디바운스 정리
-  // 🚨 @PATCH : None
+  // 🚨 @PATCH : **2026-10-19** — [5초 자동저장 무한 루프 척결 및 텍스트 덮어쓰기 방어]:
+  //             1) 자동 저장 중 불필요한 Frontmatter 강제 주입(updateCssProfileInFrontmatter) 및 setContent/model.pushEditOperations 호출 전면 배제 (백그라운드 물리 디스크 저장 전담)
+  //             2) 저장 시작 직후 lastSavedContentRef 즉시 갱신 및 setTabs 불필요한 배열 재생성 가드로 무한 루프 및 텍스트 덮어쓰기 원천 차단
+  //             3) autoSave useEffect 내 setCurrentFileNode 직접 호출을 배제하여 React 렌더링 무한 루프 종식
   // 🔗 @CALLS : saveFile, setSaveStatus, setTimeout, clearTimeout
   // ====================================================================
   useEffect(() => {
@@ -4920,52 +4984,38 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       return;
     }
 
+    const activeTab = tabsRef.current?.find(t => t.id === activeTabIdRef.current);
+    const effectiveFileNode = currentFileNode || activeTab?.node || (activeTab?.path ? { name: activeTab.name || currentFileName, path: activeTab.path, kind: 'file' } : null);
+
     // 🌟 [세이프티 가드 2]: 유저가 뷰 모드(분할/에디터/프리뷰)를 변환하는 찰나의 순간에는 
     // 컴포넌트 오염 타이밍이므로 자동 저장을 생략하고 무조건 대기시킵니다.
-    if (typeof autoSave === 'number' && autoSave > 0 && currentFileNode && licenseStatus.isActivated) {
+    if (typeof autoSave === 'number' && autoSave > 0 && effectiveFileNode && licenseStatus.isActivated) {
       if (content === lastSavedContentRef.current) return;
 
       setSaveStatus('saving');
       const timer = setTimeout(async () => {
-        let saveContent = content;
-        
-        // [서식 자동 주입 패치] 자동 저장 시에도 현재 활성화된 프로필 정보를 Frontmatter에 자동 갱신
-        if (activeProfileId) {
-          const profile = profiles?.find((p: any) => p.id === activeProfileId);
-          const nextVal = updateCssProfileInFrontmatter(content, activeProfileId, profile?.name);
-          if (nextVal !== content) {
-            saveContent = nextVal;
-            contentRef.current = nextVal;
-            setContent(nextVal);
-            if (editorRef?.current) {
-              const model = editorRef.current.getModel();
-              if (model && !model.isDisposed() && model.getValue() !== nextVal) {
-                if (!isComposingRef.current) {
-                  model.pushEditOperations(
-                    [],
-                    [{ range: model.getFullModelRange(), text: nextVal }],
-                    () => null
-                  );
-                }
-              }
-            }
-          }
-        }
+        const saveContent = content;
+        lastSavedContentRef.current = saveContent;
 
-        const success = await saveFile(saveContent, currentFileNode);
+        const success = await saveFile(saveContent, effectiveFileNode);
         setSaveStatus(success ? 'saved' : 'unsaved');
         if (success) {
-          lastSavedContentRef.current = saveContent;
           console.log(`✏️ [Onrivi Guard] 자동 저장 완료 (${autoSave}초)`);
-          // 자동 저장 후 현재 탭의 isModified 상태를 false로 복구
-          setTabs(prev => prev.map(t =>
-            t.id === activeTabIdRef.current ? { ...t, isModified: false, content: saveContent } : t
-          ));
+          // 자동 저장 후 현재 탭의 isModified 상태를 false로 복구 (불필요한 re-render 방어)
+          setTabs(prev => {
+            const currentTab = prev.find(t => t.id === activeTabIdRef.current);
+            if (!currentTab || (!currentTab.isModified && currentTab.content === saveContent)) return prev;
+            return prev.map(t =>
+              t.id === activeTabIdRef.current ? { ...t, isModified: false, content: saveContent } : t
+            );
+          });
+        } else {
+          lastSavedContentRef.current = '';
         }
       }, autoSave * 1000); // 🕒 설정된 초(seconds) 기반 디바운스
       return () => clearTimeout(timer);
     }
-  }, [content, autoSave, currentFileNode, saveFile, licenseStatus.isActivated, activeProfileId, profiles]);
+  }, [content, autoSave, currentFileNode, saveFile, licenseStatus.isActivated, currentFileName]);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0048] MainEditorApp.tsx ➔ insertAtCursor
@@ -5971,7 +6021,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const name = await imageResourceName(fileOrBlob);
       const path = await saveResourceMedia(fileOrBlob,name,resourceFolderHandle);
       onSaved(path);
-      showToast('현재 리소스 폴더에 저장했습니다. 같은 이름의 파일은 덮어씁니다.','success');
+      showToast('현재 리소스 폴더에 안전하게 저장했습니다.','success');
     } catch(error) { showToast(error instanceof Error ? error.message : '이미지 저장 실패','error'); }
   };
   const handlePasteImageFileRef = useRef(handlePasteImageFile);
@@ -6629,8 +6679,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           css += `
 .custom-preview-container .onrivi-sentence-br,
 .onrivi-content-root .onrivi-sentence-br,
-.custom-preview-container p br,
-.onrivi-content-root p br {
+.custom-preview-container p br:not(.ProseMirror-trailingBreak),
+.onrivi-content-root p br:not(.ProseMirror-trailingBreak) {
   display: block !important;
   content: "" !important;
   margin-top: ${sGap} !important;
@@ -6645,8 +6695,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           css += `
 .custom-preview-container .onrivi-sentence-br,
 .onrivi-content-root .onrivi-sentence-br,
-.custom-preview-container p br,
-.onrivi-content-root p br {
+.custom-preview-container p br:not(.ProseMirror-trailingBreak),
+.onrivi-content-root p br:not(.ProseMirror-trailingBreak) {
   display: inline !important;
   margin: 0 !important;
   content: normal !important;
@@ -6907,6 +6957,45 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       }
       css += `}\n`;
+
+      if (tag === 'blockquote') {
+        css += `
+.custom-preview-container blockquote p,
+.onrivi-content-root blockquote p,
+blockquote p {
+  margin-top: 0 !important;
+  margin-bottom: 4px !important;
+  line-height: 1.55 !important;
+}
+.custom-preview-container blockquote p:last-child,
+.onrivi-content-root blockquote p:last-child,
+blockquote p:last-child {
+  margin-bottom: 0 !important;
+}
+.custom-preview-container blockquote ul,
+.onrivi-content-root blockquote ul,
+.custom-preview-container blockquote ol,
+.onrivi-content-root blockquote ol,
+blockquote ul,
+blockquote ol {
+  margin-top: 4px !important;
+  margin-bottom: 4px !important;
+  padding-left: 1.4em !important;
+}
+.custom-preview-container blockquote li,
+.onrivi-content-root blockquote li,
+blockquote li {
+  margin-bottom: 2px !important;
+  line-height: 1.5 !important;
+}
+.custom-preview-container blockquote li p,
+.onrivi-content-root blockquote li p,
+blockquote li p {
+  margin-top: 0 !important;
+  margin-bottom: 2px !important;
+}
+`;
+      }
 
       if (tag === 'img') {
         const ml = ruleObj['margin-left'] || 'auto';
@@ -8048,6 +8137,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         else if (type === 'OPEN_EXPORT') handlers.openExport();
         return;
       }
+      case 'PAGEBREAK': {
+        if (previewRef.current?.querySelector('.visual-document-editor') && visualCommandRef.current?.('PAGEBREAK')) {
+          return;
+        }
+        insertAtCursor('\n\n<!-- onrivi:page-break -->\n\n');
+        return;
+      }
 
       // 보기/제어 관련 (문서보기 확대/축소로 일원화)
       case 'ZOOM_IN':
@@ -8101,19 +8197,21 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         return;
       }
       case 'TOGGLE_EMOJI_PANEL': {
+        // 1. 에디터 포커스 확보 (OS 이모지 입력기에서 선택 시 현재 커서 위치에 즉시 주입)
         if (editorRef.current) {
-          const editor = editorRef.current;
-          const pos = editor.getPosition();
-          const sel = editor.getSelection();
-          if (pos) {
-            emojiSavedPositionRef.current = {
-              lineNumber: pos.lineNumber,
-              column: pos.column,
-              selection: sel
-            };
-          }
+          editorRef.current.focus();
+        } else if (previewRef.current) {
+          (previewRef.current.querySelector('.visual-document-surface') as HTMLElement)?.focus();
         }
-        setIsEmojiPanelOpen(prev => !prev);
+
+        // 2. 데스크톱(Electron) 또는 웹 브라우저 환경에서 OS 네이티브 이모지 창 직접 호출
+        const electron = (window as any).electronAPI;
+        if (electron && typeof electron.showEmojiPicker === 'function') {
+          electron.showEmojiPicker();
+        } else {
+          // 브라우저/로컬 환경: 백엔드 API를 통해 OS 이모지 창(Windows: Win + ., macOS: Cmd+Ctrl+Space) 즉각 격발
+          fetch('/api/system/emoji', { method: 'POST' }).catch(() => {});
+        }
         return;
       }
       case 'AI_DRAFT': {
@@ -8366,6 +8464,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }, 50);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handlers, isRestrictedUser]);
+
+  // 🖨️ [인쇄 / 쪽 윤곽 모달 직결 이벤트 수신]
+  useEffect(() => {
+    const handleOpenPrint = () => {
+      dispatchCommand('OPEN_EXPORT');
+    };
+    window.addEventListener('onrivi:open-print', handleOpenPrint);
+    return () => window.removeEventListener('onrivi:open-print', handleOpenPrint);
+  }, [dispatchCommand]);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0071] MainEditorApp.tsx ➔ mapIdToCommandType
@@ -8710,23 +8817,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const isShift = e.shiftKey;
       const isAlt = e.altKey;
 
-      // 💡 [이모지 보관함 단축키] Ctrl+Shift+E
+      // 💡 [OS 이모지 입력기 단축키] Ctrl+Shift+E
       if (isCtrl && isShift && !isAlt && e.key.toUpperCase() === 'E') {
         e.preventDefault();
         e.stopPropagation();
-        if (editorRef.current) {
-          const editor = editorRef.current;
-          const pos = editor.getPosition();
-          const sel = editor.getSelection();
-          if (pos) {
-            emojiSavedPositionRef.current = {
-              lineNumber: pos.lineNumber,
-              column: pos.column,
-              selection: sel
-            };
-          }
-        }
-        setIsEmojiPanelOpen(prev => !prev);
+        dispatchCommand('TOGGLE_EMOJI_PANEL');
         return;
       }
 
@@ -10971,7 +11066,37 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                   </button>
                                 </div>
                                 {directEditEnabled && !isRestrictedUser && activeTabId && currentFileName !== '도움말.md' && !activeProfile.layout ? (
-                                  <VisualDocumentEditor key={activeTabId} documentId={activeTabId} bibContent={bibContent} onCitation={()=>setIsCitationModalOpen(true)} onReferenceSettings={() => setIsReferenceModalOpen(true)} tabSize={editorTabSize} onToast={showToast} onStyleSettings={() => setIsStyleModalOpen(true)} onSourceScroll={offset=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel() || isScrollingRef.current==='editor')return;isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);const position=editor.getModel().getPositionAt(offset);editor.setScrollTop(editor.getTopForLineNumber(position.lineNumber));}} onSourceCursor={(offset,reveal=true)=>{const editor=editorRef.current;if(previewModeRef.current!=='both' || !editor?.getModel())return;const position=editor.getModel().getPositionAt(offset);isScrollingRef.current='preview';if(scrollTimeoutRef.current)clearTimeout(scrollTimeoutRef.current);scrollTimeoutRef.current=setTimeout(()=>{isScrollingRef.current=null;},100);const top=editor.getScrollTop(),left=editor.getScrollLeft();editor.setPosition(position);if(reveal)editor.revealPositionInCenterIfOutsideViewport(position);else editor.setScrollPosition({scrollTop:top,scrollLeft:left});}} commandRef={visualCommandRef} customCommands={customSlashCommands} customHotkeys={customHotkeys}
+                                   <VisualDocumentEditor key={activeTabId} documentId={activeTabId} bibContent={bibContent} onCitation={()=>setIsCitationModalOpen(true)} onReferenceSettings={() => setIsReferenceModalOpen(true)} pageStyle={resolveEffectiveDocumentProfile(content).pageStyle} spellCheck={spellCheck} tabSize={editorTabSize} onToast={showToast} onStyleSettings={() => setIsStyleModalOpen(true)}
+                                     onSourceScroll={offset => {
+                                       const editor = editorRef.current;
+                                       if (previewModeRef.current !== 'both' || !editor?.getModel() || isScrollingRef.current === 'editor') return;
+                                       isScrollingRef.current = 'preview';
+                                       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                                       scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 150);
+                                       const position = editor.getModel().getPositionAt(offset);
+                                       const visibleRanges = editor.getVisibleRanges?.();
+                                       if (visibleRanges && visibleRanges.length > 0) {
+                                         const startLine = visibleRanges[0].startLineNumber;
+                                         const endLine = visibleRanges[visibleRanges.length - 1].endLineNumber;
+                                         if (position.lineNumber >= startLine + 1 && position.lineNumber <= endLine - 1) {
+                                           return;
+                                         }
+                                       }
+                                       editor.revealLineInCenterIfOutsideViewport(position.lineNumber);
+                                     }}
+                                     onSourceCursor={(offset, reveal = false) => {
+                                       const editor = editorRef.current;
+                                       if (previewModeRef.current !== 'both' || !editor?.getModel()) return;
+                                       const position = editor.getModel().getPositionAt(offset);
+                                       isScrollingRef.current = 'preview';
+                                       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                                       scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 150);
+                                       editor.setPosition(position);
+                                       if (reveal) {
+                                         editor.revealPositionInCenterIfOutsideViewport(position);
+                                       }
+                                     }}
+                                     commandRef={visualCommandRef} customCommands={customSlashCommands} customHotkeys={customHotkeys}
                                     onDocLinkDialog={(pos, insert) => {
                                       visualDocLinkPositionRef.current = pos;
                                       visualDocLinkInsertRef.current = insert;
@@ -11028,7 +11153,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                 content={processedContent}
                                 onMediaEdit={isRestrictedUser ? undefined : editDocumentMedia}
                                 picturebookProfile={activeProfile}
-                                picturebookEditorOptions={{documentId:activeTabId,tabSize:editorTabSize,customCommands:customSlashCommands,customHotkeys,commandRef:visualCommandRef,
+                                picturebookEditorOptions={{documentId:activeTabId,tabSize:editorTabSize,spellCheck,customCommands:customSlashCommands,customHotkeys,commandRef:visualCommandRef,
                                   bibContent,onCitation:()=>setIsCitationModalOpen(true),
                                   onAction:command=>dispatchCommand(command),
                                   floatingToolbarVisible:floatingToolbar.visible,
@@ -11128,13 +11253,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
             </main>
 
-            {isEmojiPanelOpen && (
-              <EmojiPanel
-                onClose={() => setIsEmojiPanelOpen(false)}
-                onInsert={insertEmojiAtCursor}
-                isToolbarOpen={isToolbarOpen}
-              />
-            )}
+            {/* 자체 EmojiPanel 모달은 OS 네이티브 이모지 피커로 대체되어 렌더링하지 않음 */}
 
             {isToolbarOpen && (
               <div className="no-print h-full w-12 flex flex-col justify-end bg-zinc-50 dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700/60 pb-3">
@@ -11193,7 +11312,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               }
             }}
             deps={{
-              isDarkMode, setIsDarkMode, fontSize, setFontSize, editorTabSize, setEditorTabSize, wordWrap, setWordWrap,
+              isDarkMode, setIsDarkMode, fontSize, setFontSize, editorTabSize, setEditorTabSize, spellCheck, setSpellCheck, wordWrap, setWordWrap,
               autoSave, setAutoSave, rootFolder, selectRootFolder, driveLetter, setDriveLetter,
               workspaceType, setWorkspaceType, previewMode, setPreviewMode, customHotkeys, setCustomHotkeys,
               customSlashCommands, setCustomSlashCommands, licenseKey, setLicenseKey, themePalette, handleThemeChange,

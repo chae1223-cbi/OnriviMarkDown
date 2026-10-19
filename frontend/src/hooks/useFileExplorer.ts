@@ -24,6 +24,11 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
+// 🚨 @PATCH : **2026-10-19** — [작업장 파일 자동저장 복구 및 플레이스홀더 수화 강화]: FileSystemAccess 경로 매칭 시 NFC 정규화 및 상대경로 직접 분해 적용, 기존 탭의 플레이스홀더('작업장 외부 문서 안내') 자동 감지 시 rootFolder.handle에서 실제 파일 즉각 수화(Hydration), handle 누락 시 rootFolder 자동 탐색 바인딩으로 저장 대화상자 불필요 팝업 차단
+// 🚨 @PATCH : **2026-10-17** — [경로 기반 파일 열기 시 물리 FileNode 바인딩 및 세션 복원 폴백 차단 해제]:
+//             1) handleFileOpenByPath에서 createNewTab 및 setTabs 호출 시 diskNode를 100% 생성·주입하고 setCurrentFileNode/setCurrentFileName을 즉시 동기화하여 자동저장 누락 및 저장 다이얼로그 팝업 결함 해결
+//             2) handleFileOpenByPath 하단 sessionRestoringRef 가드를 제거하여 세션 복원 시에도 handleFileClick으로 안전하게 폴백 연결되도록 개선
+//             3) handleFileClick에서 기존 탭 재사용 시 matched.id로 activeTabId를 정확히 일치시켜 탭 ID 불일치 방어
 // 🚨 @PATCH : **2026-10-17** — [세션 복원 시 미존재 파일 유령 탭 생성 방지]:
 //             앱 시작 세션 복원(restoreSessionTabs) 시 디스크에서 삭제/이동된 파일(readFromPath 실패)에 대해 빈 유령 탭을 무작정 생성하지 않고 안전하게 건너뛰도록 방어
 // 🚨 @PATCH : **2026-10-15** — [다른 이름으로 저장 및 개인 웹드라이브 연동 시 로컬 작업장 불변 보장 & 원클릭 복구 고도화]:
@@ -853,7 +858,9 @@ export const useFileExplorer = ({
       const isPlaceholder = !trimmedContent || 
         trimmedContent === `# ${targetBaseNameWithoutMd}` ||
         trimmedContent === `# ${existingOpenTab.name.replace(/\.md$/i, '')}` ||
-        (trimmedContent.startsWith(`# ${targetBaseNameWithoutMd}`) && trimmedContent.length < targetBaseNameWithoutMd.length + 15);
+        (trimmedContent.startsWith(`# ${targetBaseNameWithoutMd}`) && trimmedContent.length < targetBaseNameWithoutMd.length + 15) ||
+        trimmedContent.includes('작업장 외부 문서 안내') ||
+        trimmedContent.includes('작업장 외부 문서');
 
       if (isPlaceholder) {
         let hydratedContent = '';
@@ -951,6 +958,31 @@ export const useFileExplorer = ({
           }
         }
 
+        // 2-1) 브라우저 모드: rootFolder.handle에서 실제 파일 즉시 수화
+        if (!hydratedContent && workspaceType === 'browser' && rootFolderRef.current?.handle) {
+          try {
+            const deepRes = await findFileHandleInDirectoryDeep(rootFolderRef.current.handle, targetBaseName);
+            if (deepRes) {
+              const file = await deepRes.fileHandle.getFile();
+              const text = await file.text();
+              hydratedContent = text;
+              existingOpenTab.handle = deepRes.fileHandle;
+              currentFileParentHandleRef.current = deepRes.parentHandle;
+              const diskNode: FileNode = {
+                name: deepRes.fileHandle.name,
+                path: existingOpenTab.path || pathWithoutHash || deepRes.fileHandle.name,
+                kind: 'file',
+                handle: deepRes.fileHandle
+              };
+              existingOpenTab.node = diskNode;
+              setCurrentFileNode(diskNode);
+              setCurrentFileName(deepRes.fileHandle.name);
+            }
+          } catch (rfErr) {
+            console.warn('[existingOpenTab] rootFolder.handle 수화 예외:', rfErr);
+          }
+        }
+
         // 3) 캐시된 외부 파일 핸들 수화 시도 (IndexedDB)
         if (!hydratedContent) {
           try {
@@ -988,9 +1020,11 @@ export const useFileExplorer = ({
             existingOpenTab.model.setValue(hydratedContent);
           }
           setContent(hydratedContent);
+          lastSavedContentRef.current = hydratedContent;
           setTabs(prev => prev.map(t => t.id === existingOpenTab.id ? {
             ...t,
             content: hydratedContent,
+            isModified: false,
             path: resolvedPathFromSource || t.path,
             node: existingOpenTab.node || t.node,
             handle: existingOpenTab.handle || t.handle,
@@ -1060,13 +1094,19 @@ export const useFileExplorer = ({
     // 💡 [FileSystemAccess 로컬 폴더 직접 탐색 가드]
     if (workspaceType === 'browser' && rootFolder?.handle) {
       try {
-        let relativePath = pathWithoutHash.replace(/\\/g, '/');
-        const parts = relativePath.split('/').filter(p => p && p !== '.');
-        
-        // 1) 만약 parts 중에 rootFolder의 이름(예: '블러그')이 포함되어 있다면 그 이후 경로가 작업장 내부의 상대경로
-        const rootName = (rootFolder.handle?.name || rootFolder.name || '').toLowerCase();
-        const rootIdx = parts.findIndex(p => p.toLowerCase() === rootName);
-        let innerParts = rootIdx >= 0 ? parts.slice(rootIdx + 1) : parts;
+        const normTarget = pathWithoutHash.replace(/\\/g, '/').normalize('NFC');
+        const normRootPath = (rootFolder.path || '').replace(/\\/g, '/').normalize('NFC');
+        const normRootName = (rootFolder.handle?.name || rootFolder.displayName || rootFolder.name || '').replace(/\\/g, '/').split('/').filter(Boolean).pop()?.toLowerCase().normalize('NFC') || '';
+
+        let innerParts: string[] = [];
+        if (normRootPath && normTarget.toLowerCase().startsWith(normRootPath.toLowerCase())) {
+          const rel = normTarget.slice(normRootPath.length).replace(/^\/+/, '');
+          innerParts = rel.split('/').filter(p => p && p !== '.');
+        } else {
+          const parts = normTarget.split('/').filter(p => p && p !== '.');
+          const rootIdx = parts.findIndex(p => p.toLowerCase().normalize('NFC') === normRootName);
+          innerParts = rootIdx >= 0 ? parts.slice(rootIdx + 1) : parts;
+        }
 
         // 2) 드라이브 문자(E:, D:, C:)가 아직 맨 앞에 남아있다면 제거
         if (innerParts.length > 0 && /^[a-zA-Z]:$/.test(innerParts[0])) {
@@ -1083,8 +1123,22 @@ export const useFileExplorer = ({
           try {
             currentDir = await currentDir.getDirectoryHandle(dirName, { create: false });
           } catch {
-            isSearchSuccess = false;
-            break;
+            let foundSubDir: FileSystemDirectoryHandle | null = null;
+            try {
+              const targetDirNorm = dirName.toLowerCase().normalize('NFC');
+              for await (const entry of (currentDir as any).values()) {
+                if (entry.kind === 'directory' && entry.name.toLowerCase().normalize('NFC') === targetDirNorm) {
+                  foundSubDir = entry;
+                  break;
+                }
+              }
+            } catch {}
+            if (foundSubDir) {
+              currentDir = foundSubDir;
+            } else {
+              isSearchSuccess = false;
+              break;
+            }
           }
         }
 
@@ -1093,7 +1147,15 @@ export const useFileExplorer = ({
           try {
             foundHandle = await currentDir.getFileHandle(targetFileName, { create: false });
           } catch {
-            foundHandle = null;
+            try {
+              const targetNorm = targetFileName.toLowerCase().normalize('NFC');
+              for await (const entry of (currentDir as any).values()) {
+                if (entry.kind === 'file' && entry.name.toLowerCase().normalize('NFC') === targetNorm) {
+                  foundHandle = entry;
+                  break;
+                }
+              }
+            } catch {}
           }
         }
 
@@ -1103,12 +1165,16 @@ export const useFileExplorer = ({
             foundHandle = await rootFolder.handle.getFileHandle(targetBaseName, { create: false });
             currentDir = rootFolder.handle;
           } catch {
-            if (targetBaseNameWithMd && targetBaseNameWithMd !== targetBaseName) {
-              try {
-                foundHandle = await rootFolder.handle.getFileHandle(targetBaseNameWithMd, { create: false });
-                currentDir = rootFolder.handle;
-              } catch {}
-            }
+            try {
+              const targetNorm = targetBaseName.toLowerCase().normalize('NFC');
+              for await (const entry of (rootFolder.handle as any).values()) {
+                if (entry.kind === 'file' && entry.name.toLowerCase().normalize('NFC') === targetNorm) {
+                  foundHandle = entry;
+                  currentDir = rootFolder.handle;
+                  break;
+                }
+              }
+            } catch {}
           }
         }
 
@@ -1205,6 +1271,7 @@ export const useFileExplorer = ({
         if (fileObj && typeof fileObj.content === 'string') {
           const filename = fileObj.name || targetBaseNameWithMd || targetBaseName || '문서.md';
           const resolvedDiskPath = fileObj.path || nativePath;
+          const diskNode: FileNode = { name: filename, path: resolvedDiskPath, kind: 'file' };
 
           const existingTab = tabsRef.current.find(t => 
             t.path === resolvedDiskPath || 
@@ -1220,9 +1287,11 @@ export const useFileExplorer = ({
             setContent(fileObj.content);
             switchTab(existingTab.id);
           } else {
-            createNewTab(fileObj.content, filename, false, resolvedDiskPath);
-            setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: resolvedDiskPath } : t));
+            createNewTab(fileObj.content, filename, false, resolvedDiskPath, diskNode);
+            setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: resolvedDiskPath, node: diskNode } : t));
           }
+          setCurrentFileNode(diskNode);
+          setCurrentFileName(filename);
           jumpToAnchor(targetHash);
           return;
         }
@@ -1238,6 +1307,7 @@ export const useFileExplorer = ({
           if (data.ok && typeof data.content === 'string') {
             const filename = data.title || targetBaseNameWithMd || targetBaseName || '문서.md';
             const resolvedDiskPath = data.path || pathWithoutHash;
+            const diskNode: FileNode = { name: filename, path: resolvedDiskPath, kind: 'file' };
 
             const existingTab = tabsRef.current.find(t => 
               t.path === resolvedDiskPath || 
@@ -1253,9 +1323,11 @@ export const useFileExplorer = ({
               setContent(data.content);
               switchTab(existingTab.id);
             } else {
-              createNewTab(data.content, filename, false, resolvedDiskPath);
-              setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: resolvedDiskPath } : t));
+              createNewTab(data.content, filename, false, resolvedDiskPath, diskNode);
+              setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: resolvedDiskPath, node: diskNode } : t));
             }
+            setCurrentFileNode(diskNode);
+            setCurrentFileName(filename);
             jumpToAnchor(targetHash);
             return;
           }
@@ -1389,7 +1461,6 @@ export const useFileExplorer = ({
     }
 
     if (workspaceType !== 'browser') {
-      if (sessionRestoringRef?.current) return;
       const filename = targetBaseNameWithMd || targetBaseName || '파일.md';
       const dummyNode: FileNode = {
         name: filename,
@@ -1518,6 +1589,31 @@ export const useFileExplorer = ({
               return;
             }
           } else { showToast('구글 드라이브 연결을 갱신한 뒤 다시 열어 주세요.', 'error'); return; }
+        } else if (node.handle && (!existingTab.handle || !existingTab.content || existingTab.content.includes('작업장 외부 문서 안내') || existingTab.content.includes('작업장 외부 문서'))) {
+          // 🛡️ [브라우저 모드 핸들 및 본문 즉시 수화]: 기존 탭이 플레이스홀더였거나 handle이 바인딩되지 않은 경우 실제 파일로 교체
+          try {
+            const file = await node.handle.getFile();
+            const text = await file.text();
+            existingTab.handle = node.handle;
+            existingTab.node = node;
+            existingTab.content = text;
+            if (existingTab.model && !existingTab.model.isDisposed()) {
+              existingTab.model.setValue(text);
+            }
+            setContent(text);
+            lastSavedContentRef.current = text;
+            setCurrentFileNode(node);
+            setCurrentFileName(node.name);
+            setTabs(prev => prev.map(t => t.id === existingTab.id ? {
+              ...t,
+              handle: node.handle,
+              node: node,
+              content: text,
+              isModified: false
+            } : t));
+          } catch (hErr) {
+            console.warn('[existingTab] handle 수화 예외:', hErr);
+          }
         }
         switchTab(existingTab.id);
         setIsSidebarOpen(true);
@@ -1693,7 +1789,7 @@ export const useFileExplorer = ({
               (normNewPath && normTabPath && (normTabPath === normNewPath || normTabPath.endsWith('/' + normNewPath) || normNewPath.endsWith('/' + normTabPath))) ||
               t.name === node.name;
             if (isMatch) {
-              return { ...t, content: fileContent || t.content, model: model || t.model, node: node || t.node, driveFileId: driveId || (t as any).driveFileId };
+              return { ...t, id: newTabId, path: node.path || t.path, content: fileContent || t.content, model: model || t.model, node: node || t.node, driveFileId: driveId || (t as any).driveFileId };
             }
             return t;
           });
@@ -2059,6 +2155,22 @@ export const useFileExplorer = ({
           success = true;
         }
       } else if (effectiveWorkspaceType === 'browser') {
+        if (!targetFile.handle && rootFolderRef.current?.handle) {
+          const targetBaseName = targetFile.name || targetFile.path?.replace(/\\/g, '/').split('/').pop() || '';
+          if (targetBaseName && targetBaseName !== '새 파일.md') {
+            try {
+              const deepRes = await findFileHandleInDirectoryDeep(rootFolderRef.current.handle, targetBaseName);
+              if (deepRes) {
+                targetFile.handle = deepRes.fileHandle;
+                currentFileParentHandleRef.current = deepRes.parentHandle;
+                const activeTabId = activeTabIdRef?.current;
+                if (activeTabId) {
+                  setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, handle: deepRes.fileHandle, node: { ...t.node, handle: deepRes.fileHandle } } : t));
+                }
+              }
+            } catch {}
+          }
+        }
         if (targetFile.handle) {
           const permissionMode = { mode: 'readwrite' as const };
           let isGranted = (await targetFile.handle.queryPermission(permissionMode)) === 'granted';

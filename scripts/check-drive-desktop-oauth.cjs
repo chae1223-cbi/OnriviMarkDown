@@ -30,14 +30,23 @@ const event = { sender: window.webContents };
   await assert.rejects(handlers['gdrive:request-auth']({ sender: {} }));
   const auth = handlers['gdrive:request-auth'](event);
   assert.equal(opened.origin, 'https://onrivi.com'); assert.ok(port >= 49152 && port <= 65535);
-  let status;
-  const response = { setHeader() {}, writeHead: value => status = value, end() {} };
+  let status,html;
+  const response = { setHeader() {}, writeHead: value => status = value, end(value) { html=value; } };
   await listener({ method: 'GET', url: '/callback?code=' + 't'.repeat(43) + '&state=wrong' }, response);
   assert.equal(status, 400); assert.equal(requests.length, 0);
   await listener({ method: 'GET', url: '/callback?code=' + 't'.repeat(43) + '&state=' + opened.searchParams.get('state') }, response);
   const tokens = await auth;
   assert.equal(tokens.access_token, 'initial-token'); assert.equal(tokens.session_token, undefined);
   assert.equal(status, 200); assert.equal(closeCount, 1);
+  let closed=0,cleared=false,revealed=false,click;
+  const complete={set hidden(value){revealed=!value;}};
+  vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],{
+    history:{replaceState(_state,_title,url){assert.equal(url,'/callback');cleared=true;}},
+    window:{close(){closed++;}},document:{getElementById(id){return id==='complete'?complete:{addEventListener(_event,handler){click=handler;}};}},
+    setTimeout(handler){handler();}
+  });
+  assert.equal(closed,1);assert.equal(cleared,true);assert.equal(revealed,true);click();assert.equal(closed,2);
+  assert.ok(!html.includes('initial-token'));assert.ok(!html.includes('t'.repeat(43)));
   assert.equal(files.size, 1); assert.ok(![...files.values()][0].toString().includes('ssssssss'));
   const renewed = await handlers['gdrive:refresh-auth'](event); assert.equal(renewed.access_token, 'renewed-token');
   assert.equal(requests.length, 2, 'refresh uses HTTP without opening another browser');

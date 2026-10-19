@@ -73,6 +73,7 @@ _dev_api_backup/
 *.log
 
 # 더미 및 테스트용 임시 에셋
+frontend/public/pagedjs/
 **/users_image_*
 **/temp_*
 **/test_*

@@ -3,6 +3,7 @@ import BibliographySummary from '@/components/BibliographySummary';
 import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import { remarkCodeBlockMetadata } from '../lib/codeBlockMetadata';
 import { remarkKoreanStrong } from '@/lib/remarkKoreanStrong';
+import { remarkPageBreak } from '@/lib/remarkPageBreak';
 import { bulletNumbersAsText } from '@/lib/bulletNumberText';
 import PicturebookPreview from './PicturebookPreview';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
@@ -501,8 +502,18 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
     };
 
     return (
-      <div data-line={extractDataLine(props)} className={`relative group inline-flex flex-col onrivi-image-wrapper ${className || ''}`} style={style}>
-        <img ref={imgRef} src={imgSrc} alt={alt} className={className} onError={onImgError} onLoad={handleImgLoad} {...props} data-line={undefined} style={{ maxWidth: '100%', height: 'auto', objectFit: 'contain' }} />
+      <div ref={element=>{
+        if(!element)return;
+        // Explicit per-image dimensions take precedence over profile defaults.
+        if(style?.width)element.style.setProperty('width',String(style.width),'important');
+        element.style.setProperty('height','auto','important');
+        const image=element.querySelector('img');
+        if(image){
+          if(style?.width)image.style.setProperty('width','100%','important');
+          if(style?.width||style?.height)image.style.setProperty('height',String(style?.height||'auto'),'important');
+        }
+      }} data-image-width={style?.width||undefined} data-image-height={style?.height||undefined} data-line={extractDataLine(props)} className={`relative group inline-flex flex-col onrivi-image-wrapper ${className || ''}`} style={{...style,height:'auto'}}>
+        <img ref={imgRef} src={imgSrc} alt={alt} className={className} onError={onImgError} onLoad={handleImgLoad} {...props} data-line={undefined} style={{ maxWidth: '100%', width:style?.width?'100%':undefined, height:style?.height||'auto', objectFit: 'contain', flexShrink:0 }} />
         {showCopyControl && <button
             onClick={handleCopy}
             className="onrivi-media-control copy-button-hook absolute top-2 right-2 px-2.5 py-1.5 bg-black/60 dark:bg-white/20 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity text-xs flex items-center gap-1.5 z-10 hover:bg-black/80 font-medium no-print"
@@ -2625,7 +2636,7 @@ function MarkdownViewer({
             if (cleanUri.trim().toLowerCase().startsWith('javascript:')) return '';
             return cleanUri;
           }}
-          remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkExtendedTable, remarkBreaks, remarkMath, remarkDisableIndentedCode, remarkCodeBlockMetadata, remarkKoreanStrong]}
+          remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkExtendedTable, remarkBreaks, remarkMath, remarkDisableIndentedCode, remarkCodeBlockMetadata, remarkKoreanStrong,remarkPageBreak]}
           rehypePlugins={[
             [rehypeKatex, { strict: false }],
             rehypeBrRaw,

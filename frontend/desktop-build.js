@@ -7,6 +7,7 @@
  * 2. next build 실행
  * 3. 임시 이동한 폴더 원위치 복원
  * 
+ * 🚨 @PATCH : **2026-10-18** — [Windows 파일 잠금 EBUSY 방어 및 out 정적 번들 덮어쓰기 복사]: out 디렉터리 rmSync 선행 삭제를 걷어내고 cpSync({ force: true })로 직접 덮어써 실행 중인 프로세스(Electron) 잠금으로 인한 복사 실패 및 404 방어
  * 🚨 @PATCH : **2026-10-11** — [.next-desktop 산출물 out 복사 및 최신화 누락 버그 해결]: NEXT_BUILD_DIR(.next-desktop)로 export된 정적 번들을 out 디렉터리로 복사하는 단계가 누락되어 데스크톱 Electron(NO_SERVER=true)이 과거 빌드를 바라보던 결함 완전 수정
  * 🚨 @PATCH : **2026-10-11** — [타 빌드 잔여 캐시(.next-dev, .next-web-build) 선행 소탕 추가]: Next.js 타입 검사 시 이전 개발/웹 빌드 캐시의 types 참조로 인한 라우트 격리 컴파일 실패 원천 차단
  * 🚨 @PATCH : **2026-10-02** — [빌드 산출물 자동 소탕(Purge) 탑재]: out 디렉터리 내 잔여 소스맵(.map), 테스트 파일, 임시/더미 에셋 자동 소탕 추가
@@ -108,10 +109,10 @@ if (buildSuccess) {
     const exportedDir = path.join(__dirname, '.next-desktop');
     const outputDir = path.join(__dirname, 'out');
     if (fs.existsSync(exportedDir)) {
-      if (fs.existsSync(outputDir)) {
-        fs.rmSync(outputDir, { recursive: true, force: true });
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
       }
-      fs.cpSync(exportedDir, outputDir, { recursive: true });
+      fs.cpSync(exportedDir, outputDir, { recursive: true, force: true });
       console.log('[desktop-build] .next-desktop -> out 정적 번들 복사 및 최신화 완료');
     }
   } catch (copyOutErr) {

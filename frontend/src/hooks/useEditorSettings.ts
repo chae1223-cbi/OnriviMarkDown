@@ -10,6 +10,7 @@ import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { normalizeAIModelName } from '@/lib/gemini';
 import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
 import { getSavedWorkspaceInfo } from '@/lib/gdrive/googleDriveClient';
+import { getDefaultWatermarkSettings, saveDefaultWatermarkSettings, normalizePrintSettings,watermarkSettingsForStorage, DocumentPrintSettings } from '@/lib/documentPrintSettings';
 
 /**
  * [ONR-16-002] useEditorSettings 커스텀 훅
@@ -18,6 +19,8 @@ import { getSavedWorkspaceInfo } from '@/lib/gdrive/googleDriveClient';
 // ====================================================================
 // 📊 [OMD-EDIT-USEEDITORSETTINGS-0005] useEditorSettings.ts ➔ useEditorSettings
 // 🎯 @KICK  : 에디터 사용자 설정(테마, 단축키, 폰트크기 등)을 관리하고 영구 저장소에 동기화
+// 🚨 @PATCH : **2026-10-19** — [브라우저 모드 작업장 절대경로 및 메타데이터 복원 정밀화]: rootFolderHandle 복구 시 localStorage의 rootFolder 및 onrivi_workspace_path 메타데이터(path, displayName)를 결합하여 rootFolder에 온전히 주입, 작업장 내부 파일 판별 정상화
+// 🚨 @PATCH : **2026-10-19** — [환경설정 일반설정 기본 워터마크(위치/문구/이미지/진하기) 상태 동기화 탑재]: defaultWatermarkSettings 상태 및 localStorage/Electron 영구 동기화 파이프라인 신설
 // 🚨 @PATCH : **2026-10-07** — [최종 구글 드라이브 작업장 상태 영구 복원 강화]: onrivi_last_workspace_mode 및 getSavedWorkspaceInfo 연동으로 재접속 시 구글 드라이브 작업장 상태 및 rootFolder 100% 자동 복구 보장
 // 🚨 @PATCH : **2026-10-03** — [구글 드라이브(GDRIVE) 워크스페이스 세션 자동 복원 지원]: 새로고침 시 activeWorkspaceType === 'gdrive'일 때 localStorage의 rootFolder를 확인하여 구글 드라이브 서재 세션을 자동 복구
 // 🚨 @PATCH : **2026-09-25** — [에디터 기본 글꼴 크기 16px 상향 및 가독성 최적화]: 작은 글씨로 인한 피로를 해소하기 위해 기본 에디터 fontSize를 14px에서 16px로 전면 상향 조정
@@ -49,6 +52,7 @@ export const useEditorSettings = (
   const [editorFontWeight, setEditorFontWeight] = useState<'normal' | 'medium' | 'semibold' | 'bold'>('medium');
   const [editorHighContrast, setEditorHighContrast] = useState<boolean>(false);
   const [editorTabSize,setEditorTabSize] = useState<number>(4);
+  const [spellCheck,setSpellCheck] = useState(false);
   const [wordWrap, setWordWrap] = useState<'on' | 'off'>('off');
   const [autoSave, setAutoSave] = useState<number>(5);
   const [quoteStyle, setQuoteStyle] = useState<'modern' | 'clean' | 'none'>('modern');
@@ -86,6 +90,12 @@ export const useEditorSettings = (
   const [customHotkeys, setCustomHotkeys] = useState<Record<string, string>>(() => getDefaultHotkeys());
   const [customSlashCommands, setCustomSlashCommands] = useState<Record<string, string>>(() => getDefaultCommands());
   const [autoClosingBrackets, setAutoClosingBrackets] = useState<boolean>(true);
+  const [defaultWatermarkSettings, setDefaultWatermarkSettings] = useState<DocumentPrintSettings>(() => getDefaultWatermarkSettings());
+  useEffect(()=>{
+    const sync=(event:Event)=>{const value=normalizePrintSettings((event as CustomEvent).detail);setDefaultWatermarkSettings(previous=>JSON.stringify(previous)===JSON.stringify(value)?previous:value);};
+    window.addEventListener('onrivi:watermark_changed',sync);
+    return()=>window.removeEventListener('onrivi:watermark_changed',sync);
+  },[]);
 
   const customSlashCommandsRef = useRef<Record<string, string>>(customSlashCommands);
   useEffect(() => {
@@ -126,6 +136,7 @@ export const useEditorSettings = (
         wordWrap: 'on' as 'on' | 'off',
         autoSave: 5,
         editorTabSize: 4,
+        spellCheck: false,
         previewMode: 'preview' as 'edit' | 'both' | 'preview' | 'css-style',
         quoteStyle: 'modern' as 'modern' | 'clean' | 'none',
         customHotkeys: getDefaultHotkeys(),
@@ -326,6 +337,7 @@ export const useEditorSettings = (
       setEditorHighContrast(baseSettings.editorHighContrast || false);
       setWordWrap(baseSettings.wordWrap);
       setEditorTabSize(Math.max(1,Math.min(16,Number(baseSettings.editorTabSize)||4)));
+      setSpellCheck(baseSettings.spellCheck === true);
       // 하위 호환성: boolean 값이 스토리지에 남아있는 경우 변환
       if (typeof baseSettings.autoSave === 'boolean') {
         setAutoSave(baseSettings.autoSave ? 5 : 0);
@@ -349,6 +361,7 @@ export const useEditorSettings = (
       setAiModelName(safeModel);
       localStorage.setItem('onrivi_ai_model_name', safeModel);
       setAutoClosingBrackets(baseSettings.autoClosingBrackets !== undefined ? baseSettings.autoClosingBrackets : true);
+      setDefaultWatermarkSettings(baseSettings.defaultWatermarkSettings?normalizePrintSettings(baseSettings.defaultWatermarkSettings):getDefaultWatermarkSettings());
 
       document.documentElement.classList.remove('dark');
 
@@ -414,10 +427,22 @@ export const useEditorSettings = (
           const savedHandle = await idb.get('rootFolderHandle');
           if (savedHandle) {
             const isPermissionGranted = (await savedHandle.queryPermission({ mode: 'readwrite' })) === 'granted';
+            const savedFolderRaw = localStorage.getItem('rootFolder');
+            let savedMeta: any = null;
+            try { savedMeta = savedFolderRaw ? JSON.parse(savedFolderRaw) : null; } catch {}
+            const wsPath = localStorage.getItem('onrivi_workspace_path') || savedMeta?.path || savedMeta?.name;
+
+            const folderObj = {
+              name: wsPath || savedHandle.name,
+              path: wsPath || undefined,
+              displayName: savedHandle.name,
+              handle: savedHandle
+            };
+
             if (isPermissionGranted) {
-              setRootFolder({ name: savedHandle.name, handle: savedHandle });
+              setRootFolder(folderObj);
             } else {
-              setRootFolder({ name: savedHandle.name, handle: savedHandle, needPermission: true } as any);
+              setRootFolder({ ...folderObj, needPermission: true } as any);
             }
           } else {
             setRootFolder(null);
@@ -480,6 +505,8 @@ export const useEditorSettings = (
       isDarkMode,
       fontSize,
       editorTabSize,
+      spellCheck,
+      defaultWatermarkSettings:watermarkSettingsForStorage(defaultWatermarkSettings),
       editorFontWeight,
       editorHighContrast,
       wordWrap,
@@ -519,6 +546,8 @@ export const useEditorSettings = (
     localStorage.setItem('onrivi_ai_model_name', safeModel);
     if (previewMode !== 'css-style') localStorage.setItem('previewMode', previewMode);
 
+    saveDefaultWatermarkSettings(defaultWatermarkSettings);
+
     const chromeStorage = (window as any).chrome?.storage?.local;
     if (chromeStorage) {
       chromeStorage.set({ onrivi_settings: settings });
@@ -533,6 +562,7 @@ export const useEditorSettings = (
     isDarkMode,
     fontSize,
     editorTabSize,
+    spellCheck,
     editorFontWeight,
     editorHighContrast,
     wordWrap,
@@ -545,7 +575,8 @@ export const useEditorSettings = (
     geminiApiKey,
     aiModelName,
     themePalette,
-    autoClosingBrackets
+    autoClosingBrackets,
+    defaultWatermarkSettings
   ]);
 
   return {
@@ -554,6 +585,7 @@ export const useEditorSettings = (
     fontSize,
     setFontSize,
     editorTabSize,setEditorTabSize,
+    spellCheck,setSpellCheck,
     editorFontWeight,
     setEditorFontWeight,
     editorHighContrast,
@@ -579,6 +611,8 @@ export const useEditorSettings = (
     customSlashCommands,
     setCustomSlashCommands,
     customSlashCommandsRef,
-    handleThemeChange
+    handleThemeChange,
+    defaultWatermarkSettings,
+    setDefaultWatermarkSettings
   };
 };

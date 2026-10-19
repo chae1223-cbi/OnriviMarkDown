@@ -45,7 +45,7 @@ export function extractFrontmatter(content: string): { content: string; data: Fr
  * @param profileName 새롭게 지정할 서식 이름 (선택사항)
  * @returns 업데이트된 새로운 마크다운 텍스트
  */
-export function updateCssProfileInFrontmatter(content: string, profileId: string, profileName?: string): string {
+export function updateCssProfileInFrontmatter(content: string, profileId: string, profileName?: string, options: { persistDefault?: boolean } = {}): string {
   const { data, content: restContent } = extractFrontmatter(content);
   
   const currentProfile = data['css_profile']?.replace(/^["']|["']$/g, '');
@@ -58,7 +58,7 @@ export function updateCssProfileInFrontmatter(content: string, profileId: string
 
   // 💡 기본 프로필('default' 또는 'system-1')이고 문서에 원래 css_profile이 지정되어 있지 않은 경우,
   //    순수 마크다운 문서에 불필요하게 YAML 메타데이터를 강제 주입하지 않고 원본 유지
-  if ((!profileId || profileId === 'default' || profileId === 'system-1') && !currentProfile) {
+  if (!options.persistDefault && (!profileId || profileId === 'default' || profileId === 'system-1') && !currentProfile) {
     return content;
   }
   

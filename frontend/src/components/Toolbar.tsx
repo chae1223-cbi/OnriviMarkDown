@@ -2,6 +2,8 @@
 // 📊 [OMD-EDIT-Toolbar-0003] Toolbar.tsx ➔ Toolbar
 // 🎯 @KICK  : 에디터 우측 사이드바 툴바 - 홈, 대시보드, 지식베이스, 서식, 참조, 환경설정 퀵 액션 제공
 // 🛡️ @GUARD : 라이선스 및 뷰포트 상태에 따른 프로덕티비티 도구 조건부 노출
+// 🚨 @PATCH : **2026-10-19** — [자체 이모지 모달 제거 및 OS 네이티브 이모지 입력기(Windows/Mac) 호출로 전환]:
+//             자체 커스텀 EmojiPanel 모달을 폐지하고, 툴바 이모지 버튼 클릭 시 OS 네이티브 이모지 피커(electronAPI.showEmojiPicker)가 즉각 팝업되도록 개편
 // 🚨 @PATCH : **2026-10-04** — [우측 툴바 지식 베이스 아이콘 커스텀 PNG 연동] 지식 베이스 버튼 아이콘을 Icon(HeadCircuit) 컴포넌트에서 frontend/public/icons/HeadCircuit.png 원본 이미지로 교체 (dark:invert 적용)
 // 🚨 @PATCH : **2026-10-02** — [우측 툴바 이모지 보관함 퀵 버튼 추가] Toolbar 생산성 도구에 Smile 이모지 보관함 토글 버튼 연동 및 활성 상태 하이라이트 적용
 // 🚨 @PATCH : **2026-09-28** — 제한사용자 툴바에서 서식관리·참조파일 조작을 비활성화하고 이동·설정·로그아웃 유지
@@ -46,14 +48,10 @@ export default function Toolbar({ documentEditing = false }: { documentEditing?:
         <>
           <button
             onMouseDown={(e) => { e.preventDefault(); dispatch('TOGGLE_EMOJI_PANEL'); }}
-            className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all ${
-              isEmojiPanelOpen
-                ? 'bg-[#1d4ed8]/10 dark:bg-[#1d4ed8]/20 text-blue-700 dark:text-blue-400 font-extrabold shadow-xs'
-                : 'hover:bg-black/5 dark:hover:bg-white/5 text-zinc-500 dark:text-zinc-400'
-            }`}
-            title="이모지 보관함 (Ctrl+Shift+E)"
+            className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-zinc-500 dark:text-zinc-400 transition-all"
+            title="OS 이모지 입력기 (Windows 키 + . 또는 Ctrl+Shift+E)"
           >
-            <Icon name="Smile" size={20} className={isEmojiPanelOpen ? 'text-blue-700 dark:text-blue-400' : 'text-zinc-500 dark:text-zinc-400'} />
+            <Icon name="Smile" size={20} className="text-zinc-500 dark:text-zinc-400" />
           </button>
 
 

@@ -84,6 +84,7 @@
       ]
     },
     "files": [
+      "desktopInlineImages.js",
       "electron/gdriveOAuth.cjs",
       "main.js",
       "preload.js",

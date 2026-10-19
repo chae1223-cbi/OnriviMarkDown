@@ -1,7 +1,17 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
- * 프로그램 ID : oaar-visual-editor
+ * 🚨 @PATCH : **2026-10-19** — [페이지 분할 가이드 활성화 시 인쇄 용지 시트(Print Layout) 스타일 1:1 동기화]:
+ *             1) pageGuides 활성화 시 resolvePageGeometry(pageStyle)를 연동하여 .visual-document-surface의 너비와 여백을 용지 규격(A4 210mm, 좌우 12mm, 상하 18mm)으로 정밀 일치
+ *             2) 화면 너비에 따른 텍스트 줄바꿈 왜곡을 원천 방어하여 에디터의 페이지 분할 위치와 실제 인쇄/PDF 출력 위치를 1:1 완벽 동기화
+ *             3) 용지 시트 음영(box-shadow), 라운드 및 배경색(#ffffff / dark:#18181b)을 주입하여 실제 책을 펼쳐놓고 집필하는 위지윅 사용자 경험 제공
+ * 🚨 @PATCH : **2026-10-19** — [입력 중 외부 content 덮어쓰기 방어 및 스크롤 동기화 간섭 차단]:
+ *             1) view.hasFocus() 활성 상태 시 content 변경에 의한 replaceSource 호출을 차단하여 띄어쓰기(스페이스) 및 엔터(개행) 입력 먹힘 현상 완전 해결
+ *             2) viewRef.current?.hasFocus() 활성 상태 시 bulletNumbersAsText/normalizeVisualMarkdownSpacing의 실시간 자동 가공을 유예하여 입력 중 빈 줄 압축 및 서식 교란 방지
+ *             3) .custom-preview-container 스크롤 리스너에서 viewRef.current?.hasFocus() 입력 상태 시 Monaco 스크롤 동기화 발화를 억제하여 나란히 모드 화면 흔들림 완전 차단
+ * 🚨 @PATCH : **2026-10-17** — [빈 문단 엔터 입력 시 빈 행 확장 및 타이핑 시 축소·커서 점프 현상 원천 차단]:
+ *             1) .visual-document-surface br.ProseMirror-trailingBreak 스타일을 display: inline !important, content: normal !important, margin: 0 !important, height: auto !important로 보호하여 ProseMirror 빈 행 캐럿의 인라인 서식 모델 보존
+ *             2) .visual-document-surface p:empty 및 p:has(>br.ProseMirror-trailingBreak:only-child)의 margin: 0 0 0.25em !important 강제 덮어쓰기를 제거하고 min-height: 1em으로 정규화하여, 빈 문단과 텍스트 입력 문단의 상하 여백(margin-bottom) 및 행간(line-height)이 활성 서식 프로필과 100% 일치하도록 일원화
  * 🚨 @PATCH : **2026-10-17** — [문서보기(VisualDocumentEditor) 참조문헌 관리(ADD_REFERENCE) 및 인용(CITE/CITATION) 즉시 실행 연동]:
  *             1) Props에 onReferenceSettings 콜백을 추가하고 executeItem('add_reference' / 'vibe'), nativeCommands, commandRef 브리지('ADD_REFERENCE')에 연결하여 문서보기에서도 참조 파일 관리 모달(ReferenceManagerModal)이 즉시 실행되도록 개선
  *             2) commandRef 브리지에서 CITE/CITATION/ADD_REFERENCE/TOGGLE_CSS_STYLE 모달 호출 시 불필요한 view.focus() 호출로 모달 입력창 포커스가 탈취되지 않도록 처리하고, 인용 삽입 검증 시 view.state.doc.eq(pending.doc) 비교 및 단축키 preventDefault 적용으로 안정성 강화
@@ -96,6 +106,9 @@
  *             1) synchronizeTextSelection에서 DOM 선택 노드가 텍스트 노드가 아닐 때(ELEMENT_NODE) 자식 인덱스(0) 매핑으로 인해 커서가 행 시작(column:1)으로 강제 리셋되던 결함 방어
  *             2) handleClick에 li 요소 클릭 감지 및 posAtCoords 기반 정밀 위치 추적을 탑재하여 글머리 기호/체크박스/본문 글자 클릭 시 해당 클릭 좌표로 즉각 TextSelection 배치
  *             3) list_item NodeView의 dom(li) 및 contentDOM(div)에 cursor: text 스타일을 부여하여 리스트 전 영역 텍스트 커서 시인성 일원화
+ * 🚨 @PATCH : **2026-10-19** — [상단 인쇄 도구 UI 상태바 이전 및 onrivi:toggle-page-guides 이벤트 동기화 연동]:
+ *             1) 에디터 본문 상단의 onrivi-print-tools 툴바를 제거하여 본문 집필 공간을 극대화하고 하단 상태바 액션 아이콘으로 통합
+ *             2) onrivi:toggle-page-guides 전역 이벤트를 수신하여 상태바의 토글 조작과 DocumentPageGuides 렌더링을 실시간 동기화
  * 🚨 @PATCH : **2026-10-14** — [수식 옆 글쓰기(공백 보장) 및 블록 수식 다음 줄 즉각 집필 환경 지원]:
  *             1) visual_inline_math 삽입 시 후행 공백 텍스트 노드를 함께 생성하고 커서를 그 뒤로 이동시켜 인라인 수식 바로 옆에 끊김 없이 글쓰기 보장
  *             2) visual_math 블록 수식 삽입 시 바로 다음 줄에 신규 본문 문단(paragraph)을 자동 생성하고 커서를 배치하여 블록 수식 아래 즉각 집필 지원
@@ -143,7 +156,10 @@ import TableModal from '@/components/TableModal';
 import LinkModal from '@/components/LinkModal';
 import CalendarModal from '@/components/CalendarModal';
 import DateTimeInsertPicker from '@/components/DateTimeInsertPicker';
-import { selectedList, removeListMarkerAtStart, moveUpFromEmptyOrderedItem } from '@/lib/visualListCommands';
+import { selectedList, removeListMarkerAtStart, moveUpFromEmptyOrderedItem, exitEmptyListItem, joinOrderedListsAcrossEmptyParagraph, extendSelectionToListEnd, deleteNextListBoundary } from '@/lib/visualListCommands';
+import DocumentPageGuides from '@/components/DocumentPageGuides';
+import { resolvePageGeometry } from '@/lib/pageGeometry';
+import { browserAccountStorage as pageStorage } from '@/lib/browserAccountStorage';
 import { bulletNumbersAsText } from '@/lib/bulletNumberText';
 import { tableContext, tableAction, moveTableCell, tableEnter } from '@/lib/visualTableCommands';
 import VisualReadOnlyMarkdownBlock from '@/components/VisualReadOnlyMarkdownBlock';
@@ -371,7 +387,21 @@ const exitQuote=(emptyOnly=false):Command=>(state,dispatch)=>{
   }
   return true;
 };
-const ATOM_BLOCK_TYPES = new Set(['visual_image', 'visual_media', 'visual_math', 'source_block', 'horizontal_rule']);
+const ATOM_BLOCK_TYPES = new Set(['visual_image', 'visual_media', 'visual_math', 'source_block', 'horizontal_rule','page_break']);
+const insertPageBreak:Command=(state,dispatch,view)=>{
+  const {$from,$to}=state.selection;
+  if(!state.selection.empty || $from.depth>1 || $to.depth>1 || view?.dom.closest('[data-book-text]'))return false;
+  if(dispatch){
+    const marker=visualSchema.nodes.page_break.create();
+    const tr=state.tr.replaceSelectionWith(marker);let position=-1;
+    tr.doc.forEach((node,pos)=>{if(node===marker)position=pos;});
+    if(position<0)return false;
+    const after=position+marker.nodeSize;
+    if(tr.doc.nodeAt(after)?.type!==visualSchema.nodes.paragraph)tr.insert(after,visualSchema.nodes.paragraph.create());
+    tr.setSelection(TextSelection.create(tr.doc,after+1));dispatch(closeHistory(tr).scrollIntoView());
+  }
+  return true;
+};
 const exitMediaBlock = (requireSelected = false): Command => (state, dispatch, currentView) => {
   let end = -1;
   if (state.selection instanceof NodeSelection && ATOM_BLOCK_TYPES.has(state.selection.node.type.name)) {
@@ -475,21 +505,52 @@ const indentDocument = (backward=false): Command => (state,dispatch,currentView)
     if($from.index(listDepth)!==0 || index===0)return true;
     const previous=container.child(index-1);
     if(!['bullet_list','ordered_list'].includes(previous.type.name))return true;
-    const item=list.firstChild!,last=previous.lastChild!;
-    const nested=list.type.create({...list.attrs,tight:true},item);
+    // A separate list can follow another list (for example after changing
+    // marker types). Move the entire selected range, not only its first item.
+    const listPos=$from.before(listDepth);
+    let count=0,movedSize=0;
+    list.forEach((item,offset)=>{
+      if(listPos+1+offset<to){count++;movedSize+=item.nodeSize;}
+    });
+    if(!count){count=1;movedSize=list.firstChild!.nodeSize;}
+    const items=list.content.cut(0,movedSize),last=previous.lastChild!;
+    const nested=list.type.create({...list.attrs,tight:true},items);
     const changedLast=last.copy(last.content.append(Fragment.from(nested)));
     const changedPrevious=previous.copy(previous.content.replaceChild(previous.childCount-1,changedLast));
     const nodes=[changedPrevious];
-    if(list.childCount>1)nodes.push(list.copy(list.content.cut(item.nodeSize)));
-    const listPos=$from.before(listDepth),previousPos=listPos-previous.nodeSize;
-    if(dispatch){let tr=state.tr.replaceWith(previousPos,listPos+list.nodeSize,nodes);let target=0;
-      tr.doc.descendants((node,pos)=>{if(node===item && !target){target=pos+2;return false;}});
-      tr=tr.setSelection(TextSelection.create(tr.doc,target+$from.parentOffset));dispatch(tr.scrollIntoView());}
+    if(list.childCount>count)nodes.push(list.copy(list.content.cut(movedSize)));
+    const previousPos=listPos-previous.nodeSize;
+    if(dispatch){let tr=state.tr.replaceWith(previousPos,listPos+list.nodeSize,nodes);let target:number|undefined;
+      tr.doc.descendants((node,pos)=>{if(node===items.firstChild && target===undefined){target=pos;return false;}});
+      if(target!==undefined){
+        const delta=target-(listPos+1),{anchor,head}=state.selection;
+        const limit=listPos+1+movedSize-1;
+        tr=tr.setSelection(TextSelection.create(tr.doc,Math.min(anchor,limit)+delta,Math.min(head,limit)+delta));
+      }
+      dispatch(tr.scrollIntoView());}
     return true;
   }
   if(!$from.parent.isTextblock)return true;
   const configured=currentView?Number.parseInt(currentView.dom.dataset.editorTabSize || getComputedStyle(currentView.dom).tabSize,10):2;
   const size=Number.isFinite(configured)?Math.max(1,Math.min(16,configured)):2;
+  if(!state.selection.empty){
+    const edits:{pos:number;remove:number}[]=[];
+    state.doc.nodesBetween(from,to,(node,pos)=>{
+      if(!node.isTextblock)return;
+      if(node.type!==visualSchema.nodes.paragraph || pos+1>=to)return false;
+      const leading=node.textContent.match(new RegExp('^[ \\t\\u00a0]{1,'+size+'}'))?.[0];
+      edits.push({pos:pos+1,remove:backward?(leading?.length||0):0});return false;
+    });
+    if(dispatch && edits.length){
+      const tr=state.tr;
+      for(const edit of edits.reverse()){
+        if(backward){if(edit.remove)tr.delete(edit.pos,edit.pos+edit.remove);}
+        else tr.insertText(' '.repeat(size),edit.pos);
+      }
+      dispatch(tr.scrollIntoView());
+    }
+    return true;
+  }
   const before=$from.parent.textBetween(0,$from.parentOffset,'\n','\n');
   if(!backward){
     const gap=size;
@@ -676,6 +737,8 @@ const sessions = new Map<string, { source: string; state: EditorState; codec: Co
 type Props = { content: string; onChange: (markdown: string) => void; readOnly?: boolean;
   onSourceScroll?: (offset:number)=>void;
   tabSize?:number;
+  pageStyle?:any;
+  spellCheck?:boolean;
   onSourceCursor?: (offset:number,reveal?:boolean)=>void;
   documentId?: string; commandRef?: React.MutableRefObject<((command: string) => boolean) | null>;
   customHotkeys?: Record<string, string>;
@@ -699,7 +762,7 @@ type Props = { content: string; onChange: (markdown: string) => void; readOnly?:
   showBibliography?: boolean;
 };
 
-export default function VisualDocumentEditor({ content, onChange, readOnly = false, tabSize=4, onSourceScroll, onSourceCursor, documentId, commandRef, customCommands = {}, customHotkeys = {}, onSourceAction, onFloatingToolbar, floatingToolbarVisible, renderImage, onImageFile, onImageDialog, onMediaDialog, onDocLinkDialog, onFormulaDialog, currentFilePath, onFileOpen, onToast, onStyleSettings, onReferenceSettings, onCitation, bibContent='', showBibliography=true }: Props) {
+export default function VisualDocumentEditor({ content, onChange, readOnly = false, tabSize=4, spellCheck=false, pageStyle, onSourceScroll, onSourceCursor, documentId, commandRef, customCommands = {}, customHotkeys = {}, onSourceAction, onFloatingToolbar, floatingToolbarVisible, renderImage, onImageFile, onImageDialog, onMediaDialog, onDocLinkDialog, onFormulaDialog, currentFilePath, onFileOpen, onToast, onStyleSettings, onReferenceSettings, onCitation, bibContent='', showBibliography=true }: Props) {
   const citationEntries=React.useMemo(()=>{
     const parsed=parseBibliography(bibContent);
     return new Map(parsed.entries.filter(e=>!parsed.duplicates.some(k=>k.toLowerCase()===e.key.toLowerCase())).map(e=>[e.key.toLowerCase(),e]));
@@ -734,6 +797,10 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   useEffect(()=>()=>cancelAnimationFrame(cursorFrame.current),[]);
   const cursorCallback=useRef(onSourceCursor);cursorCallback.current=onSourceCursor;
   useEffect(()=>{if(viewRef.current)viewRef.current.dom.dataset.editorTabSize=String(tabSize);},[tabSize]);
+  useEffect(()=>{
+    const view=viewRef.current;
+    if(view)view.setProps({attributes:{...(view.props.attributes as Record<string,string>),spellcheck:String(spellCheck)}});
+  },[spellCheck]);
   const host = useRef<HTMLDivElement>(null);
   const scrollCallback=useRef(onSourceScroll);scrollCallback.current=onSourceScroll;
   useEffect(()=>{
@@ -741,6 +808,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     const sync=(event:Event)=>{
       const container=host.current?.closest('.custom-preview-container');
       if(!container || event.target!==container || frame)return;
+      // 🛡️ [타이핑 중 스크롤 동기화 간섭 차단] 유저가 직접 입력 중일 때 불필요한 Monaco 스크롤 점프 차단
+      if (viewRef.current?.hasFocus()) return;
       frame=requestAnimationFrame(()=>{
         frame=0;const view=viewRef.current,codec=codecRef.current;if(!view || !codec || !scrollCallback.current)return;
         const rect=container.getBoundingClientRect(),body=view.dom.getBoundingClientRect();
@@ -1395,7 +1464,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         'Mod-z': undo, 'Mod-y': redo, 'Mod-Shift-z': redo,
         ArrowUp: moveUpFromEmptyOrderedItem,
         Backspace: chainCommands(removeHeadingAtStart, backspaceInCodeBlock, undoInputRule, removeListMarkerAtStart, baseKeymap.Backspace),
-        Delete: chainCommands(deleteInCodeBlock, baseKeymap.Delete),
+        Delete: chainCommands(deleteInCodeBlock, deleteNextListBoundary, joinOrderedListsAcrossEmptyParagraph, baseKeymap.Delete),
         'Mod-Shift-k': (state, dispatch) => {
           const { $from } = state.selection;
           if ($from.parent.type === visualSchema.nodes.code_block) {
@@ -1432,6 +1501,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           exitMediaBlock(true),
           tableEnter(),
           calloutEnter,
+          exitEmptyListItem,
           (state, dispatch, currentView) => {
             const parent = state.selection.$from.depth > 0 ? state.selection.$from.node(state.selection.$from.depth - 1) : null;
             return splitListItem(visualSchema.nodes.list_item, parent?.type === visualSchema.nodes.list_item && parent.attrs.checked !== null ? { checked: false } : undefined)(state, dispatch, currentView);
@@ -1446,7 +1516,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         Tab: chainCommands(moveTableCell(),sinkListItem(visualSchema.nodes.list_item),indentDocument()), 'Shift-Tab': chainCommands(moveTableCell(true),liftListItem(visualSchema.nodes.list_item),indentDocument(true)),
       }), keymap(baseKeymap)] }),
       editable: () => !readOnly,
-      attributes: { class: 'visual-document-surface', 'aria-label': '문서 직접 편집', role: 'textbox', 'aria-multiline': 'true', 'data-editor-tab-size': String(tabSize) },
+      attributes: { spellcheck: String(spellCheck), class: 'visual-document-surface', 'aria-label': '문서 직접 편집', role: 'textbox', 'aria-multiline': 'true', 'data-editor-tab-size': String(tabSize) },
       nodeViews: { visual_image:mediaNodeView, visual_media:mediaNodeView,
         visual_math(node, currentView, getPos) {
           const dom = document.createElement('div');
@@ -2129,7 +2199,13 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             caretRef.current?.schedule();
           }
         }
-        if(event.key==='Tab' || event.key==='Backspace')synchronizeTextSelection(currentView);
+        if(event.key==='Tab' || event.key==='Backspace' || event.key==='Delete')synchronizeTextSelection(currentView);
+        if(event.key==='ArrowDown' && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && !slashOpenRef.current){
+          synchronizeTextSelection(currentView);
+          if(extendSelectionToListEnd(currentView.state,currentView.dispatch,currentView)){
+            event.preventDefault();return true;
+          }
+        }
         if(event.key==='Tab'){
           const position=currentView.state.selection.$from;
           let inList=false;
@@ -2540,10 +2616,11 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
 
   useEffect(() => {
     const view = viewRef.current as (EditorView & { replaceSource?: (source: string) => void }) | null;
-    if (view && content !== emitted.current) view.replaceSource?.(content);
+    // 🛡️ [입력 방어] view.hasFocus() 활성 시 사용자가 직접 타이핑 중이므로 외부 content prop에 의한 replaceSource를 차단하여 스페이스 및 엔터 먹힘 방지
+    if (view && content !== emitted.current && !view.hasFocus()) view.replaceSource?.(content);
   }, [content]);
   useEffect(() => {
-    if (readOnly) return;
+    if (readOnly || viewRef.current?.hasFocus()) return;
     const normalized = bulletNumbersAsText(normalizeVisualMarkdownSpacing(content));
     if (normalized !== content) {
       emitted.current = normalized;
@@ -2780,6 +2857,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     list: selectedList('bullet'), orderedList: selectedList('ordered'),
     checklist:makeChecklist, quote: setQuote(null), codeblock: setCodeBlock,
     divider: blockCommands[blockCommands.length - 1][1], undo, redo,
+    pagebreak:insertPageBreak,
     math: () => { executeItem('math'); return true; }, latex: () => { executeItem('math'); return true; },
     footnote: () => { insertFootnote(); return true; }, fn: () => { insertFootnote(); return true; },
     citation: () => { openCitation(); return true; }, cite: () => { openCitation(); return true; },
@@ -2910,6 +2988,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   const executeItem = (id: string, removeSlash = false) => {
     const view = viewRef.current;
     if (!view || readOnly) return;
+    if(id==='pagebreak' && (view.state.selection.$from.depth>1 || view.dom.closest('[data-book-text]'))){setNotice('일반 문서의 표·목록 바깥 본문에서 페이지 나누기를 삽입해 주세요.');return;}
     if (['citation','cite'].includes(id)){openCitation(removeSlash);return;}
     if (['footnote', 'fn'].includes(id)) {
       insertFootnote(removeSlash);
@@ -3088,6 +3167,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       LIST: selectedList('bullet'), ORDERED_LIST: selectedList('ordered'),
       CHECK:makeChecklist,CHECKLIST:makeChecklist, QUOTE: setQuote(null), CODE_BLOCK: setCodeBlock,
       LINK: link, REMOVE_PREFIX: clear, STRIKETHROUGH:toggleMark(visualSchema.marks.strike),
+      PAGEBREAK:insertPageBreak,
       QUOTE_NOTE:setQuote('NOTE'),QUOTE_TIP:setQuote('TIP'),QUOTE_IMPORTANT:setQuote('IMPORTANT'),QUOTE_WARNING:setQuote('WARNING'),QUOTE_CAUTION:setQuote('CAUTION'),
       TABLE:()=>{openTableRef.current();return true;}, QUICK_TABLE:()=>{openTableRef.current();return true;}, INSERT_TABLE_ROW:tableAction('addRow'), DELETE_TABLE_ROW:tableAction('deleteRow'),
       NOW: () => { openDatePickerRef.current(); return true; }, CALENDAR: () => { openDatePickerRef.current(); return true; },
@@ -3223,6 +3303,19 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     // Commands read the current view state; do not reinstall on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commandRef, readOnly]);
+  const [pageGuides,setPageGuides]=useState(false);
+  useEffect(()=>{
+    setPageGuides(pageStorage.getItem('onrivi_tabs_page_guides')==='true');
+    const handleToggle = (e: any) => {
+      if (typeof e.detail === 'boolean') {
+        setPageGuides(e.detail);
+      } else {
+        setPageGuides(v => !v);
+      }
+    };
+    window.addEventListener('onrivi:toggle-page-guides', handleToggle);
+    return () => window.removeEventListener('onrivi:toggle-page-guides', handleToggle);
+  },[]);
   const button = (label: string, command: Command, removeSlash = false) => <button key={label} type="button"
     disabled={readOnly} onMouseDown={event => event.preventDefault()} onClick={() => run(command, removeSlash)}
     className="rounded px-3 py-2 text-sm hover:bg-blue-50 disabled:opacity-40">{label}</button>;
@@ -3350,7 +3443,44 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       </button>)}
       {!filtered.length && <span className="p-2 text-sm text-zinc-500">No commands</span>}
     </div>, document.body)}
-    <div ref={host} />
+    <div className="relative"><div ref={host} />{pageGuides&&pageStyle&&<DocumentPageGuides host={host} style={pageStyle} source={content}/>}</div>
+    {(() => {
+      if (!pageGuides || !pageStyle) return null;
+      try {
+        const geom = resolvePageGeometry(pageStyle);
+        return (
+          <style>{`
+            .custom-preview-container:has(.visual-document-surface) {
+              background-color: #f1f5f9 !important;
+              padding-top: 24px !important;
+              padding-bottom: 60px !important;
+            }
+            .dark .custom-preview-container:has(.visual-document-surface) {
+              background-color: #09090b !important;
+            }
+            .visual-document-surface {
+              width: ${geom.width}mm !important;
+              max-width: 100% !important;
+              margin-left: auto !important;
+              margin-right: auto !important;
+              padding: ${geom.top}mm ${geom.right}mm ${geom.bottom}mm ${geom.left}mm !important;
+              box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08) !important;
+              background-color: #ffffff !important;
+              border: 1px solid #e2e8f0 !important;
+              border-radius: 4px !important;
+              box-sizing: border-box !important;
+            }
+            .dark .visual-document-surface {
+              background-color: #18181b !important;
+              border-color: #27272a !important;
+              box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4) !important;
+            }
+          `}</style>
+        );
+      } catch {
+        return null;
+      }
+    })()}
     {showBibliography&&<BibliographySummary source={content} content={bibContent}/>}
     {imageMounts.map(item => createPortal(renderImage?.(item.source) || <VisualReadOnlyMarkdownBlock source={item.source} />, item.element, String(item.id)))}
     <style>{`
@@ -3365,7 +3495,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       .onrivi-content-root .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div),
       .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div) { white-space:break-spaces!important; tab-size:inherit; }
       .visual-document-surface p { margin:0 0 0.5em; }
-      .visual-document-surface p:empty, .visual-document-surface p:has(>br.ProseMirror-trailingBreak:only-child) { min-height:1.25em!important; margin: 0 0 0.25em!important; }
+      .visual-document-surface br.ProseMirror-trailingBreak { display:inline!important; content:normal!important; margin:0!important; height:auto!important; }
+      .visual-document-surface p:empty, .visual-document-surface p:has(>br.ProseMirror-trailingBreak:only-child) { min-height:1em; }
       .visual-document-surface li { margin-top:0!important; margin-bottom: var(--li-margin-bottom, 6px); padding-top:0!important; padding-bottom:0!important; }
       .visual-document-surface li p { margin-top:0!important; margin-bottom:0!important; }
       .custom-preview-container .visual-document-surface li ul, .custom-preview-container .visual-document-surface li ol, .visual-document-surface li ul, .visual-document-surface li ol { margin-top:0!important; margin-bottom:0!important; padding-top:0!important; padding-bottom:0!important; }

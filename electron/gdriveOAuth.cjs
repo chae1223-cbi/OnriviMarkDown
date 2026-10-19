@@ -48,7 +48,20 @@ function registerDriveOAuth({ ipcMain, app, shell, safeStorage, getWindow }) {
           if (!/^[\w-]{43}$/.test(tokens.session_token || '') || !tokens.access_token) throw new Error('인증 응답이 올바르지 않습니다.');
           if (!standalone) await fs.writeFile(filename(), safeStorage.encryptString(JSON.stringify({ origin: base, session: tokens.session_token })), { mode: 0o600 });
           response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-          response.end('<!doctype html><meta charset="utf-8"><p>Google Drive 연결이 완료되었습니다. 앱으로 돌아가세요.</p>');
+          response.end(`<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Google Drive 연결 완료</title>
+<style>body{font:16px/1.6 system-ui,sans-serif;color:#242735;margin:0;padding:48px 24px}main{max-width:480px;margin:auto}button{font:inherit;padding:8px 20px;cursor:pointer}</style>
+</head><body><main hidden id="complete"><h1>Google Drive에 연결되었습니다.</h1>
+<p>온리비 어서에서 작업을 계속하세요. 이 탭은 닫아도 됩니다.</p><button id="close" type="button">탭 닫기</button>
+<p>닫히지 않으면 Ctrl+W를 누르거나 탭의 ×를 눌러 주세요.</p></main>
+<script>
+// Remove the one-use callback parameters from the visible address/history.
+try { history.replaceState(null, '', '/callback'); } catch {}
+function closeTab() { try { window.close(); } catch {} }
+document.getElementById('close').addEventListener('click', closeTab);
+closeTab();
+setTimeout(function () { document.getElementById('complete').hidden = false; }, 400);
+</script></body></html>`);
           finish(null, { access_token: tokens.access_token, expires_in: tokens.expires_in });
         } catch (error) {
           response.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' }); response.end('인증 연결에 실패했습니다. 앱에서 다시 시도해 주세요.'); finish(error);

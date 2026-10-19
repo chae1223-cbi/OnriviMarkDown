@@ -1,6 +1,8 @@
 // @ts-nocheck
 // ====================================================================
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
+// 🚨 @PATCH : **2026-10-19** — [Visual Editor 모델 동기화 역류(Echo) 방어 가드 탑재]:
+//             1) __isSyncingVisualModel 플래그 활성화 시 model.onDidChangeContent에서 setContent/setTabs를 건너뛰어 역류 루프 완전 차단
 // 🚨 @PATCH : **2026-10-17** — [코드블록 언어 미지정/한글·임의 언어명 입력 시 코드블록 이하 일반 텍스트 색상 오염(보라색 변색) 결함 해결]: handleMount에서 applySafeMarkdownMonarchTokenizer(monaco)를 최우선 적용하여 한글·유니코드·특수기호 언어명(예: ```아자아자) 및 무명 코드블록(```)의 여는/닫는 펜스를 정확히 매칭하고 코드블록 이하 본문으로 @codeblock 상태가 유출되는 현상 원천 차단
 // 🚨 @PATCH : **2026-10-15** — [슬래시 자동완성(Suggest Widget) 서식 설명 열 왼쪽 정렬 스타일 동적 주입]: Monaco의 Suggest Widget 상세 열(.details-label / .right)이 우측 정렬되어 서식명 대괄호([)가 울퉁불퉁해지던 레이아웃을 flex-start 및 고정 열 너비(220px) 기반의 단정한 왼쪽 정렬로 보장하는 전용 스타일 시트 주입
 // 🚨 @PATCH : **2026-10-14** — [마우스 단일 클릭 시 드래그 앵커 보정 간섭 차단]: onDidChangeCursorSelection에서 드래그 선택 영역이 존재할 때(!e.selection.isEmpty())에만 고속 드래그 앵커 보정이 동작하도록 가드를 보강하여 단일 클릭 시 커서 위치 왜곡 방지
@@ -242,9 +244,10 @@ export function useMonacoSetup(deps: any) {
                     if (!tab.model || isDisposed) {
                       const model = monaco.editor.createModel(tab.content, 'markdown');
                       model.onDidChangeContent((e) => {
-                          if (e && e.changes && e.changes.some(c => c.text === '1. ' || c.text === '1.')) {
-                            setTimeout(() => editor.getAction('autoRenumberList')?.run(), 100);
-                          }
+                        if ((model as any).__isSyncingVisualModel) return;
+                        if (e && e.changes && e.changes.some(c => c.text === '1. ' || c.text === '1.')) {
+                          setTimeout(() => editor.getAction('autoRenumberList')?.run(), 100);
+                        }
                         const val = model.getValue();
                         setContent(val);
                         setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, content: val, isModified: val !== t.content } : t));

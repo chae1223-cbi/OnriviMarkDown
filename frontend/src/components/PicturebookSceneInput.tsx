@@ -8,6 +8,7 @@ import { desktopClipboardImage } from '@/lib/desktopClipboard';
 export interface PicturebookEditorOptions {
   documentId?: string;
   tabSize?: number;
+  spellCheck?: boolean;
   customCommands?: Record<string,string>;
   customHotkeys?: Record<string,string>;
   commandRef?: React.MutableRefObject<((command:string)=>boolean)|null>;

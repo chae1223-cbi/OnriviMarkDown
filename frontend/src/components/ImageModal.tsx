@@ -1,3 +1,5 @@
+// 🚨 @PATCH : **2026-10-18** — [이미지 저장 안내 문구 안전 복사로 통일]:
+//             1) 데스크톱/웹 이미지 저장 시 동일명 파일 덮어쓰기 방어 및 안전 보존 정책과 일치하도록 토스트 메시지 갱신
 // 🚨 @PATCH : **2026-10-14** — [이미지 미리보기 실패 원인(임시 상대경로 주입/로드에러 영구고착/경로 해석 실패) 근본 해결 및 실시간 프리뷰 정상화]:
 //             1) handlePasteEvent에서 이미지 텍스트/경로 붙여넣기 시 tempPreviewUrl에 상대경로(/media/...)가 들어가 404 및 로드 실패를 유발하던 버그 원천 제거 (Base64/Blob/외부URL만 tempPreviewUrl 허용)
 //             2) 이미지 로드 실패 시 imageLoadError 상태가 영구 고착되던 문제 해결: cleanImagePath 또는 previewSrc 변경 시 에러 상태 자동 초기화(false)
@@ -24,7 +26,7 @@ import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { loadSecureData } from '@/lib/secureStorage';
 import { getEffectiveResourceFolder } from '@/lib/profileStorage';
 import { getSavedDriveToken, getSavedWorkspaceInfo, uploadDriveImage, getDriveMediaImageBlobUrl } from '@/lib/gdrive/googleDriveClient';
-import { MediaAlignmentControl, MediaSizeInputs, type MediaAlign } from '@/components/MediaLayoutFields';
+import { MediaAlignmentControl, MediaSizeInputs, imagePathWithDimensions, type MediaAlign } from '@/components/MediaLayoutFields';
 
 interface ImageModalProps {
   isOpen: boolean;
@@ -146,7 +148,7 @@ export default function ImageModal({
     try {
       const finalPath = await saveResourceMedia(imageFile,fileName,resourceFolderHandle);
       setImagePath(finalPath); setAppliedPath(finalPath);
-      showToast?.('현재 리소스 폴더에 복사했습니다. 같은 이름의 파일은 덮어씁니다.', 'success');
+      showToast?.('현재 리소스 폴더에 안전하게 복사했습니다.', 'success');
       return finalPath;
     } catch(error) {
       setTempPreviewUrl(''); showToast?.(error instanceof Error ? error.message : '이미지 저장 실패','error'); return '';
@@ -483,13 +485,7 @@ export default function ImageModal({
       setSaving(true);
       try {
       let finalPath = await importResourceMedia(insertPath,resourceFolderHandle);
-      const params: string[] = [];
-      if (imageWidth.trim()) params.push(`width=${encodeURIComponent(imageWidth.trim())}`);
-      if (imageHeight.trim()) params.push(`height=${encodeURIComponent(imageHeight.trim())}`);
-      if (imageAlign) params.push(`align=${imageAlign}`);
-      if (params.length > 0) {
-        finalPath += (finalPath.includes('?') ? '&' : '?') + params.join('&');
-      }
+      finalPath = imagePathWithDimensions(finalPath,imageWidth,imageHeight,imageAlign);
       onInsert(finalPath, imageAlt, initialData?.range);
       setImagePath("");
       setAppliedPath("");
@@ -680,7 +676,7 @@ export default function ImageModal({
                     }`}
                   />
                 </div>
-                <MediaSizeInputs width={imageWidth} height={imageHeight} onWidthChange={setImageWidth} onHeightChange={setImageHeight} isDarkMode={isDarkMode} />
+                <MediaSizeInputs imageSizing width={imageWidth} height={imageHeight} onWidthChange={setImageWidth} onHeightChange={setImageHeight} isDarkMode={isDarkMode} />
               </div>
             </div>
 
@@ -724,7 +720,8 @@ export default function ImageModal({
                       <img
                         src={previewSrc}
                         alt="미리보기"
-                        className="w-full h-full object-contain"
+                        className="object-contain"
+                        style={{width:imageWidth ? (/^\d+(?:\.\d+)?$/.test(imageWidth)?imageWidth+'px':imageWidth) : '100%',height:imageHeight ? (/^\d+(?:\.\d+)?$/.test(imageHeight)?imageHeight+'px':imageHeight) : 'auto',maxWidth:'100%',maxHeight:'100%'}}
                         onError={() => setImageLoadError(true)}
                       />
                     ) : (

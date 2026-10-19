@@ -1,10 +1,15 @@
 // @ts-nocheck
+// ====================================================================
+// 📊 [OMD-HOOK-useEditorHandlers-0001] useEditorHandlers.ts ➔ 에디터 액션 핸들러 훅
+// 🚨 @PATCH : **2026-10-19** — [페이지 나누기(pageBreak) 핸들러 신설]: Monaco 에디터 커서 위치에 <!-- onrivi:page-break --> 페이지 구분 마커 삽입 핸들러 연동
+// ====================================================================
 import { reportClientLog } from '@/lib/clientLogs';
 import { browserPickerStartIn } from '@/lib/browserPickerStartIn';
 import { useCallback } from 'react';
 import { waitForExportContent } from '@/lib/exportPreparation';
 import { exportPDF, exportHTML, exportEPUB, exportPNG, exportDOCX, exportHWPX } from '@/lib/exportHandlers';
 import { DEFAULT_PROFILE } from "@/constants/cssProfile";
+import { readPrintSettings, writePrintSettings, readEffectivePrintSettings, compactLegacyPrintMetadata, DocumentPrintSettings } from '@/lib/documentPrintSettings';
 import { vfsWriteFile } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { stripFrontmatter } from "@/lib/editorUtils";
@@ -32,6 +37,11 @@ import { organizeMarkdownFootnotes } from '@/lib/footnoteOrganizer';
 // ====================================================================
 // 📊 [OMD-EDIT-USEEDITORHANDLERS-0014] useEditorHandlers.ts ➔ useEditorHandlers
 // 🎯 @KICK  : 에디터 주요 액션 핸들러(저장, 내보내기, 서식 삽입 등)를 통합 관리
+// 🚨 @PATCH : **2026-10-19** — [브라우저 모드 수동 저장 시 작업장 핸들 자동 바인딩 및 저장 대화상자 불필요 팝업 차단]: save 실행 시 fileNode.handle 누락 시 rootFolder.handle에서 대상 파일 핸들을 자동 바인딩하여 showSaveFilePicker 팝업 없이 원본 파일 직접 저장 보장, 플레이스홀더 안내문 덮어쓰기 방어
+// 🚨 @PATCH : **2026-10-17** — [문서 저장 시 물리 파일 바인딩 보존 및 새 이름 저장 시 탭 메타데이터 100% 동기화]:
+//             1) handlers.save 시 activeTab에 유효한 path가 존재할 경우 fileNode를 자동 복원하고 currentFileNode/currentFileName을 즉시 동기화하여 불필요한 '저장 공통 다이얼로그(saveFileAs)' 팝업 결함 해결
+//             2) fileName이 '새 파일.md'이더라도 fileNode.path가 존재하면 실제 디스크 파일명을 역추출하여 직접 저장하도록 방어
+//             3) saveFileAs 및 saveAs 완료 시 tabs 배열의 활성 탭에 name, path, node를 온전히 갱신하고, 활성 탭이 없을 경우 신규 탭을 추가하여 탭 상태 유실 및 자동저장 무력화 방어
 // 🚨 @PATCH : **2026-10-17** — [빠른 표(quickTable) 생성 시 하단 빈 행 자동 추가]: quickTable 생성 마크다운 끝에 빈 줄(\n\n)을 추가하여 마우스 클릭으로 다음 작업을 이어갈 수 있도록 개선
 // 🚨 @PATCH : **2026-10-16** — [전역 검색(globalSearch) 호출 시 사이드바 오픈 및 검색 입력창 포커스 강제 연동]:
 //             globalSearch 실행 시 setIsSidebarOpen(true), setIsSearchOpen(true) 및 onrivi:focus-global-search 이벤트를 발송하여 어느 상태에서든 즉시 검색 탭이 열리고 포커스되도록 개선
@@ -477,30 +487,47 @@ export const useEditorHandlers = ({
       setSaveStatus('saving');
 
       const activeTab = tabsRef?.current?.find((t: any) => t.id === activeTabIdRef?.current);
-      const fileNode = currentFileNodeRef.current || activeTab?.node || (activeTab?.path ? { name: activeTab.name || currentFileNameRef.current, path: activeTab.path, kind: 'file' } : null);
-      const fileName = currentFileNameRef.current || activeTab?.name || '새 파일.md';
+      let fileNode = currentFileNodeRef.current || activeTab?.node || (activeTab?.path ? { name: activeTab.name || currentFileNameRef.current, path: activeTab.path, kind: 'file' } : null);
+      let fileName = (fileNode && fileNode.name) || currentFileNameRef.current || activeTab?.name || '새 파일.md';
+
+      if (fileNode) {
+        if (!currentFileNodeRef.current) {
+          currentFileNodeRef.current = fileNode;
+          setCurrentFileNode(fileNode);
+        }
+        if (fileName === '새 파일.md' && fileNode.name && fileNode.name !== '새 파일.md') {
+          fileName = fileNode.name;
+        } else if (fileName === '새 파일.md' && fileNode.path) {
+          const extracted = fileNode.path.replace(/\\/g, '/').split('/').filter(Boolean).pop();
+          if (extracted) {
+            fileName = extracted;
+            fileNode.name = extracted;
+          }
+        }
+        if (fileName !== '새 파일.md' && currentFileNameRef.current !== fileName) {
+          currentFileNameRef.current = fileName;
+          setCurrentFileName(fileName);
+        }
+      }
       const wType = workspaceTypeRef.current;
       // 💡 [치명적 데이터 유실 방어] React 상태 디바운스로 인한 타이핑 직후 저장 시 최신 본문 누락 완전 방지
       let currentVal = editorRef?.current ? editorRef.current.getValue() : contentRef.current;
       contentRef.current = currentVal;
 
+      if (currentVal.includes('작업장 외부 문서 안내') || currentVal.includes('작업장 외부 문서')) {
+        showToast("⚠️ 작업장 안내 문서는 실제 파일에 덮어쓸 수 없습니다. 원본 문서를 연결해 주세요.", "warning");
+        setSaveStatus('unsaved');
+        return;
+      }
+
       // [서식 자동 주입 패치] 커스텀 서식 프로필이 활성화된 경우에만 Frontmatter에 정보 자동 갱신
-      if (activeProfileId && activeProfileId !== 'default') {
-        const profile = profiles?.find((p: any) => p.id === activeProfileId);
-        const nextVal = updateCssProfileInFrontmatter(currentVal, activeProfileId, profile?.name);
+      {
+        const profile = profiles?.find((p: any) => p.id === activeProfileId) || DEFAULT_PROFILE;
+        const nextVal = updateCssProfileInFrontmatter(compactLegacyPrintMetadata(currentVal), profile.id, profile.name, { persistDefault: true });
         if (nextVal !== currentVal) {
           currentVal = nextVal;
           contentRef.current = nextVal;
-          if (editorRef?.current) {
-            const model = editorRef.current.getModel();
-            if (model) {
-              model.pushEditOperations(
-                [],
-                [{ range: model.getFullModelRange(), text: nextVal }],
-                () => null
-              );
-            }
-          }
+          updateContent(nextVal, false, true);
         }
       }
 
@@ -643,6 +670,27 @@ export const useEditorHandlers = ({
             return;
           }
         } else if (wType === 'browser') {
+          if (!fileNode.handle && rootFolderRef.current?.handle) {
+            const targetBaseName = fileName || fileNode.name || fileNode.path?.replace(/\\/g, '/').split('/').pop() || '';
+            if (targetBaseName && targetBaseName !== '새 파일.md') {
+              try {
+                const rf = rootFolderRef.current.handle;
+                const targetNorm = targetBaseName.toLowerCase().normalize('NFC');
+                for await (const entry of rf.values()) {
+                  if (entry.kind === 'file' && entry.name.toLowerCase().normalize('NFC') === targetNorm) {
+                    fileNode.handle = entry;
+                    currentFileParentHandleRef.current = rf;
+                    break;
+                  }
+                }
+                const activeTabId = activeTabIdRef.current;
+                if (fileNode.handle && activeTabId) {
+                  setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, handle: fileNode.handle, node: { ...t.node, handle: fileNode.handle } } : t));
+                }
+              } catch {}
+            }
+          }
+
           if (fileNode.handle) {
             try {
               const writable = await fileNode.handle.createWritable();
@@ -686,17 +734,36 @@ export const useEditorHandlers = ({
           const defaultDir = rootFolderRef.current?.name && rootFolderRef.current.name !== BROWSER_STORAGE_NAME ? rootFolderRef.current.name : undefined;
           const file = await api.saveFileAs(currentVal, suggestedName, defaultDir);
           if (file) {
+            const newNode: FileNode = { name: file.name, kind: 'file', path: file.path };
             setCurrentFileName(file.name);
-            setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
+            setCurrentFileNode(newNode);
+            currentFileNameRef.current = file.name;
+            currentFileNodeRef.current = newNode;
             lastSavedContentRef.current = currentVal;
             setSaveStatus('saved');
             reportClientLog('문서 저장 완료', 'INFO', 'DOCUMENT_SAVE');
-            setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
+            setTabs(prev => {
+              const hasActive = prev.some(t => t.id === activeTabIdRef.current);
+              if (hasActive) {
+                return prev.map(t => t.id === activeTabIdRef.current ? { ...t, name: file.name, path: file.path, node: newNode, isModified: false, content: currentVal } : t);
+              }
+              const newTabId = file.path || ('tab-' + Date.now());
+              setActiveTabId(newTabId);
+              return [...prev, {
+                id: newTabId,
+                name: file.name,
+                path: file.path,
+                node: newNode,
+                content: currentVal,
+                isModified: false
+              }];
+            });
             if (rootFolderRef.current?.path && file.path && file.path.startsWith(rootFolderRef.current.path)) {
               await refreshFileList();
               window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
             }
             showToast(`'${file.name}' 저장 완료`, 'success');
+            triggerKnowledgeAutoSync(file.path, currentVal);
           } else {
             setSaveStatus('unsaved');
           }
@@ -804,22 +871,13 @@ export const useEditorHandlers = ({
       let currentVal = contentRef.current;
 
       // [서식 자동 주입 패치] 현재 활성화된 프로필 정보를 Frontmatter에 자동 갱신
-      if (activeProfileId) {
-        const profile = profiles?.find((p: any) => p.id === activeProfileId);
-        const nextVal = updateCssProfileInFrontmatter(currentVal, activeProfileId, profile?.name);
+      {
+        const profile = profiles?.find((p: any) => p.id === activeProfileId) || DEFAULT_PROFILE;
+        const nextVal = updateCssProfileInFrontmatter(compactLegacyPrintMetadata(currentVal), profile.id, profile.name, { persistDefault: true });
         if (nextVal !== currentVal) {
           currentVal = nextVal;
           contentRef.current = nextVal;
-          if (editorRef?.current) {
-            const model = editorRef.current.getModel();
-            if (model) {
-              model.pushEditOperations(
-                [],
-                [{ range: model.getFullModelRange(), text: nextVal }],
-                () => null
-              );
-            }
-          }
+          updateContent(nextVal, false, true);
         }
       }
 
@@ -840,15 +898,34 @@ export const useEditorHandlers = ({
           const file = await api.saveFileAs(currentVal, suggestedName, defaultDir);
           if (file) {
             // ⚠️ [사용자 규칙] 다른 이름으로 저장은 절대 작업장 폴더(rootFolder)를 변경하지 않는다!
+            const newNode: FileNode = { name: file.name, kind: 'file', path: file.path };
             setCurrentFileName(file.name);
-            setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
-              lastSavedContentRef.current = currentVal;
-              setSaveStatus('saved');
-              reportClientLog('문서 저장 완료', 'INFO', 'DOCUMENT_SAVE');
-              setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
-              await refreshFileList();
+            setCurrentFileNode(newNode);
+            currentFileNameRef.current = file.name;
+            currentFileNodeRef.current = newNode;
+            lastSavedContentRef.current = currentVal;
+            setSaveStatus('saved');
+            reportClientLog('문서 저장 완료', 'INFO', 'DOCUMENT_SAVE');
+            setTabs(prev => {
+              const hasActive = prev.some(t => t.id === activeTabIdRef.current);
+              if (hasActive) {
+                return prev.map(t => t.id === activeTabIdRef.current ? { ...t, name: file.name, path: file.path, node: newNode, isModified: false, content: currentVal } : t);
+              }
+              const newTabId = file.path || ('tab-' + Date.now());
+              setActiveTabId(newTabId);
+              return [...prev, {
+                id: newTabId,
+                name: file.name,
+                path: file.path,
+                node: newNode,
+                content: currentVal,
+                isModified: false
+              }];
+            });
+            await refreshFileList();
             window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
             showToast(`'${file.name}' 저장 완료`, 'success');
+            triggerKnowledgeAutoSync(file.path, currentVal);
           } else {
             setSaveStatus('unsaved');
           }
@@ -935,13 +1012,19 @@ export const useEditorHandlers = ({
       }
     },
     openExport: () => setIsExportModalOpen(true),
-    print: async () => {
-      if (!await prepareEditorForExport()) return;
+    setPrintSettings:(settings:DocumentPrintSettings)=>{
+      const source=contentRef.current,next=writePrintSettings(source,settings);
+      if(next===source)return;
+      contentRef.current=next;updateContent(next,false,true);
+      setTabs(previous=>previous.map(t=>t.id===activeTabIdRef.current?{...t,content:next,isModified:true}:t));
+    },
+    print: async (previewOnly=false,settings?:DocumentPrintSettings,signal?:AbortSignal) => {
+      if (!previewOnly && !await prepareEditorForExport()) return;
       if (!previewRef.current) return;
       const activeProfile = documentBookProfile(contentRef.current, profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE, preferLiveProfile);
       const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
       const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor, paperSize } = activeProfile.pageStyle;
-      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile });
+      return await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile,previewOnly,printSettings:settings || readEffectivePrintSettings(contentRef.current),signal,markdownContent:contentRef.current });
     },
     exportPDF: async () => {
       if (!await prepareEditorForExport()) return;
@@ -949,7 +1032,7 @@ export const useEditorHandlers = ({
       const activeProfile = documentBookProfile(contentRef.current, profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE, preferLiveProfile);
       const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
       const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor, paperSize } = activeProfile.pageStyle;
-      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile });
+      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile,printSettings:readEffectivePrintSettings(contentRef.current),markdownContent:contentRef.current });
     },
     exportHTML: async () => {
       if (!await prepareEditorForExport()) return;
@@ -977,7 +1060,7 @@ export const useEditorHandlers = ({
       if (!await prepareEditorForExport()) return;
       if (!previewRef.current) return;
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
-      await exportEPUB({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, dynamicCssString, backgroundColor: activeProfile.pageStyle.backgroundColor, activeProfile });
+      await exportEPUB({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, dynamicCssString, backgroundColor: activeProfile.pageStyle.backgroundColor, activeProfile, printSettings: readEffectivePrintSettings(contentRef.current), markdownContent: contentRef.current });
     },
     exportHWPX: async () => {
       if (profiles.find(p => p.id === activeProfileId)?.layout?.type === 'picturebook') { showToast('그림책은 PDF 또는 EPUB으로 내보내 주세요.', 'warning'); return; }
@@ -1050,6 +1133,7 @@ export const useEditorHandlers = ({
     h5: () => wrapSelection('##### ', '', '제목'),
     h6: () => wrapSelection('###### ', '', '제목'),
     hr: () => insertAtCursor('\n---\n'),
+    pageBreak: () => insertAtCursor('\n\n<!-- onrivi:page-break -->\n\n'),
     orderedList: () => applyLinePrefix('orderedList'),
     list: () => applyLinePrefix('list'),
     quote: (alertType?: string) => applyLinePrefix('quote', alertType),

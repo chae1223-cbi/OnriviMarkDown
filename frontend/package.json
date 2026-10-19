@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node prepare-pagedjs.cjs",
+    "postinstall": "node prepare-pagedjs.cjs",
     "dev": "next dev -p 3100",
     "clean": "rd /s /q .next",
     "dev:clean": "npm run clean && next dev",
@@ -41,6 +43,7 @@
     "monaco-editor": "^0.52.2",
     "next": "14.2.35",
     "nodemailer": "^9.0.4",
+    "pagedjs": "^0.4.3",
     "pdfjs-dist": "^6.1.200",
     "pg": "^8.22.0",
     "postgres": "^3.4.9",

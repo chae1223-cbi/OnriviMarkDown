@@ -7,6 +7,70 @@ const api=load('frontend/src/lib/visualDocumentCodec.ts',{'./mediaMarkup':media,
 const lists=load('frontend/src/lib/visualListCommands.ts',{'./visualDocumentCodec':api});
 const {EditorState,TextSelection}=req('prosemirror-state');
 const {history,undo,redo}=req('prosemirror-history');
+{
+ const source='앞 문단\n\n<!-- onrivi:page-break -->\n\n뒤 문단\n';
+ const c=api.createVisualDocumentCodec(source);assert.equal(c.doc.child(1).type.name,'page_break');assert.equal(c.serialize(c.doc),source);
+ let s=EditorState.create({doc:c.doc});s=s.apply(s.tr.insertText('수정 ',1));
+ assert.ok(c.serialize(s.doc).includes('<!-- onrivi:page-break -->'));
+ const code=api.createVisualDocumentCodec('```html\n<!-- onrivi:page-break -->\n```');assert.equal(code.doc.firstChild.type.name,'code_block');
+}
+for(const prefix of ['- ','1. ','- [ ] ']){
+ const c=api.createVisualDocumentCodec(prefix+'1\\. 일번\n'+prefix+'2\\. 이번\n'+prefix+'3\\. 삼번\n\n<p></p>');
+ let s=EditorState.create({doc:c.doc,plugins:[history()]}),caret;
+ s.doc.descendants((n,p)=>{if(n.isTextblock&&n.textContent==='1. 일번')caret=p+1+n.content.size;});
+ s=s.apply(s.tr.setSelection(TextSelection.create(s.doc,caret)));
+ assert.equal(lists.deleteNextListBoundary(s,tr=>s=s.apply(tr)),true);
+ assert.equal(s.selection.head,caret);assert.equal(s.selection.$head.parent.textContent,'1. 일번');
+ assert.ok(s.doc.textContent.includes('2. 이번'));assert.equal(s.doc.firstChild.childCount,2);
+ undo(s,tr=>s=s.apply(tr));assert.ok(s.doc.eq(c.doc));assert.equal(s.selection.head,caret);
+}
+console.log('PASS: Delete at list item end removes next marker and retains original caret with undo');
+{
+ const source=fs.readFileSync('scripts/fixtures/pasted-web-links.md','utf8');
+ const c=api.createVisualDocumentCodec(source);let atoms=0;
+ c.doc.descendants(n=>{if(n.type.name==='source_block')atoms++;});
+ assert.equal(atoms,0,c.doc.toString());
+ assert.equal(c.serialize(c.doc),source);
+ console.log('PASS: supplied bold/escaped pasted web links stay editable without atomic protection');
+}
+for(const link of ['[검색](https://example.com/?token=abc==)','<https://example.com/?token=abc==>','[디지털 배움터](https://www.xn--2z1bw8k1pjz5ccumkb.kr/main.do)']){
+ const source=`1. 생산성 도구\n   - **온리비** [홈페이지](https://onrivi.com)\n2. 즐길거리\n   - ${link}\n3. 홈페이지제작\n`;
+ const c=api.createVisualDocumentCodec(source);
+ assert.equal(c.doc.firstChild.type.name,'ordered_list',link);
+ assert.equal(c.doc.firstChild.childCount,3);assert.equal(c.serialize(c.doc),source);
+ let s=EditorState.create({doc:c.doc}),pos;
+ s.doc.descendants((n,p)=>{if(n.isText&&n.text==='즐길거리')pos=p;});
+ s=s.apply(s.tr.insertText('새 ',pos));assert.ok(s.doc.textContent.includes('새 즐길거리'));
+}
+assert.equal(api.createVisualDocumentCodec('1. 항목\n   - ==강조==').doc.firstChild.type.name,'source_block');
+console.log('PASS: URL query values do not turn a whole list into an atomic source block; actual unsupported highlights remain preserved');
+for(const value of ['https://onrivi.com','<https://onrivi.com>','<https://onrivi.com','[온리비](https://onrivi.com','[ncs.or.kr](<https://ncs.or.kr>)','[<https://www.디지털배움터.kr/main.do\\](https://example.com/main.do) >','[온리비][home]']){
+ const source=`1. 생산성 도구\n   - ${value}\n2. 즐길거리\n\n[home]: https://onrivi.com\n`;
+ const c=api.createVisualDocumentCodec(source);assert.equal(c.doc.firstChild.type.name,'ordered_list',value);
+ assert.equal(c.serialize(c.doc),source);
+ if(value==='[온리비][home]')assert.ok(textMarks(c.doc).some(([t,m])=>t==='온리비'&&m==='link'));
+ let s=EditorState.create({doc:c.doc}),target;
+ s.doc.descendants((n,p)=>{if(n.isText&&n.text==='즐길거리')target=p;});
+ s=s.apply(s.tr.insertText('새 ',target));
+ const saved=c.serialize(s.doc);assert.ok(saved.includes('새 즐길거리'));
+ assert.equal(api.createVisualDocumentCodec(saved).doc.firstChild.type.name,'ordered_list',saved);
+}
+console.log('PASS: plain URLs, incomplete links and reference links remain editable inside lists before and after saving');
+for(const prefix of ['- ','- [ ] ','1. ']){
+ const c=api.createVisualDocumentCodec(prefix+'앞 항목\n'+prefix+'마지막 링크\n\n<p></p>\n\n1. 즐길거리\n2. 홈페이지제작');
+ let s=EditorState.create({doc:c.doc}),first,last;
+ s.doc.firstChild.descendants((n,p)=>{if(n.isTextblock){if(first===undefined)first=1+p+1;last=1+p+1+n.content.size;}});
+ s=s.apply(s.tr.setSelection(TextSelection.create(s.doc,first,last-2)));
+ const before=s.doc;
+ assert.equal(lists.extendSelectionToListEnd(s,tr=>s=s.apply(tr),{coordsAtPos:()=>({top:100})}),true);
+ assert.equal(s.selection.head,last);assert.ok(s.doc.eq(before));
+ assert.equal(lists.extendSelectionToListEnd(s,undefined,{coordsAtPos:()=>({top:100})}),true);
+ s=s.apply(s.tr.setSelection(TextSelection.create(s.doc,first,last-2)));
+ assert.equal(lists.extendSelectionToListEnd(s,undefined,{coordsAtPos:p=>({top:p===last?120:100})}),false);
+ s=s.apply(s.tr.setSelection(TextSelection.create(s.doc,last-2)));
+ assert.equal(lists.extendSelectionToListEnd(s,undefined,{coordsAtPos:()=>({top:100})}),false);
+}
+console.log('PASS: Shift+Down extended selection stops at list end; wrapped earlier lines and ordinary caret movement remain native');
 function textMarks(doc){const result=[];doc.descendants(node=>{if(node.isText)result.push([node.text,node.marks.map(mark=>mark.type.name).join(',')]);});return result;}
 const source='1. 앞 문장\n\n- 1. **가나다**\n- 2. [마바사](https://example.com)\n- 3. 아자차\n- 4. 카타파\n';
 const codec=api.createVisualDocumentCodec(source);
@@ -160,3 +224,47 @@ const refs=api.createVisualDocumentCodec('[ref]: https://example.com\n\n[ref]\n\
 assert.equal(refs.doc.lastChild.type.name,'paragraph');
 assert.ok(refs.serialize(refs.doc).includes('[ref]: https://example.com'));
 console.log('PASS: bracket-colon Korean prose stays editable, code blocks stay separate, real link references preserved');
+
+for(const source of ['1. 앞\n2. \n','1. 앞\n2. \n3. 뒤\n','- 앞\n- \n- 뒤\n','- [ ] 앞\n- [ ] \n- [x] 뒤\n']){
+ const c=api.createVisualDocumentCodec(source);let s=EditorState.create({doc:c.doc,plugins:[history()]});let empty;
+ s.doc.descendants((n,p)=>{if(n.type.name==='paragraph'&&!n.content.size&&s.doc.resolve(p).parent.type.name==='list_item')empty=p+1;});
+ s=s.apply(s.tr.setSelection(TextSelection.create(s.doc,empty)));
+ assert.equal(lists.exitEmptyListItem(s,tr=>s=s.apply(tr)),true);s.doc.check();
+ assert.equal(s.selection.$from.parent.type.name,'paragraph');assert.equal(s.selection.$from.depth,1);assert.equal(s.selection.$from.parent.content.size,0);
+ const saved=c.serialize(s.doc),again=api.createVisualDocumentCodec(saved);assert.ok(saved.includes('<p></p>'),saved);assert.equal(again.doc.child(1).type.name,'paragraph');assert.equal(again.doc.child(1).content.size,0);
+ const text=s.doc.textContent;s=s.apply(s.tr.insertText('일반 본문'));assert.ok(s.doc.textContent.includes('일반 본문'));assert.ok(s.doc.textContent.includes('앞'));
+ if(source.includes('뒤'))assert.ok(s.doc.textContent.includes('뒤'));
+}
+console.log('PASS: Enter exits empty ordered/bullet/check items in place and retains editable paragraph between lists after reload');
+for(const contents of ['', ' \u00a0\u200b', '\n']){
+ const n=api.visualSchema.nodes;
+ const emptyParagraph=n.paragraph.create(null,contents?api.visualSchema.text(contents):null);
+ const sublist=n.bullet_list.create(null,n.list_item.create(null,n.paragraph.create(null,api.visualSchema.text('한국 NCS자격 개발원'))));
+ const doc=n.doc.create(null,n.ordered_list.create({order:3},[
+  n.list_item.create(null,n.paragraph.create(null,api.visualSchema.text('홈페이지제작'))),
+  n.list_item.create(null,[emptyParagraph,sublist]),
+  n.list_item.create(null,n.paragraph.create(null,api.visualSchema.text('공공데이터')))
+ ]));
+ let s=EditorState.create({doc,plugins:[history()]});let target;
+ doc.descendants((node,pos)=>{if(node===emptyParagraph)target=pos+1;});
+ s=s.apply(s.tr.setSelection(TextSelection.create(doc,target)));
+ assert.equal(lists.exitEmptyListItem(s,tr=>s=s.apply(tr)),true);s.doc.check();
+ assert.equal(s.selection.$from.depth,1);assert.equal(s.selection.$from.parent.content.size,0);
+ assert.ok(s.doc.textContent.includes('한국 NCS자격 개발원'));assert.ok(s.doc.textContent.includes('공공데이터'));
+ s=s.apply(s.tr.insertText('일반 문단'));assert.ok(s.doc.textContent.includes('일반 문단'));
+}
+console.log('PASS: Enter exits visually empty items with sublists while retaining all following content');
+
+for(const order of [1,5]){
+ const source=`${order}. **앞 항목**\n${order+1}. 위 마지막\n\n<p></p>\n\n<p></p>\n\n1. [아래 항목](https://example.com)\n2. 끝\n`;
+ const c=api.createVisualDocumentCodec(source);let s=EditorState.create({doc:c.doc,plugins:[history()]});let blank;
+ s.doc.forEach((n,p)=>{if(n.type.name==='paragraph'&&!n.content.size&&blank===undefined)blank=p+1;});
+ s=s.apply(s.tr.setSelection(TextSelection.create(s.doc,blank)));const before=s;
+ assert.equal(lists.joinOrderedListsAcrossEmptyParagraph(s,tr=>s=s.apply(tr)),true);
+ assert.equal(s.doc.childCount,1);assert.equal(s.doc.firstChild.childCount,4);assert.equal(s.doc.firstChild.attrs.order,order);
+ assert.equal(s.selection.$from.parent.textContent,'아래 항목');assert.equal(s.selection.$from.parentOffset,0);
+ assert.ok(c.serialize(s.doc).includes(`${order+2}. [아래 항목]`));assert.equal(textMarks(s.doc).some(([text,marks])=>text==='앞 항목'&&marks==='strong'),true);
+ undo(s,tr=>s=s.apply(tr));assert.equal(s.doc.eq(before.doc),true);assert.equal(s.selection.from,blank);
+ redo(s,tr=>s=s.apply(tr));assert.equal(s.doc.firstChild.childCount,4);
+}
+console.log('PASS: one Delete merges ordered lists across empty paragraphs, preserving items, numbering, marks, caret and undo/redo');

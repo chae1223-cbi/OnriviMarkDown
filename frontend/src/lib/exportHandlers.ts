@@ -1,5 +1,10 @@
 import { embedExportFonts } from './exportFonts';
 import { startExportProgress } from './exportProgress';
+// 🚨 @PATCH : **2026-10-19** — [PDF 및 EPUB 내보내기 시 전역 기본 워터마크 자동 상속 및 연동]: exportPDF 및 exportEPUB에서 readEffectivePrintSettings 연동으로 환경설정 일반설정의 워터마크가 기본 자동 사출되도록 파이프라인 완성
+// 🚨 @PATCH : **2026-10-18** — [PDF/인쇄 시 시험 문제 보기 상자 및 선택지(①~⑮) 여백 축소 및 페이지 쪼개짐 방지]:
+//             1) applyExportInlineStyles 및 @media print에서 blockquote(자료 설명/보기 상자) 상하 여백(8px/10px) 및 내부 문단 마진(4px/2px) 콤팩트 규격화, 후행 빈 줄 소거, 객관식 선택지 문단(①~⑮, ㄱ~ㄹ 등) break-inside: avoid 결속으로 5지선다가 페이지 경계에서 잘려 하단 거대 빈 공간이 발생하는 결함 완벽 해결
+//             2) 문제 발문('것은?', '?' 등)에 break-after: avoid를 주입하여 문제와 보기 상자/선택지가 페이지 간 분리되지 않도록 결속
+// 🚨 @PATCH : **2026-10-17** — [서식 CSS 생성 시 ProseMirror 빈 행 줄바꿈(<br.ProseMirror-trailingBreak>) 보호]: generateExportCss의 sentence-gap p br 규칙에 :not(.ProseMirror-trailingBreak) 선택자를 주입하여 시각 에디터 빈 행 캐럿의 인라인 모델 왜곡 및 여백 불일치 방지
 // 🚨 @PATCH : **2026-10-14** — [내보내기(PDF/HTML/인쇄) 시 각주(Footnote) 폰트 크기/색상/줄간격 서식 프로필 연동 및 기본 12.5px 최적화]:
 //             1) generateExportCss의 footnote 태그 처리기에 .visual-footnote-def, .visual-footnote-text, .visual-footnote-badge, .visual-footnote-area-header 셀렉터 확장
 //             2) 각주 폰트 크기 미지정 시 inherit 대신 12.5px 콤팩트 크기로 기본값 설정하여 인쇄/내보내기 시 각주 비대화 결함 완전 해결
@@ -52,6 +57,7 @@ import { startExportProgress } from './exportProgress';
 // 🚨 @PATCH : **2026-09-24** — [표 하단 여백 및 인용구 마진 상쇄 차단 내보내기 동기화]: generateExportCss에 .table-wrapper-area 상하 여백 주입 및 blockquote display:inline-block width:100% 적용, destructive margin-bottom:0 강제 제거
 // 🚨 @PATCH : **2026-09-24** — [표 테두리 이중선(double) 내보내기 동기화]: generateExportCss 내 table/th/td 선택자 구체성 상향 및 double 시 3px 보정, th/td border-bottom-style 동기화
 // 🚨 @PATCH : **2026-09-24** — [인용구 상하 여백 0~15px 데드존 완전 소멸 및 선/후행 블록(표/코드블록) 마진 간섭 0 강제]: blockquote display:flow-root 적용 및 *:has(+ blockquote), blockquote + .not-prose .codeblock-area 마진 0 강제 처리로 슬라이더 0px 밀착 및 1px 단위 즉각 반응 실현
+// 🚨 @PATCH : **2026-10-19** — [워터마크 미지정 시 기본 엠블럼 이미지 및 Onrivi Author 문구 자동 폴백]: 이미지/문구 미설정 시 에러 대신 기본값으로 자동 대체
 // 🚨 @PATCH : **2026-09-24** — [수평 구분선(HR) 내보내기 규격 동기화]: generateExportCss 내 hr border:none/height:0/transparent 리셋 및 .onrivi-content-root hr 선택자 추가
 // 🚨 @PATCH : **2026-09-17** — [다크모드/어두운 배경 코드블록 내부 행 하이라이트 고대비 시인성 보장]: generateExportCss 내 codeBlock 배경색 명도 판별 및 다크 계열 고대비 코발트 블루 하이라이트 동적 CSS 일원화
 // 🚨 @PATCH : **2026-09-11** — generateExportCss에 profile.customCss 사용자 정의 CSS 주입 연동
@@ -68,6 +74,8 @@ import { msg } from '@/lib/systemMessages';
 import { PAPER_SIZES } from '@/constants/paperSizes';
 import { DEFAULT_PROFILE, normalizeCssProfile } from '@/constants/cssProfile';
 import type { CssProfile } from '@/types/cssProfile';
+import { resolvePageGeometry } from './pageGeometry';
+import { DocumentPrintSettings, DEFAULT_PRINT_SETTINGS, readEffectivePrintSettings, DEFAULT_WATERMARK_IMAGE, DEFAULT_WATERMARK_TEXT } from './documentPrintSettings';
 
 interface ExportOptions {
   previewEl: HTMLElement;
@@ -85,6 +93,9 @@ interface ExportOptions {
   backgroundColor?: string;
   activeProfile?: any; // 서식 프로필 객체 추가
   markdownContent?: string; // 💡 원본 마크다운 텍스트 직접 조판용
+  previewOnly?:boolean;
+  printSettings?:DocumentPrintSettings;
+  signal?:AbortSignal;
 }
 
 /** 항상 라이트모드 기준으로 서식 프로필의 dynamic CSS를 재생성하는 헬퍼 함수 */
@@ -173,9 +184,9 @@ export function generateExportCss(rawProfile: any): string {
         css += `
 .custom-preview-container .onrivi-sentence-br,
 .onrivi-content-root .onrivi-sentence-br,
-.custom-preview-container p br,
-.onrivi-content-root p br,
-p br {
+.custom-preview-container p br:not(.ProseMirror-trailingBreak),
+.onrivi-content-root p br:not(.ProseMirror-trailingBreak),
+p br:not(.ProseMirror-trailingBreak) {
   display: block !important;
   content: "" !important;
   margin-top: ${sGap} !important;
@@ -191,9 +202,9 @@ p .onrivi-line + .onrivi-line {
         css += `
 .custom-preview-container .onrivi-sentence-br,
 .onrivi-content-root .onrivi-sentence-br,
-.custom-preview-container p br,
-.onrivi-content-root p br,
-p br {
+.custom-preview-container p br:not(.ProseMirror-trailingBreak),
+.onrivi-content-root p br:not(.ProseMirror-trailingBreak),
+p br:not(.ProseMirror-trailingBreak) {
   display: inline !important;
   margin: 0 !important;
   content: normal !important;
@@ -437,6 +448,45 @@ p .onrivi-line + .onrivi-line {
       }
     }
     css += `}\n`;
+
+    if (tag === 'blockquote') {
+      css += `
+.custom-preview-container blockquote p,
+.onrivi-content-root blockquote p,
+blockquote p {
+  margin-top: 0 !important;
+  margin-bottom: 4px !important;
+  line-height: 1.55 !important;
+}
+.custom-preview-container blockquote p:last-child,
+.onrivi-content-root blockquote p:last-child,
+blockquote p:last-child {
+  margin-bottom: 0 !important;
+}
+.custom-preview-container blockquote ul,
+.onrivi-content-root blockquote ul,
+.custom-preview-container blockquote ol,
+.onrivi-content-root blockquote ol,
+blockquote ul,
+blockquote ol {
+  margin-top: 4px !important;
+  margin-bottom: 4px !important;
+  padding-left: 1.4em !important;
+}
+.custom-preview-container blockquote li,
+.onrivi-content-root blockquote li,
+blockquote li {
+  margin-bottom: 2px !important;
+  line-height: 1.5 !important;
+}
+.custom-preview-container blockquote li p,
+.onrivi-content-root blockquote li p,
+blockquote li p {
+  margin-top: 0 !important;
+  margin-bottom: 2px !important;
+}
+`;
+    }
 
     if (tag === 'img') {
       const ml = (ruleObj as any)['margin-left'] || 'auto';
@@ -1484,6 +1534,93 @@ function applyExportInlineStyles(clone: HTMLElement, activeProfile?: CssProfile,
     preEl.style.setProperty('overflow-wrap', 'anywhere', 'important');
     preEl.style.setProperty('overflow-x', 'visible', 'important');
   });
+
+  // 🌟 [보기 상자 및 시험 문제 선택지] 인쇄/내보내기 조판 최적화
+  // 1. 인용구(blockquote: <보 기>, [자료 설명] 등) 콤팩트 규격화 및 페이지 쪼개짐 방지
+  clone.querySelectorAll('blockquote').forEach(destBq => {
+    const bqEl = destBq as HTMLElement;
+    bqEl.style.setProperty('page-break-inside', 'avoid', 'important');
+    bqEl.style.setProperty('break-inside', 'avoid', 'important');
+    bqEl.style.setProperty('margin-top', '8px', 'important');
+    bqEl.style.setProperty('margin-bottom', '10px', 'important');
+    bqEl.style.setProperty('padding', '8px 14px', 'important');
+
+    // 마크다운 파싱 시 잔존할 수 있는 끝부분 빈 문단(<p></p> 또는 공백만 있는 p) 소거
+    bqEl.querySelectorAll('p').forEach(p => {
+      const pEl = p as HTMLElement;
+      if (!pEl.textContent?.trim() && !pEl.querySelector('img, video, iframe, svg')) {
+        pEl.remove();
+        return;
+      }
+      pEl.style.setProperty('margin-top', '0px', 'important');
+      pEl.style.setProperty('margin-bottom', '4px', 'important');
+      pEl.style.setProperty('line-height', '1.55', 'important');
+    });
+
+    bqEl.querySelectorAll('ul, ol').forEach(list => {
+      const listEl = list as HTMLElement;
+      listEl.style.setProperty('margin-top', '4px', 'important');
+      listEl.style.setProperty('margin-bottom', '4px', 'important');
+      listEl.style.setProperty('padding-left', '1.4em', 'important');
+    });
+
+    bqEl.querySelectorAll('li').forEach(li => {
+      const liEl = li as HTMLElement;
+      liEl.style.setProperty('margin-bottom', '2px', 'important');
+      liEl.style.setProperty('line-height', '1.5', 'important');
+      liEl.querySelectorAll('p').forEach(lp => {
+        (lp as HTMLElement).style.setProperty('margin-top', '0px', 'important');
+        (lp as HTMLElement).style.setProperty('margin-bottom', '2px', 'important');
+      });
+    });
+
+    const lastP = bqEl.querySelector('p:last-child') as HTMLElement | null;
+    if (lastP) {
+      lastP.style.setProperty('margin-bottom', '0px', 'important');
+    }
+
+    // 보기 상자 바로 뒤에 선택지 문단이 이어지는 경우, 보기 상자와 선택지가 분리되지 않도록 결속
+    const nextEl = bqEl.nextElementSibling as HTMLElement | null;
+    if (nextEl && (nextEl.classList.contains('exam-choice-paragraph') || /[①-⑮]/.test(nextEl.textContent || ''))) {
+      bqEl.style.setProperty('page-break-after', 'avoid', 'important');
+      bqEl.style.setProperty('break-after', 'avoid', 'important');
+    }
+  });
+
+  // 2. 객관식 선택지 문단(①~⑮, ㄱ~ㄹ, [1-5]. 등) 페이지 나눔 방지 및 콤팩트 여백 보정
+  clone.querySelectorAll('p, li').forEach(el => {
+    const text = el.textContent || '';
+    const hasCircledNum = /[①-⑮]/.test(text);
+    const hasChoiceLetter = /(?:^|\n|\s)[ㄱ-ㅎ]\./.test(text);
+    const hasNumberedChoices = /(?:^|\n|\s)[1-5]\.\s/.test(text) && text.includes('\n');
+    if (hasCircledNum || hasChoiceLetter || hasNumberedChoices) {
+      el.classList.add('exam-choice-paragraph');
+      el.setAttribute('data-exam-choice', 'true');
+      (el as HTMLElement).style.setProperty('page-break-inside', 'avoid', 'important');
+      (el as HTMLElement).style.setProperty('break-inside', 'avoid', 'important');
+      (el as HTMLElement).style.setProperty('line-height', '1.5', 'important');
+      (el as HTMLElement).style.setProperty('margin-bottom', '12px', 'important');
+
+      el.querySelectorAll('.onrivi-line').forEach(line => {
+        (line as HTMLElement).style.setProperty('min-height', '1.35em', 'important');
+        (line as HTMLElement).style.setProperty('line-height', '1.5', 'important');
+      });
+    }
+  });
+
+  // 3. 문제 발문('것은?', '?' 등)이 다음 보기 상자나 선택지로부터 고아로 떨어지지 않도록 결속
+  clone.querySelectorAll('p, h3, h4, h5, h6').forEach(el => {
+    const next = el.nextElementSibling as HTMLElement | null;
+    if (!next) return;
+    const text = el.textContent || '';
+    const isPrompt = /[?？]$|것은\s*[?？]?$/.test(text.trim());
+    const isNextChoiceOrBox = next.tagName === 'BLOCKQUOTE' || next.classList.contains('exam-choice-paragraph') || /[①-⑮]/.test(next.textContent || '');
+    if (isPrompt && isNextChoiceOrBox) {
+      (el as HTMLElement).style.setProperty('page-break-after', 'avoid', 'important');
+      (el as HTMLElement).style.setProperty('break-after', 'avoid', 'important');
+      (el as HTMLElement).style.setProperty('margin-bottom', '8px', 'important');
+    }
+  });
 }
 
 /** Yandex/Google 지도 복원 */
@@ -1977,13 +2114,13 @@ async function saveToDownloads(filename: string, content: string, type: 'base64'
 export async function exportPDF({ 
   previewEl, currentFileName, isDarkMode, showToast, orientation, paperSize, 
   dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, 
-  activeProfile
+  activeProfile, previewOnly=false, printSettings, signal, markdownContent
 }: ExportOptions) {
   let progress: ReturnType<typeof startExportProgress> | undefined;
   try {
     const desktopApi = (window as any).electronAPI;
     let exportDestination: string | undefined;
-    if (desktopApi?.saveBinaryFile) {
+    if (!previewOnly && desktopApi?.saveBinaryFile) {
       const selection = await desktopApi.showSaveDialog({
         title: 'PDF 저장 위치 선택',
         defaultPath: currentFileName.replace(/\.[^/.]+$/, '') + '.pdf',
@@ -1992,10 +2129,11 @@ export async function exportPDF({
       if (selection.canceled || !selection.filePath) { showToast('내보내기가 취소되었습니다.', 'info'); return; }
       exportDestination = selection.filePath;
     }
-    showToast('PDF 내보내기 준비 중...', 'info');
-    progress = startExportProgress('PDF');
+    signal?.throwIfAborted();
+    if(!previewOnly)showToast('PDF 내보내기 준비 중...', 'info');
+    progress = previewOnly?{update(){},finish(){}}:startExportProgress('PDF');
     progress.update('미리보기 확인 중');
-    flushIME();
+    if(!previewOnly)flushIME();
 
     await prepareExportPreview(previewEl);
     const targetEl = previewEl.querySelector('.markdown-viewer-root') as HTMLElement || previewEl;
@@ -2092,6 +2230,13 @@ export async function exportPDF({
     if (!isPicturebook) {
       applyExportInlineStyles(clone, activeProfile, targetEl);
       unwrapPrintTables(clone);
+      // Restore explicit image sizes after profile/print normalization.
+      clone.querySelectorAll<HTMLElement>('.onrivi-image-wrapper[data-image-width],.onrivi-image-wrapper[data-image-height]').forEach(wrap=>{
+        const image=wrap.querySelector('img');if(!image)return;
+        if(wrap.dataset.imageWidth){wrap.style.setProperty('width',wrap.dataset.imageWidth,'important');image.style.setProperty('width','100%','important');}
+        wrap.style.setProperty('height','auto','important');
+        image.style.setProperty('height',wrap.dataset.imageHeight||'auto','important');
+      });
     }
 
     // 📄 페이지 나누기: 제목 기준 강제 페이지 분할 전면 폐지 (자연스러운 본문 흐름 유지, exportPageBreakLevel 미적용)
@@ -2111,8 +2256,9 @@ export async function exportPDF({
     const paperKey = (paperSize || 'a4').toLowerCase();
     const paperSpec = PAPER_SIZES[paperKey] || PAPER_SIZES.a4;
     const isLandscape = orientation === 'landscape';
-    const pageWidth = isLandscape ? paperSpec.height : paperSpec.width;
-    const pageHeight = isLandscape ? paperSpec.width : paperSpec.height;
+    const geometry=resolvePageGeometry(activeProfile?.pageStyle || {paperSize,orientation,marginTop,marginBottom,marginLeft,marginRight});
+    const pageWidth = geometry.width;
+    const pageHeight = geometry.height;
     const cssPageSize = `${pageWidth}mm ${pageHeight}mm`;
 
     let finalHtml = `
@@ -2226,7 +2372,7 @@ export async function exportPDF({
         break-after: avoid !important;
       }
 
-      /* [P0] 일반 본문/문단/인용구/리스트 자연스러운 행 단위 분할 허용 (하단 대형 빈 공간 소거) */
+      /* [P0] 일반 본문/문단/리스트 자연스러운 행 단위 분할 허용 (하단 대형 빈 공간 소거) */
       p, li, .prose p {
         page-break-inside: auto !important;
         break-inside: auto !important;
@@ -2237,9 +2383,51 @@ export async function exportPDF({
         page-break-inside: auto !important;
         break-inside: auto !important;
       }
+
+      /* [P0] 보기 상자(blockquote) 및 시험 문제 선택지 인쇄 보호 (페이지 중간 쪼개짐 및 거대 빈 여백 방지) */
       blockquote {
-        page-break-inside: auto !important;
-        break-inside: auto !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        margin-top: 8px !important;
+        margin-bottom: 10px !important;
+        padding: 8px 14px !important;
+      }
+      blockquote p {
+        margin-top: 0 !important;
+        margin-bottom: 4px !important;
+        line-height: 1.55 !important;
+      }
+      blockquote p:last-child {
+        margin-bottom: 0 !important;
+      }
+      blockquote ul, blockquote ol {
+        margin-top: 4px !important;
+        margin-bottom: 4px !important;
+        padding-left: 1.4em !important;
+      }
+      blockquote li {
+        margin-bottom: 2px !important;
+        line-height: 1.5 !important;
+      }
+      blockquote li p {
+        margin-top: 0 !important;
+        margin-bottom: 2px !important;
+      }
+
+      /* [P0] 시험 문제 선택지(①~⑮, ㄱ~ㄹ 등) 한 덩어리 보존 */
+      .exam-choice-paragraph,
+      [data-exam-choice="true"] {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        line-height: 1.5 !important;
+        margin-bottom: 12px !important;
+      }
+      .exam-choice-paragraph .onrivi-line {
+        min-height: 1.35em !important;
+        line-height: 1.5 !important;
+      }
+      .exam-choice-paragraph .onrivi-line + .onrivi-line {
+        margin-top: 3px !important;
       }
 
       /* [P0] 일반 섹션 및 래퍼 컨테이너는 페이지 분할 허용 (불필요한 통째 밀림 방지) */
@@ -2313,6 +2501,16 @@ export async function exportPDF({
       pre, code, .codeblock-area {
         page-break-inside: auto !important;
         break-inside: auto !important;
+      }
+
+      /* [P4] 인용구 및 콜아웃(Alert): 박스 중간 쪼개짐 방어 (원자적 페이지 분할) */
+      blockquote,
+      [data-alert-type],
+      .visual-readonly-callout,
+      .callout-box,
+      .custom-preview-container blockquote {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
 
       /* [P0] Mermaid 다이어그램: 컨테이너와 SVG를 한 덩어리로 원자적(Atomic) 결속 (6페이지 빈 박스 잔상 원천 차단) */
@@ -2473,6 +2671,30 @@ export async function exportPDF({
       finalHtml = finalHtml.replace('</head>', bookPrintCss + '</head>');
     }
 
+    if(!isPicturebook){
+      const effectiveSettings = printSettings ?? (markdownContent ? readEffectivePrintSettings(markdownContent) : readEffectivePrintSettings(''));
+      let resolved = { ...effectiveSettings };
+      if(resolved.enabled){
+        if(resolved.opacity===0)throw new Error('워터마크 진하기가 0%입니다. 진하기를 높이거나 사용을 꺼 주세요.');
+        if(resolved.kind==='text' && !resolved.text?.trim()){
+          resolved.text = DEFAULT_WATERMARK_TEXT;
+        }
+        if(resolved.kind==='image'){
+          if(resolved.imageResource){const {watermarkResourceIdentity}=await import('./watermarkResources');if(resolved.imageResource!==watermarkResourceIdentity())throw new Error('현재 리소스 폴더의 워터마크 이미지를 환경설정에서 다시 선택해 주세요.');}
+          if(!resolved.image) resolved.image = DEFAULT_WATERMARK_IMAGE;
+          if(!resolved.image.startsWith('data:')){
+            const holder=document.createElement('div'),img=document.createElement('img');img.src=resolved.image;holder.append(img);
+            await inlineLocalImages(holder);
+            resolved.image=img.src;
+          }
+        }
+      }
+      progress.update('용지에 맞춰 페이지 계산 중');
+      const {paginatePrintHtml}=await import('./paginatedPrint');
+      finalHtml=await paginatePrintHtml(finalHtml,activeProfile?.pageStyle || {paperSize,orientation,marginTop,marginBottom,marginLeft,marginRight},resolved,signal);
+    }
+    if(previewOnly)return finalHtml;
+
     if (isElectron) {
       // ====================================================================
       // 🌟 [Electron 데스크톱 모드] Chromium 네이티브 PDF 인쇄 엔진 가동
@@ -2557,7 +2779,15 @@ export async function exportPDF({
       await waitForExportResources(printDocument.body);
       // Browser print destinations are user controlled; window.print has no
       // destination parameter. Explain the required choice before opening it.
-      const proceed = window.confirm('PDF로 저장\n\n다음 창의 대상에서 브라우저의 “PDF로 저장”을 선택해 주세요.\nHancom PDF 같은 별도 PDF 프린터는 글자 검색·복사 정보를 잃을 수 있습니다.\n\n브라우저 설정상 앱이 이 대상을 자동 선택할 수는 없습니다.');
+      const proceed = window.confirm(
+        'PDF / 인쇄 출력 안내\n\n' +
+        '1. 대상: "PDF로 저장" 선택\n' +
+        '2. 여백: 반드시 "없음"으로 선택해 주세요.\n' +
+        '   ("기본" 여백 선택 시 브라우저가 임의 여백을 추가하여 페이지 나눔 위치가 어긋납니다)\n' +
+        '3. 배율: 100%, 용지와 방향: 서식관리와 동일하게 선택\n' +
+        '4. 옵션: "배경 그래픽" 체크, 머리글과 바닥글 끄기\n\n' +
+        '인쇄 창을 여시겠습니까?'
+      );
       if (!proceed) {
         cleanup();
         return;
@@ -2574,8 +2804,10 @@ export async function exportPDF({
 
     showToast('인쇄 대상에서 “PDF로 저장”을 선택해 저장해 주세요.', 'info');
   } catch (err: any) {
+    if(signal?.aborted)throw err;
     msg.error('PDF export error', err);
     showToast('PDF 내보내기 실패: ' + err.message, 'error');
+    if(previewOnly)throw err;
   } finally {
     progress?.finish();
   }
@@ -2804,9 +3036,14 @@ export async function exportHTML({
 // 🚨 @PATCH : **2026-07-21** — EPUB 내보내기 시 배경색 누락 방지를 위해 activeCss 문자열 자체에 백그라운드 컬러 룰 명시적 병합 탑재; **2026-06-19** — EPUB 내보내기 가로폭 제약 초기화 패치: clone 객체의 인라인 가로폭 제약을 제거하여 리더기 뷰포트에 맞게 자연스러운 흐름을 보장하도록 보정
 // 🔗 @CALLS : clonePreview, inlineLocalImages, injectExportStyles, generateEpub, downloadBlob, saveToDownloads
 // ====================================================================
-export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showToast, dynamicCssString, backgroundColor, activeProfile }: ExportOptions) {
+export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showToast, dynamicCssString, backgroundColor, activeProfile, printSettings, markdownContent }: ExportOptions) {
+  const effectiveWatermark = { ...(printSettings ?? (markdownContent ? readEffectivePrintSettings(markdownContent) : readEffectivePrintSettings(''))) };
   let progress: ReturnType<typeof startExportProgress> | undefined;
   try {
+    if(effectiveWatermark.enabled&&effectiveWatermark.kind==='image'){
+      if(effectiveWatermark.imageResource){const {watermarkResourceIdentity}=await import('./watermarkResources');if(effectiveWatermark.imageResource!==watermarkResourceIdentity())throw Error('환경설정에서 현재 리소스 폴더의 워터마크 이미지를 다시 선택해 주세요.');}
+      if(effectiveWatermark.image&&!effectiveWatermark.image.startsWith('data:')){const holder=document.createElement('div'),image=document.createElement('img');image.src=effectiveWatermark.image;holder.append(image);await inlineLocalImages(holder);effectiveWatermark.image=image.src;}
+    }
     const desktopApi = (window as any).electronAPI;
     let exportDestination: string | undefined;
     if (desktopApi?.saveBinaryFile) {
@@ -2963,8 +3200,9 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
       dynamicCssString: activeCss + "\n" + fontCss,
       onProgress: percent => progress?.update(`전자책 압축 중 ${Math.floor(percent)}%`),
       fontFamily: computedFontFamily,
-      exportPageBreakLevel: 'none'
-      ,fixedLayout
+      exportPageBreakLevel: 'none',
+      fixedLayout,
+      watermark: effectiveWatermark
     });
 
     showToast('EPUB 저장 중...', 'info');

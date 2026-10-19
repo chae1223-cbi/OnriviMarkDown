@@ -137,6 +137,12 @@ async function visual() {
   fs.writeFileSync(path.join(dir,'dropStorageStubs.js'),'exports.idb={get:async()=>null};exports.requireResourceSettings=()=>{throw Error("unexpected storage access");};exports.getSavedDriveToken=()=>null;');
   fs.writeFileSync(path.join(dir, 'codec.js'), compile(path.join(frontend, 'src/lib/visualDocumentCodec.ts')));
   fs.writeFileSync(path.join(dir, 'bulletNumberText.js'), compile(path.join(frontend,'src/lib/bulletNumberText.ts')));
+  fs.writeFileSync(path.join(dir, 'bibliography.js'), compile(path.join(frontend,'src/lib/bibliography.ts')));
+  fs.writeFileSync(path.join(dir, 'bibliographySummary.js'), compile(path.join(frontend,'src/components/BibliographySummary.tsx')));
+  fs.writeFileSync(path.join(dir,'pageGuides.js'),compile(path.join(frontend,'src/components/DocumentPageGuides.tsx')));
+  fs.writeFileSync(path.join(dir,'pageGeometry.js'),compile(path.join(frontend,'src/lib/pageGeometry.ts')));
+  fs.writeFileSync(path.join(dir,'paperSizes.js'),compile(path.join(frontend,'src/constants/paperSizes.ts')));
+  fs.writeFileSync(path.join(dir,'accountStorage.js'),compile(path.join(frontend,'src/lib/browserAccountStorage.ts')));
   fs.writeFileSync(path.join(dir, 'editor.js'), compile(path.join(frontend, 'src/components/VisualDocumentEditor.tsx')));
   fs.writeFileSync(path.join(dir, 'inputRules.js'), compile(path.join(frontend, 'src/lib/visualMarkdownInputRules.ts')));
   fs.writeFileSync(path.join(dir, 'paste.js'), compile(path.join(frontend, 'src/lib/visualMarkdownPaste.ts')));
@@ -210,7 +216,7 @@ async function visual() {
     createRoot(document.getElementById('root')).render(React.createElement(App));
   `);
   const webpack = req('webpack');
-  const focusedAliases = { '@/lib/bulletNumberText':path.join(dir,'bulletNumberText.js'), ...(process.argv.some(arg=>['--typing-scroll-only','--spacing-emphasis-only','--list-markers-only','--image-drops-only'].includes(arg)) ? {
+  const focusedAliases = { '@/components/DocumentPageGuides':path.join(dir,'pageGuides.js'), '@/lib/pageGeometry':path.join(dir,'pageGeometry.js'), '../constants/paperSizes':path.join(dir,'paperSizes.js'), '@/lib/browserAccountStorage':path.join(dir,'accountStorage.js'), '@/lib/bibliography':path.join(dir,'bibliography.js'), '@/components/BibliographySummary':path.join(dir,'bibliographySummary.js'), '@/lib/bulletNumberText':path.join(dir,'bulletNumberText.js'), ...(process.argv.some(arg=>['--image-resize-only','--page-break-only','--list-enter-only','--list-indentation-only','--typing-scroll-only','--spacing-emphasis-only','--list-markers-only','--image-drops-only'].includes(arg)) ? {
     '@/lib/footnoteOrganizer': path.join(dir, 'footnoteOrganizer.js'),
     '@/lib/resourceMedia': path.join(dir, 'resourceMedia.js'),
     './resourceSettings':path.join(dir,'dropStorageStubs.js'),
@@ -239,6 +245,124 @@ async function visual() {
     page.on('pageerror', error => { errors.push(error.message); console.error('Browser error:',error.message); });
     await page.goto('file:///' + path.join(dir, 'index.html').replace(/\\/g, '/'));
     const surface = page.locator('.visual-document-surface');
+    if(process.argv.includes('--image-resize-only')){
+      await surface.waitFor();
+      await page.evaluate(()=>window.setTestSource('앞 제목\n\n![](/media/picture.png)\n\n아래 본문 유지\n\n### 다음 제목\n\n다음 설명\n\n![](/media/second.png)\n\n마지막 본문'));
+      await surface.locator('.visual-image-block').first().waitFor();
+      for(const width of [400,200,80]){
+        await surface.locator('.visual-image-block').first().hover();
+        await surface.getByRole('button',{name:'이미지 편집',exact:true}).first().click();
+        assert.equal(await page.evaluate(w=>window.qaImageDialog.insert('/media/picture.png?width='+w+'&align=center',''),width),true);
+        for(const text of ['아래 본문 유지','다음 제목','다음 설명','마지막 본문']){
+          assert.ok((await page.locator('#source').inputValue()).includes(text));
+          const block=surface.getByText(text,{exact:true});await block.scrollIntoViewIfNeeded();await block.waitFor({state:'visible'});
+        }
+        assert.equal(await surface.locator('.visual-image-block').count(),2);
+      }
+      assert.deepEqual(errors,[]);console.log('PASS: repeated image resize preserves following paragraphs, headings, second image and visible editable blocks');return;
+    }
+    if(process.argv.includes('--page-break-only')){
+      await surface.waitFor();await page.evaluate(()=>window.setTestSource('앞 문단\n\n뒤 문단'));
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent.includes('뒤 문단'));
+      await surface.locator('p').first().click();await page.keyboard.press('End');
+      await page.evaluate(()=>window.qaView && window.document.querySelector('.visual-document-surface').focus());
+      await page.keyboard.press('Enter');await page.keyboard.type('/pagebreak');await page.keyboard.press('Enter');
+      assert.equal(await surface.locator('[data-onrivi-page-break]').count(),1);
+      await page.keyboard.type('새 페이지 본문');
+      assert.ok((await page.locator('#source').inputValue()).includes('<!-- onrivi:page-break -->'));
+      assert.ok((await surface.textContent()).includes('새 페이지 본문'));
+      const saved=await page.locator('#source').inputValue();await page.evaluate(s=>window.setTestSource(s+'\n'),saved);await page.waitForTimeout(80);
+      await surface.locator('[data-onrivi-page-break]').click();await page.keyboard.press('Delete');
+      assert.equal(await surface.locator('[data-onrivi-page-break]').count(),0);assert.ok((await surface.textContent()).includes('뒤 문단'));
+      await page.keyboard.press('Control+z');assert.equal(await surface.locator('[data-onrivi-page-break]').count(),1);
+      console.log('PASS: actual slash page-break insert, next-paragraph typing, save/reload, delete and one-step undo');return;
+    }
+    if(process.argv.includes('--list-enter-only')){
+      await surface.waitFor();
+      await page.evaluate(()=>window.setTestSource('- 1\\. 일번\n- 2\\. 이번\n- 3\\. 삼번\n- 4\\. 사번\n\n<p></p>'));
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent.includes('사번'));
+      await surface.locator('li p').first().click();await page.keyboard.press('End');await page.keyboard.press('Delete');
+      assert.equal(await page.evaluate(()=>window.qaView.state.selection.$head.parent.textContent),'1. 일번');
+      await page.keyboard.type('X');
+      assert.equal(await surface.locator('li p').first().textContent(),'1. 일번X');
+      assert.ok((await surface.textContent()).includes('2. 이번'));
+      for(const prefix of ['1. ','- ','- [ ] ']){
+        await page.evaluate(p=>window.setTestSource(p+'마지막 항목'),prefix);
+        await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='마지막 항목');
+        await surface.locator('p').click();await page.keyboard.press('Control+End');await page.keyboard.press('Enter');await page.keyboard.press('Enter');
+        assert.equal(await surface.locator(':scope > p').count(),1);
+        await page.keyboard.type('plain after list');
+        assert.equal(await surface.locator(':scope > p').textContent(),'plain after list');
+        await page.evaluate(p=>window.setTestSource(p+'앞\n'+p+'지울 내용\n'+p+'뒤'),prefix);
+        await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent.includes('지울 내용'));
+        await surface.locator('li p').nth(1).click();await page.keyboard.press('Home');await page.keyboard.press('Shift+End');await page.keyboard.press('Backspace');await page.keyboard.press('Enter');
+        assert.equal(await surface.locator(':scope > p').count(),1);
+        assert.ok((await surface.locator(':scope > p').textContent()).trim()==='');
+        const saved=await page.locator('#source').inputValue();assert.ok(saved.includes('<p></p>'),saved);
+        await page.evaluate(s=>window.setTestSource(s+'\n'),saved);await page.waitForTimeout(80);
+        await surface.locator(':scope > p').click();await page.keyboard.type('plain between lists');
+        assert.equal(await surface.locator(':scope > p').textContent(),'plain between lists');
+        assert.equal(await surface.locator(':scope > ol, :scope > ul').count(),2);
+        assert.ok((await surface.textContent()).includes('앞'));assert.ok((await surface.textContent()).includes('뒤'));
+      }
+      await page.evaluate(()=>window.setTestSource('3. 홈페이지제작\n4. \n5. \n   - 한국 NCS자격 개발원\n6. 공공데이터'));
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent.includes('NCS'));
+      await surface.evaluate(()=>{
+        const v=window.qaView;let target;
+        v.state.doc.descendants((n,p)=>{if(n.type.name==='list_item'&&n.childCount>1&&n.textContent.includes('NCS'))target=p+2;});
+        if(target===undefined)throw Error(v.state.doc.toString());
+        v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc,target)));v.focus();
+      });await page.keyboard.press('Enter');
+      assert.equal(await page.evaluate(()=>window.qaView.state.selection.$from.depth),1);
+      await page.keyboard.type('plain with sublist');
+      assert.ok((await surface.locator(':scope > p').textContent()).includes('plain with sublist'));
+      assert.ok((await surface.textContent()).includes('한국 NCS자격 개발원'));
+      assert.ok((await surface.textContent()).includes('공공데이터'));
+      await page.evaluate(()=>window.setTestSource('1. 생산성 도구\n2. 즐길거리\n3. 홈페이지제작\n\n<p></p>\n\n1. **공공데이터**\n2. [개발관련사이트](https://example.com)'));
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent.includes('공공데이터'));
+      await surface.locator(':scope > p').click();await page.waitForTimeout(50);await page.keyboard.press('Delete');
+      assert.equal(await surface.locator(':scope > ol').count(),1);assert.equal(await surface.locator(':scope > ol > li').count(),5);
+      assert.ok((await page.locator('#source').inputValue()).includes('4. **공공데이터**'));
+      assert.equal(await page.evaluate(()=>window.qaView.state.selection.$from.parent.textContent),'공공데이터');
+      await page.keyboard.press('Control+z');assert.equal(await surface.locator(':scope > ol').count(),2);assert.equal(await surface.locator(':scope > p').count(),1);
+      assert.deepEqual(errors,[]);console.log('PASS: Enter keeps editable list exits; one Delete joins numbered lists with intact text and one-step undo');return;
+    }
+    if(process.argv.includes('--list-indentation-only')){
+      await surface.waitFor();
+      for(const separate of [false,true])for(const startOffset of [0,1]){
+        await page.evaluate(separate=>window.setTestSource(separate?'- sns\n\n1. **페이스북** https://www.facebook.com/\n2. 네이버 블로그 https://blog.naver.com/':'5. sns\n   - 스레드\n6. **페이스북** https://www.facebook.com/\n7. 네이버 블로그 https://blog.naver.com/'),separate);
+        await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent.includes('페이스북'));
+        const original=await surface.textContent();
+        await page.evaluate(offset=>{
+          const el=document.querySelector('.visual-document-surface');el.focus();
+          const paragraphs=Array.from(el.querySelectorAll('p'));
+          const first=paragraphs.find(p=>p.textContent.startsWith('페이스북')),last=paragraphs.find(p=>p.textContent.startsWith('네이버'));
+          const a=document.createTreeWalker(first,NodeFilter.SHOW_TEXT).nextNode();
+          const walker=document.createTreeWalker(last,NodeFilter.SHOW_TEXT);let b,node;while(node=walker.nextNode())b=node;
+          const range=document.createRange();range.setStart(a,offset);range.setEnd(b,b.textContent.length);const s=document.getSelection();s.removeAllRanges();s.addRange(range);
+        },startOffset);
+        await page.waitForTimeout(50);await page.keyboard.press('Tab');
+        assert.equal(await surface.textContent(),original,'Tab must preserve all selected text');
+        assert.equal(await surface.locator(separate?':scope > ul > li':':scope > ol > li').count(),1,'both selected items must nest under sns');
+        assert.equal(await surface.locator(separate?'ul ol > li':'ol ol > li').count(),2);
+        await page.keyboard.press('Shift+Tab');
+        assert.equal(await surface.locator(separate?':scope > ul > li':':scope > ol > li').count(),3);
+        assert.equal(await surface.textContent(),original);assert.equal(await surface.locator('strong').textContent(),'페이스북');
+      }
+      await page.evaluate(()=>window.setTestSource('첫 문단\n\n둘째 문단\n\n선택 밖'));
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent.includes('선택 밖'));
+      await surface.evaluate(el=>{
+        el.focus();const ps=el.querySelectorAll('p'),r=document.createRange();
+        r.setStart(ps[0].firstChild,1);r.setEnd(ps[1].firstChild,2);
+        const s=document.getSelection();s.removeAllRanges();s.addRange(r);
+      });
+      await page.waitForTimeout(50);await page.keyboard.press('Tab');
+      let texts=await surface.locator(':scope > p').allTextContents();
+      assert.match(texts[0],/^ +첫 문단$/);assert.match(texts[1],/^ +둘째 문단$/);assert.equal(texts[2],'선택 밖');
+      await page.keyboard.press('Shift+Tab');
+      assert.deepEqual(await surface.locator(':scope > p').allTextContents(),['첫 문단','둘째 문단','선택 밖']);
+      console.log('PASS: multiple list items and paragraphs indent/outdent together without losing selected text or bold');return;
+    }
     if(process.argv.includes('--typing-scroll-only')) {
       await surface.waitFor();
       await page.evaluate(()=>window.setTestSource(Array.from({length:60},(_,i)=>`문단 ${i} 본문입니다.`).join('\n\n')));

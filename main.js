@@ -2,6 +2,13 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-10-19** — [Windows/macOS OS 네이티브 이모지 창(system:showEmojiPicker) 직접 호출 보강]:
+//             1) Windows(win32) 환경에서 Electron의 app.showEmojiPanel() 포커스 무반응 버그를 방어하기 위해 Base64 인코딩된 PowerShell 가상 키(Win + .) 이벤트를 직접 실행하여 Windows 네이티브 이모지 패널 즉각 팝업 보장
+//             2) mainWindow.focus()를 선행 호출하여 입력 커서 포커스를 유지하고 이모지 선택 시 즉각 입력되도록 연동
+// 🚨 @PATCH : **2026-10-18** — [이미지 저장(file:saveImage) 시 동일 파일명 덮어쓰기 방어 및 무결성 보존]:
+//             1) file:saveImage에서 대상 경로에 동일 이름의 파일이 이미 존재할 경우 바이너리 바이트(Buffer.equals)를 대조
+//             2) 파일 내용이 다르면 기존 파일을 절대 덮어쓰지 않고 고유 접미사(_1, _2...)를 부여하여 안전하게 보존하고 새 파일명 및 mediaPath 반환
+//             3) 파일 내용이 동일하면 기존 파일을 무손실 재사용하여 중복 디스크 낭비 방지
 // 🚨 @PATCH : **2026-10-16** — [전역 검색(file:searchInFolder & getAllMdFiles) 경로 해석·유니코드 NFC 정규화·심볼릭 링크 탐색 전면 보강]:
 //             1) file:searchInFolder에서 전달된 folderPath가 상대 폴더명이거나 GoogleDrive 가상 경로 또는 미존재 경로일 때 currentActiveWorkspacePath 및 settings.json(localWorkspaceFolder)을 자동 해석하여 검색 누락(0건) 버그 해결
 //             2) 한글 파일명 및 본문의 NFD/NFC 유니코드 정규화(.normalize('NFC'))를 적용하여 자소 분리된 한글 문서 및 검색어 매칭 100% 보장
@@ -37,6 +44,11 @@
 // 🚨 @PATCH : **2026-09-16** — [윈도우 CRLF(\\r\\n) 정규식 매칭 및 스마트 본문 요약·Gemma 비정형 파싱 전면 개편]: 1) 윈도우 파일 줄바꿈(\\r)으로 인해 헤딩 정규식 매칭이 누락되어 전체가 1개 청크로 묶이던 버그를 /\\r?\\n/ 및 \\r 제거로 해결하여 대상 문서 13개 청크 정상 분할 2) AI 응답에서 JSON 구문 파싱 실패 시 SyntaxError 크래시를 방어하고 Gemma 등 비정형 모델 복원 탑재 3) AI 미제공/실패 시 단순 300자 자르기가 아닌 본문 3줄 요약, 핵심 소제목/찬반 질문, 해시태그, SEO 키워드를 스마트 추출하여 완벽한 정형 데이터 적재 보장
 // 🚨 @PATCH : **2026-09-16** — [CSP connect-src chrome-extension: 허용]: connect-src에 chrome-extension: 허용을 추가하여 확장 프로그램 연결 차단 방지
 // 🚨 @PATCH : **2026-09-16** — [CSP connect-src http: http://localhost:* 포트 3100 허용]: connect-src에 http: 및 localhost 포트 전 범위 허용 보강
+// 🚨 @PATCH : **2026-10-18** — [app:// 프로토콜 정적 HTML 및 에셋 .next-desktop 폴백 연동으로 404 방어]:
+//             1) app:// 프로토콜 핸들러에서 frontend/out에 파일(editor.html 등)이 부재할 때 frontend/.next-desktop 경로를 자동 교차 탐색하여 404 에러 원천 해결
+// 🚨 @PATCH : **2026-10-18** — [desktopInlineImages 누락/예외 시 file:readFromPath 크래시 방어 및 안전 폴백 구현]:
+//             1) desktopInlineImages 모듈이 패키징 누락되거나 require 실패 시에도 예외를 잡고 원본 텍스트(rawContent)를 정상 반환하도록 안전 try-catch 가드 추가
+//             2) package.json의 electron-builder files 목록에 desktopInlineImages.js를 명시하여 app.asar 빌드 시 항상 온전히 패키징되도록 동기화
 // 🚨 @PATCH : **2026-09-16** — [데스크톱 외부 링크 및 비디오 링크 시스템 기본 브라우저 오픈 보장]: setWindowOpenHandler 및 will-navigate에서 mailto/tel 및 외부 URL을 shell.openExternal로 안정적으로 위임하고 MarkdownViewer/VideoCard에서 IPC system:openExternal 직접 호출 연동
 // 🚨 @PATCH : **2026-09-16** — [데스크톱 폴더 삭제 재귀/강제(rmSync) 개편 & ENOTEMPTY/EPERM 해결]: file:delete 핸들러에서 하위 파일/폴더가 존재해도 fs.rmSync({ recursive: true, force: true })로 안전하고 깨끗하게 재귀 삭제 지원하여 빈 폴더만 삭제되던 제약 및 ENOTEMPTY/EPERM 오류 완전 해결
 // 🚨 @PATCH : **2026-09-16** — [시스템 탐색기/Finder 연동 & 잘라내기 이동 & 외부 파일 감시 디바운스 강화]: system:openPath, system:showItemInFolder, file:move IPC 핸들러 신규 추가, file:watchWorkspace에 300ms 디바운스 및 awaitWriteFinish 적용하여 외부 작업폴더 변경 실시간 감지 무결성 확보
@@ -356,7 +368,7 @@ function createWindow(port) {
     "img-src 'self' app: data: blob: http: https: file: media: https://*.googleusercontent.com",
     "font-src 'self' app: data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
     "connect-src 'self' app: data: blob: ws: wss: https: http: chrome-extension: http://localhost:* http://127.0.0.1:* http://localhost:3100 http://localhost:3000 http://localhost:4000 http://localhost:5000 http://localhost:11434 http://127.0.0.1:3100 http://127.0.0.1:3000 http://127.0.0.1:4000 http://127.0.0.1:5000 media: media-local: https://*.supabase.co wss://*.supabase.co https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://onrivi.com https://cdn.jsdelivr.net https://maps.googleapis.com https://accounts.google.com https://www.googleapis.com",
-    "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com https://accounts.google.com",
+    "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com https://accounts.google.com",
     "media-src 'self' app: media: https:"
   ];
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
@@ -2639,11 +2651,24 @@ app.on('ready', async () => {
          }
       }
 
-      // 🛡️ [에셋 폴백] frontend/out에 파일이 없으면 frontend/public 탐색하여 아이콘/에셋 누락 방어
+      // 🛡️ [에셋 및 빌드 폴백] frontend/out에 파일이 없으면 .next-desktop, .next-web-build, frontend/public 순차 탐색하여 누락 방어
       if (!fs.existsSync(targetPath)) {
-        const publicFallback = path.join(__dirname, 'frontend/public', pathname);
-        if (fs.existsSync(publicFallback)) {
-          targetPath = publicFallback;
+        const desktopCandidates = [
+          path.join(__dirname, 'frontend/.next-desktop', pathname),
+          path.join(__dirname, 'frontend/.next-web-build', pathname),
+          path.join(__dirname, 'frontend/public', pathname)
+        ];
+        for (const candidate of desktopCandidates) {
+          if (fs.existsSync(candidate)) {
+            targetPath = candidate;
+            break;
+          } else if (fs.existsSync(candidate + '.html')) {
+            targetPath = candidate + '.html';
+            break;
+          } else if (fs.existsSync(path.join(candidate, 'index.html'))) {
+            targetPath = path.join(candidate, 'index.html');
+            break;
+          }
         }
       }
 
@@ -3147,7 +3172,13 @@ ipcMain.handle('file:readFromPath', async (event, filePath) => {
     }
       
     const rawContent = await fs.promises.readFile(cleanPath, 'utf-8');
-    const content = require('./desktopInlineImages').externalizeInlineImages(rawContent, cleanPath);
+    let content = rawContent;
+    try {
+      content = require('./desktopInlineImages').externalizeInlineImages(rawContent, cleanPath);
+    } catch (inlineErr) {
+      // desktopInlineImages 모듈이 누락되었거나 처리 실패 시에도 파일 읽기는 원본 본문으로 무중단 반환
+      content = rawContent;
+    }
     return {
       name: path.basename(cleanPath),
       path: cleanPath,
@@ -3760,10 +3791,43 @@ ipcMain.handle('dialog:openFontPicker', async () => {
 // 15. Windows/macOS 네이티브 시스템 이모지 피커 호출 핸들러
 ipcMain.handle('system:showEmojiPicker', () => {
   try {
-    app.showEmojiPanel();
-    return true;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.focus();
+    }
+    if (process.platform === 'win32') {
+      const { exec } = require('child_process');
+      const psScript = `
+$source = @"
+using System;
+using System.Runtime.InteropServices;
+public class WinEmojiHelper {
+    [DllImport("user32.dll")]
+    public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+    public static void Show() {
+        keybd_event(0x5B, 0, 0, UIntPtr.Zero);
+        keybd_event(0xBE, 0, 0, UIntPtr.Zero);
+        keybd_event(0xBE, 0, 2, UIntPtr.Zero);
+        keybd_event(0x5B, 0, 2, UIntPtr.Zero);
+    }
+}
+"@
+Add-Type -TypeDefinition $source
+[WinEmojiHelper]::Show()
+`;
+      const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
+      exec(`powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand ${encoded}`, (err) => {
+        if (err) {
+          try { app.showEmojiPanel(); } catch {}
+        }
+      });
+      return true;
+    } else {
+      app.showEmojiPanel();
+      return true;
+    }
   } catch (e) {
     console.error("네이티브 이모지 패널 호출 실패:", e);
+    try { app.showEmojiPanel(); } catch {}
     return false;
   }
 });
@@ -4095,18 +4159,61 @@ ipcMain.handle('file:saveImage', async (event, targetFolder, base64Data, fileNam
     }
 
     if (typeof fileName !== 'string' || path.basename(fileName) !== fileName || /[\\/]/.test(fileName)) throw new Error('미디어 파일 이름이 올바르지 않습니다.');
-    const absolutePath = path.join(rawFolder, fileName.normalize('NFC'));
+    let finalFileName = fileName.normalize('NFC');
+    let absolutePath = path.join(rawFolder, finalFileName);
     const buffer = Buffer.from(base64Data, 'base64');
-    await fs.promises.writeFile(absolutePath, buffer);
+
+    if (fs.existsSync(absolutePath)) {
+      try {
+        const existingBuffer = await fs.promises.readFile(absolutePath);
+        if (!existingBuffer.equals(buffer)) {
+          // 동일한 파일명이 이미 존재하지만 내용(바이트)이 다른 경우: 기존 파일을 절대 덮어쓰지 않고 고유 번호(_1, _2...) 부여
+          const ext = path.extname(finalFileName);
+          const baseName = path.basename(finalFileName, ext);
+          let counter = 1;
+          let candidateName = `${baseName}_${counter}${ext}`;
+          let candidatePath = path.join(rawFolder, candidateName);
+
+          while (fs.existsSync(candidatePath)) {
+            const candBuffer = await fs.promises.readFile(candidatePath);
+            if (candBuffer.equals(buffer)) {
+              // 이미 동일한 내용으로 저장된 고유 번호 파일이 있으면 해당 파일 재사용
+              finalFileName = candidateName;
+              absolutePath = candidatePath;
+              break;
+            }
+            counter++;
+            candidateName = `${baseName}_${counter}${ext}`;
+            candidatePath = path.join(rawFolder, candidateName);
+          }
+
+          if (!fs.existsSync(candidatePath)) {
+            finalFileName = candidateName;
+            absolutePath = candidatePath;
+            await fs.promises.writeFile(absolutePath, buffer);
+          }
+        }
+        // 내용이 동일한 경우 기존 파일(absolutePath)을 그대로 안전하게 재사용
+      } catch (readErr) {
+        // 기존 파일 읽기 오류 발생 시 충돌을 피해 타임스탬프 고유명으로 안전 저장
+        const ext = path.extname(finalFileName);
+        const baseName = path.basename(finalFileName, ext);
+        finalFileName = `${baseName}_${Date.now()}${ext}`;
+        absolutePath = path.join(rawFolder, finalFileName);
+        await fs.promises.writeFile(absolutePath, buffer);
+      }
+    } else {
+      await fs.promises.writeFile(absolutePath, buffer);
+    }
 
     const finalFolderName = path.basename(rawFolder);
 
     return {
       success: true,
-      fileName,
+      fileName: finalFileName,
       absolutePath: absolutePath,
       isRelative: isRelative,
-      mediaPath: isRelative ? `/${finalFolderName}/${encodeURIComponent(fileName)}?v=${Date.now()}` : null
+      mediaPath: isRelative ? `/${finalFolderName}/${encodeURIComponent(finalFileName)}?v=${Date.now()}` : null
     };
   } catch (e) {
     console.error('이미지 저장 실패 (Electron):', e);

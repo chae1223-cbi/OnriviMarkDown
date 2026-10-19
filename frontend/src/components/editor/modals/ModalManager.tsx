@@ -1,6 +1,7 @@
 /**
  * 프로그램명 : OnriviAuthor
  * 프로그램 ID : oaar-modal-manager
+ * 🚨 @PATCH : **2026-10-18** — [인용 모달 useEffect 의존성 보강]: citationTarget 설정 시 deps.activeTabId 및 deps.editorRef 의존성 등록 및 불필요한 cancel-citation 이벤트 방어
  * 🚨 @PATCH : **2026-10-17** — [표 생성 시 하단 빈 행(\n\n) 보장]: TableModal에서 표 마크다운 삽입 시 항상 하단에 빈 행이 포함되도록 보장하여 마우스 클릭으로 다음 작업을 이어갈 수 있도록 지원
  * 🚨 @PATCH : **2026-10-14** — [표 생성 시 첫 번째 열 헤더("제목") 자동 선택 및 다단계 포커스 안착]: TableModal에서 표 생성 시 모델 내 첫 번째 헤더 라인(| 행)과 첫 번째 열("제목") 컬럼 범위를 동적으로 정밀 계산하고, 모달 언마운트 포커스 유실을 방어하기 위해 다단계(0ms, 40ms, 120ms, 250ms)로 커서 및 선택영역을 자동 안착시켜 즉시 타이핑 수정이 가능하도록 전면 개선
  * 🚨 @PATCH : **2026-10-14** — [수식 에디터 모달(FormulaModal) 기존 LaTeX(formulaModalInitialLatex) 전달 연동]: deps.formulaModalInitialLatex를 FormulaModal에 initialLatex로 주입하여 기존 수식 편집 완비
@@ -23,7 +24,7 @@
  * -----------------------------------------------------------------------
  */
 import { requireResourceSettings } from '@/lib/resourceSettings';
-import React from 'react';
+import React, {useEffect} from 'react';
 
 // 각종 모달 컴포넌트 임포트
 import SettingsModal from '@/components/SettingsModal';        // 환경설정 모달 컴포넌트
@@ -72,9 +73,15 @@ interface ModalManagerProps {
 export default function ModalManager({ modals, deps }: ModalManagerProps) {
   const citationTarget=React.useRef<{documentId?:string;model:any;selection:any}|null>(null);
   React.useEffect(()=>{
-    if(modals.isCitationModalOpen)citationTarget.current={documentId:deps.activeTabId,model:deps.editorRef.current?.getModel(),selection:deps.editorRef.current?.getSelection()};
-    else {citationTarget.current=null;window.dispatchEvent(new Event('onrivi:cancel-citation'));}
-  },[modals.isCitationModalOpen]);
+    if(modals.isCitationModalOpen) {
+      citationTarget.current={documentId:deps.activeTabId,model:deps.editorRef.current?.getModel(),selection:deps.editorRef.current?.getSelection()};
+    } else {
+      if (citationTarget.current) {
+        citationTarget.current=null;
+        window.dispatchEvent(new Event('onrivi:cancel-citation'));
+      }
+    }
+  },[modals.isCitationModalOpen, deps.activeTabId, deps.editorRef]);
   const {
     isSettingsModalOpen, setIsSettingsModalOpen,                         // 환경설정 모달 열림/닫힘 상태
     settingsModalInitialTab, setSettingsModalInitialTab,                 // 환경설정 모달 초기 탭 설정
@@ -112,6 +119,11 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
     resourceFolder, resourceFolderRef, selectResourceFolder,
     updateContent
   } = deps;
+  useEffect(()=>{
+    const open=()=>setIsExportModalOpen(true);
+    window.addEventListener('onrivi:open-print',open);
+    return()=>window.removeEventListener('onrivi:open-print',open);
+  },[setIsExportModalOpen]);
 
   const [knowledgeDetailData, setKnowledgeDetailData] = React.useState<any | null>(null);
   const [indexProgressParams, setIndexProgressParams] = React.useState<KnowledgeIndexProgressParams | null>(null);
@@ -187,6 +199,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode}
         fontSize={fontSize} setFontSize={setFontSize}
         editorTabSize={deps.editorTabSize} setEditorTabSize={deps.setEditorTabSize}
+        spellCheck={deps.spellCheck} setSpellCheck={deps.setSpellCheck}
         wordWrap={wordWrap} setWordWrap={setWordWrap}
         autoSave={autoSave} setAutoSave={setAutoSave}
         rootFolder={rootFolder} onSelectRootFolder={selectRootFolder}
@@ -236,6 +249,10 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         isDarkMode={isDarkMode}
+        documentId={deps.activeTabId} documentContent={content}
+        onPrintSettingsChange={handlers.setPrintSettings}
+        onOpenWatermarkSettings={()=>{setIsExportModalOpen(false);modals.setSettingsModalInitialTab?.('editor');modals.setIsSettingsModalOpen(true);}}
+        onPagePreview={(settings:any,signal:AbortSignal)=>handlers.print(true,settings,signal)}
         onExport={(format: any) => {
           if (!isActivated) {
             showToast("정품 라이선스 키 등록이 필요합니다. (설정 -> 애플리케이션 탭에서 등록)", 'error');

@@ -473,6 +473,7 @@ export default function PicturebookPreview({ content, profile, fingerprint, rend
                 documentId={editorOptions?.documentId ? `${editorOptions.documentId}:scene-${i}` : `scene-${i}`}
                 commandRef={editorOptions?.commandRef}
                 tabSize={editorOptions?.tabSize}
+                spellCheck={editorOptions?.spellCheck}
                 customCommands={editorOptions?.customCommands}
                 customHotkeys={editorOptions?.customHotkeys}
                 floatingToolbarVisible={editorOptions?.floatingToolbarVisible}

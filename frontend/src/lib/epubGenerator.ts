@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-19** — [EPUB 전자책 내보내기 워터마크(문자/이미지/위치/진하기/회전/너비/첫페이지제외) 레이어 주입 탑재]: generateEpub에 watermark 옵션 신설, 이미지 바이너리 OPF 자동 동봉 및 섹션별 고정 워터마크 레이어 사출
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 이전 페이지 이미지 우측 경계가 다음 페이지 좌측으로 누출되는 잔상 현상 완전 차단]: figure 및 .onrivi-image-wrapper에 overflow: hidden 및 box-sizing: border-box를 강제 주입하여 멀티컬럼/양면 보기 시 인접 페이지로 이미지 픽셀이 1px도 침범하지 않도록 완벽 격리
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 이미지 우측 쏠림 및 다음 컬럼 침범 버그 완전 해결]: 전자책 단말기 기본 스타일(figure margin-left 40px) 및 inline-flex 래퍼로 인해 이미지가 우측으로 밀리던 결함을 figure/wrapper margin:0 auto 및 display:block으로 전면 리셋하여 완벽 중앙 정렬
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 긴 Mermaid 다이어그램 리더기 페이지 높이 맞춤(max-height: 85vh) 및 잘림 방지]: .mermaid-svg-container, .mermaid-block-container 및 img에 break-inside: avoid 및 max-height: 85vh, object-fit: contain을 적용하여 세로로 긴 다이어그램이 전자책 단말기 화면에서 잘리지 않고 온전히 사출되도록 개선
@@ -14,6 +15,7 @@ import JSZip from 'jszip';
 import { fetchExportImage } from './exportPreparation';
 import { unwrapPrintTables } from './exportPagination';
 import { msg } from './systemMessages';
+import { DocumentPrintSettings, DEFAULT_WATERMARK_IMAGE, DEFAULT_WATERMARK_TEXT } from './documentPrintSettings';
 
 // [ONR-EXP-002] EPUB 규격 파일 어셈블링: 마크다운 렌더링된 XHTML 소스와 정적 스타일, OPF 메타데이터 파일을 JSZip을 통해 표준 e-book 구조로 빌드하고 내보내는 비동기 생성기입니다.
 /** XML/EPUB에서 literal 텍스트를 XHTML에 안전하게 삽입하기 위한 XML 이스케이프 헬퍼 */
@@ -197,6 +199,7 @@ interface EpubOptions {
   fontFamily?: string;
   exportPageBreakLevel?: string;
   onProgress?: (percent: number) => void;
+  watermark?: DocumentPrintSettings;
 }
 
 interface EmbeddedImage {
@@ -221,7 +224,8 @@ export async function generateEpub({
   fontFamily,
   exportPageBreakLevel = 'none',
   onProgress
-  ,fixedLayout
+  ,fixedLayout,
+  watermark
 }: EpubOptions): Promise<Blob> {
   const zip = new JSZip();
   const uuid = typeof crypto !== 'undefined' && crypto.randomUUID 
@@ -244,6 +248,52 @@ export async function generateEpub({
 
   // 3. 🖼️ 본문 내 이미지 탐색, 다운로드 및 EPUB 동봉(Embedding) 파이프라인
   const embeddedImages: EmbeddedImage[] = [];
+  // 3-1. 🖼️ 워터마크 이미지 바이너리 다운로드 및 EPUB 패키지 동봉
+  let watermarkImgExt = 'png';
+  if (watermark?.enabled && watermark.kind === 'image') {
+    try {
+      const srcUrl = watermark.image || DEFAULT_WATERMARK_IMAGE;
+      if (srcUrl.startsWith('data:')) {
+        const comma = srcUrl.indexOf(',');
+        const meta = srcUrl.slice(0, comma);
+        const base64Data = srcUrl.slice(comma + 1);
+        const mimeMatch = meta.match(/data:([^;]+)/);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+        if (mimeType.includes('jpeg') || mimeType.includes('jpg')) watermarkImgExt = 'jpg';
+        else if (mimeType.includes('webp')) watermarkImgExt = 'webp';
+        else watermarkImgExt = 'png';
+
+        const binaryString = meta.includes(';base64') ? atob(base64Data) : new TextEncoder().encode(decodeURIComponent(base64Data));
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = typeof binaryString === 'string' ? binaryString.charCodeAt(i) : binaryString[i];
+        }
+        zip.file(`OEBPS/images/watermark.${watermarkImgExt}`, bytes.buffer, { compression: 'STORE' });
+        embeddedImages.push({
+          id: 'watermark_image',
+          href: `images/watermark.${watermarkImgExt}`,
+          mimeType
+        });
+      } else {
+        const imageBlob = await fetchExportImage(srcUrl);
+        const buffer = await imageBlob.arrayBuffer();
+        let ext = srcUrl.substring(srcUrl.lastIndexOf('.') + 1).split('?')[0].split('#')[0].toLowerCase();
+        if (!['png', 'jpg', 'jpeg', 'webp'].includes(ext)) ext = 'png';
+        watermarkImgExt = ext;
+        const mimeType = imageBlob.type || getMimeType(`watermark.${ext}`);
+        zip.file(`OEBPS/images/watermark.${ext}`, buffer, { compression: 'STORE' });
+        embeddedImages.push({
+          id: 'watermark_image',
+          href: `images/watermark.${ext}`,
+          mimeType
+        });
+      }
+    } catch (err) {
+      console.warn('[EPUB] 워터마크 이미지 임베딩 실패:', err);
+    }
+  }
+
   let processedHtml = contentHtml;
 
   if (typeof window !== 'undefined') {
@@ -422,8 +472,20 @@ export async function generateEpub({
   const manifestSectionItems: string[] = [];
   const spineSectionItems: string[] = [];
   
-  sections.forEach((sec) => {
+  sections.forEach((sec, secIdx) => {
     const safeTitle = escapeXml(sec.title);
+    let watermarkHtml = '';
+    if (watermark?.enabled && !(watermark.excludeFirst && secIdx === 0)) {
+      const x = watermark.position.endsWith('left') ? '5%' : watermark.position.endsWith('right') ? '95%' : '50%';
+      const y = watermark.position.startsWith('top') ? '8%' : watermark.position.startsWith('bottom') ? '92%' : '50%';
+      const tx = watermark.position.endsWith('left') ? '0' : watermark.position.endsWith('right') ? '-100%' : '-50%';
+      const ty = watermark.position.startsWith('top') ? '0' : watermark.position.startsWith('bottom') ? '-100%' : '-50%';
+      if (watermark.kind === 'image') {
+        watermarkHtml = `\n    <div class="epub-watermark" aria-hidden="true" style="position: fixed; z-index: 1000; pointer-events: none; user-select: none; -webkit-user-select: none; left: ${x}; top: ${y}; opacity: ${watermark.opacity / 100}; transform: translate(${tx}, ${ty}) rotate(${watermark.rotation}deg); width: ${watermark.width}%; text-align: center;"><img src="../images/watermark.${watermarkImgExt}" alt="" style="width: 100%; height: auto; max-height: 70vh; object-fit: contain; pointer-events: none;" /></div>`;
+      } else {
+        watermarkHtml = `\n    <div class="epub-watermark" aria-hidden="true" style="position: fixed; z-index: 1000; pointer-events: none; user-select: none; -webkit-user-select: none; left: ${x}; top: ${y}; opacity: ${watermark.opacity / 100}; transform: translate(${tx}, ${ty}) rotate(${watermark.rotation}deg); width: ${watermark.width}%; text-align: center; color: #475569; font-family: system-ui, -apple-system, sans-serif; font-size: ${watermark.fontSize}px; line-height: 1.2; overflow-wrap: anywhere;">${escapeXml(watermark.text || DEFAULT_WATERMARK_TEXT)}</div>`;
+      }
+    }
     const sectionHtml = `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${language}" lang="${language}">
@@ -433,7 +495,7 @@ export async function generateEpub({
     <title>${safeTitle}</title>
     <link rel="stylesheet" type="text/css" href="../styles/style.css" />
   </head>
-  <body>
+  <body>${watermarkHtml}
     <section class="custom-preview-container epub-body markdown-viewer-root prose" style="width: 100%; max-width: none; margin: 0 auto; padding: 0;">
       ${sec.html}
     </section>
@@ -897,6 +959,7 @@ del {
   const fontManifestItems = Array.from(packagedFonts.values()).map((font, index) =>
     `<item id="font_${index}" href="${font.path}" media-type="${font.mime}"/>`).join('\n');
   if (fixedLayout) styleCss += '\n'+fixedLayout.css;
+  styleCss += "\n/* 🌟 워터마크 레이어 규격 (반투명 및 클릭 방지) */\n.epub-watermark {\n  position: fixed !important;\n  pointer-events: none !important;\n  user-select: none !important;\n  -webkit-user-select: none !important;\n  z-index: 1000 !important;\n}\n";
   zip.file('OEBPS/styles/style.css', styleCss);
 
   // 8.5. OEBPS/toc.ncx (EPUB2 호환성 목차 파일 생성 - 교보문고, 예스24, 리디북스 등 국내외 이북 리더기 필수 하위 호환 규격)

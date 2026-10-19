@@ -18,6 +18,8 @@
 }
 
 /* ===================================================================
+ * 🚨 @PATCH : **2026-10-18** — [인용구(blockquote) 및 시험 문제 보기 상자 내부 줄 여백 콤팩트 규격화]:
+ *             인용구 내부 문단(p: 4px), 목록(ul/ol: 4px, li: 2px)의 불필요한 과대 마진을 콤팩트하게 밀착시켜 화면 및 인쇄 시 보기 상자 비대화 방지
  * 🚨 @PATCH : **2026-10-15** — [슬래시 자동완성 팝업 서식 설명 열 왼쪽 정렬 통일]:
  *             Monaco Suggest Widget의 서식 설명(.details-label / .right)이 우측 끝으로 밀려 우측 정렬되던 레이아웃을 flex-start 및 고정 열 너비(220px) 기반의 단정한 왼쪽 정렬(Left-align)로 전면 개편
  * 🚨 @PATCH : **2026-10-15** — [화면 흔들림(Layout Shift & Scrollbar Jitter) 완전 해결]:
@@ -1283,14 +1285,37 @@ div.monaco-table-line {
   padding-left: var(--list-indent, 16px) !important; /* 중첩된 태스크 리스트는 적절한 깊이의 들여쓰기 보장 */
 }
 
-/* 🛡️ 인용문(blockquote) 박스 내부의 시작과 끝 빈 여백 소거 */
-.prose blockquote p:first-of-type,
-.custom-preview-container blockquote p:first-of-type {
+/* 🛡️ 인용문(blockquote) 박스 내부의 시작과 끝 빈 여백 소거 및 콤팩트 규격화 */
+.prose blockquote p,
+.custom-preview-container blockquote p,
+.onrivi-content-root blockquote p {
   margin-top: 0 !important;
+  margin-bottom: 4px !important;
 }
 .prose blockquote p:last-of-type,
-.custom-preview-container blockquote p:last-of-type {
+.custom-preview-container blockquote p:last-of-type,
+.onrivi-content-root blockquote p:last-of-type {
   margin-bottom: 0 !important;
+}
+.prose blockquote ul,
+.custom-preview-container blockquote ul,
+.onrivi-content-root blockquote ul,
+.prose blockquote ol,
+.custom-preview-container blockquote ol,
+.onrivi-content-root blockquote ol {
+  margin-top: 4px !important;
+  margin-bottom: 4px !important;
+}
+.prose blockquote li,
+.custom-preview-container blockquote li,
+.onrivi-content-root blockquote li {
+  margin-bottom: 2px !important;
+}
+.prose blockquote li p,
+.custom-preview-container blockquote li p,
+.onrivi-content-root blockquote li p {
+  margin-top: 0 !important;
+  margin-bottom: 2px !important;
 }
 
 /* 📺 모든 멀티미디어(수식, 이미지, 비디오) 왼쪽 정렬 글로벌 보정 */
@@ -2436,3 +2461,7 @@ input::-ms-clear {
   display: none !important;
 }
 
+/* Manual page breaks stay editable/selectable and never become ordinary rules. */
+.onrivi-page-break { display:block; border-top:2px dashed #f97316; color:#c2410c; background:#fff7ed; text-align:center; font:12px/24px system-ui; margin:16px 0; min-height:24px; user-select:none; }
+.dark .onrivi-page-break { color:#fdba74; background:#431407; border-color:#fb923c; }
+@media print { .onrivi-page-break { break-before:page;page-break-before:always;height:0;min-height:0;margin:0;border:0;font-size:0;line-height:0; } }

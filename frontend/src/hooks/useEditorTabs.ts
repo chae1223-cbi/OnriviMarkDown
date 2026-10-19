@@ -17,6 +17,11 @@ import { syncVisualSourceModel } from '@/lib/incrementalVisualModel';
 // 📊 [OMD-HOOK-0003] useEditorTabs.ts ➔ useEditorTabs
 // 🎯 @KICK  : Monaco 에디터 가상 모델 다중 탭 관리 — 탭 전환·생성·콘텐츠 동기화
 // 🛡️ @GUARD : tabs/setTabs/activeTabId/setActiveTabId 외부 주입으로 TDZ 원천 차단
+// 🚨 @PATCH : **2026-10-19** — [Visual Editor 모델 동기화 역류(Echo) 방어 가드 탑재]:
+//             1) syncVisualSourceModel 실행 중 __isSyncingVisualModel 플래그를 활성화하여 Monaco onDidChangeContent가 setContent 및 setTabs를 중복 발화하는 역류 루프 완전 차단
+// 🚨 @PATCH : **2026-10-17** — [탭 전환 및 새 탭 생성 시 물리 파일 노드(FileNode) 바인딩 및 탭 ID 정합성 보장]:
+//             1) switchTab 시 targetTab.node가 비어있더라도 targetTab.path가 존재하면 FileNode를 자동 복원 주입하여 currentFileNode가 null로 유실되어 자동 저장이 정지되는 결함 해결
+//             2) createNewTab 시 path만 전달되더라도 effectiveNode를 자동 생성하고, 기존 탭 재사용 시 신규 tabId가 아닌 existing.id를 활성화하도록 수정하여 활성 탭 ID 미아 버그 및 파일 저장 공통 다이얼로그 팝업 결함 원천 해결
 // 🚨 @PATCH : **2026-09-26** — [경로 기준 중복 탭 생성 방어 가드]: createNewTab 호출 시 전달된 path를 기준으로 prev 배열에 동일 파일 탭이 이미 존재하는 경우 새 탭을 추가하지 않고 기존 탭 모델/내용을 갱신하도록 보강
 // 🚨 @PATCH : **2026-07-04** — 서식설정(isStyleTab) 탭 전환 시 에디터 뷰캐시(viewState) 저장/복원 로직 탑재 및 모델 바인딩 예외 처리 패치 | 2026-06-15 — 내부 useState 제거 → 외부 주입 방식으로 전환 | MainEditorApp L526 tabMetadata_sync가 useEditorTabs 선언 전에 setTabs/activeTabId 참조하여 rS TDZ 에러 발생
 //              **2026-07-07** — [BUG#1] activeTabIdRef 초기값 null → activeTabId 수정 (useEffect 비동기 갱신 지연으로 early return 미작동 원인 제거)
@@ -79,7 +84,13 @@ export const useEditorTabs = (
       if (editorRef.current && editorRef.current.getValue() !== newValue) {
         const model = editorRef.current.getModel?.();
         if (incrementalVisual && model?.pushEditOperations && !model.isDisposed?.()) {
+          (model as any).__isSyncingVisualModel = true;
           syncVisualSourceModel(model, newValue);
+          requestAnimationFrame(() => {
+            if (model && !model.isDisposed?.()) {
+              (model as any).__isSyncingVisualModel = false;
+            }
+          });
           // This edit is already reflected in React and the active tab. Do not
           // repeat it through the source editor's preview debounce listener.
           if (previewDebounceRef.current) { clearTimeout(previewDebounceRef.current); previewDebounceRef.current = null; }
@@ -145,12 +156,16 @@ export const useEditorTabs = (
     // 반환하여 tabs에 content=""가 저장된 후 switchTab이 이를 다시 setContent()하는 사이클 차단)
     let resolvedContent = targetTab.content;
     const isVirtualTabResolve = !targetTab.path && !targetTab.model;
-    if (isVirtualTabResolve && !targetTab.isStyleTab && !resolvedContent) {
+    if (isVirtualTabResolve && !targetTab.isStyleTab && resolvedContent === undefined) {
       resolvedContent = getWelcomeContent();
     }
     setContent(resolvedContent);
     setCurrentFileName(targetTab.name);
-    setCurrentFileNode(targetTab.node);
+    const resolvedNode: FileNode | null = targetTab.node || (targetTab.path ? { name: targetTab.name, path: targetTab.path, kind: 'file' } : null);
+    if (!targetTab.node && resolvedNode) {
+      targetTab.node = resolvedNode;
+    }
+    setCurrentFileNode(resolvedNode);
 
     // 💡 도움말 문서 탭으로 전환할 때는 예외적으로 무조건 미리보기(preview) 모드를 강제 지정합니다.
     if (targetTab.name === '도움말.md' && setPreviewModeRaw) {
@@ -220,17 +235,20 @@ export const useEditorTabs = (
         // setContent("")가 호출되어 내용이 사라지는 버그 방지
         if (!isEditorMountedRef.current) return;
         if (previewModeRef.current === 'preview') return;
+        if ((model as any).__isSyncingVisualModel) return;
         const val = model.getValue();
         setContent(val);
         setTabs(prev => prev.map(t => t.id === tabId ? { ...t, content: val, isModified: val !== t.content } : t));
       });
     }
 
+    const effectiveNode: FileNode | null = node || (path ? { name: tabName, path: path, kind: 'file' } : null);
+
     const newTab: EditorTab = {
       id: tabId,
       name: tabName,
       path: path || null,
-      node: node || null,
+      node: effectiveNode,
       content: contentVal,
       isModified: false,
       model: model,
@@ -247,21 +265,34 @@ export const useEditorTabs = (
       }
     }
 
-    setTabs(prev => {
-      if (path) {
-        const normNew = path.replace(/\\/g, '/').toLowerCase().normalize('NFC');
-        const existing = prev.find(t => (t.path || '').replace(/\\/g, '/').toLowerCase().normalize('NFC') === normNew);
-        if (existing) {
-          return prev.map(t => t.id === existing.id ? { ...t, content: contentVal, model: model || t.model } : t);
+    if (path) {
+      const normNew = path.replace(/\\/g, '/').toLowerCase().normalize('NFC');
+      const existing = tabsRef.current?.find(t => (t.path || '').replace(/\\/g, '/').toLowerCase().normalize('NFC') === normNew);
+      if (existing) {
+        const mergedNode = existing.node || effectiveNode;
+        setTabs(prev => prev.map(t => t.id === existing.id ? { ...t, content: contentVal, model: model || t.model, node: mergedNode, path: path } : t));
+        setActiveTabId(existing.id);
+        setContent(contentVal);
+        setCurrentFileName(existing.name || tabName);
+        setCurrentFileNode(mergedNode);
+        if (editorRef.current && (model || existing.model)) {
+          try {
+            editorRef.current.setModel(model || existing.model);
+          } catch {}
+          requestAnimationFrame(() => {
+            editorRef.current.setScrollTop(0);
+          });
         }
+        return;
       }
-      return [...prev, newTab];
-    });
+    }
+
+    setTabs(prev => [...prev, newTab]);
     setActiveTabId(tabId);
 
     setContent(contentVal);
     setCurrentFileName(tabName);
-    setCurrentFileNode(node || null);
+    setCurrentFileNode(effectiveNode);
 
     if (editorRef.current && model) {
       editorRef.current.setModel(model);

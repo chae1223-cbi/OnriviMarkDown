@@ -2,6 +2,8 @@
 // 📊 [OMD-LIB-resourceMedia-0001] src/lib/resourceMedia.ts
 // 🎯 @KICK  : 리소스 미디어 저장, 드롭 데이터 파싱(Data URL/SVG/바이너리 디코딩) 및 임포트 관리
 // 🛡️ @GUARD : Rule 1(단일 주석 관리), Base64 인라인 배제 및 리소스 폴더 바이너리 저장 무결성
+// 🚨 @PATCH : **2026-10-18** — [이미지 저장 완료 이벤트(onrivi:media-updated) 실제 저장 파일명(result.fileName) 동기화]:
+//             1) 데스크톱 api.saveImage 호출 후 반환된 실제 고유 파일명(result.fileName)을 announce 이벤트로 전달하여 기존 동일명 이미지의 비정상 캐시 리로드 간섭 방어
 // 🚨 @PATCH : **2026-10-14** — [구글 이미지 검색/외부 웹 이미지 드래그 앤 드롭 정규화(DroppedMediaItem) 및 CORS 우회 다운로드(fetchExternalImageFile) 탑재]:
 //             1) 구글 이미지 검색(encrypted-tbn0.gstatic.com, imgurl 파라미터 등) 및 외부 웹 이미지 드롭 시 URL과 파일명을 정밀 추출하여 DroppedMediaItem으로 정규화
 //             2) Electron net.fetch(net:fetchImageBlob) 및 브라우저 fetch를 통합한 fetchExternalImageFile을 탑재하여 CORS 제약 없이 원본 바이너리를 로컬 media 폴더에 파일로 안전 저장
@@ -22,11 +24,11 @@ export async function saveResourceMedia(file: Blob, name: string, browserHandle?
   const filename = name.normalize('NFC').split(/[\\/]/).pop() || `media_${Date.now()}`;
   if (filename === '.' || filename === '..' || /[\r\n\0]/.test(filename)) throw new Error('파일 이름이 올바르지 않습니다.');
   const revision = Date.now();
-  const announce = () => window.dispatchEvent(new CustomEvent('onrivi:media-updated',{detail:{name:filename}}));
+  const announce = (savedName = filename) => window.dispatchEvent(new CustomEvent('onrivi:media-updated',{detail:{name:savedName}}));
   if (settings.kind === 'drive') {
     if (!settings.mediaFolderId) throw new Error('환경설정의 드라이브 media 폴더를 확인해 주세요.');
     const uploaded = await uploadDriveImage(getSavedDriveToken() || undefined,settings.mediaFolderId,file,filename);
-    announce();
+    announce(uploaded.name);
     return `/media/${encodeURIComponent(uploaded.name)}?driveId=${encodeURIComponent(uploaded.id)}&v=${revision}`;
   }
   const api = (window as any).electronAPI;
@@ -34,7 +36,7 @@ export async function saveResourceMedia(file: Blob, name: string, browserHandle?
     const data = await new Promise<string>((resolve,reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]); reader.onerror = () => reject(new Error('파일 읽기 실패')); reader.readAsDataURL(file); });
     const result = await api.saveImage(settings.path.replace(/[\\/]$/,'') + '/media',data,filename);
     if (!result?.success) throw new Error(result?.error || '리소스 파일 저장 실패');
-    announce();
+    announce(result.fileName || filename);
     return result.mediaPath || `media://local/serve?url=${encodeURIComponent(result.absolutePath)}&v=${revision}`;
   }
   let handle = browserHandle || (window as any).__resourceFolderHandle;

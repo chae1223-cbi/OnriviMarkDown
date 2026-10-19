@@ -2,6 +2,10 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-visual-codec
+ * 🚨 @PATCH : **2026-10-18** — [마크다운 자동 링크(<http(s)://...>, <이메일>) 포함 목록/본문이 source_block(읽기 전용 박스)으로 오분기되던 결함 완전 해소]:
+ *             1) safeRaw 전처리 단계에서 표준 마크다운 자동 링크(<scheme:...>, <user@domain>)를 사전 제거하여 unsupported 태그 오탐 방지
+ *             2) 자동 링크가 포함된 순서 있는 목록(ordered_list) 및 글머리 기호 목록(bullet_list)이 네이티브 노드로 온전히 파싱되어 본문에서 직접 편집 가능하도록 개선
+ *             3) 목록 및 자동 링크에 대한 100% 무손실 양방향 직렬화(round-trip) 보장
  * 🚨 @PATCH : **2026-10-14** — [참조 링크 정의 정규식 엄격화 및 체크리스트/콜아웃 박스형(source_block) 오분기 결함 완전 해소]:
  *             1) hasReferenceDefinitions 정규식을 각주([^^...]:)를 제외한 순수 참조 링크(/^[^\S\r\n]*\[(?!\^)[^\]]+\]:\s*\S/m)로 엄격화
  *             2) unsupported 검사에서 체크리스트(- [ ], - [x]), 콜아웃([!NOTE]), 각주 등이 source_block(점선 박스/편집창)으로 오분기되던 현상 원천 차단
@@ -55,7 +59,11 @@ export const visualSchema = new Schema({
     const palette:Record<string,[string,string]>={NOTE:['#eff6ff','#3b82f6'],TIP:['#ecfdf5','#10b981'],IMPORTANT:['#faf5ff','#a855f7'],WARNING:['#fffbeb','#f59e0b'],CAUTION:['#fff1f2','#f43f5e']};
     const colors=palette[aliases[tag] || tag];
     return ['blockquote',{'data-alert-type':node.attrs.alertType || undefined,style:colors?`background-color:${colors[0]}!important;border-left:4px solid ${colors[1]}!important;color:inherit!important;font-style:normal!important;padding:12px!important`:undefined},0];
-  } }).addToEnd('source_block', {
+  } }).addToEnd('page_break', {
+    group:'block',atom:true,selectable:true,
+    toDOM:()=>['div',{'data-onrivi-page-break':'true',class:'onrivi-page-break',contenteditable:'false','aria-label':'수동 페이지 나누기'},'수동 페이지 나누기'],
+    parseDOM:[{tag:'div[data-onrivi-page-break]'}],
+  }).addToEnd('source_block', {
     group: 'block', atom: true, selectable: true,
     attrs: { source: { default: '' } },
     toDOM: node => ['div', { class: 'visual-source-block', contenteditable: 'false' },
@@ -219,6 +227,7 @@ const visualParser = new MarkdownParser(visualSchema,visualTokenizer,{
 });
 export const visualSerializer = new MarkdownSerializer({
   ...defaultMarkdownSerializer.nodes,
+  page_break(state){state.write('<!-- onrivi:page-break -->');state.closeBlock(visualSchema.nodes.page_break.create());},
   text(state,node,parent,index) {
     if(node.marks.some(mark=>mark.type.name==='code')){defaultMarkdownSerializer.nodes.text(state,node,parent,index);return;}
     const value=node.text||'';let offset=0;
@@ -266,13 +275,18 @@ export const visualSerializer = new MarkdownSerializer({
 function normalizeQuotes(node: DocumentNode): DocumentNode {
   if(node.isLeaf)return node;
   const children:DocumentNode[]=[];node.forEach(child=>children.push(normalizeQuotes(child)));
+  // Markdown parsers can omit the empty leading paragraph of an item whose
+  // only content is a nested list. Keep a real caret/Enter target for it.
+  if(node.type.name==='list_item' && children[0] && ['bullet_list','ordered_list'].includes(children[0].type.name)){
+    children.unshift(visualSchema.nodes.paragraph.create());
+  }
   let attrs=node.attrs;
   if(node.type.name==='blockquote' && children[0]?.type.name==='paragraph') {
     const match=children[0].textContent.match(/^\[!([^\]\r\n]+)\][ \t]*(?:\n[ \t]*)?/);
     if(match){attrs={...attrs,alertType:match[1]};children[0]=children[0].copy(children[0].content.cut(match[0].length));if(children[0].firstChild?.type===visualSchema.nodes.hard_break)children[0]=children[0].copy(children[0].content.cut(1));if(!children[0].content.size && children.length>1)children.shift();}
   }
   if(node.type.name==='list_item' && children[0]?.type.name==='paragraph') {
-    const match=children[0].textContent.match(/^\[([ xX])\][ \t]+/);
+    const match=children[0].textContent.match(/^\[([ xX])\](?:[ \t]+|$)/);
     if(match){attrs={...attrs,checked:match[1].toLowerCase()==='x'};children[0]=children[0].copy(children[0].content.cut(match[0].length));}
   }
   return node.type.create(attrs,children,node.marks);
@@ -295,7 +309,6 @@ export function createVisualDocumentCodec(markdown: string) {
   const referenceEnvironment: { references?: Record<string, unknown> } = {};
   const tokens = tokenizer.parse(body, referenceEnvironment);
   const references = referenceEnvironment.references || {};
-  const hasReferenceDefinitions = Object.keys(references).length > 0;
   const starts = Array.from(new Set(tokens.filter(token => token.level === 0 && token.map).map(token => token.map![0])));
   lines.forEach((line, index) => {
     const footnote = /^\s*\[\^[^\]]+\]:/.test(line);
@@ -332,7 +345,11 @@ export function createVisualDocumentCodec(markdown: string) {
     const footnoteDefMatch = raw.trim().match(/^\[\^([^\]]+)\]:[ \t]*([\s\S]*)$/);
     const mathMatch = raw.trim().match(/^\$\$([\s\S]*?)\$\$$/);
     const codeMathMatch = raw.trim().match(/^```(?:math|latex)\s*([\s\S]*?)```$/i);
-    if (footnoteDefMatch) {
+    if (/^(?:<!--\s*(?:onrivi:page-break|\[page-break\])\s*-->|<hr\s+class=["']page-break["']\s*\/?>)$/.test(raw.trim())) {
+      node = visualSchema.nodes.page_break.create();
+    } else if (/^<p>\s*<\/p>$/.test(raw.trim())) {
+      node = visualSchema.nodes.paragraph.create();
+    } else if (footnoteDefMatch) {
       node = visualSchema.nodes.visual_footnote_def.create({
         label: footnoteDefMatch[1].trim(),
         content: footnoteDefMatch[2].trim()
@@ -341,19 +358,28 @@ export function createVisualDocumentCodec(markdown: string) {
       const latexContent = (mathMatch ? mathMatch[1] : codeMathMatch![1]).trim();
       node = visualSchema.nodes.visual_math.create({ latex: latexContent });
     } else {
-      const safeRaw=raw.replace(/<br\s*\/?\s*>/gi,'').replace(/<\/?u[^>]*>/gi,'');
+      const safeRaw = raw
+        .replace(/<br\s*\/?\s*>/gi, '')
+        .replace(/<\/?u[^>]*>/gi, '')
+        .replace(/<[a-zA-Z][a-zA-Z0-9+.-]*:[^<>\s]+>/g, '')
+        .replace(/<[^<>\s]+@[^<>\s]+>/g, '');
       const rawReferenceEnvironment: { references?: Record<string, unknown> } = {};
-      tokenizer.parse(safeRaw, rawReferenceEnvironment);
-      const usesReference = hasReferenceDefinitions && Array.from(safeRaw.matchAll(/(?<!\\)\[(?!\^)([^\]]+)\](?!\()/g))
-        .some(match => references[match[1].trim().replace(/\s+/g,' ').toUpperCase()] !== undefined);
-      const unsupportedSyntax = /(^|\n)\s*(:::|<\/?[a-zA-Z]|\|)/m.test(safeRaw)
+      const rawTokens=tokenizer.parse(safeRaw, rawReferenceEnvironment);
+      // Inspect actual syntax rather than URL destinations/code contents. A
+      // query value containing "==" is not a highlight extension, and an
+      // autolink is not an unsupported HTML element.
+      const unsupportedInline=rawTokens.some(token=>token.children?.some(inline=>
+        inline.type==='html_inline' || (inline.type==='text' && /==/.test(inline.content))));
+      const unsupportedSyntax = /(^|\n)\s*(:::|\|)/m.test(safeRaw)
+        || /<\/?(?![a-zA-Z][a-zA-Z0-9+.-]*:)[a-zA-Z][a-zA-Z0-9-]*(?=[\s/>])[^>]*>/m.test(safeRaw)
         || Object.keys(rawReferenceEnvironment.references || {}).length > 0
-        || /<\/?[a-zA-Z][^>]*>|==/.test(safeRaw)
-        || usesReference
+        || unsupportedInline
         || /^\s*```\s*mermaid/m.test(safeRaw);
       const unsupported = unsupportedSyntax || /!\[/.test(safeRaw);
       try {
-        const parsed = normalizeQuotes(visualParser.parse(raw,{preserveTrailingNewlines:i===ranges.length-1}));
+        // Reference-style URLs are ordinary editable links too. Supply the
+        // document's definitions while parsing this individual list/paragraph.
+        const parsed = normalizeQuotes(visualParser.parse(raw,{references:{...references},preserveTrailingNewlines:i===ranges.length-1}));
         const plainCode = parsed.childCount === 1 && parsed.firstChild?.type.name === 'code_block'
           && !/^mermaid(?:\s|$)/i.test(parsed.firstChild.attrs.params || '');
         const nativeTable = parsed.childCount === 1 && parsed.firstChild?.type.name === 'table' && !/(^|\n)\s*(:::|```)/m.test(raw);
@@ -432,7 +458,9 @@ export function createVisualDocumentCodec(markdown: string) {
           // Positional suffixes belong to the old source blocks. After a list
           // is split into paragraphs, its old single newline must not merge
           // the first two newly created paragraphs on the next parse.
-          const sep = previousNode?.type.name === 'paragraph' && node.type.name === 'paragraph'
+          const sep = (previousNode?.type.name === 'paragraph' && node.type.name === 'paragraph')
+            || (node.type.name==='paragraph' && !node.content.size)
+            || (previousNode?.type.name==='paragraph' && !previousNode.content.size)
             ? '\n\n' : prevSuffix !== undefined ? prevSuffix : (previousNode?.type.name === 'heading' ? '\n' : '\n\n');
           if (sep === '\n') {
             if (!result.endsWith('\n')) result += '\n';
@@ -440,7 +468,11 @@ export function createVisualDocumentCodec(markdown: string) {
             if (!result.endsWith('\n\n')) result += result.endsWith('\n') ? '\n' : '\n\n';
           }
         }
-        result += original ?? (['source_block', 'visual_image', 'visual_media'].includes(node.type.name)
+        // Blank lines alone cannot encode an empty paragraph between two lists:
+        // Markdown merges the lists on the next parse. A standard empty HTML
+        // paragraph preserves the editable exit position through save/reload.
+        result += original ?? (node.type.name==='paragraph' && node.content.size===0 && doc.childCount>1
+          ? '<p></p>' : ['source_block', 'visual_image', 'visual_media'].includes(node.type.name)
           ? node.attrs.source
           : node.type.name === 'visual_math'
           ? `\n$$\n${(node.attrs.latex || '').trim()}\n$$\n\n`

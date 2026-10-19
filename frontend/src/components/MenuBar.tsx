@@ -1,5 +1,8 @@
 // ====================================================================
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
+// 🚨 @PATCH : **2026-10-19** — [파일 메뉴 내보내기 하위 메뉴 제거 및 통합 인쇄/쪽 윤곽 모달 직결]:
+//             1) 파일 메뉴의 '내보내기' 하위 메뉴(PDF, Word, 한글, HTML, EPUB, PNG)를 전면 제거하고 클릭 시 즉시 인쇄/쪽 윤곽 모달(ExportModal)이 열리도록 개편
+//             2) dispatch('OPEN_EXPORT') 단독 핸들러 지정으로 상단 메뉴 접근 동선 단순화 및 사용자 경험 개선
 // 🚨 @PATCH : **2026-10-15** — [메뉴바 단축키 표기 완전 제거 및 UI 컴팩트화]:
 //             1) MenuDropdown 내부의 shortcut 텍스트 렌더링을 완전히 제거하여 간결하고 직관적인 데스크톱 메뉴 UI 제공
 //             2) 불필요한 단축키 여백을 줄이고 w-52 슬림 규격으로 정돈
@@ -284,15 +287,7 @@ export default function MenuBar() {
       label: t('export'), 
       icon: <Icon name="Export" size={15} />,
       disabled: isRestrictedUser,
-      subItems: [
-        { label: t('print'), icon: <Icon name="Print" size={14} />, onClick: () => dispatch('PRINT') },
-        { label: t('docx'), icon: <Icon name="Document" size={14} />, onClick: () => dispatch('EXPORT_DOCX') },
-        { label: '한글 문서 (.hwpx)', icon: <Icon name="Document" size={14} />, onClick: () => dispatch('EXPORT_HWPX') },
-        { divider: true },
-        { label: t('html'), icon: <Icon name="FileCode" size={14} />, onClick: () => dispatch('EXPORT_HTML') },
-        { label: t('epub'), icon: <Icon name="Book" size={14} />, onClick: () => dispatch('EXPORT_EPUB') },
-        { label: t('png'), icon: <Icon name="Image" size={14} />, onClick: () => dispatch('EXPORT_PNG') },
-      ]
+      onClick: () => dispatch('OPEN_EXPORT')
     },
     { divider: true },
     // 📊 [OMD-EDIT-MenuBar-0005] 파일 메뉴 하단 홈/대시보드 네비게이션

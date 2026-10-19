@@ -2,6 +2,7 @@
 // 📊 [OMD-MODAL-ReferenceManagerModal-0001] ReferenceManagerModal.tsx
 // 🎯 @KICK  : 참고문헌(.bib) 파일 관리 모달
 // 🛡️ @GUARD : Rule 1(단일 주석 관리)
+// 🚨 @PATCH : **2026-10-18** — [useCallback 의존성 배열 보강]: loadBibFiles의 의존성 배열에 누락된 showToast 등록 및 불필요한 의존성(isDrive, resourceFolder) 제거로 ESLint exhaustive-deps 경고 해결
 // 🚨 @PATCH : **2026-10-07** — [환경설정 리소스 폴더 기반 드라이브 bible 폴더 안전 조회 및 저장]:
 //             1) getSavedWorkspaceInfo뿐만 아니라 getResourceSettings('cloud')의 bibleFolderId를 우선 적용하여 사용자가 선택한 리소스 폴더의 참조문서를 정확히 로드
 //             2) folderId로부터 bible 하위 폴더 동적 탐색 폴백 구축으로 참조문서 로드 실패 결함 원천 해결
@@ -104,7 +105,7 @@ export default function ReferenceManagerModal({
   const loadBibFiles=useCallback(async()=>{
     try{setBibFiles(await loadBibliographyFiles(resourceFolderHandle));}
     catch(e:any){setBibFiles([]);showToast(e.message,'error');}
-  },[resourceFolderHandle,resourceFolder,isDrive]);
+  },[resourceFolderHandle,showToast]);
 
   const handleCreateNew = useCallback(() => {
     setSelectedFile(null);
