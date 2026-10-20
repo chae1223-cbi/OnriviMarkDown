@@ -1,3 +1,11 @@
+// ====================================================================
+// 📊 [OMD-LIB-promptTemplates-0001] src/lib/promptTemplates.ts
+// 🎯 @KICK  : 기본 프롬프트 템플릿(DEFAULT_PROMPTS) 정의 및 리소스 폴더(ai_prompts.json) 연동
+// 🛡️ @GUARD : Rule 1(단일 주석 관리), 로드 실패 시 무중단 DEFAULT_PROMPTS 안전 폴백 보장
+// 🚨 @PATCH : **2026-10-20** — [getPromptTemplates 리소스 폴더 경로(resourceFolder) 연동 및 안전 폴백]:
+//             1) readResourceJson에 resourceFolder 문자열 인자 전달하여 데스크톱 리소스 폴더의 ai_prompts.json 직접 로드
+//             2) 로드 예외 시 DEFAULT_PROMPTS로 자동 폴백하여 UI 무중단 템플릿 노출 보장
+// ====================================================================
 import { readResourceJson, writeResourceJson } from './resourceJson';
 export interface PromptTemplate {
   systemPrompt: string;
@@ -393,12 +401,16 @@ export const DEFAULT_PROMPTS: Record<string, Record<string, PromptTemplate>> = {
   }
 };
 
-export async function getPromptTemplates(_resourceFolder?:string, resourceFolderHandle?:any):Promise<Record<string,Record<string,PromptTemplate>>> {
-  const templates=await readResourceJson('ai_prompts.json',resourceFolderHandle);
-  return templates && Object.keys(templates).length ? templates : DEFAULT_PROMPTS;
+export async function getPromptTemplates(resourceFolder?: string, resourceFolderHandle?: any): Promise<Record<string, Record<string, PromptTemplate>>> {
+  try {
+    const templates = await readResourceJson('ai_prompts.json', resourceFolderHandle, resourceFolder);
+    if (templates && Object.keys(templates).length) return templates;
+  } catch {}
+  return DEFAULT_PROMPTS;
+
 }
-export async function savePromptTemplates(prompts:Record<string,Record<string,PromptTemplate>>,_resourceFolder?:string,resourceFolderHandle?:any):Promise<{success:boolean;error?:string}> {
-  return writeResourceJson('ai_prompts.json',prompts,resourceFolderHandle);
+export async function savePromptTemplates(prompts: Record<string, Record<string, PromptTemplate>>, resourceFolder?: string, resourceFolderHandle?: any): Promise<{ success: boolean; error?: string }> {
+  return writeResourceJson('ai_prompts.json', prompts, resourceFolderHandle, resourceFolder);
 }
 
 export async function getPromptTemplate(domain: string, docType: string, resourceFolder?: string, resourceFolderHandle?: any): Promise<PromptTemplate | null> {

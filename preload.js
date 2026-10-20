@@ -10,6 +10,10 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // 렌더러 프로세스(Next.js)에 노출할 안전한 API 정의
 contextBridge.exposeInMainWorld('electronAPI', {
+  inlineAIKey: data => ipcRenderer.invoke('inline-ai:key',data),
+  inlineAIRun: data => ipcRenderer.invoke('inline-ai:run',data),
+  inlineAICancel: id => ipcRenderer.invoke('inline-ai:cancel',id),
+  onInlineAIEvent: callback => {const handler=(_event,data)=>callback(data);ipcRenderer.on('inline-ai:event',handler);return()=>ipcRenderer.removeListener('inline-ai:event',handler);},
   // 2. 현재 열린 파일 경로에 덮어쓰기 저장
   saveFile: (filePath, content) => ipcRenderer.invoke('file:save', filePath, content),
   

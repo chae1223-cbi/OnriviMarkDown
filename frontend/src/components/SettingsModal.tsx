@@ -1,5 +1,6 @@
 // ====================================================================
 // 📊 [OMD-EDIT-SettingsModal-0006 ✅ FIXED] SettingsModal.tsx ➔ SettingsModal
+// 🚨 @PATCH : **2026-10-20** — [다중 AI(OpenAI, Claude, Google) 연동 보존 및 저장 토스트 안내 개선]: 다중 AI 중 하나라도 활성화 시 AI 연결 정상 유지로 인식하여 오안내 방어
 // 🚨 @PATCH : **2026-10-19** — [환경설정 일반설정에 기본 워터마크(위치/문구/이미지/진하기/회전/너비/첫페이지제외) 설정 UI 신설]: PDF 및 EPUB 내보내기 시 적용할 기본 워터마크 조판 컨트롤 및 실시간 스토리지 동기화 구현
 // 🚨 @PATCH : **2026-09-25** — [에디터 글꼴 크기(Font Size) 조절 UI 신설 및 가독성 개선]: 13px~22px 단계별 폰트 크기 선택 셀렉트박스를 신설하여 작은 글씨로 인한 눈 피로 완전 해소
 // 🚨 @PATCH : **2026-09-25** — [에디터 글꼴 굵기 SemiBold(600) 옵션 추가]: 500(Medium)과 700(Bold) 사이 '더 선명하게 (600 - SemiBold)' 옵션을 신설하여 D2Coding 및 고해상도 모니터 가독성 선택지 극대화
@@ -27,6 +28,8 @@
 "use client";
 
 import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
+import AIConnectionSettings from '@/components/ai/AIConnectionSettings';
+import {aiAccountScope, getProviderApiKey} from '@/lib/ai/client';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { saveResourceMedia } from '@/lib/resourceMedia';
 import { listWatermarkResources,watermarkResourceIdentity,watermarkReferenceKey,validateWatermarkImage,WatermarkResource } from '@/lib/watermarkResources';
@@ -632,7 +635,18 @@ export default function SettingsModal({
                   if (cleanKey) {
                     showToast(`설정이 성공적으로 저장되었습니다. (${modelToSave} 활성화)`, 'success');
                   } else {
-                    showToast('설정이 저장되었습니다. (AI 챗봇 비활성화)', 'info');
+                    const currentScope = aiAccountScope();
+                    const hasAnyAI = Boolean(
+                      cleanKey ||
+                      getProviderApiKey(currentScope, 'openai') ||
+                      getProviderApiKey(currentScope, 'google') ||
+                      getProviderApiKey(currentScope, 'anthropic')
+                    );
+                    if (hasAnyAI) {
+                      showToast('설정이 성공적으로 저장되었습니다. (AI 연결 활성화)', 'success');
+                    } else {
+                      showToast('설정이 저장되었습니다.', 'info');
+                    }
                   }
                   onClose();
                 }}
@@ -802,102 +816,7 @@ export default function SettingsModal({
               </div>
 
               {/* AI 설정 그룹 */}
-              <div className="space-y-6">
-                <h3 className="font-serif text-[20px] font-semibold text-on-surface border-b pb-2 border-outline-variant/20 dark:border-white/10">AI 어시스턴트</h3>
-                
-                <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/10' : 'bg-surface-container-low/50 border-outline-variant/20'}`}>
-                  <div className="flex items-start gap-4 mb-6">
-                    <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                      <Icon name="KeyRound" size={20} />
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-[15px] font-semibold text-on-surface mb-1">Google Gemini API Key</label>
-                      <p className="text-[13px] text-on-surface-variant mb-4">AI 통신을 위한 구글 Gemini API 키를 입력하세요.</p>
-                      
-                      <div className="flex gap-2">
-                        <input
-                          type="password"
-                          placeholder="AI0xxxx..."
-                          value={geminiApiKey || ''}
-                          onChange={(e) => {
-                            setGeminiApiKey(e.target.value);
-                            if (testResult) setTestResult(null);
-                          }}
-                          className={`flex-1 px-4 py-2.5 rounded-xl text-[14px] font-mono outline-none border transition-all ${
-                            isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white focus:border-[#1d4ed8]' : 'bg-white border-[#E0DED7] text-slate-900 focus:border-[#1d4ed8]'
-                          }`}
-                        />
-                        <button
-                          type="button"
-                          onClick={handleTestGemini}
-                          disabled={isTestingKey || !geminiApiKey}
-                          className="px-4 py-2.5 rounded-xl text-[13px] font-bold bg-[#1d4ed8] hover:bg-[#1e40af] text-white shadow-xs hover:shadow-sm active:scale-98 disabled:opacity-40 transition-all flex items-center justify-center min-w-[90px] cursor-pointer shrink-0"
-                        >
-                          {isTestingKey ? <Icon name="Loading" size={16} className="animate-spin text-white" /> : '연동 테스트'}
-                        </button>
-
-                        {/* AI 연동 해제 버튼 (API 키를 제거하고 연동 해제) */}
-                        {geminiApiKey && (
-                          <button
-                            type="button"
-                            onClick={handleDeleteAiSettings}
-                            className="px-3.5 py-2.5 rounded-xl text-[13px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-200 dark:border-rose-900/50 transition-all flex items-center justify-center cursor-pointer active:scale-98 shrink-0 shadow-xs"
-                            title="Gemini API 키를 삭제하고 AI 연동을 해제합니다"
-                          >
-                            연동 해제
-                          </button>
-                        )}
-                      </div>
-                      
-                      {testResult && (
-                        <div className={`mt-3 px-4 py-2.5 rounded-lg text-[13px] font-medium flex items-center gap-2 ${
-                          testResult.success ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                        }`}>
-                          {testResult.success ? <Icon name="CheckSuccess" size={16} /> : <Icon name="AlertError" size={16} />}
-                          {testResult.msg}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-4">
-                    <div className="p-2.5 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                      <Icon name="TypeIcon" size={20} />
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-[15px] font-semibold text-on-surface mb-1">AI 모델 선택 (Model Name)</label>
-                      <p className="text-[13px] text-on-surface-variant mb-4">사용하실 공식 AI 모델을 리스트박스에서 선택하세요.</p>
-                      
-                      {/* 선명한 공식 모델 선택 리스트박스 (Select Box) */}
-                      <div className="relative">
-                        <select
-                          value={availableAIModels.some(m => m.id === aiModelName) ? aiModelName : (availableAIModels[0]?.id || 'gemini-3.8-flash')}
-                          onChange={(e) => {
-                            setAiModelName(e.target.value);
-                          }}
-                          className={`w-full px-4 py-3 pr-10 rounded-xl text-[14px] font-semibold outline-none border transition-all appearance-none cursor-pointer ${
-                            isDarkMode 
-                              ? 'bg-zinc-900 border-zinc-700 text-white focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/15' 
-                              : 'bg-white border-[#E0DED7] text-slate-900 focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/15 shadow-2xs'
-                          }`}
-                        >
-                          {availableAIModels.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.label}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-500 dark:text-zinc-400">
-                          <Icon name="ArrowDown" size={16} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              
-
-              </div>
-
+              <AIConnectionSettings scope={aiAccountScope()} />
               {/* 기본 워터마크 설정 그룹 */}
               <div className="space-y-6">
                 <div className="flex items-center justify-between border-b pb-2 border-outline-variant/20 dark:border-white/10">

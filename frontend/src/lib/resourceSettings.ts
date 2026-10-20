@@ -3,6 +3,8 @@ import { browserAccountStorage as localStorage } from '@/lib/browserAccountStora
 // 📊 [OMD-LIB-resourceSettings-0001] src/lib/resourceSettings.ts
 // 🎯 @KICK  : 리소스 폴더 설정(로컬 vs 구글 드라이브) 완벽 격리 및 독립 저장/로드 관리
 // 🛡️ @GUARD : Rule 1(단일 주석 관리), 로컬/클라우드 설정 교차 오염 100% 방어
+// 🚨 @PATCH : **2026-10-20** — [로컬 리소스 폴더 설정 복원 시 resourceFolder 키 폴백 추가]:
+//             1) getResourceSettings에서 localPath 탐색 시 localStorage.getItem('resourceFolder')를 후보에 포함하여 데스크톱 Electron 리소스 폴더(D:\Onrivi_Asset 등) 연결 누락 결함 해결
 // 🚨 @PATCH : **2026-10-07** — [내부 동기화 시 이벤트 무한 취소 루프 방어 silent 옵션 추가]:
 //             1) saveResourceSettings에 options.silent 지원 추가하여 서식 조회/내부 동기화 시 불필요한 onrivi:resource_folder_changed 이벤트 발송 차단
 //             2) 서식 로드 중 이벤트 발생으로 인한 React useEffect 취소(cancelled = true) 및 서식 유실 버그 원천 해결
@@ -70,7 +72,7 @@ export function getResourceSettings(environment?:string):ResourceSettings|null {
     if (entry) return entry;
 
     const cloudPath = localStorage.getItem('onrivi_cloud_resource_folder_path') || localStorage.getItem('resourceFolder') || '';
-    const localPath = localStorage.getItem('onrivi_resource_folder_path') || localStorage.getItem('onrivi_local_backup_resource_folder_path') || '';
+    const localPath = localStorage.getItem('onrivi_resource_folder_path') || localStorage.getItem('onrivi_local_backup_resource_folder_path') || localStorage.getItem('resourceFolder') || '';
     let migrated:ResourceSettings|null=null;
     if(selectedMode==='cloud') {
       const info=JSON.parse(localStorage.getItem('onrivi_gdrive_workspace_info')||'null');

@@ -144,6 +144,7 @@ async function visual() {
   fs.writeFileSync(path.join(dir,'paperSizes.js'),compile(path.join(frontend,'src/constants/paperSizes.ts')));
   fs.writeFileSync(path.join(dir,'accountStorage.js'),compile(path.join(frontend,'src/lib/browserAccountStorage.ts')));
   fs.writeFileSync(path.join(dir, 'editor.js'), compile(path.join(frontend, 'src/components/VisualDocumentEditor.tsx')));
+  fs.writeFileSync(path.join(dir,'aiVisualTarget.js'),compile(path.join(frontend,'src/lib/ai/visualTarget.ts')));
   fs.writeFileSync(path.join(dir, 'inputRules.js'), compile(path.join(frontend, 'src/lib/visualMarkdownInputRules.ts')));
   fs.writeFileSync(path.join(dir, 'paste.js'), compile(path.join(frontend, 'src/lib/visualMarkdownPaste.ts')));
   fs.writeFileSync(path.join(dir, 'mediaMarkup.js'), compile(path.join(frontend, 'src/lib/mediaMarkup.ts')));
@@ -193,7 +194,7 @@ async function visual() {
       const [shared,setShared]=React.useState(false);
       const [documentId,setDocumentId]=React.useState('test-document');
       const [floating,setFloating]=React.useState({visible:false,top:0,left:0});
-      const sharedCommand=React.useRef(null);
+      const sharedCommand=React.useRef(null);const aiTarget=React.useRef(null);window.qaAITarget=scope=>aiTarget.current?.(scope);
       window.setTestSource=setContent;
       window.setTestCommands=setCommands;
       window.setTestHotkeys=setHotkeys;
@@ -203,7 +204,7 @@ async function visual() {
         React.createElement('button',{id:'toggle',onClick:()=>setVisible(!visible)},'보기 전환'),
         React.createElement('button',{id:'readonly',onClick:()=>setReadonly(!readonly)},'읽기 전용'),
         shared && floating.visible && React.createElement(Legacy,{floatingToolbar:floating,setFloatingToolbar:setFloating,commandRef:sharedCommand}),
-        visible && React.createElement(Editor,{content,onSourceScroll:offset=>{window.qaSourceScroll=offset;},onSourceCursor:(offset,reveal=true)=>{window.qaSourceCursor=offset;window.qaCursorReveal=reveal;},onChange:setContent,readOnly:readonly,documentId,customCommands:commands,customHotkeys:hotkeys,commandRef:sharedCommand,
+        visible && React.createElement(Editor,{content,onSourceScroll:offset=>{window.qaSourceScroll=offset;},onSourceCursor:(offset,reveal=true)=>{window.qaSourceCursor=offset;window.qaCursorReveal=reveal;},onChange:setContent,readOnly:readonly,documentId,customCommands:commands,customHotkeys:hotkeys,commandRef:sharedCommand,aiTargetRef:aiTarget,
           renderImage:source=>React.createElement('img',{alt:'test preview',style:{width:320,height:160},src:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWo4AAAAASUVORK5CYII='}),
           onMediaDialog:(kind,source,insert)=>{window.qaMediaDialog={kind,source,insert};},
           onImageDialog:(source,insert)=>{window.qaImageDialog={source,insert};},
@@ -216,7 +217,7 @@ async function visual() {
     createRoot(document.getElementById('root')).render(React.createElement(App));
   `);
   const webpack = req('webpack');
-  const focusedAliases = { '@/components/DocumentPageGuides':path.join(dir,'pageGuides.js'), '@/lib/pageGeometry':path.join(dir,'pageGeometry.js'), '../constants/paperSizes':path.join(dir,'paperSizes.js'), '@/lib/browserAccountStorage':path.join(dir,'accountStorage.js'), '@/lib/bibliography':path.join(dir,'bibliography.js'), '@/components/BibliographySummary':path.join(dir,'bibliographySummary.js'), '@/lib/bulletNumberText':path.join(dir,'bulletNumberText.js'), ...(process.argv.some(arg=>['--image-resize-only','--page-break-only','--list-enter-only','--list-indentation-only','--typing-scroll-only','--spacing-emphasis-only','--list-markers-only','--image-drops-only'].includes(arg)) ? {
+  const focusedAliases = { '@/components/DocumentPageGuides':path.join(dir,'pageGuides.js'), '@/lib/pageGeometry':path.join(dir,'pageGeometry.js'), '../constants/paperSizes':path.join(dir,'paperSizes.js'), '@/lib/browserAccountStorage':path.join(dir,'accountStorage.js'), '@/lib/bibliography':path.join(dir,'bibliography.js'), '@/components/BibliographySummary':path.join(dir,'bibliographySummary.js'), '@/lib/bulletNumberText':path.join(dir,'bulletNumberText.js'), ...(process.argv.some(arg=>['--inline-ai-only','--image-resize-only','--page-break-only','--list-enter-only','--list-indentation-only','--typing-scroll-only','--spacing-emphasis-only','--list-markers-only','--image-drops-only'].includes(arg)) ? {
     '@/lib/footnoteOrganizer': path.join(dir, 'footnoteOrganizer.js'),
     '@/lib/resourceMedia': path.join(dir, 'resourceMedia.js'),
     './resourceSettings':path.join(dir,'dropStorageStubs.js'),
@@ -231,7 +232,7 @@ async function visual() {
   await new Promise((resolve, reject) => webpack({ mode: 'development', entry: path.join(dir, 'entry.js'),
     module: { rules: [{ test: /\.css$/, use: [path.join(dir, 'css-loader.cjs')] }] },
     output: { path: dir, filename: 'bundle.js' }, resolve: { modules: [path.join(frontend, 'node_modules')],
-      alias: { ...focusedAliases, '@/components/LinkModal':path.join(dir,'unrelatedModals.js'), '@/components/CalendarModal':path.join(dir,'unrelatedModals.js'), '@/components/DateTimeInsertPicker':path.join(dir,'unrelatedModals.js'), '@/lib/visualListCommands':path.join(dir,'listCommands.js'), 'lucide-react':path.join(dir,'icons.js'), './visualDocumentCodec':path.join(dir,'codec.js'), '@/lib/visualTableCommands':path.join(dir,'tableCommands.js'), '@/components/TableModal':path.join(dir,'tableModal.js'), '@/components/TableHeaderCell':path.join(dir,'tableHeader.js'), './mediaMarkup':path.join(dir,'mediaMarkup.js'), '@/lib/mediaMarkup':path.join(dir,'mediaMarkup.js'), '@/lib/desktopClipboard':path.join(dir,'clipboard.js'), '@/lib/visualCaret': path.join(dir, 'caret.js'), '@/lib/visualDocumentCodec': path.join(dir, 'codec.js'), '@/lib/visualMarkdownInputRules': path.join(dir, 'inputRules.js'), '@/lib/visualCommandCatalog': path.join(dir,'catalog.js'), '@/lib/toolbarConfig': path.join(dir,'toolbar.js'), '@/lib/visualMarkdownPaste':path.join(dir,'paste.js'), '@/components/VisualReadOnlyMarkdownBlock':path.join(dir,'readonly.js') } }, devtool: false,
+      alias: { ...focusedAliases, '@/lib/ai/visualTarget':path.join(dir,'aiVisualTarget.js'), '@/components/LinkModal':path.join(dir,'unrelatedModals.js'), '@/components/CalendarModal':path.join(dir,'unrelatedModals.js'), '@/components/DateTimeInsertPicker':path.join(dir,'unrelatedModals.js'), '@/lib/visualListCommands':path.join(dir,'listCommands.js'), 'lucide-react':path.join(dir,'icons.js'), './visualDocumentCodec':path.join(dir,'codec.js'), '@/lib/visualTableCommands':path.join(dir,'tableCommands.js'), '@/components/TableModal':path.join(dir,'tableModal.js'), '@/components/TableHeaderCell':path.join(dir,'tableHeader.js'), './mediaMarkup':path.join(dir,'mediaMarkup.js'), '@/lib/mediaMarkup':path.join(dir,'mediaMarkup.js'), '@/lib/desktopClipboard':path.join(dir,'clipboard.js'), '@/lib/visualCaret': path.join(dir, 'caret.js'), '@/lib/visualDocumentCodec': path.join(dir, 'codec.js'), '@/lib/visualMarkdownInputRules': path.join(dir, 'inputRules.js'), '@/lib/visualCommandCatalog': path.join(dir,'catalog.js'), '@/lib/toolbarConfig': path.join(dir,'toolbar.js'), '@/lib/visualMarkdownPaste':path.join(dir,'paste.js'), '@/components/VisualReadOnlyMarkdownBlock':path.join(dir,'readonly.js') } }, devtool: false,
   }, (error, stats) => error || stats.hasErrors() ? reject(error || new Error(stats.toString({ all: false, errors: true }))) : resolve()));
   const cssDir=path.join(frontend,'out/_next/static/css');
   const css=fs.existsSync(cssDir)?fs.readdirSync(cssDir).filter(file=>file.endsWith('.css')).map(file=>`<link rel="stylesheet" href="file:///${path.join(cssDir,file).replace(/\\/g,'/')}">`).join(''):'';
@@ -260,6 +261,24 @@ async function visual() {
         assert.equal(await surface.locator('.visual-image-block').count(),2);
       }
       assert.deepEqual(errors,[]);console.log('PASS: repeated image resize preserves following paragraphs, headings, second image and visible editable blocks');return;
+    }
+    if(process.argv.includes('--inline-ai-only')){
+      await surface.waitFor();await page.evaluate(()=>window.setTestSource('앞 문장\n\n수정할 문장\n\n![](/media/test.png)\n\n아래 본문'));
+      await surface.getByText('앞 문장',{exact:true}).click();await page.evaluate(()=>{const host=document.querySelector('.visual-document-surface');const texts=[];const walker=document.createTreeWalker(host,NodeFilter.SHOW_TEXT);let node;while(node=walker.nextNode())texts.push(node);const a=texts.find(n=>n.textContent==='앞 문장'),b=texts.find(n=>n.textContent==='수정할 문장');const range=document.createRange();range.setStart(a,0);range.setEnd(b,b.textContent.length);const selection=document.getSelection();selection.removeAllRanges();selection.addRange(range);window.referenceAI=window.qaAITarget('reference');const input=document.createElement('textarea');input.id='reference-question';document.body.append(input);input.focus();});
+      assert.equal(await page.evaluate(()=>window.referenceAI.text),'앞 문장\n수정할 문장');assert.ok(await surface.locator('.onrivi-ai-target').count()>0);assert.equal(await page.evaluate(()=>window.referenceAI.apply('수정 금지','replace')),false);await page.evaluate(()=>{window.referenceAI.release();document.querySelector('#reference-question').remove();});
+      await surface.getByText('수정할 문장',{exact:true}).click();await page.keyboard.press('Home');await page.keyboard.press('Shift+End');
+      const before=await page.locator('#source').inputValue();
+      assert.equal(await page.evaluate(()=>{window.actualAITarget=window.qaAITarget();return window.actualAITarget.text;}),'수정할 문장');
+      assert.equal(await page.evaluate(()=>window.actualAITarget.apply('다듬은 문장','replace')),true);
+      await page.waitForFunction(()=>document.querySelector('#source').value.includes('다듬은 문장'));assert.ok((await page.locator('#source').inputValue()).includes('다듬은 문장'));assert.ok((await page.locator('#source').inputValue()).includes('아래 본문'));assert.equal(await surface.locator('.visual-image-block').count(),1);
+      await page.keyboard.press('Control+z');assert.equal(await page.locator('#source').inputValue(),before);
+
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface')?.textContent.includes('수정할 문장'));const fullBefore=await page.locator('#source').inputValue();
+      assert.equal(await page.evaluate(()=>{const t=window.qaAITarget('document');window.fullTarget=t;return t.sections.some(row=>row.text==='수정할 문장');}),true);
+      assert.equal(await page.evaluate(()=>{const t=window.fullTarget;return t.applySections(Object.fromEntries(t.sections.map(row=>[row.id,row.text+' 수정'])));}),true);
+      await page.waitForFunction(()=>document.querySelector('#source').value.includes('수정할 문장 수정'));const fullAfter=await page.locator('#source').inputValue();assert.ok(fullAfter.includes('수정할 문장 수정'));assert.equal(await surface.locator('.visual-image-block').count(),1);await page.keyboard.press('Control+z');assert.equal(await page.locator('#source').inputValue(),fullBefore);
+      await surface.getByText('아래 본문',{exact:true}).click();await page.keyboard.press('End');await page.evaluate(()=>{window.actualAITarget=window.qaAITarget();});await page.keyboard.type('changed');assert.equal(await page.evaluate(()=>window.actualAITarget.apply('금지','replace')),false);
+      console.log('PASS: actual VisualDocumentEditor AI target bridge, source synchronization, image/body preservation, one undo and stale target rejection');return;
     }
     if(process.argv.includes('--page-break-only')){
       await surface.waitFor();await page.evaluate(()=>window.setTestSource('앞 문단\n\n뒤 문단'));

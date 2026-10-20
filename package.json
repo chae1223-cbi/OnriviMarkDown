@@ -86,6 +86,8 @@
     "files": [
       "desktopInlineImages.js",
       "electron/gdriveOAuth.cjs",
+      "electron/inlineAI.cjs",
+      "frontend/src/lib/ai/wire.mjs",
       "main.js",
       "preload.js",
       "frontend/out/**/*",

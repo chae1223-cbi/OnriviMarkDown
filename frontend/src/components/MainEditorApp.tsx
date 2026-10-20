@@ -1,9 +1,15 @@
 /**
  * 프로그램명 : OnriviAuthor 
-// 🚨 @PATCH : **2026-10-19** — [자체 이모지 모달(EmojiPanel) 폐지 및 OS 네이티브 이모지 창(Windows: Win + ., macOS: Cmd+Ctrl+Space) 즉각 직접 호출]:
-//             1) 자체 커스텀 이모지 패널 모달 및 안내 토스트를 전면 배제하고, 버튼 클릭 시 OS 시스템 네이티브 이모지 패널을 즉시 화면에 팝업하도록 직결
-//             2) 데스크톱(Electron) 환경에서는 메인 프로세스(system:showEmojiPicker), 웹 브라우저 환경에서는 /api/system/emoji 라우트를 통해 가상 키(Win + .)를 직접 트리거
-//             3) 이모지 호출 전 에디터 포커스를 강제 확보하여 OS 이모지 창에서 선택한 이모지가 현재 커서 위치에 바로 자동 타이핑되도록 연동
+// 🚨 @PATCH : **2026-10-20** — [문서 서식 일괄 정리(CLEAN_DOC) 기능 문서보기(VisualDocumentEditor) 양방향 연동]:
+//             1) dispatchCommand의 문서보기 미지원 차단 목록에서 'CLEAN_DOC' 제거
+//             2) case 'CLEAN_DOC': 에서 VisualDocumentEditor 활성 시 visualCommandRef.current('CLEAN_DOC')를 우선 실행하여 위지윅 문서보기에서도 단축키(Ctrl+Shift+L) 및 서식 툴바 마법봉 버튼으로 일괄 서식 정리가 즉시 수행되도록 연결
+// 🚨 @PATCH : **2026-10-20** — [위지윅 문서보기(VisualDocumentEditor) 및 단일 미리보기 모드 커서 좌표(Ln/Col) 실시간 동기화 복원]:
+//             1) onSourceCursor에서 previewMode === 'both' 조기 반환 가드를 해제하고 offset 기반 행/열 정밀 계산(content 및 Monaco 모델 연동)을 통해 setCursorLine, setCursorColumn 및 onrivi:cursor-position 이벤트 디스패치 보장
+//             2) 문서보기 모드에서 클릭, 방향키 이동, 타이핑 시 하단 상태바의 Ln/Col이 동결되지 않고 실시간 즉각 갱신되도록 완벽 연동
+//             3) InlineAIAssistant에 resourceFolder 전달하여 로컬 리소스 폴더의 프롬프트 템플릿(D:\Onrivi_Asset\prompt) 1:1 연동 보장
+// 🚨 @PATCH : **2026-10-19** — [OS 네이티브 이모지 피커(Windows/macOS) 연동 정밀화 및 웹/미지원 환경 EmojiPanel 스마트 폴백 보장]:
+//             1) TOGGLE_EMOJI_PANEL 실행 시 VisualDocumentEditor(viewRef.focus) 및 Monaco 에디터 활성 포커스를 정확히 타겟팅하여 OS 이모지 피커가 커서 위치에 즉시 도킹되도록 보강
+//             2) Electron 데스크톱에서는 app.showEmojiPanel()을 직결 호출하고, 웹 브라우저 환경이나 OS 피커 미지원 환경에서는 내장 EmojiPanel 보관함이 자동으로 열리는 2중 안전 폴백 체계 구축
 // 🚨 @PATCH : **2026-10-19** — [onrivi:open-print 리스너 TDZ(ReferenceError) 결함 즉시 해결]:
 //             dispatchCommand 선언부 이후로 onrivi:open-print useEffect의 배치 위치를 조정하여 런타임 초기화 순서 에러 완전 해소
 // 🚨 @PATCH : **2026-10-19** — [상태바 인쇄/쪽 윤곽 모달 호출(onrivi:open-print) 연동 및 PAGEBREAK 페이지 나누기 마커 삽입 명령 지원]:
@@ -364,6 +370,8 @@ import { mediaSourceRange } from '@/lib/mediaSourceRange';
 import { saveResourceMedia, parseDroppedDataToBlob, fetchExternalImageFile } from '@/lib/resourceMedia';
 import { imageResourceName, picturebookImageReference } from '@/lib/imageResourceName';
 import { visualImageDetails } from '@/lib/visualDocumentCodec';
+import InlineAIAssistant from '@/components/ai/InlineAIAssistant';
+import {captureMonacoAITarget} from '@/lib/ai/monacoTarget';
 import { syncPreviewInterpolated } from '@/lib/syncEngine'; // 구간 선형 보간 동기화 엔진
 import Script from 'next/script'; // 넥스트 스크립트 - 
 import 'katex/dist/katex.min.css'; // 카텍스 스타일 - 수학 공식 렌더링
@@ -955,6 +963,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const visualMediaInsertRef = useRef<{kind:string;documentId:string;insert:(code:string)=>boolean}|null>(null);
   const visualImageInsertRef = useRef<((path: string, alt: string) => boolean) | null>(null);
   const visualCommandRef = useRef<((command: string) => boolean) | null>(null);
+  const visualAITargetRef = useRef<any>(null);
   const visualSourceActionRef = useRef<{ id: string; source: string; from: number; to: number; tabId: string } | null>(null);
   const executingVisualSourceActionRef = useRef(false);
   const pendingVisualExportRef = useRef<EditorCommandType | null>(null);
@@ -8071,7 +8080,7 @@ blockquote li p {
     if (!executingVisualSourceActionRef.current && previewRef.current?.querySelector('.visual-document-editor') && [
       'UNDERLINE', 'STRIKETHROUGH', 'IMAGE', 'VIDEO', 'MAP', 'TABLE', 'QUICK_TABLE',
       'INSERT_TABLE_ROW', 'DELETE_TABLE_ROW', 'CHART', 'CODE', 'CHECK',
-      'REMOVE_PREFIX', 'CLEAN_DOC', 'DOC_LINK', 'SIGNATURE', 'MERGE',
+      'REMOVE_PREFIX', 'DOC_LINK', 'SIGNATURE', 'MERGE',
     ].includes(type)) {
       showToast('이 기능은 현재 마크다운 보기에서 사용할 수 있습니다.', 'info');
       return;
@@ -8197,47 +8206,31 @@ blockquote li p {
         return;
       }
       case 'TOGGLE_EMOJI_PANEL': {
-        // 1. 에디터 포커스 확보 (OS 이모지 입력기에서 선택 시 현재 커서 위치에 즉시 주입)
-        if (editorRef.current) {
+        // 1. 에디터 포커스 확보 (VisualDocumentEditor 또는 Monaco)
+        if (previewRef.current?.querySelector('.visual-document-editor')) {
+          visualCommandRef.current?.('FOCUS');
+        } else if (editorRef.current) {
           editorRef.current.focus();
-        } else if (previewRef.current) {
-          (previewRef.current.querySelector('.visual-document-surface') as HTMLElement)?.focus();
         }
 
-        // 2. 데스크톱(Electron) 또는 웹 브라우저 환경에서 OS 네이티브 이모지 창 직접 호출
+        // 2. 데스크톱(Electron) OS 네이티브 이모지 패널 직접 호출 및 미지원/웹 환경 fallback
         const electron = (window as any).electronAPI;
         if (electron && typeof electron.showEmojiPicker === 'function') {
-          electron.showEmojiPicker();
+          Promise.resolve(electron.showEmojiPicker()).then((success: any) => {
+            if (success === false) {
+              setIsEmojiPanelOpen(prev => !prev);
+            }
+          }).catch(() => {
+            setIsEmojiPanelOpen(prev => !prev);
+          });
         } else {
-          // 브라우저/로컬 환경: 백엔드 API를 통해 OS 이모지 창(Windows: Win + ., macOS: Cmd+Ctrl+Space) 즉각 격발
-          fetch('/api/system/emoji', { method: 'POST' }).catch(() => {});
+          // 웹 브라우저 환경: OS 네이티브 이모지 창을 웹 API로 열 수 없으므로 자체 이모지 보관함 패널 토글
+          setIsEmojiPanelOpen(prev => !prev);
         }
         return;
       }
       case 'AI_DRAFT': {
-        if (!geminiApiKey) {
-          showToast('설정에서 Gemini API 키를 먼저 등록해주세요.', 'warning');
-          setIsSettingsModalOpen(true);
-          return;
-        }
-        if (!activeTabId || previewMode === 'preview') {
-          showToast('편집 모드에서 문서가 열려있을 때만 사용 가능합니다.', 'warning');
-          return;
-        }
-        const editor = editorRef.current;
-        const selection = editor ? editor.getSelection() : null;
-        const model = editor ? editor.getModel() : null;
-        let selectedText = '';
-        let fullText = contentRef.current || content || '';
-        if (editor && model) {
-          fullText = model.getValue();
-          if (selection && !selection.isEmpty()) {
-            selectedText = model.getValueInRange(selection);
-          }
-        }
-        setAiEditorContext({ selectedText, fullText });
-        setAiDraftInitialMode(selectedText ? 'editorial' : 'draft');
-        setIsAIDraftModalOpen(true); 
+        window.dispatchEvent(new Event('onrivi:open-inline-ai'));
         return;
       }
       case 'OPEN_AI_WRITER': {
@@ -8294,7 +8287,12 @@ blockquote li p {
         }
         return;
       }
-      case 'CLEAN_DOC': handlers.cleanDoc(); return;
+      case 'CLEAN_DOC':
+        if (previewRef.current?.querySelector('.visual-document-editor') && visualCommandRef.current?.('CLEAN_DOC')) {
+          return;
+        }
+        handlers.cleanDoc();
+        return;
       case 'COPY_ALL': handlers.copyAll(); return;
       // 🎯 TOOLBAR_ITEMS '푸터' 그룹 토글 명령어 (handlers에 없으므로 직접 상태 변환)
       case 'TOGGLE_TOOLBAR': setIsToolbarOpen(prev => !prev); return;
@@ -9512,7 +9510,7 @@ blockquote li p {
           </div>
         )}
 
-        <div className={`flex h-screen overflow-hidden flex-col text-on-surface ${mounted && isDarkMode ? 'dark' : ''} bg-surface relative`}>
+        <div className={`onrivi-editor-shell flex h-screen overflow-hidden flex-col text-on-surface ${mounted && isDarkMode ? 'dark' : ''} bg-surface relative`}>
 
           {/* 🛡️ 동일 브라우저 다중 탭 또는 다른 브라우저/기기 동시 접속 시 - 비차단형 제한사용자 안내 배너 */}
           {((isDuplicateInstance && isEditorPlan) || (licenseStatus.isConcurrentLimited && (licenseStatus.hasEditorSubscription || isEditorPlan))) && activeMainView !== 'knowledge' && (
@@ -10018,181 +10016,6 @@ blockquote li p {
                           links: false
                         }}
                       />
-
-                      {/* 🤖 에디터 하단 스크롤 좌측 2줄 AI 버튼 (익명/별명 AI & 모델 선택 - AI 연동 시에만 노출) */}
-                      {isAiButtonVisible && Boolean(geminiApiKey) && (
-                        <div 
-                          ref={bottomAiDropdownRef}
-                          className="absolute bottom-3 right-6 z-20 flex flex-col items-end select-none pointer-events-auto"
-                        >
-                          {/* 상향 팝오버 드롭다운: AI 모델 선택 목록 (AI 연동 시에만 활성화) */}
-                          {isBottomAiDropdownOpen && geminiApiKey && (
-                            <div className="mb-2 w-60 bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/10 rounded-xl shadow-2xl p-1.5 z-30 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-md">
-                              <div className="px-2 py-1 text-[11px] font-bold text-zinc-500 dark:text-zinc-400 border-b border-black/5 dark:border-white/5 mb-1 flex items-center justify-between">
-                                <span>AI 모델 선택</span>
-                                <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">Gemini / Gemma</span>
-                              </div>
-                              <div className="max-h-56 overflow-y-auto space-y-0.5">
-                                {getCachedAIModels().map((m) => {
-                                  const isSelected = (aiModelName || DEFAULT_AI_MODEL) === m.id;
-                                  return (
-                                    <button
-                                      key={m.id}
-                                      type="button"
-                                      onClick={() => {
-                                        setAiModelName?.(m.id);
-                                        try {
-                                          localStorage.setItem('onrivi_ai_model_name', m.id);
-                                          const raw = localStorage.getItem('onrivi_settings');
-                                          if (raw) {
-                                            const parsed = JSON.parse(raw);
-                                            parsed.aiModelName = m.id;
-                                            localStorage.setItem('onrivi_settings', JSON.stringify(parsed));
-                                          }
-                                        } catch {}
-                                        setIsBottomAiDropdownOpen(false);
-                                        showToast?.(`AI 모델이 ${m.name}(으)로 전환되었습니다.`, 'success');
-                                      }}
-                                      className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-all flex items-center justify-between cursor-pointer ${
-                                        isSelected
-                                          ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 font-bold'
-                                          : 'hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300'
-                                      }`}
-                                    >
-                                      <div className="truncate">
-                                        <div className="flex items-center gap-1.5">
-                                          <span className="font-semibold">{m.name}</span>
-                                          {m.badge && (
-                                            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-600 dark:text-purple-300 font-bold">
-                                              {m.badge}
-                                            </span>
-                                          )}
-                                        </div>
-                                        <div className="text-[10px] text-slate-400 dark:text-zinc-500 font-normal">{m.desc}</div>
-                                      </div>
-                                      {isSelected && <Icon name="Checkmark" size={14} className="text-purple-600 dark:text-purple-400 shrink-0 stroke-[2.5]" />}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* 2줄 AI 플로팅 버튼 캡슐 */}
-                          <div className={`flex flex-col items-stretch rounded-xl border p-0.5 transition-all duration-200 ${
-                            geminiApiKey
-                              ? 'bg-gradient-to-r from-[#6366F1] via-[#8B5CF6] to-[#A855F7] hover:from-[#4F46E5] hover:via-[#7C3AED] hover:to-[#9333EA] text-white shadow-lg shadow-purple-500/25 border-white/25'
-                              : 'bg-slate-200/90 dark:bg-zinc-800/90 text-slate-500 dark:text-zinc-400 border-slate-300/80 dark:border-zinc-700 shadow-none opacity-60'
-                          }`}>
-                            {/* 1행: 익명 AI 또는 {userNickname} AI */}
-                            <button
-                              type="button"
-                              disabled={!geminiApiKey}
-                              onClick={() => {
-                                if (!geminiApiKey) {
-                                  showToast("AI 연동이 해제된 상태입니다. 환경설정에서 Gemini API Key를 등록해주세요.", "warning");
-                                  setSettingsModalInitialTab?.('general');
-                                  setIsSettingsModalOpen(true);
-                                  return;
-                                }
-                                const editor = editorRef.current;
-                                const selection = editor ? editor.getSelection() : null;
-                                const model = editor ? editor.getModel() : null;
-                                let selectedText = '';
-                                let fullText = '';
-                                if (editor && model) {
-                                  fullText = model.getValue();
-                                  if (selection && !selection.isEmpty()) {
-                                    selectedText = model.getValueInRange(selection);
-                                  }
-                                }
-                                setAiEditorContext({ selectedText, fullText });
-                                setAiDraftInitialMode(selectedText ? 'editorial' : 'draft');
-                                setIsAIDraftModalOpen(true);
-                              }}
-                              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-t-[10px] transition-all ${
-                                geminiApiKey
-                                  ? 'hover:bg-white/10 active:scale-98 cursor-pointer'
-                                  : 'cursor-not-allowed opacity-75'
-                              }`}
-                              title={
-                                geminiApiKey
-                                  ? `${userNickname || '익명'} AI 프롬프트 열기`
-                                  : 'AI 연동 해제됨 (환경설정에서 API 키 등록 필요)'
-                              }
-                            >
-                              <span className="relative flex h-2 w-2 shrink-0">
-                                {geminiApiKey ? (
-                                  <>
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
-                                  </>
-                                ) : (
-                                  <span className="inline-flex rounded-full h-2 w-2 bg-slate-400 dark:bg-zinc-500" />
-                                )}
-                              </span>
-                              <img 
-                                src="/icon.png" 
-                                alt="Onrivi" 
-                                className={`w-3.5 h-3.5 object-contain rounded-xs drop-shadow-xs select-none shrink-0 ${
-                                  geminiApiKey ? '' : 'grayscale opacity-50'
-                                }`} 
-                              />
-                              <span className="text-[11px] font-extrabold tracking-tight whitespace-nowrap">
-                                {geminiApiKey
-                                  ? (userNickname ? `${userNickname} AI` : '익명 AI')
-                                  : (userNickname ? `${userNickname} AI (해제됨)` : 'AI 연동 해제됨')
-                                }
-                              </span>
-                            </button>
-
-                            {/* 가로 구분선 */}
-                            <div className={`h-px w-full ${geminiApiKey ? 'bg-white/20' : 'bg-slate-300 dark:bg-zinc-700'}`} />
-
-                            {/* 2행: 모델 선택 */}
-                            {(() => {
-                              const safeModel = (aiModelName && !aiModelName.startsWith('U2FsdGVkX1')) ? aiModelName : 'gemini-3.8-flash';
-                              const currentModelObj = getCachedAIModels().find(m => m.id === safeModel);
-                              const rawDisplayName = currentModelObj ? currentModelObj.name : safeModel;
-                              const displayModelFullName = (rawDisplayName && !rawDisplayName.startsWith('U2FsdGVkX1')) ? rawDisplayName : 'Gemini 3.8 Flash';
-
-                              return (
-                                <button
-                                  type="button"
-                                  disabled={!geminiApiKey}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!geminiApiKey) {
-                                      showToast("AI 연동이 해제된 상태입니다. 환경설정에서 Gemini API Key를 등록해주세요.", "warning");
-                                      return;
-                                    }
-                                    if (!isBottomAiDropdownOpen) {
-                                      const cleanKey = ensureDecryptedApiKey(geminiApiKey);
-                                      fetchGoogleAIStudioModels(cleanKey).catch(() => {});
-                                    }
-                                    setIsBottomAiDropdownOpen(!isBottomAiDropdownOpen);
-                                  }}
-                                  className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-b-[10px] transition-all text-[11px] font-semibold ${
-                                    geminiApiKey
-                                      ? 'hover:bg-white/10 active:scale-98 cursor-pointer'
-                                      : 'cursor-not-allowed opacity-60'
-                                  }`}
-                                  title={
-                                    geminiApiKey
-                                      ? "클릭하여 AI 모델 변경"
-                                      : "AI 연동 해제 상태 (모델 선택 불가)"
-                                  }
-                                >
-                                  <span className={`whitespace-nowrap tracking-tight ${geminiApiKey ? 'text-violet-100' : 'text-slate-400 dark:text-zinc-500'}`}>
-                                    {geminiApiKey ? displayModelFullName : '연동 해제됨'}
-                                  </span>
-                                  <Icon name="ArrowDown" size={12} className={`shrink-0 ${geminiApiKey ? 'text-violet-200' : 'text-slate-400 dark:text-zinc-600'} transition-transform duration-200 ${isBottomAiDropdownOpen ? 'rotate-180' : ''}`} />
-                                </button>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                      )}
 
                       {floatingToolbar.visible && (() => {
                         const editorDom = editorRef.current?.getContainerDomNode();
@@ -11086,7 +10909,28 @@ blockquote li p {
                                      }}
                                      onSourceCursor={(offset, reveal = false) => {
                                        const editor = editorRef.current;
-                                       if (previewModeRef.current !== 'both' || !editor?.getModel()) return;
+                                       if (typeof offset !== 'number' || offset < 0) return;
+                                       const model = editor?.getModel();
+                                       let line = 1;
+                                       let column = 1;
+                                       let pos: { lineNumber: number; column: number } | null = null;
+                                       if (model && !model.isDisposed()) {
+                                         pos = model.getPositionAt(offset);
+                                         line = pos.lineNumber;
+                                         column = pos.column;
+                                       } else {
+                                         const currentText = contentRef.current || content || '';
+                                         const textBefore = currentText.slice(0, Math.min(offset, currentText.length));
+                                         const lines = textBefore.split('\n');
+                                         line = lines.length;
+                                         column = lines[lines.length - 1].length + 1;
+                                         pos = { lineNumber: line, column };
+                                       }
+                                       setCursorLine(line);
+                                       setCursorColumn(column);
+                                       window.dispatchEvent(new CustomEvent('onrivi:cursor-position', { detail: { line, column } }));
+
+                                       if (previewModeRef.current !== 'both' || !editor || !model || model.isDisposed()) return;
                                        const position = editor.getModel().getPositionAt(offset);
                                        isScrollingRef.current = 'preview';
                                        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
@@ -11096,7 +10940,7 @@ blockquote li p {
                                          editor.revealPositionInCenterIfOutsideViewport(position);
                                        }
                                      }}
-                                     commandRef={visualCommandRef} customCommands={customSlashCommands} customHotkeys={customHotkeys}
+                                     commandRef={visualCommandRef} aiTargetRef={visualAITargetRef} customCommands={customSlashCommands} customHotkeys={customHotkeys}
                                     onDocLinkDialog={(pos, insert) => {
                                       visualDocLinkPositionRef.current = pos;
                                       visualDocLinkInsertRef.current = insert;
@@ -11253,7 +11097,13 @@ blockquote li p {
 
             </main>
 
-            {/* 자체 EmojiPanel 모달은 OS 네이티브 이모지 피커로 대체되어 렌더링하지 않음 */}
+            {isEmojiPanelOpen && (
+              <EmojiPanel
+                onClose={() => setIsEmojiPanelOpen(false)}
+                onInsert={insertEmojiAtCursor}
+                isToolbarOpen={isToolbarOpen}
+              />
+            )}
 
             {isToolbarOpen && (
               <div className="no-print h-full w-12 flex flex-col justify-end bg-zinc-50 dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700/60 pb-3">
@@ -11262,6 +11112,18 @@ blockquote li p {
             )}
           </div>
 
+          {isAiButtonVisible && <InlineAIAssistant documentId={activeTabId} disabled={!activeTabId || isRestrictedUser || currentFileName === '도움말.md' || Boolean(resolveEffectiveDocumentProfile(content).layout)}
+            disabledReason={!activeTabId ? '문서를 먼저 열거나 새 문서를 만들어 주세요.' : isRestrictedUser ? '현재 문서 편집 권한이 제한되어 있습니다. 로그인·인증 및 동시 접속 상태를 확인해 주세요.' : currentFileName === '도움말.md' ? '도움말은 수정할 수 없습니다. 작성할 문서를 열어 주세요.' : resolveEffectiveDocumentProfile(content).layout ? '현재 그림책 레이아웃은 문서 AI 편집을 지원하지 않습니다. 일반 문서에서 사용해 주세요.' : undefined}
+            legacyKey={ensureDecryptedApiKey(geminiApiKey)} legacyModel={aiModelName} nickname={userNickname} resourceFolder={resourceFolder} resourceHandle={resourceFolderHandle}
+            capture={(scope) => {
+              if(scope==='auto'){if(visualAITargetRef.current&&previewRef.current?.querySelector('.visual-document-editor'))return visualAITargetRef.current(scope);if(editorRef.current?.hasTextFocus()&&!editorRef.current.getSelection()?.isEmpty())return captureMonacoAITarget(editorRef.current,activeTabIdRef.current || '',()=>activeTabIdRef.current,'selection');throw Error('문서 전체 수정은 문서보기에서 편집을 켠 뒤 실행해 주세요.');}
+              if(scope==='document'){if(visualAITargetRef.current&&previewRef.current?.querySelector('.visual-document-editor'))return visualAITargetRef.current(scope);throw Error('문서 전체 수정은 문서보기에서 편집을 켠 뒤 실행해 주세요.');}
+              if (editorRef.current?.hasTextFocus()) return captureMonacoAITarget(editorRef.current,activeTabIdRef.current || '',()=>activeTabIdRef.current,scope);
+              if (previewRef.current?.querySelector('.visual-document-editor') && visualAITargetRef.current) return visualAITargetRef.current(scope);
+              if (previewModeRef.current === 'preview') throw Error('문서 편집을 켠 뒤 글을 선택해 주세요.');
+              return captureMonacoAITarget(editorRef.current,activeTabIdRef.current || '',()=>activeTabIdRef.current,scope);
+            }}
+            onSettings={() => {setSettingsModalInitialTab('general');setIsSettingsModalOpen(true);}} />}
           <StatusBar />
 
           {isAIDraftModalOpen && (

@@ -1,6 +1,9 @@
 // ====================================================================
 // 📊 [OMD-EDIT-StatusBar-0003] StatusBar.tsx ➔ StatusBar
 // 🎯 @KICK  : 하단 상태표시줄 - 글자 수, 단어 수, 서식 프로필, 저장 상태, 뷰포트 모드, 행/열 정보 및 지식 색인 실시간 진행률 표시
+// 🚨 @PATCH : **2026-10-20** — [하단 상태바 커서 좌표(Ln, Col) 불변 버그 해결 및 3중 실시간 동기화 체계 구축]:
+//             1) Context의 cursorLine/cursorColumn 변경 감지 useEffect 추가 및 onrivi:cursor-position 전역 이벤트 리스너 신설
+//             2) 문서보기(VisualDocumentEditor) 및 모나코 에디터 양방향에서 커서 이동 시 즉시 localCursor를 동기화하여 Ln 1, Col 1 동결 결함 완전 해소
 // 🚨 @PATCH : **2026-10-19** — [상태표시줄 간격 균등 배분 및 3대 영역(좌/중/우) 황금비율 레이아웃 개편]:
 //             1) 좌측: 조판 도구 3종(경계/나누기/인쇄) + 서식 선택 + 저장 상태를 배치하여 휑하던 좌측을 채우고 안정적인 문서 도구 영역 형성
 //             2) 중앙: 뷰 모드 세그먼트(Layout Guard / 문서 보기 / 나란히 보기) 및 지식 색인 배지를 배치하여 시각적 무게 중심 확보
@@ -210,6 +213,31 @@ function StatusBar() {
   };
 
   const [localCursor, setLocalCursor] = useState({ line: cursorLine || 1, column: cursorColumn || 1 });
+
+  // 💡 [Context 커서 좌표 실시간 반영] VisualDocumentEditor 등 Context 변경 시 상태바 즉각 갱신
+  React.useEffect(() => {
+    if (typeof cursorLine === 'number' && typeof cursorColumn === 'number') {
+      setLocalCursor(prev => {
+        if (prev.line === cursorLine && prev.column === cursorColumn) return prev;
+        return { line: cursorLine, column: cursorColumn };
+      });
+    }
+  }, [cursorLine, cursorColumn]);
+
+  // 💡 [전역 커서 이벤트 버스 감지] 위지윅 문서보기 및 모나코 에디터의 커서 변경 이벤트 즉시 수신
+  React.useEffect(() => {
+    const handleCursorPos = (e: any) => {
+      const { line, column } = e.detail || {};
+      if (typeof line === 'number' && typeof column === 'number') {
+        setLocalCursor(prev => {
+          if (prev.line === line && prev.column === column) return prev;
+          return { line, column };
+        });
+      }
+    };
+    window.addEventListener('onrivi:cursor-position', handleCursorPos);
+    return () => window.removeEventListener('onrivi:cursor-position', handleCursorPos);
+  }, []);
 
   // 💡 [커서 실시간 업데이트 픽스] Editor의 Cursor 이벤트를 직접 감지하여 Context 지연/렌더링 블락 방지
   React.useEffect(() => {

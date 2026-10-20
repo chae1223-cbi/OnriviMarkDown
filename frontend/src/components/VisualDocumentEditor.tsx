@@ -1,6 +1,9 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
+ * 🚨 @PATCH : **2026-10-20** — [문서 서식 일괄 정리(CLEAN_DOC) 기능 문서보기(VisualDocumentEditor) 완벽 연동]:
+ *             1) cleanMarkdownDocument 유틸리티를 연동하여 commands['CLEAN_DOC'] 핸들러 신설
+ *             2) 위지윅 문서보기 모드에서도 마크다운 소스를 직렬화하여 코드/수식/프론트매터 보존, 표 정렬, 불필요한 줄바꿈 정리, 헤딩/인용구 공백 교정 등을 일괄 수행한 뒤 replaceSource 및 callback(onChange)을 통해 실시간 화면 반영 및 자동 저장 연동
  * 🚨 @PATCH : **2026-10-19** — [페이지 분할 가이드 활성화 시 인쇄 용지 시트(Print Layout) 스타일 1:1 동기화]:
  *             1) pageGuides 활성화 시 resolvePageGeometry(pageStyle)를 연동하여 .visual-document-surface의 너비와 여백을 용지 규격(A4 210mm, 좌우 12mm, 상하 18mm)으로 정밀 일치
  *             2) 화면 너비에 따른 텍스트 줄바꿈 왜곡을 원천 방어하여 에디터의 페이지 분할 위치와 실제 인쇄/PDF 출력 위치를 1:1 완벽 동기화
@@ -164,6 +167,8 @@ import { bulletNumbersAsText } from '@/lib/bulletNumberText';
 import { tableContext, tableAction, moveTableCell, tableEnter } from '@/lib/visualTableCommands';
 import VisualReadOnlyMarkdownBlock from '@/components/VisualReadOnlyMarkdownBlock';
 import { EditorState, Selection, TextSelection, NodeSelection, Command, Plugin, PluginKey } from 'prosemirror-state';
+import {VisualAITargets} from '@/lib/ai/visualTarget';
+import type {AITarget} from '@/lib/ai/types';
 import { EditorView, Decoration, DecorationSet } from 'prosemirror-view';
 import { mediaDetails, copyMediaSource, copyImageToClipboard, type MediaKind } from '@/lib/mediaMarkup';
 import BibliographySummary from '@/components/BibliographySummary';
@@ -181,6 +186,7 @@ import { visualCommandCatalog, filterVisualCommands } from '@/lib/visualCommandC
 import { TOOLBAR_ITEMS, configuredHotkeyItem } from '@/lib/toolbarConfig';
 import { installVisualCaret } from '@/lib/visualCaret';
 import { organizeMarkdownFootnotes } from '@/lib/footnoteOrganizer';
+import { cleanMarkdownDocument } from '@/utils/markdownCleaner';
 import { parseDroppedDataToBlob, fetchExternalImageFile } from '@/lib/resourceMedia';
 import { canSplit } from 'prosemirror-transform';
 import katex from 'katex';
@@ -741,6 +747,7 @@ type Props = { content: string; onChange: (markdown: string) => void; readOnly?:
   spellCheck?:boolean;
   onSourceCursor?: (offset:number,reveal?:boolean)=>void;
   documentId?: string; commandRef?: React.MutableRefObject<((command: string) => boolean) | null>;
+  aiTargetRef?: React.MutableRefObject<((scope?:import('@/lib/ai/types').AIEditScope)=>AITarget|null)|null>;
   customHotkeys?: Record<string, string>;
   customCommands?: Record<string, string>;
   onFloatingToolbar?: (visible: boolean, position: { top: number; left: number }) => void;
@@ -762,7 +769,7 @@ type Props = { content: string; onChange: (markdown: string) => void; readOnly?:
   showBibliography?: boolean;
 };
 
-export default function VisualDocumentEditor({ content, onChange, readOnly = false, tabSize=4, spellCheck=false, pageStyle, onSourceScroll, onSourceCursor, documentId, commandRef, customCommands = {}, customHotkeys = {}, onSourceAction, onFloatingToolbar, floatingToolbarVisible, renderImage, onImageFile, onImageDialog, onMediaDialog, onDocLinkDialog, onFormulaDialog, currentFilePath, onFileOpen, onToast, onStyleSettings, onReferenceSettings, onCitation, bibContent='', showBibliography=true }: Props) {
+export default function VisualDocumentEditor({ content, onChange, readOnly = false, tabSize=4, spellCheck=false, pageStyle, onSourceScroll, onSourceCursor, documentId, commandRef, aiTargetRef, customCommands = {}, customHotkeys = {}, onSourceAction, onFloatingToolbar, floatingToolbarVisible, renderImage, onImageFile, onImageDialog, onMediaDialog, onDocLinkDialog, onFormulaDialog, currentFilePath, onFileOpen, onToast, onStyleSettings, onReferenceSettings, onCitation, bibContent='', showBibliography=true }: Props) {
   const citationEntries=React.useMemo(()=>{
     const parsed=parseBibliography(bibContent);
     return new Map(parsed.entries.filter(e=>!parsed.duplicates.some(k=>k.toLowerCase()===e.key.toLowerCase())).map(e=>[e.key.toLowerCase(),e]));
@@ -1453,9 +1460,10 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       }
     });
 
+    const aiTargets=new VisualAITargets();
     const view = new EditorView(hostEl, {
       decorations(state){
-        const entries=bibRef.current;const decorations:Decoration[]=[];
+        const entries=bibRef.current;const decorations:Decoration[]=[...aiTargets.decorations()];
         state.doc.descendants((node,pos)=>{if(!node.isText || node.marks.some(m=>m.type.name==='code') || state.doc.resolve(pos).parent.type.name==='code_block')return;
           for(const match of Array.from((node.text||'').matchAll(citationPattern))){const key=match[1]||match[2],entry=entries.get(key.toLowerCase());decorations.push(Decoration.inline(pos+match.index!,pos+match.index!+match[0].length,{class:entry?'visual-citation':'visual-citation-missing',title:entry?citationLabel(entry)+': '+entry.title:'등록된 문헌 없음: '+key}));}
         });return DecorationSet.create(state.doc,decorations);
@@ -2121,6 +2129,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         } catch { return false; }
       },
       dispatchTransaction(transaction) {
+        aiTargets.map(transaction);
         imageTargets.current.forEach(target => {
           const from = transaction.mapping.mapResult(target.from, 1);
           const to = transaction.mapping.mapResult(target.to, -1);
@@ -2529,6 +2538,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         }, blur() { manualFloatingRef.current = false; setSelection(false); setSlash(false); return false; } },
     });
     viewRef.current = view;
+    if(aiTargetRef)aiTargetRef.current=(scope)=>{synchronizeTextSelection(view);return aiTargets.capture(view,documentId||'',scope);};
     (hostEl as SearchEditorHost).onriviSearchView = view;
     hostEl.setAttribute('data-onrivi-search-editor', '');
     caretRef.current = installVisualCaret(view);
@@ -2557,6 +2567,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     if(scrollContainer && !hostEl.closest('[data-book-text]')){scrollContainer.scrollTop=cached?.source===content ? cached.scrollTop || 0 : 0;scrollContainer.scrollLeft=cached?.source===content ? cached.scrollLeft || 0 : 0;}
     // Codec belongs to this editor instance, keeping unchanged source node bytes.
     (view as EditorView & { replaceSource?: (source: string) => void }).replaceSource = source => {
+      aiTargets.clear();
       imageTargets.current.forEach(target => { target.valid = false; });
       const top=scrollContainer?.scrollTop,left=scrollContainer?.scrollLeft;
       const nextCodec=createVisualDocumentCodec(source);
@@ -2586,6 +2597,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       setSlash(false); setSelection(false);
     };
     return () => {
+      aiTargets.clear();if(aiTargetRef)aiTargetRef.current=null;
       clearDropIndicator();
       window.removeEventListener('keydown', handleWindowKeyDown);
       window.removeEventListener('dragover', handleWindowDragOver, true);
@@ -2988,6 +3000,10 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   const executeItem = (id: string, removeSlash = false) => {
     const view = viewRef.current;
     if (!view || readOnly) return;
+    if(id==='aiHelp'){
+      if(removeSlash&&slashRange.current){view.dispatch(view.state.tr.delete(slashRange.current.from,slashRange.current.to));slashRange.current=null;setSlash(false);}
+      window.dispatchEvent(new Event('onrivi:open-inline-ai'));return;
+    }
     if(id==='pagebreak' && (view.state.selection.$from.depth>1 || view.dom.closest('[data-book-text]'))){setNotice('일반 문서의 표·목록 바깥 본문에서 페이지 나누기를 삽입해 주세요.');return;}
     if (['citation','cite'].includes(id)){openCitation(removeSlash);return;}
     if (['footnote', 'fn'].includes(id)) {
@@ -3175,6 +3191,22 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       FOOTNOTE: () => { insertFootnoteRef.current?.(); return true; }, FN: () => { insertFootnoteRef.current?.(); return true; },
       CITATION: () => { openCitation(); return true; }, CITE: () => { openCitation(); return true; },
       TOGGLE_CSS_STYLE: () => { onStyleSettingsRef.current?.(); return true; },
+            CLEAN_DOC: () => {
+        if (!viewRef.current || readOnly || !codecRef.current) return true;
+        const view = viewRef.current;
+        const currentSource = codecRef.current.serialize(view.state.doc);
+        const result = cleanMarkdownDocument(currentSource);
+        if (!result.isModified) {
+          if (onToastRef.current) onToastRef.current('정리할 서식이 없습니다.', 'info');
+          else setNotice('정리할 서식이 없습니다.');
+          return true;
+        }
+        (view as any).replaceSource?.(result.cleanedText);
+        callback.current(result.cleanedText);
+        if (onToastRef.current) onToastRef.current(result.summaryMessage, 'success');
+        else setNotice(result.summaryMessage);
+        return true;
+      },
       ORGANIZE_FOOTNOTES: () => {
         if (!viewRef.current || readOnly || !codecRef.current) return true;
         const view = viewRef.current;

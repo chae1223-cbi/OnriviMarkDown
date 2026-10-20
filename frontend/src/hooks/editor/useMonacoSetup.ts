@@ -1,6 +1,9 @@
 // @ts-nocheck
 // ====================================================================
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
+// 🚨 @PATCH : **2026-10-20** — [모나코 에디터 커서 컬럼(Col) 동기화 누락 및 전역 이벤트(onrivi:cursor-position) 연동 보강]:
+//             1) onDidChangeCursorPosition 및 onMouseDown에서 setCursorColumn(currentCol) 호출 누락을 복구하여 열 번호 실시간 추종 완결
+//             2) 커서 이동 시 onrivi:cursor-position 이벤트를 디스패치하여 상태바와 즉각 무부하 실시간 동기화
 // 🚨 @PATCH : **2026-10-19** — [Visual Editor 모델 동기화 역류(Echo) 방어 가드 탑재]:
 //             1) __isSyncingVisualModel 플래그 활성화 시 model.onDidChangeContent에서 setContent/setTabs를 건너뛰어 역류 루프 완전 차단
 // 🚨 @PATCH : **2026-10-17** — [코드블록 언어 미지정/한글·임의 언어명 입력 시 코드블록 이하 일반 텍스트 색상 오염(보라색 변색) 결함 해결]: handleMount에서 applySafeMarkdownMonarchTokenizer(monaco)를 최우선 적용하여 한글·유니코드·특수기호 언어명(예: ```아자아자) 및 무명 코드블록(```)의 여는/닫는 펜스를 정확히 매칭하고 코드블록 이하 본문으로 @codeblock 상태가 유출되는 현상 원천 차단
@@ -2019,6 +2022,10 @@ export function useMonacoSetup(deps: any) {
                       // 💡 [마우스 클릭 시 즉시 activeLine 동기화]
                       setActiveLine(clickedLine);
                       setCursorLine(clickedLine);
+                      if (e.target.position.column) {
+                        setCursorColumn(e.target.position.column);
+                        window.dispatchEvent(new CustomEvent('onrivi:cursor-position', { detail: { line: clickedLine, column: e.target.position.column } }));
+                      }
                     }
                   });
 
@@ -2054,6 +2061,8 @@ export function useMonacoSetup(deps: any) {
                       updatePersistentCaret();
                       setActiveLine(currentLine);
                       setCursorLine(currentLine);
+                      setCursorColumn(currentCol);
+                      window.dispatchEvent(new CustomEvent('onrivi:cursor-position', { detail: { line: currentLine, column: currentCol } }));
                     });
 
                     // 💡 [방향키(↑, ↓) / 마우스 클릭 / 커서 행 / 가로 줄바꿈 컬럼 / 마지막 줄 부근 감지 시 Safe Zone 추종]

@@ -41,6 +41,7 @@
 // ====================================================================
 "use client";
 
+import {RECOMMENDED_MODELS,compareRecommendedModels} from '@/lib/ai/recommendedModels';
 import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import { getEffectiveResourceFolder } from '@/lib/profileStorage';
 import { readResourceJson, writeResourceJson } from '@/lib/resourceJson';
@@ -76,10 +77,9 @@ export const AI_PROVIDERS: AIProviderItem[] = [
     name: 'Google (Gemini)',
     vendor: 'Google',
     models: [
-      { id: 'gemini-3.8-flash', label: '👑 Gemini 3.8 Flash (최신 최고 버전 / 초고속 플래그십)', badge: '최신' },
-      { id: 'gemini-3.7-flash', label: '⚡ Gemini 3.7 Flash (차세대 고성능 모델)', badge: '추천' },
-      { id: 'gemini-3.6-flash', label: '🛡️ Gemini 3.6 Flash (고성능 안정화 모델)' },
-      { id: 'gemini-3.5-flash', label: '💡 Gemini 3.5 Flash (지능형 균형 모델)' },
+      { id: 'gemini-4-argon', label: 'Gemini 4 Argon' },
+      { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', badge: '추천' },
+      { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite' },
     ]
   },
   {
@@ -180,7 +180,7 @@ export default function AIDraftModal({
     if (cached && cached.length > 0) {
       const geminiList: AIModelItem[] = [];
       const gemmaList: AIModelItem[] = [];
-      cached.forEach(m => {
+      cached.filter(m=>RECOMMENDED_MODELS.some(row=>row.provider==='google'&&row.id===m.id)).sort(compareRecommendedModels).forEach(m => {
         if (m.id.startsWith('gemma-')) {
           gemmaList.push({ id: m.id, label: m.label, badge: m.badge, desc: m.desc });
         } else {
@@ -202,7 +202,7 @@ export default function AIDraftModal({
         if (dynamicModels && dynamicModels.length > 0) {
           const geminiList: AIModelItem[] = [];
           const gemmaList: AIModelItem[] = [];
-          dynamicModels.forEach(m => {
+          dynamicModels.filter(m=>RECOMMENDED_MODELS.some(row=>row.provider==='google'&&row.id===m.id)).sort(compareRecommendedModels).forEach(m => {
             if (m.id.startsWith('gemma-')) {
               gemmaList.push({ id: m.id, label: m.label, badge: m.badge, desc: m.desc });
             } else {

@@ -4,6 +4,12 @@ import { loadSecureData } from '@/lib/secureStorage';
 
 /**
  * [ONR-AI-001] Gemini API 헬퍼 유틸리티
+ * 🚨 @PATCH : **2026-10-20** — [Google 최신 오픈 가중치 모델 Gemma 4(31B IT, 26B A4B IT) 공식 라인업 재추가]:
+ *             1) 사용자 요청에 따라 Gemma 4 최신 모델(gemma-4-31b-it, gemma-4-26b-a4b-it)을 공인 모델(ONRIVI_AI_MODELS)에 공식 탑재
+ *             2) systemInstruction 미지원 Gemma 특성에 맞춘 시스템 지침 자동 통합 주입 및 500/과부하 오류 진단 파이프라인 유지
+ * 🚨 @PATCH : **2026-10-20** — [Gemini 라인업 사용자 지정 3대 모델(Gemini 4.0 Flash, 3.8 Flash, 3.6 Flash)로 단일화]:
+ *             1) 구버전(Gemini 2.5, 2.0, 1.5) 및 Gemma 모델 전면 제거하고 사용자 지정 최신 3대 모델(Gemini 4.0 Flash, 3.8 Flash, 3.6 Flash)로 단일 표준화
+ *             2) DEFAULT_AI_MODEL을 gemini-4.0-flash로 상향 동기화
  * 🚨 @PATCH : **2026-09-24** — [Google 폐기/할당량 고갈 레거시 모델(gemini-pro-latest, gemini-pro 등) 플래그십 자동 정규화]:
  *             1) normalizeAIModelName에 gemini-pro, gemini-pro-latest, gemini-1.0 계열 정규화 필터를 추가하여 429 Resource Exhausted 오류 원천 방어
  *             2) 구버전 저장 모델 유입 시 공식 플래그십(gemini-3.8-flash)으로 즉시 무해 전환
@@ -45,15 +51,14 @@ export interface OnriviAIModelItem {
 }
 
 export const ONRIVI_AI_MODELS: OnriviAIModelItem[] = [
-  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', label: '👑 Gemini 3.8 Flash (최신 최고 버전 / 초고속 플래그십)', desc: '최신 플래그십 / 초고속', badge: '최신' },
-  { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash', label: '⚡ Gemini 3.7 Flash (차세대 고성능 모델)', desc: '차세대 고성능 모델', badge: '추천' },
+  { id: 'gemini-4.0-flash', name: 'Gemini 4.0 Flash', label: '👑 Gemini 4.0 Flash (최신 플래그십)', desc: '최신 플래그십 / 초고속', badge: '최신' },
+  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', label: '⚡ Gemini 3.8 Flash (초고속 플래그십)', desc: '초고속 플래그십', badge: '추천' },
   { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', label: '🛡️ Gemini 3.6 Flash (고성능 안정화 모델)', desc: '고성능 안정화 모델' },
-  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', label: '💡 Gemini 3.5 Flash (지능형 균형 모델)', desc: '지능형 균형 모델' },
-  { id: 'gemma-4-31b-it', name: 'Gemma 4 31B IT', label: '💎 Gemma 4 31B IT (Google DeepMind 256K 플래그십 오픈 모델)', desc: 'Google DeepMind 256K 오픈 모델', badge: '신규' },
-  { id: 'gemma-4-26b-a4b-it', name: 'Gemma 4 26B A4B IT', label: '💎 Gemma 4 26B A4B IT (MoE 경량 고처리량 오픈 모델)', desc: 'MoE 경량 고처리량 오픈 모델', badge: '신규' },
+  { id: 'gemma-4-31b-it', name: 'Gemma 4 31B IT', label: '💎 Gemma 4 31B IT (Google DeepMind 256K)', desc: '최신 오픈 가중치 모델 / 대용량 컨텍스트', badge: '신규' },
+  { id: 'gemma-4-26b-a4b-it', name: 'Gemma 4 26B A4B IT', label: '💎 Gemma 4 26B A4B IT (MoE 경량 고처리량)', desc: '최신 오픈 MoE 모델 / 고처리량', badge: '신규' },
 ];
 
-export const DEFAULT_AI_MODEL = 'gemini-3.8-flash';
+export const DEFAULT_AI_MODEL = 'gemini-4.0-flash';
 
 /**
  * 암호화된 API 키(U2FsdGVkX1...)가 전달된 경우 loadSecureData를 통해 평문으로 복호화 보장

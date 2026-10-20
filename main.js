@@ -2,9 +2,9 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
-// 🚨 @PATCH : **2026-10-19** — [Windows/macOS OS 네이티브 이모지 창(system:showEmojiPicker) 직접 호출 보강]:
-//             1) Windows(win32) 환경에서 Electron의 app.showEmojiPanel() 포커스 무반응 버그를 방어하기 위해 Base64 인코딩된 PowerShell 가상 키(Win + .) 이벤트를 직접 실행하여 Windows 네이티브 이모지 패널 즉각 팝업 보장
-//             2) mainWindow.focus()를 선행 호출하여 입력 커서 포커스를 유지하고 이모지 선택 시 즉각 입력되도록 연동
+// 🚨 @PATCH : **2026-10-19** — [Windows/macOS OS 네이티브 이모지 창(system:showEmojiPicker) Electron 내장 app.showEmojiPanel 직결]:
+//             1) 외부 PowerShell 스크립트 실행으로 인한 포커스 상실 및 실행 지연을 전면 폐기하고, Electron 네이티브 app.showEmojiPanel()을 직결 호출하여 Windows 10/11 및 macOS에서 즉각 시스템 이모지 창 팝업 보장
+//             2) mainWindow.focus()를 선행 호출하여 입력 커서 포커스를 유지하고 이모지 선택 시 즉각 본문에 입력되도록 연동
 // 🚨 @PATCH : **2026-10-18** — [이미지 저장(file:saveImage) 시 동일 파일명 덮어쓰기 방어 및 무결성 보존]:
 //             1) file:saveImage에서 대상 경로에 동일 이름의 파일이 이미 존재할 경우 바이너리 바이트(Buffer.equals)를 대조
 //             2) 파일 내용이 다르면 기존 파일을 절대 덮어쓰지 않고 고유 접미사(_1, _2...)를 부여하여 안전하게 보존하고 새 파일명 및 mediaPath 반환
@@ -64,6 +64,7 @@
 // 🔗 @CALLS : loadURL, onrivi.com
 // ====================================================================
 const { app, BrowserWindow, session, ipcMain, dialog, protocol, net, screen } = require('electron');
+require('./electron/inlineAI.cjs').registerInlineAI({ipcMain,app,safeStorage:require('electron').safeStorage});
 const path = require('path');
 const chokidar = require('chokidar');
 
@@ -3794,40 +3795,13 @@ ipcMain.handle('system:showEmojiPicker', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.focus();
     }
-    if (process.platform === 'win32') {
-      const { exec } = require('child_process');
-      const psScript = `
-$source = @"
-using System;
-using System.Runtime.InteropServices;
-public class WinEmojiHelper {
-    [DllImport("user32.dll")]
-    public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-    public static void Show() {
-        keybd_event(0x5B, 0, 0, UIntPtr.Zero);
-        keybd_event(0xBE, 0, 0, UIntPtr.Zero);
-        keybd_event(0xBE, 0, 2, UIntPtr.Zero);
-        keybd_event(0x5B, 0, 2, UIntPtr.Zero);
-    }
-}
-"@
-Add-Type -TypeDefinition $source
-[WinEmojiHelper]::Show()
-`;
-      const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
-      exec(`powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand ${encoded}`, (err) => {
-        if (err) {
-          try { app.showEmojiPanel(); } catch {}
-        }
-      });
-      return true;
-    } else {
+    if (typeof app.showEmojiPanel === 'function') {
       app.showEmojiPanel();
       return true;
     }
+    return false;
   } catch (e) {
     console.error("네이티브 이모지 패널 호출 실패:", e);
-    try { app.showEmojiPanel(); } catch {}
     return false;
   }
 });
@@ -4743,16 +4717,15 @@ ipcMain.handle('prompts:save', async (event, prompts, resourceFolder) => {
 ipcMain.handle('presets:load', async (event, resourceFolder) => {
   try {
     if (!resourceFolder || resourceFolder.trim() === '' || !fs.existsSync(resourceFolder)) {
-      return null;
+      throw new Error('리소스 폴더에 접근할 수 없습니다.');
     }
     const presetsFilePath = path.join(resourceFolder, 'prompt', 'ai_presets.json');
     if (fs.existsSync(presetsFilePath)) {
       return JSON.parse(fs.readFileSync(presetsFilePath, 'utf-8'));
     }
-    return null;
+    return [];
   } catch (e) {
-    console.error('AI 프리셋 로드 실패:', e);
-    return null;
+    throw new Error('프롬프트 라이브러리를 읽지 못했습니다. 원본 파일을 확인해 주세요.');
   }
 });
 
@@ -4766,7 +4739,13 @@ ipcMain.handle('presets:save', async (event, presets, resourceFolder) => {
       fs.mkdirSync(promptDir, { recursive: true });
     }
     const presetsFilePath = path.join(promptDir, 'ai_presets.json');
-    fs.writeFileSync(presetsFilePath, JSON.stringify(presets, null, 2), 'utf-8');
+    if(fs.existsSync(presetsFilePath)){
+      JSON.parse(fs.readFileSync(presetsFilePath,'utf-8'));
+      fs.copyFileSync(presetsFilePath,path.join(promptDir,'ai_presets.backup.json'));
+    }
+    const temporary=presetsFilePath+'.tmp';
+    fs.writeFileSync(temporary, JSON.stringify(presets, null, 2), 'utf-8');
+    fs.renameSync(temporary,presetsFilePath);
     return { success: true };
   } catch (e) {
     console.error('AI 프리셋 저장 실패:', e);
