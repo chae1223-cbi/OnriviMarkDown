@@ -1,5 +1,13 @@
 import { embedExportFonts } from './exportFonts';
 import { startExportProgress } from './exportProgress';
+// 🚨 @PATCH : **2026-10-20** — [PDF 인쇄 시 화면 페이지 나누기 1:1 완벽 일치 및 파싱 정규화]:
+//             1) exportPDF 내 복제 DOM에서 모든 페이지 나누기 마커([data-onrivi-page-break], .onrivi-page-break, .page-break, hr.page-break)를 data-onrivi-page-break='true'로 정규화
+//             2) HTML 주석(<!-- onrivi:page-break -->) 노드를 실제 data-onrivi-page-break 블록 엘리먼트로 변환하여 PagedJS/인쇄 엔진 분할 100% 반영
+//             3) 인쇄 CSS에 .onrivi-page-break, .page-break, hr.page-break의 break-before: page !important 및 content: none !important 주입
+// 🚨 @PATCH : **2026-10-20** — [PDF/인쇄 시 워터마크 이미지 로드 실패 안전 폴백(DEFAULT_WATERMARK_IMAGE) 및 리소스 직접 로드 지원]:
+//             1) exportPDF 시 워터마크 이미지가 리소스 경로(/media/watermark_xxx.png)인 경우 listWatermarkResources를 통해 브라우저 FileSystemHandle/Electron/Drive에서 직접 바이너리를 로드하여 인라인화
+//             2) 파일 누락, 권한 오류 또는 404/400 실패 시 PDF 내보내기 전체가 중단되는 현상을 방지하고 공식 기본 엠블럼(DEFAULT_WATERMARK_IMAGE)으로 안전 대체
+//             3) inlineLocalImages의 백엔드 fallback 호출 시 /api/view?filePath=... 파라미터 규격화 및 쿼리스트링 분리 정돈
 // 🚨 @PATCH : **2026-10-19** — [PDF 및 EPUB 내보내기 시 전역 기본 워터마크 자동 상속 및 연동]: exportPDF 및 exportEPUB에서 readEffectivePrintSettings 연동으로 환경설정 일반설정의 워터마크가 기본 자동 사출되도록 파이프라인 완성
 // 🚨 @PATCH : **2026-10-18** — [PDF/인쇄 시 시험 문제 보기 상자 및 선택지(①~⑮) 여백 축소 및 페이지 쪼개짐 방지]:
 //             1) applyExportInlineStyles 및 @media print에서 blockquote(자료 설명/보기 상자) 상하 여백(8px/10px) 및 내부 문단 마진(4px/2px) 콤팩트 규격화, 후행 빈 줄 소거, 객관식 선택지 문단(①~⑮, ㄱ~ㄹ 등) break-inside: avoid 결속으로 5지선다가 페이지 경계에서 잘려 하단 거대 빈 공간이 발생하는 결함 완벽 해결
@@ -1232,6 +1240,27 @@ function flushIME(): void {
 // 🚨 @PATCH : **2026-06-19** — PNG/HTML 내보내기 시 인라인 코드 스타일을 미리보기(globals.css)와 100% 동기화하기 위해 vertical-align:0, line-height:1.35, padding:1px 4.5px 규격으로 완전 치환
 // 🔗 @CALLS : 없음
 // ====================================================================
+// Keep PDF and EPUB table styling in sync with the rendered document.
+function preserveRenderedTableStyles(clone: HTMLElement, sourceEl: HTMLElement): void {
+      const sourceTables = Array.from(sourceEl.querySelectorAll('table'));
+      clone.querySelectorAll<HTMLElement>('table').forEach((table, index) => {
+        const source = sourceTables[index];
+        if (!source) return;
+        const originals = [source, ...Array.from(source.querySelectorAll('thead,tbody,tfoot,tr,th,td,p'))];
+        const copies = [table, ...Array.from(table.querySelectorAll<HTMLElement>('thead,tbody,tfoot,tr,th,td,p'))];
+        originals.forEach((original, nodeIndex) => {
+          const copy = copies[nodeIndex];
+          if (!copy) return;
+          const css = getComputedStyle(original);
+          const properties = ['font-family','font-size','font-weight','font-style','line-height','letter-spacing','text-align','vertical-align','color','background-color','white-space','word-break','overflow-wrap','border-collapse','border-spacing','table-layout'];
+          for (const side of ['top','right','bottom','left']) {
+            properties.push(`padding-${side}`,`margin-${side}`,`border-${side}-width`,`border-${side}-style`,`border-${side}-color`);
+          }
+          for (const property of properties) copy.style.setProperty(property, css.getPropertyValue(property), 'important');
+        });
+      });
+}
+
 function applyExportInlineStyles(clone: HTMLElement, activeProfile?: CssProfile, sourceEl?: HTMLElement): void {
   // 🌟 querySelectorAll('code') + closest('pre') 조합으로 블록 코드블록을 제외한 모든 인라인 코드를 100% 포착
   clone.querySelectorAll('code').forEach((code) => {
@@ -1876,7 +1905,7 @@ async function inlineLocalImages(clone: HTMLElement): Promise<void> {
         let url = resolved;
         if (api && /^https?:/.test(url)) url = `media://?url=${encodeURIComponent(url)}`;
         else if (!/^(https?:|blob:|media:)/.test(url)) {
-          url = getApiUrl(`/api/view?url=${encodeURIComponent(src)}`);
+          url = getApiUrl(`/api/view?filePath=${encodeURIComponent(src.split('?')[0])}`);
         }
         try {
           dataUrl = await exportBlobToDataUrl(await fetchExportImage(url));
@@ -2136,7 +2165,9 @@ export async function exportPDF({
     if(!previewOnly)flushIME();
 
     await prepareExportPreview(previewEl);
-    const targetEl = previewEl.querySelector('.markdown-viewer-root') as HTMLElement || previewEl;
+    // Select the outer document before any MarkdownViewer mounted inside an image node.
+    const targetEl = previewEl.matches('.markdown-viewer-root, .visual-document-editor') ? previewEl
+      : previewEl.querySelector<HTMLElement>('.markdown-viewer-root, .visual-document-editor') || previewEl;
     const isPicturebook = targetEl.dataset.picturebook === 'true';
     if (isPicturebook) {
       if (targetEl.querySelector('.book-screen-only [role="status"]') || targetEl.dataset.bookInvalid === 'true') {
@@ -2149,6 +2180,8 @@ export async function exportPDF({
       }
     }
     const clone = clonePreview(targetEl);
+    // Editor controls and guides are UI, not document content. Keep the live editor mounted.
+    clone.querySelectorAll('[data-editor-controls], .onrivi-page-guides, .onrivi-print-tools').forEach(el => el.remove());
     markLeadExportFigure(clone);
     progress.update('이미지 준비 중');
     await inlineLocalImages(clone); // 이미지 Base64 인라인 변환 추가
@@ -2229,6 +2262,7 @@ export async function exportPDF({
     // 🌟 html2canvas 한계 보완: 테이블/인라인코드 inline style 강제 적용
     if (!isPicturebook) {
       applyExportInlineStyles(clone, activeProfile, targetEl);
+      preserveRenderedTableStyles(clone, targetEl);
       unwrapPrintTables(clone);
       // Restore explicit image sizes after profile/print normalization.
       clone.querySelectorAll<HTMLElement>('.onrivi-image-wrapper[data-image-width],.onrivi-image-wrapper[data-image-height]').forEach(wrap=>{
@@ -2239,7 +2273,40 @@ export async function exportPDF({
       });
     }
 
-    // 📄 페이지 나누기: 제목 기준 강제 페이지 분할 전면 폐지 (자연스러운 본문 흐름 유지, exportPageBreakLevel 미적용)
+    // 📄 페이지 나누기: 화면(문서보기/미리보기)의 페이지 나누기 마커 100% 반영
+    // 1) 기존 DOM 엘리먼트(.page-break, .onrivi-page-break, hr.page-break 등) 정규화
+    clone.querySelectorAll('.page-break, .onrivi-page-break, hr.page-break, [data-onrivi-page-break]').forEach(el => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.setAttribute('data-onrivi-page-break', 'true');
+      htmlEl.style.setProperty('break-before', 'page', 'important');
+      htmlEl.style.setProperty('page-break-before', 'always', 'important');
+      htmlEl.style.setProperty('height', '0', 'important');
+      htmlEl.style.setProperty('min-height', '0', 'important');
+      htmlEl.style.setProperty('margin', '0', 'important');
+      htmlEl.style.setProperty('padding', '0', 'important');
+      htmlEl.style.setProperty('border', '0', 'important');
+    });
+
+    // 2) 혹시 주석(Comment) 노드 또는 텍스트 노드로 남아있는 페이지 나누기 마커 치환
+    const walker = document.createTreeWalker(clone, NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_TEXT);
+    const pageBreakNodesToReplace: { node: Node; replacement: HTMLElement }[] = [];
+    while (walker.nextNode()) {
+      const curr = walker.currentNode;
+      const text = curr.nodeValue || '';
+      // Comment.nodeValue contains only the contents, without <!-- and -->.
+      const isCommentBreak = curr.nodeType === Node.COMMENT_NODE && /^\s*(?:(?:onrivi:)?page-?break|\[page-?break\])\s*$/i.test(text);
+      const isTextBreak = curr.nodeType === Node.TEXT_NODE && !curr.parentElement?.closest('pre, code, script, style') && /^(?:\s*<!--\s*(?:(?:onrivi:)?page-?break|\[page-?break\])\s*-->\s*|\s*\\(?:pagebreak|newpage)\s*)$/i.test(text);
+      if (isCommentBreak || isTextBreak) {
+        const div = document.createElement('div');
+        div.setAttribute('data-onrivi-page-break', 'true');
+        div.className = 'onrivi-page-break page-break';
+        div.style.cssText = 'break-before:page!important;page-break-before:always!important;height:0!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;font-size:0!important;line-height:0!important;';
+        pageBreakNodesToReplace.push({ node: curr, replacement: div });
+      }
+    }
+    for (const { node, replacement } of pageBreakNodesToReplace) {
+      node.parentNode?.replaceChild(replacement, node);
+    }
 
     const filename = `${currentFileName.replace(/\.[^/.]+$/, '')}.pdf`;
     const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
@@ -2428,6 +2495,30 @@ export async function exportPDF({
       }
       .exam-choice-paragraph .onrivi-line + .onrivi-line {
         margin-top: 3px !important;
+      }
+
+      /* [P0] 수동 페이지 나누기 강제 사출 및 화면 점선/가상요소 텍스트 잔상 제거 */
+      [data-onrivi-page-break],
+      .onrivi-page-break,
+      .page-break,
+      hr.page-break {
+        page-break-before: always !important;
+        break-before: page !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        border: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        font-size: 0 !important;
+        line-height: 0 !important;
+        visibility: hidden !important;
+      }
+      [data-onrivi-page-break]::before,
+      .onrivi-page-break::before,
+      .page-break::before,
+      hr.page-break::before {
+        display: none !important;
+        content: none !important;
       }
 
       /* [P0] 일반 섹션 및 래퍼 컨테이너는 페이지 분할 허용 (불필요한 통째 밀림 방지) */
@@ -2680,12 +2771,36 @@ export async function exportPDF({
           resolved.text = DEFAULT_WATERMARK_TEXT;
         }
         if(resolved.kind==='image'){
-          if(resolved.imageResource){const {watermarkResourceIdentity}=await import('./watermarkResources');if(resolved.imageResource!==watermarkResourceIdentity())throw new Error('현재 리소스 폴더의 워터마크 이미지를 환경설정에서 다시 선택해 주세요.');}
+          if(resolved.imageResource){
+            try {
+              const {watermarkResourceIdentity}=await import('./watermarkResources');
+              if(resolved.imageResource!==watermarkResourceIdentity()){
+                console.warn('[Watermark] 리소스 폴더 변경 감지, 기본 엠블럼으로 대체');
+                resolved.image = DEFAULT_WATERMARK_IMAGE;
+              }
+            } catch {
+              resolved.image = DEFAULT_WATERMARK_IMAGE;
+            }
+          }
           if(!resolved.image) resolved.image = DEFAULT_WATERMARK_IMAGE;
           if(!resolved.image.startsWith('data:')){
-            const holder=document.createElement('div'),img=document.createElement('img');img.src=resolved.image;holder.append(img);
-            await inlineLocalImages(holder);
-            resolved.image=img.src;
+            try {
+              const { listWatermarkResources, watermarkReferenceKey } = await import('./watermarkResources');
+              const resList = await listWatermarkResources().catch(() => []);
+              const targetKey = watermarkReferenceKey(resolved.image);
+              const matched = resList.find(item => watermarkReferenceKey(item.reference) === targetKey);
+              if (matched) {
+                const blob = await matched.read();
+                resolved.image = await exportBlobToDataUrl(blob);
+              } else {
+                const holder=document.createElement('div'),img=document.createElement('img');img.src=resolved.image;holder.append(img);
+                await inlineLocalImages(holder);
+                resolved.image=img.src;
+              }
+            } catch (err) {
+              console.warn('[Watermark] 워터마크 이미지 로드 실패, 기본 엠블럼으로 안전 대체:', err);
+              resolved.image = DEFAULT_WATERMARK_IMAGE;
+            }
           }
         }
       }
@@ -3100,6 +3215,7 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
     // 🌟 미리보기 실제 렌더링 스타일(테이블/코드블록 테마/인라인코드)을 clone에 1:1 인라인 주입
     if (!isPicturebook) {
     applyExportInlineStyles(clone, activeProfile, targetEl);
+    preserveRenderedTableStyles(clone, targetEl);
 
     // 🛡️ Mermaid SVG → base64 data:image/svg+xml <img> 변환
     //     EPUB DOMParser가 SVG 네임스페이스를 손상시켜 도형이 사라지는 문제 우회

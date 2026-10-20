@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-20** — [EPUB 워터마크 텍스트 ExtraBold(800) 두께 및 가독성 개선]: 전자책 워터마크 텍스트에 font-weight: 800, Pretendard 글꼴 및 letter-spacing: 0.04em 적용
 // 🚨 @PATCH : **2026-10-19** — [EPUB 전자책 내보내기 워터마크(문자/이미지/위치/진하기/회전/너비/첫페이지제외) 레이어 주입 탑재]: generateEpub에 watermark 옵션 신설, 이미지 바이너리 OPF 자동 동봉 및 섹션별 고정 워터마크 레이어 사출
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 이전 페이지 이미지 우측 경계가 다음 페이지 좌측으로 누출되는 잔상 현상 완전 차단]: figure 및 .onrivi-image-wrapper에 overflow: hidden 및 box-sizing: border-box를 강제 주입하여 멀티컬럼/양면 보기 시 인접 페이지로 이미지 픽셀이 1px도 침범하지 않도록 완벽 격리
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 이미지 우측 쏠림 및 다음 컬럼 침범 버그 완전 해결]: 전자책 단말기 기본 스타일(figure margin-left 40px) 및 inline-flex 래퍼로 인해 이미지가 우측으로 밀리던 결함을 figure/wrapper margin:0 auto 및 display:block으로 전면 리셋하여 완벽 중앙 정렬
@@ -483,7 +484,7 @@ export async function generateEpub({
       if (watermark.kind === 'image') {
         watermarkHtml = `\n    <div class="epub-watermark" aria-hidden="true" style="position: fixed; z-index: 1000; pointer-events: none; user-select: none; -webkit-user-select: none; left: ${x}; top: ${y}; opacity: ${watermark.opacity / 100}; transform: translate(${tx}, ${ty}) rotate(${watermark.rotation}deg); width: ${watermark.width}%; text-align: center;"><img src="../images/watermark.${watermarkImgExt}" alt="" style="width: 100%; height: auto; max-height: 70vh; object-fit: contain; pointer-events: none;" /></div>`;
       } else {
-        watermarkHtml = `\n    <div class="epub-watermark" aria-hidden="true" style="position: fixed; z-index: 1000; pointer-events: none; user-select: none; -webkit-user-select: none; left: ${x}; top: ${y}; opacity: ${watermark.opacity / 100}; transform: translate(${tx}, ${ty}) rotate(${watermark.rotation}deg); width: ${watermark.width}%; text-align: center; color: #475569; font-family: system-ui, -apple-system, sans-serif; font-size: ${watermark.fontSize}px; line-height: 1.2; overflow-wrap: anywhere;">${escapeXml(watermark.text || DEFAULT_WATERMARK_TEXT)}</div>`;
+        watermarkHtml = `\n    <div class="epub-watermark" aria-hidden="true" style="position: fixed; z-index: 1000; pointer-events: none; user-select: none; -webkit-user-select: none; left: ${x}; top: ${y}; opacity: ${watermark.opacity / 100}; transform: translate(${tx}, ${ty}) rotate(${watermark.rotation}deg); width: ${watermark.width}%; text-align: center; color: #334155; font-family: 'Pretendard', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; font-weight: 800; letter-spacing: 0.04em; font-size: ${watermark.fontSize}px; line-height: 1.2; overflow-wrap: anywhere;">${escapeXml(watermark.text || DEFAULT_WATERMARK_TEXT)}</div>`;
       }
     }
     const sectionHtml = `<?xml version="1.0" encoding="utf-8"?>

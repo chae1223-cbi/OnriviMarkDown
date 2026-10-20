@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { readEffectivePrintSettings, DocumentPrintSettings, DEFAULT_PRINT_SETTINGS, normalizePrintSettings } from '@/lib/documentPrintSettings';
+import { readEffectivePrintSettings, DocumentPrintSettings, DEFAULT_PRINT_SETTINGS, normalizePrintSettings, saveDefaultWatermarkSettings, hasDocumentPrintSettings } from '@/lib/documentPrintSettings';
 import { createPortal } from 'react-dom';
 import { Download, Printer, Globe, Image as ImageIcon, X, Check, BookOpen, FileText } from 'lucide-react';
 
@@ -12,7 +12,7 @@ import { Download, Printer, Globe, Image as ImageIcon, X, Check, BookOpen, FileT
 interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: (format: 'print' | 'docx' | 'hwpx' | 'html' | 'png' | 'epub') => void;
+  onExport: (format: 'print' | 'docx' | 'hwpx' | 'html' | 'png' | 'epub', currentSettings?: DocumentPrintSettings) => void;
   isDarkMode: boolean;
   isPicturebook?: boolean;
   documentId?:string;
@@ -30,6 +30,10 @@ interface ExportModalProps {
 // 📊 [OMD-IO-ExportModal-0001] ExportModal ➔ ExportModal
 // 🎯 @KICK  : OS 인쇄(미리보기+PDF저장)/Word/HTML/EPUB/PNG 포맷 선택 및 내보내기 요청을 처리하는 모달 창
 // 🛡️ @GUARD : isOpen 및 mounted 상태 모두 true일 때만 포털 렌더링
+// 🚨 @PATCH : **2026-10-20** — [내보내기 모달 워터마크 사용 여부(토글) 및 종류(문구/이미지) 즉석 선택 UI 탑재]:
+//             1) 내보내기(ExportModal) 화면에서 워터마크 사용/미사용 및 문구(텍스트)/이미지 종류를 즉시 선택할 수 있는 직관적인 세그먼트 컨트롤 배치
+//             2) 문구 선택 시 출력 텍스트 직접 입력창 노출 및 진하기(투명도 5%~60%) 슬라이더 간편 조절 기능 제공
+//             3) 변경 시 saveDefaultWatermarkSettings 및 onrivi:watermark_changed 이벤트 연동으로 쪽 윤곽 미리보기 실시간 갱신 및 PDF/인쇄 즉각 반영
 // 🚨 @PATCH : **2026-10-19** — [useEffect cleanup 시점 generation ref 캡처를 통한 ESLint react-hooks 경고 해소]: cleanup 클로저 내부에서 변경 가능한 generation.current 대신 로컬 캡처 변수 gen 참조
 // 🚨 @PATCH : **2026-10-19** — [모달 뒷배경 고농도 암전(bg-black/80) 제거 및 은은한 반투명 딤(bg-black/25) 최적화]: 과도하게 시커멓게 뒤덮이던 80% 블랙 오버레이를 25% 초미세 블러(backdrop-blur-xs)로 개선하여 에디터 화면 시인성 확보
 // 🚨 @PATCH : **2026-10-19** — [워터마크 미지정 시 기본 엠블럼 및 Onrivi Author 자동 연동]: 이미지 미등록 시 기본 엠블럼 자동 적용, 문구 미입력 시 Onrivi Author 자동 적용
@@ -75,6 +79,22 @@ export default function ExportModal({
     const gen = generation;
     return ()=>{clearTimeout(timer);controller.abort();if(gen.current===request)gen.current++;};
   },[isOpen,previewOpen,selectedFormat,settings,documentContent,isPicturebook]);
+
+  const updateWatermarkSettings = (updater: (prev: DocumentPrintSettings) => DocumentPrintSettings) => {
+    setSettings(prev => {
+      const next = normalizePrintSettings(updater(prev));
+      settingsRef.current = next;
+      saveDefaultWatermarkSettings(next);
+      if (documentContent && hasDocumentPrintSettings(documentContent)) {
+        onPrintSettingsChange?.(next);
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('onrivi:watermark_changed', { detail: next }));
+      }
+      return next;
+    });
+  };
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -149,11 +169,120 @@ export default function ExportModal({
               </button>
             ))}
           </div>
-          {(selectedFormat==='print' || selectedFormat==='epub') && !isPicturebook && <section className="mt-4 space-y-3 border-t pt-4" aria-label="페이지 및 워터마크 설정">
-            <p className="text-sm">{selectedFormat==='print' ? '아래 쪽 윤곽이 실제 인쇄/PDF 기준입니다. 편집 화면의 점선은 예상 경계이며, 용지·방향·여백은 서식관리 설정을 사용합니다.' : 'EPUB의 워터마크는 환경설정 기본값을 사용합니다.'}</p>
-            <p className="rounded border p-3 text-sm">워터마크: {settings.enabled?'사용':'사용 안 함'}{settings.enabled&&<> · {settings.kind==='text'?settings.text:'리소스 이미지'} · 진하기 {settings.opacity}%</>}</p>
-            <button type="button" className="rounded border px-4 py-2" onClick={onOpenWatermarkSettings}>환경설정에서 워터마크 관리</button>
-            <p className="text-xs opacity-70">환경설정 → 기본에서 문구·이미지·위치·진하기를 관리합니다.</p>
+          {(selectedFormat==='print' || selectedFormat==='epub') && !isPicturebook && <section className="mt-4 space-y-3 border-t border-slate-200 dark:border-white/10 pt-4" aria-label="페이지 및 워터마크 설정">
+            <p className="text-xs opacity-75">{selectedFormat==='print' ? '아래 쪽 윤곽이 실제 인쇄/PDF 기준입니다. 용지·방향·여백은 서식관리 설정을 사용합니다.' : 'EPUB의 워터마크는 아래 설정을 적용하여 사출합니다.'}</p>
+
+            {/* 🛡️ 워터마크 인터랙티브 설정 컨트롤 카드 */}
+            <div className="rounded-xl border border-slate-200 dark:border-zinc-700/80 bg-slate-50/80 dark:bg-zinc-800/60 p-3.5 space-y-3">
+              {/* 1. 워터마크 사용 여부 선택 토글 */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-800 dark:text-zinc-100">워터마크 적용</span>
+                  {settings.enabled && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 font-semibold">
+                      {settings.kind === 'text' ? '문구' : '이미지'} · {settings.opacity}%
+                    </span>
+                  )}
+                </div>
+                <div className="inline-flex p-0.5 rounded-lg bg-slate-200/90 dark:bg-zinc-700/90 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => updateWatermarkSettings(prev => ({ ...prev, enabled: false }))}
+                    className={`px-3 py-1 rounded-md transition-all ${!settings.enabled ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-white shadow-xs font-bold' : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 font-medium'}`}
+                  >
+                    사용 안 함
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateWatermarkSettings(prev => ({ ...prev, enabled: true }))}
+                    className={`px-3 py-1 rounded-md transition-all ${settings.enabled ? 'bg-blue-600 text-white shadow-xs font-bold' : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 font-medium'}`}
+                  >
+                    사용
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. 워터마크 사용 시 세부 설정 */}
+              {settings.enabled && (
+                <div className="pt-2 border-t border-slate-200 dark:border-zinc-700 space-y-2.5">
+                  {/* 종류 선택 (문구 vs 이미지) */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-600 dark:text-zinc-400">워터마크 종류</span>
+                    <div className="inline-flex p-0.5 rounded-lg bg-slate-200/90 dark:bg-zinc-700/90 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => updateWatermarkSettings(prev => ({ ...prev, kind: 'text' }))}
+                        className={`px-3 py-1 rounded-md transition-all ${settings.kind === 'text' ? 'bg-blue-600 text-white shadow-xs font-bold' : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 font-medium'}`}
+                      >
+                        문구 (텍스트)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateWatermarkSettings(prev => ({ ...prev, kind: 'image' }))}
+                        className={`px-3 py-1 rounded-md transition-all ${settings.kind === 'image' ? 'bg-blue-600 text-white shadow-xs font-bold' : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 font-medium'}`}
+                      >
+                        이미지
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 세부 입력창: 문구일 때 */}
+                  {settings.kind === 'text' ? (
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-medium text-slate-500 dark:text-zinc-400">출력 문구</label>
+                      <input
+                        type="text"
+                        value={settings.text}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateWatermarkSettings(prev => ({ ...prev, text: val }));
+                        }}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        placeholder="워터마크 문구 입력"
+                        maxLength={100}
+                        className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                  ) : (
+                    <div className="p-2 rounded-lg bg-white/70 dark:bg-zinc-900/60 border border-slate-200/70 dark:border-zinc-700/60 text-xs">
+                      <p className="text-slate-700 dark:text-zinc-300 font-medium">🖼️ 리소스 이미지 워터마크</p>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-0.5">공식 엠블럼 또는 Onrivi_Asset 폴더의 워터마크 이미지가 사출됩니다.</p>
+                    </div>
+                  )}
+
+                  {/* 진하기(투명도) 슬라이더 */}
+                  <div className="flex items-center justify-between gap-3 text-xs pt-1">
+                    <span className="text-slate-600 dark:text-zinc-400 shrink-0">
+                      진하기: <strong className="text-slate-900 dark:text-zinc-100">{settings.opacity}%</strong>
+                    </span>
+                    <input
+                      type="range"
+                      min="5"
+                      max="60"
+                      step="5"
+                      value={settings.opacity}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        updateWatermarkSettings(prev => ({ ...prev, opacity: val }));
+                      }}
+                      className="w-32 h-1.5 bg-slate-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 하단 환경설정 링크 */}
+              <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 dark:border-zinc-700/60 text-[11px] text-slate-500 dark:text-zinc-400">
+                <span>상세 위치·각도 설정</span>
+                <button
+                  type="button"
+                  onClick={onOpenWatermarkSettings}
+                  className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                >
+                  환경설정에서 관리 ➔
+                </button>
+              </div>
+            </div>
             {selectedFormat==='print' && <><button type="button" className="rounded border px-4 py-2" onClick={()=>setPreviewOpen(v=>!v)}>{previewOpen?'쪽 윤곽 닫기':'쪽 윤곽 미리보기'}</button>
 
             {busy&&<p role="status">페이지를 계산하고 있습니다. 이전 미리보기는 갱신 중입니다.</p>}
@@ -174,7 +303,7 @@ export default function ExportModal({
           </button>
           <button 
             disabled={selectedFormat==='print' && (busy || !!printError)}
-            onClick={() => onExport(selectedFormat as any)}
+            onClick={() => onExport(selectedFormat as any, settings)}
             className="px-5 py-2.5 rounded-xl bg-[#1d4ed8] hover:bg-[#1e40af] text-white text-sm font-bold shadow-md shadow-[#1d4ed8]/20 transition-all flex items-center gap-2"
           >
             {selectedFormat === 'print' ? <Printer size={16} /> : <Download size={16} />}

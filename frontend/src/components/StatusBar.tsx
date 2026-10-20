@@ -26,6 +26,7 @@
 // ====================================================================
 "use client";
 
+import { browserAccountStorage } from '@/lib/browserAccountStorage';
 import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from '@/components/icons/Icon';
@@ -185,7 +186,7 @@ function StatusBar() {
   // 📖 [예상 페이지 경계 가이드 동기화]
   const [pageGuides, setPageGuides] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('onrivi_tabs_page_guides') === 'true';
+      return browserAccountStorage.getItem('onrivi_tabs_page_guides') === 'true';
     } catch {
       return false;
     }
@@ -203,11 +204,15 @@ function StatusBar() {
     return () => window.removeEventListener('onrivi:toggle-page-guides', handleToggle);
   }, []);
 
+  useEffect(() => {
+    document.documentElement.dataset.onriviPageGuides = String(pageGuides);
+  }, [pageGuides]);
+
   const handleTogglePageGuides = () => {
     const next = !pageGuides;
     setPageGuides(next);
     try {
-      localStorage.setItem('onrivi_tabs_page_guides', String(next));
+      browserAccountStorage.setItem('onrivi_tabs_page_guides', String(next));
     } catch {}
     window.dispatchEvent(new CustomEvent('onrivi:toggle-page-guides', { detail: next }));
   };

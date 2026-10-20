@@ -2,6 +2,26 @@
 // 📊 [OMD-AI-0003] InlineAIAssistant.tsx
 // 🎯 @KICK  : 에디터 인라인 및 우측 사이드바 AI 어시스턴트 (질문·요약·수정)
 // 🛡️ @GUARD : Rule 1(소스코드 주석 관리), Rule 3(컴포넌트 분리), Rule 6(Modern Technical Editorial), 에디터 선택 영역 안전 검증
+// 🚨 @PATCH : **2026-10-20** — [AI 질의창 텍스트 조기 줄바꿈 버그 해결 및 모던 카드 레이아웃 전환]:
+//             1) textarea에 과도하게 적용되어 있던 우측 패딩(pr-40, 160px)을 제거하여 가로 폭 100% 온전 활용 및 불필요한 단어 중간 잘림/조기 줄바꿈 완전 해결
+//             2) [초기화] / [보내기] 액션 버튼을 textarea 내부 겹침(absolute)에서 하단 독립 풋터 바(Card Footer)로 분리 정돈
+//             3) ChatGPT/Claude 스타일의 일체형 카드 컨테이너(focus-within 테두리/링)로 심미성 및 가독성 대폭 향상
+// 🚨 @PATCH : **2026-10-20** — [AI 사이드바 판넬 에디터 오른쪽 툴바 안쪽 안착 및 레이아웃 정돈]:
+//             1) isToolbarOpen props 연동: 오른쪽 세로 툴바(Toolbar, w-12/48px)의 안쪽(isToolbarOpen ? 'right-12' : 'right-0')에 AI 사이드바 배치
+//             2) 상하 높이 정돈: 상단 메뉴바/서식툴바(top-[76px]) 아래 및 하단 상태바(bottom-12) 위로 에디터 내부 작업 영역에 완벽 안착
+//             3) 에디터 셸 찌그러짐 해제: .onrivi-editor-shell 전체 너비를 100%로 보존하고 main 영역의 우측 마진(margin-right: 440px)으로 자연스러운 리사이징 지원
+// 🚨 @PATCH : **2026-10-20** — [공식 템플릿 이름에서 도메인 중복 접두사 제거 및 순수 템플릿명 단일화]:
+//             1) builtins 생성 시 name에 붙던 '${domain} / ' 접두사를 제거하고 순수 템플릿 이름(name)으로 단일화하여 도메인 태그와의 중복 노출 해결
+// 🚨 @PATCH : **2026-10-20** — [프롬프트 템플릿 대분류(Category/Folder) 일괄 관리 및 배치 저장 연동]:
+//             1) builtins 템플릿 구성 시 domain을 folder 속성으로 정규화 매핑하여 대분류 필터링 및 그룹화 완벽 지원
+//             2) handleSaveTemplatesBatchStudio 핸들러 탑재: 대분류 이름 변경(Rename) 시 사용자 템플릿들의 folder 일괄 갱신 원자적 저장 지원
+//             3) PromptStudioModal에 onSaveTemplatesBatch 전달로 대분류 종합 관리 파이프라인 완성
+// 🚨 @PATCH : **2026-10-20** — [인라인 '프롬프트 템플릿 저장 · 불러오기' 아코디언 기능 및 문구 제거]:
+//             1) 사용자 요청에 따라 인라인 빠른 템플릿 아코디언 UI 및 미사용 상태/핸들러 완전 삭제
+//             2) 프롬프트 템플릿 관리는 전용 대형 모달인 '📑 템플릿 스튜디오 열기'로 단일화하여 깔끔한 UI 제공
+// 🚨 @PATCH : **2026-10-20** — [availableList AI 모델 선택 드롭다운 중복 방어 및 추천 모델 정돈]:
+//             1) availableList 생성 시 provider:id 기준 중복 등록(Set)을 완벽 차단하여 동일 모델 다중 노출 방지
+//             2) recommendedModels 필터와 연동되어 지저분한 OpenAI 스냅샷/더미 모델을 배제하고 핵심 추천 모델만 직관적으로 표출
 // 🚨 @PATCH : **2026-10-20** — [AI 문서 편집 프롬프트 내 마크다운 문법 억제 해제 및 서식 자연화]:
 //             1) 편집할 글에 마크다운 강조·제목·목록 문법을 억제하던 지침을 해제하고, 문서에 어울리는 자연스러운 마크다운 서식(강조, 제목, 목록 등)을 자유롭게 생성하도록 프롬프트 지침 정상화
 // 🚨 @PATCH : **2026-10-20** — [인라인 프롬프트 템플릿 아코디언 빠른 관리부 복원 및 스튜디오 모달 상호 호환]:
@@ -62,7 +82,7 @@ import { AI_LABELS, aiAccountScope, aiRequest, connectedAI, readConnections, sav
 import { ATTACH_ACCEPT, readAIAttachment, buildAIPrompt } from '@/lib/ai/attachments';
 import { loadAITemplates, saveAITemplates, templateVariables, fillTemplate, type AITemplate } from '@/lib/ai/templates';
 import { groupAISections, buildDocumentPrompt, readDocumentChanges } from '@/lib/ai/documentBatch';
-import { RECOMMENDED_MODELS, recommendedModels } from '@/lib/ai/recommendedModels';
+import { RECOMMENDED_MODELS, recommendedModels, compareRecommendedModels } from '@/lib/ai/recommendedModels';
 import { getPromptTemplates } from '@/lib/promptTemplates';
 import type { AIProvider, AITarget, AIAttachment } from '@/lib/ai/types';
 import PromptStudioModal from './PromptStudioModal';
@@ -108,6 +128,7 @@ export default function InlineAIAssistant({
   nickname = '',
   resourceFolder,
   resourceHandle,
+  isToolbarOpen = true,
 }: {
   documentId: string | null;
   disabled: boolean;
@@ -119,6 +140,7 @@ export default function InlineAIAssistant({
   nickname?: string;
   resourceFolder?: string | null;
   resourceHandle?: any;
+  isToolbarOpen?: boolean;
 }) {
   const templateDetailsRef = useRef<HTMLDivElement>(null);
   const [isPromptLibraryOpen, setIsPromptLibraryOpen] = useState(false);
@@ -140,9 +162,6 @@ export default function InlineAIAssistant({
   const [attachments, setAttachments] = useState<AIAttachment[]>([]);
   const [templates, setTemplates] = useState<AITemplate[]>([]);
   const [builtins, setBuiltins] = useState<AITemplate[]>([]);
-  const [templateId, setTemplateId] = useState('');
-  const [templateName, setTemplateName] = useState('');
-  const [templateFolder, setTemplateFolder] = useState('');
   const [variables, setVariables] = useState<Record<string, string>>({});
 
   const [templateBusy, setTemplateBusy] = useState(false);
@@ -320,8 +339,7 @@ export default function InlineAIAssistant({
       const rows = await Promise.all(
         (['google', 'openai', 'anthropic'] as AIProvider[]).map(async (p) => {
           const isConnected = await connectedAI(scope, p).catch(() => false);
-          const hasStored = Boolean(conn[p] && (conn[p]?.model || (conn[p]?.models && conn[p]!.models.length > 0)));
-          return [p, isConnected || hasStored] as const;
+          return [p, isConnected] as const;
         })
       );
       setActiveProviders(Object.fromEntries(rows));
@@ -464,7 +482,7 @@ export default function InlineAIAssistant({
       let m = selected.model;
       const providerModels = RECOMMENDED_MODELS.filter((item) => item.provider === p);
       if (!m || !providerModels.some((item) => item.id === m)) {
-        m = providerModels[0]?.id || (p === 'google' ? 'gemini-4.0-flash' : 'gpt-6.1-sol');
+        m = selected.model || ''; // Keep the saved choice; do not silently switch models.
       }
       setModel(m);
     };
@@ -823,7 +841,8 @@ export default function InlineAIAssistant({
           Object.entries(dictionary).flatMap(([domain, items]) =>
             Object.entries(items).map(([name, t]) => ({
               id: `builtin:${domain}:${name}`,
-              name: `${domain} / ${name}`,
+              name: name,
+              folder: domain,
               editorialCommand: `[작성 규칙]\n${t.systemPrompt}\n\n[입력 데이터]\n${t.userInputTemplate}`,
             }))
           )
@@ -846,56 +865,6 @@ export default function InlineAIAssistant({
   useEffect(() => {
     void loadTemplates();
   }, [loadTemplates]);
-
-  const saveTemplate = async (overwrite = false) => {
-    if (!prompt.trim() || !templateName.trim()) {
-      setMessage('프롬프트와 템플릿 이름을 입력해 주세요.');
-      return;
-    }
-    setTemplateBusy(true);
-    try {
-      const rows = templateLoaded ? templates : await loadAITemplates(resourceFolder || undefined, resourceHandle),
-        existing = rows.find((t) => t.id === templateId);
-      if (overwrite && !existing) throw Error('수정할 사용자 템플릿을 선택해 주세요.');
-      if (!overwrite && rows.some((t) => t.name === templateName.trim() && t.folder === (templateFolder.trim() || undefined))) {
-        throw Error('같은 이름이 있습니다. 다른 이름으로 저장하거나 선택 템플릿 수정을 사용해 주세요.');
-      }
-      const row: AITemplate = {
-        ...(overwrite ? existing : {}),
-        schemaVersion: 1,
-        id: overwrite ? existing!.id : crypto.randomUUID(),
-        name: templateName.trim(),
-        folder: templateFolder.trim() || undefined,
-        editorialCommand: prompt,
-        targetScope: 'selection',
-        updatedAt: new Date().toISOString(),
-      };
-      const next = overwrite ? rows.map((t) => (t.id === row.id ? row : t)) : [...rows, row];
-      await saveAITemplates(rows, next, resourceFolder || undefined, resourceHandle);
-      setTemplates(next);
-      setTemplateLoaded(true);
-      setTemplateId(row.id);
-      setMessage('리소스 폴더에 템플릿을 저장했습니다.');
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setTemplateBusy(false);
-    }
-  };
-
-  const chooseTemplate = (id: string) => {
-    const found = [...templates, ...builtins].find((t) => t.id === id);
-    if (!found) return;
-    if (prompt.trim() && prompt !== found.editorialCommand && !window.confirm('작성 중인 요청을 선택한 템플릿으로 바꿀까요?')) {
-      return;
-    }
-    setTemplateId(id);
-    setTemplateName(found.name);
-    setTemplateFolder(found.folder || '');
-    setPrompt(found.editorialCommand);
-    setVariables({});
-    setIsPromptLibraryOpen(false);
-  };
 
   // 📑 [프롬프트 템플릿 스튜디오 연동]: 스튜디오에서 작성된 완성 프롬프트를 질의창으로 주입
   const handleApplyPromptFromStudio = (finalPrompt: string) => {
@@ -923,17 +892,19 @@ export default function InlineAIAssistant({
     setTemplateLoaded(true);
   };
 
+  const handleSaveTemplatesBatchStudio = async (nextTemplates: AITemplate[]) => {
+    const rows = templateLoaded ? templates : await loadAITemplates(resourceFolder || undefined, resourceHandle);
+    await saveAITemplates(rows, nextTemplates, resourceFolder || undefined, resourceHandle);
+    setTemplates(nextTemplates);
+    setTemplateLoaded(true);
+  };
+
   const handleDeleteTemplateStudio = async (targetId: string) => {
     const rows = templateLoaded ? templates : await loadAITemplates(resourceFolder || undefined, resourceHandle);
     const next = rows.filter((t) => t.id !== targetId);
     await saveAITemplates(rows, next, resourceFolder || undefined, resourceHandle);
     setTemplates(next);
     setTemplateLoaded(true);
-    if (templateId === targetId) {
-      setTemplateId('');
-      setTemplateName('');
-      setTemplateFolder('');
-    }
     setMessage('🗑️ 사용자 템플릿을 삭제했습니다.');
   };
 
@@ -951,25 +922,20 @@ export default function InlineAIAssistant({
 
   const field = 'w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500';
 
-  // 💡 [추천 모델 목록 상시 보장]: 연결된 제공자별 실제 확인 모델 우선 표시 및 추천 모델 카탈로그 매핑
+  // Require a live credential and exact shortlist membership; cached metadata alone is not a connection.
   const availableList = useMemo(() => {
     const list: Array<{ provider: AIProvider; id: string; name: string; family: string; releasedAt?: string }> = [];
     const providers: AIProvider[] = ['google', 'openai', 'anthropic'];
 
     for (const p of providers) {
-      const isConnected = Boolean(
-        connections[p] ||
-        activeProviders[p] ||
-        (p === 'google' && legacyKey)
-      );
-      if (!isConnected) continue;
+      if (!activeProviders[p]) continue;
+      const targetModels = recommendedModels(p, connections[p]?.models || []);
 
-      const connModels = connections[p]?.models;
-      const targetModels = Array.isArray(connModels) && connModels.length > 0
-        ? recommendedModels(p, connModels)
-        : recommendedModels(p);
-
+      const seen = new Set<string>();
       for (const m of targetModels) {
+        const key = `${p}:${m.id.toLowerCase()}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
         list.push({
           provider: p,
           id: m.id,
@@ -979,11 +945,7 @@ export default function InlineAIAssistant({
       }
     }
 
-    if (list.length === 0) {
-      return RECOMMENDED_MODELS.filter((item) => item.provider === 'google');
-    }
-
-    return list;
+    return list.sort(compareRecommendedModels);
   }, [activeProviders, connections, legacyKey]);
 
   if (!mounted) return null;
@@ -997,7 +959,7 @@ export default function InlineAIAssistant({
       }
     }}>
       {/* 🚀 우측 하단 플로팅 런처 버튼 컨테이너 (relative로 팝업과 분리하여 overflow-hidden 클리핑 차단) */}
-      <div className="fixed bottom-10 right-16 z-[100] flex flex-col items-end">
+      <div className={`fixed bottom-16 ${isToolbarOpen ? 'right-16' : 'right-5'} z-[100] flex flex-col items-end`}>
         {/* 🌟 모델 선택 팝업 메뉴 (버튼 위로 상향 돌출, overflow-hidden 바깥에 위치하여 100% 정상 렌더링) */}
         {modelMenu && (
           <div
@@ -1028,6 +990,8 @@ export default function InlineAIAssistant({
             </div>
 
             <div className="py-1">
+              {checkingModels&&<p className="px-2 py-2 text-xs text-zinc-500">연결 확인 중…</p>}
+              {!checkingModels&&!availableList.length&&<p className="px-2 py-2 text-xs text-zinc-500">연결된 추천 모델이 없습니다. API 연결 설정에서 확인해 주세요.</p>}
               {availableList.map((item, index) => (
                 <React.Fragment key={item.id}>
                   {(index === 0 || availableList[index - 1].family !== item.family) && (
@@ -1125,8 +1089,10 @@ export default function InlineAIAssistant({
             rememberQuestionSelection();
             checkSelectionState();
           }}
-          className="onrivi-ai-sidebar fixed z-[110] top-0 bottom-0 right-0 border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xl flex flex-col h-screen"
-          style={{ width: 'min(440px, 100vw)' }}
+          className={`onrivi-ai-sidebar fixed z-[90] top-[76px] bottom-12 ${
+            isToolbarOpen ? 'right-12' : 'right-0'
+          } border-l border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xl flex flex-col h-[calc(100vh-124px)]`}
+          style={{ width: 'min(440px, calc(100vw - 64px))' }}
         >
           {/* ── 1. [상단 고정 헤더 & 컨트롤 영역] ── */}
           <div className="shrink-0 p-4 pb-3 border-b border-zinc-100 dark:border-zinc-800/80 space-y-2.5 bg-white dark:bg-zinc-900">
@@ -1641,87 +1607,6 @@ export default function InlineAIAssistant({
                 </div>
               </details>
 
-              <details className="relative">
-                <summary className="cursor-pointer hover:text-zinc-800 dark:hover:text-zinc-200 flex items-center gap-1 select-none">
-                  <span>프롬프트 템플릿 저장 · 불러오기</span>
-                </summary>
-                <div className="absolute bottom-full left-0 mb-2 w-80 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-3.5 shadow-2xl z-20 space-y-2.5 text-xs text-zinc-800 dark:text-zinc-200">
-                  <div className="flex items-center justify-between pb-1 border-b border-zinc-100 dark:border-zinc-800">
-                    <span className="font-bold text-zinc-900 dark:text-zinc-100">빠른 템플릿 보관함</span>
-                    <button
-                      type="button"
-                      disabled={busy || templateBusy}
-                      onClick={() => void loadTemplates()}
-                      className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-medium disabled:opacity-50"
-                    >
-                      기존 라이브러리 불러오기 · 새로고침
-                    </button>
-                  </div>
-                  <label className="block text-xs font-semibold">
-                    <span className="text-zinc-500 dark:text-zinc-400">템플릿 선택</span>
-                    <select
-                      aria-label="AI 프롬프트 템플릿"
-                      value={templateId}
-                      onChange={(e) => chooseTemplate(e.target.value)}
-                      disabled={busy || templateBusy}
-                      className="w-full mt-1 p-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                      <option value="">템플릿 선택 안 함</option>
-                      {templates.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.folder ? `[${t.folder}] ` : ''}{t.name}
-                        </option>
-                      ))}
-                      {builtins.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          [공식] {t.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block text-xs font-semibold">
-                    <span className="text-zinc-500 dark:text-zinc-400">템플릿 이름</span>
-                    <input
-                      aria-label="AI 템플릿 이름"
-                      value={templateName}
-                      onChange={(e) => setTemplateName(e.target.value)}
-                      disabled={busy || templateBusy}
-                      placeholder="예: 맞춤법 교정"
-                      className="w-full mt-1 p-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
-                  </label>
-                  <label className="block text-xs font-semibold">
-                    <span className="text-zinc-500 dark:text-zinc-400">폴더(분류)</span>
-                    <input
-                      aria-label="AI 템플릿 폴더"
-                      value={templateFolder}
-                      onChange={(e) => setTemplateFolder(e.target.value)}
-                      disabled={busy || templateBusy}
-                      placeholder="예: 업무/보고서 (선택)"
-                      className="w-full mt-1 p-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
-                  </label>
-                  <div className="flex gap-2 pt-1">
-                    <button
-                      type="button"
-                      disabled={busy || templateBusy || !prompt.trim() || !templateName.trim()}
-                      onClick={() => void saveTemplate(false)}
-                      className="flex-1 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 cursor-pointer disabled:opacity-40 transition shadow-xs"
-                    >
-                      새 템플릿 저장 · 복제
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy || templateBusy || !templateId}
-                      onClick={() => void saveTemplate(true)}
-                      className="flex-1 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 font-bold text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer disabled:opacity-40 transition"
-                    >
-                      선택 템플릿 수정
-                    </button>
-                  </div>
-                </div>
-              </details>
-
               <div className="relative">
                 <button
                   type="button"
@@ -1757,8 +1642,8 @@ export default function InlineAIAssistant({
               </button>
             </div>
 
-            {/* 질의 입력 텍스트에어리어 (높이 확대 및 resize-y 자유 조절 지원) */}
-            <div className="relative">
+            {/* 질의 입력창 카드 컨테이너 (텍스트에어리어 100% 가로폭 사용 + 하단 분리 액션바) */}
+            <div className="rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xs focus-within:ring-2 focus-within:ring-blue-500/50 focus-within:border-blue-500 transition-all flex flex-col overflow-hidden">
               <textarea
                 ref={input}
                 aria-label="AI 프롬프트 입력"
@@ -1775,7 +1660,7 @@ export default function InlineAIAssistant({
                     ? '어떻게 요약할까요? (비워두면 핵심을 요약합니다)'
                     : '예: 맞춤법을 고치고 자연스러운 문체로 다듬어 줘'
                 }
-                className="w-full rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-3 pr-40 pb-3.5 text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-y leading-relaxed font-sans transition-[height] duration-75 ease-out shadow-xs"
+                className="w-full bg-transparent p-3 text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none resize-y leading-relaxed font-sans transition-[height] duration-75 ease-out border-none"
                 value={prompt}
                 disabled={busy}
                 onChange={(e) => {
@@ -1785,58 +1670,60 @@ export default function InlineAIAssistant({
                 }}
               />
 
-              {/* 보내기 / 초기화 / 중지 버튼 (인풋 우측 하단 배치) */}
-              <div className="absolute right-2.5 bottom-3 flex items-center gap-1.5">
-                {busy ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      stop();
-                      setMessage('생성을 중지했습니다. 원문은 그대로 유지됩니다.');
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-xs font-bold hover:bg-red-600 transition shadow-xs cursor-pointer"
-                  >
-                    중지
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      disabled={busy || (!result && !lastQuestion && Object.keys(sectionResults).length === 0)}
-                      onClick={handleClearResults}
-                      className="px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 text-xs font-semibold transition cursor-pointer flex items-center gap-1 shadow-xs disabled:opacity-30 disabled:cursor-not-allowed"
-                      title="생성된 답변과 수정 결과를 깨끗하게 초기화합니다"
-                    >
-                      <span>초기화</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={
-                        busy ||
-                        reading ||
-                        (mode === 'edit' && (
-                          !target.current?.valid() ||
-                          (!target.current?.sections && (!hasSelection || original.length > MAX_EDIT_CHARS))
-                        ))
-                      }
-                      onClick={() => void run()}
-                      className="px-3.5 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 disabled:opacity-40 transition shadow-xs flex items-center gap-1 cursor-pointer"
-                    >
-                      <span>{result ? '다시 보내기' : '보내기'}</span>
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
+              {/* 하단 단축키 안내 및 액션 버튼바 (텍스트 영역을 침범하지 않는 독립 하단 풋터) */}
+              <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/50 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-[11px] text-zinc-400 truncate">
+                  <span>Enter 보내기 · Shift+Enter 줄바꿈</span>
+                  {mode === 'edit' && !hasSelection && !target.current?.sections && (
+                    <span className="text-amber-600 dark:text-amber-400 font-medium">※ 본문 글 선택 필요</span>
+                  )}
+                  {mode === 'edit' && !target.current?.sections && original.length > MAX_EDIT_CHARS && (
+                    <span className="text-rose-600 dark:text-rose-400 font-bold">⚠️ 5,000자 초과</span>
+                  )}
+                </div>
 
-            <div className="flex items-center justify-between text-[11px] text-zinc-400">
-              <span>Enter로 보내기 · Shift+Enter로 줄바꿈</span>
-              {mode === 'edit' && !hasSelection && !target.current?.sections && (
-                <span className="text-amber-600 dark:text-amber-400 font-medium">※ 본문에서 글을 먼저 선택해 주세요</span>
-              )}
-              {mode === 'edit' && !target.current?.sections && original.length > MAX_EDIT_CHARS && (
-                <span className="text-rose-600 dark:text-rose-400 font-bold">⚠️ 5,000자 초과 (선택을 줄여주세요)</span>
-              )}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {busy ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        stop();
+                        setMessage('생성을 중지했습니다. 원문은 그대로 유지됩니다.');
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-xs font-bold hover:bg-red-600 transition shadow-xs cursor-pointer"
+                    >
+                      중지
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        disabled={busy || (!result && !lastQuestion && Object.keys(sectionResults).length === 0)}
+                        onClick={handleClearResults}
+                        className="px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 text-xs font-semibold transition cursor-pointer flex items-center gap-1 shadow-xs disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="생성된 답변과 수정 결과를 깨끗하게 초기화합니다"
+                      >
+                        <span>초기화</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={
+                          busy ||
+                          reading ||
+                          (mode === 'edit' && (
+                            !target.current?.valid() ||
+                            (!target.current?.sections && (!hasSelection || original.length > MAX_EDIT_CHARS))
+                          ))
+                        }
+                        onClick={() => void run()}
+                        className="px-3.5 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 disabled:opacity-40 transition shadow-xs flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>{result ? '다시 보내기' : '보내기'}</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -1851,25 +1738,23 @@ export default function InlineAIAssistant({
         builtins={builtins}
         resourceFolder={resourceFolder}
         onSaveTemplate={handleSaveTemplateStudio}
+        onSaveTemplatesBatch={handleSaveTemplatesBatchStudio}
         onDeleteTemplate={handleDeleteTemplateStudio}
         initialPrompt={prompt}
       />
 
       <style>{`
         @media (min-width: 1000px) {
-          body:has(.onrivi-ai-sidebar) .onrivi-editor-shell {
-            width: calc(100% - 440px);
+          body:has(.onrivi-ai-sidebar) .onrivi-editor-shell main {
+            margin-right: 440px;
           }
           body:has(.onrivi-ai-sidebar) .onrivi-inline-ai > div:first-child {
-            right: 456px;
+            right: ${isToolbarOpen ? '504px' : '456px'};
           }
         }
         @media print {
           .onrivi-inline-ai {
             display: none !important;
-          }
-          .onrivi-editor-shell {
-            width: 100% !important;
           }
         }
       `}</style>

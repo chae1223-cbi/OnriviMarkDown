@@ -1,6 +1,9 @@
 /**
  * frontmatter.ts
  * 마크다운 파일 최상단의 YAML 메타데이터(Frontmatter)를 파싱하고 업데이트하는 유틸리티
+ * 🚨 @PATCH : **2026-10-20** — [불필요한 '메타영역', '#서식설정' 텍스트 강제 주입 완전 삭제 및 비활성 워터마크 Frontmatter 누출 방어]:
+ *             1) updateCssProfileInFrontmatter 시 하드코딩되었던 '메타영역', '#서식설정' 텍스트를 제거하여 표준 YAML 규격(---) 준수
+ *             2) onrivi_print 내 잔존 base64 data: URL 이미지 바이너리 제거 및 enabled: false(비활성) 상태 시 Frontmatter 불필요 적재 배제
  * 🚨 @PATCH : **2026-10-17** — [공식 기본 서식(system-1) 메타데이터 불필요 강제 주입 방어]:
  *             기본 서식('default' 및 'system-1')이고 문서에 기존 css_profile이 지정되어 있지 않은 순수 마크다운 문서의 경우 불필요한 Frontmatter 강제 주입을 배제하여 5초 자동 저장 무한 루프 및 한글 타이핑 방해 원천 차단
  */
@@ -69,9 +72,24 @@ export function updateCssProfileInFrontmatter(content: string, profileId: string
   }
   
   // Reconstruct frontmatter
-  let newYaml = '---\n메타영역\n#서식설정\n';
+  let newYaml = '---\n';
   for (const [k, v] of Object.entries(data)) {
     if (v !== undefined) {
+      if (k === 'onrivi_print') {
+        try {
+          const parsed = JSON.parse(v);
+          if (parsed && typeof parsed === 'object') {
+            if (parsed.image && typeof parsed.image === 'string' && parsed.image.startsWith('data:')) {
+              parsed.image = '';
+            }
+            if (parsed.enabled === false) {
+              continue; // Skip useless disabled watermark in frontmatter
+            }
+            newYaml += `${k}: ${JSON.stringify(parsed)}\n`;
+            continue;
+          }
+        } catch {}
+      }
       newYaml += `${k}: ${v}\n`;
     }
   }

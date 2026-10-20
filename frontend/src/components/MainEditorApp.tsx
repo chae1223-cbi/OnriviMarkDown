@@ -1,5 +1,13 @@
 /**
  * 프로그램명 : OnriviAuthor 
+// 🚨 @PATCH : **2026-10-20** — [AI 사이드바 판넬 에디터 오른쪽 툴바 안쪽 안착을 위한 isToolbarOpen 연동]:
+//             1) InlineAIAssistant에 isToolbarOpen prop 전달하여 오른쪽 세로 툴바의 안쪽(좌측)에 AI 판넬이 배치되도록 연동
+// 🚨 @PATCH : **2026-10-20** — [문서 서식 일괄 정리(CLEAN_DOC) 에디터/문서보기 포커스 기반 정밀 분기 및 양방향 동기화 강화]:
+//             1) 나란히 보기(both) 및 편집 모드에서 Monaco 모델 직접 정리(handlers.cleanDoc)를 우선 지원하고 React 및 위지윅 화면까지 양방향 즉각 동기화
+//             2) 문서보기(preview) 단독 모드 또는 위지윅 포커스 시 visualCommandRef.current('CLEAN_DOC')로 스마트 분기
+// 🚨 @PATCH : **2026-10-20** — [미리보기 플로팅 컨트롤 툴바(PreviewToolbar) 마크다운 원본 복사(onCopyMarkdown) 연동]:
+//             1) PreviewToolbar에 onCopyMarkdown={handlers.copyAll} 전달하여 마크다운(MD) 원본 텍스트 원클릭 클립보드 복사 지원
+//             2) 서식(HTML) 복사와 마크다운 원본 복사를 분리하여 사용자가 원하는 포맷으로 즉시 클립보드 복사하도록 사용성 개선
 // 🚨 @PATCH : **2026-10-20** — [문서 서식 일괄 정리(CLEAN_DOC) 기능 문서보기(VisualDocumentEditor) 양방향 연동]:
 //             1) dispatchCommand의 문서보기 미지원 차단 목록에서 'CLEAN_DOC' 제거
 //             2) case 'CLEAN_DOC': 에서 VisualDocumentEditor 활성 시 visualCommandRef.current('CLEAN_DOC')를 우선 실행하여 위지윅 문서보기에서도 단축키(Ctrl+Shift+L) 및 서식 툴바 마법봉 버튼으로 일괄 서식 정리가 즉시 수행되도록 연결
@@ -462,7 +470,6 @@ import { useEditorModals } from '@/hooks/editor/useEditorModals';
 // import EditorLayout from '@/components/editor/layout/EditorLayout';
 // import EditorCore from '@/components/editor/core/EditorCore';
 import ModalManager from '@/components/editor/modals/ModalManager';
-import QuickStartBar from '@/components/QuickStartBar';
 import NewDocumentModal from '@/components/NewDocumentModal';
 import { transferDocument } from '@/lib/documentTransfer';
 import { extractFrontmatter, updateCssProfileInFrontmatter } from '@/lib/frontmatter';
@@ -3527,7 +3534,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       setDirectEditEnabled(true);
     }
     // 모드 전환 전 에디터 내용을 즉시 React 상태에 반영 (100ms 디바운스 손실 방지)
-    if (editorRef.current && previewModeRef.current !== 'preview') {
+    if (editorRef.current && previewModeRef.current !== 'preview' && !previewRef.current?.querySelector('.visual-document-editor')) {
       if (previewDebounceRef.current) {
         clearTimeout(previewDebounceRef.current);
         previewDebounceRef.current = null;
@@ -7687,6 +7694,7 @@ blockquote li p {
 
   const handlers = useEditorHandlers({
     editorRef,
+    previewModeRef,
     contentRef,
     currentFileNameRef,
     currentFileNodeRef,
@@ -8125,7 +8133,9 @@ blockquote li p {
       case 'OPEN_EXPORT': {
         // Export uses the existing read-only renderer, never editor controls or
         // immutable source placeholders. Wait for that renderer to mount.
-        if (directEditEnabled && previewRef.current?.querySelector('.visual-document-editor')) {
+        // PDF previews and print clone the mounted editor. Switching renderers here
+        // discards editor-only layout (including blank paragraphs) before the modal opens.
+        if (type !== 'PRINT' && type !== 'OPEN_EXPORT' && directEditEnabled && previewRef.current?.querySelector('.visual-document-editor')) {
           pendingVisualExportRef.current = type;
           setDirectEditEnabled(false);
           setPreviewMode('preview');
@@ -8287,12 +8297,15 @@ blockquote li p {
         }
         return;
       }
-      case 'CLEAN_DOC':
-        if (previewRef.current?.querySelector('.visual-document-editor') && visualCommandRef.current?.('CLEAN_DOC')) {
+      case 'CLEAN_DOC': {
+        const visualEditorEl = previewRef.current?.querySelector('.visual-document-editor');
+        const visualHasFocus = Boolean(visualEditorEl?.contains(document.activeElement));
+        if (visualEditorEl && (previewModeRef.current === 'preview' || visualHasFocus) && visualCommandRef.current?.('CLEAN_DOC')) {
           return;
         }
         handlers.cleanDoc();
         return;
+      }
       case 'COPY_ALL': handlers.copyAll(); return;
       // 🎯 TOOLBAR_ITEMS '푸터' 그룹 토글 명령어 (handlers에 없으므로 직접 상태 변환)
       case 'TOGGLE_TOOLBAR': setIsToolbarOpen(prev => !prev); return;
@@ -9557,7 +9570,6 @@ blockquote li p {
 
           <div className={activeMainView === 'knowledge' ? 'hidden' : 'contents'}>
             <MenuBar />
-            <QuickStartBar disabled={isRestrictedUser || isDuplicateInstance || isLicenseChecking} onNew={() => dispatchCommand('NEW_FILE')} onOpen={() => dispatchCommand('OPEN_FILE')} onImage={() => dispatchCommand('IMAGE')} onSave={() => dispatchCommand('SAVE')} />
 
           </div>
 
@@ -10531,6 +10543,7 @@ blockquote li p {
                         }}
                         isReplaceOpen={isPreviewFindOpen && previewFindReplaceMode}
                         onCopyPreview={handleCopyPreviewContent}
+                        onCopyMarkdown={handlers.copyAll}
                       />
 
                       {/* 🔍 미리보기 텍스트 검색 및 탐색 위젯 */}
@@ -11123,7 +11136,8 @@ blockquote li p {
               if (previewModeRef.current === 'preview') throw Error('문서 편집을 켠 뒤 글을 선택해 주세요.');
               return captureMonacoAITarget(editorRef.current,activeTabIdRef.current || '',()=>activeTabIdRef.current,scope);
             }}
-            onSettings={() => {setSettingsModalInitialTab('general');setIsSettingsModalOpen(true);}} />}
+            onSettings={() => {setSettingsModalInitialTab('general');setIsSettingsModalOpen(true);}}
+            isToolbarOpen={isToolbarOpen} />}
           <StatusBar />
 
           {isAIDraftModalOpen && (

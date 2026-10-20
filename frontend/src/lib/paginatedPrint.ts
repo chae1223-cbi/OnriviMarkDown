@@ -1,6 +1,12 @@
 // ====================================================================
 // 📊 [OMD-LIB-PAGINATEDPRINT-0001] paginatedPrint.ts
 // 🎯 @KICK  : 쪽 윤곽 및 인쇄 페이지 계산 PagedJS 엔진 연동
+// 🚨 @PATCH : **2026-10-20** — [PDF 인쇄 시 화면 페이지 나누기 1:1 완벽 일치 및 선택자 확장]:
+//             1) breaks 수집 대상을 [data-onrivi-page-break], .onrivi-page-break, .page-break, hr.page-break로 전면 확장하고 data-onrivi-page-break='true' 속성 정규화
+//             2) 문서 첫 부분/끝 부분의 정당한 페이지 나누기가 emptyElement 가드로 인해 삭제되던 결함을 차단하고 오직 연속 중복 마커만 정돈
+// 🚨 @PATCH : **2026-10-20** — [워터마크 텍스트 가독성 강화를 위한 ExtraBold(800) 글자 두께 및 자간 적용]:
+//             1) 워터마크 문구가 표 및 본문 텍스트 뒤에서 흐리게 묻히는 현상을 해결하기 위해 font-weight: 800 (ExtraBold) 적용
+//             2) font-family에 Pretendard, Plus Jakarta Sans를 전면 배치하고 letter-spacing: 0.04em 및 color: #334155 적용으로 시인성 극대화
 // 🚨 @PATCH : **2026-10-19** — [PagedJS querySelectorAll 가상요소(::before) 파싱 오류 방어 및 인쇄 CSS 가드]:
 //             1) iframe 샌드박스 내부 DocumentFragment/Element/Document의 querySelectorAll을 안전 래핑하여 ::before, ::after 등 유효하지 않은 선택자 파싱 시 DOMException 크래시 완전 방어
 //             2) Tailwind Typography의 코드 백틱 생성 규칙(content: '`') 등 가상 요소 충돌 룰을 pageCss에서 content: none !important로 안전 무력화
@@ -78,14 +84,49 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
   doc.body.className=parsed.body.className;
   const content=doc.createElement('div');content.innerHTML=parsed.body.innerHTML;
   content.querySelectorAll('[contenteditable]').forEach(n=>n.removeAttribute('contenteditable'));
+  // Screen sheet rules use :has(...) and !important, so stylesheet-level
+  // resets lose to them. Clear physical sheet padding/min-height on the clone
+  // with inline priority; @page alone owns paper size and margins in PDF.
+  const printRootStyle='width:auto!important;max-width:none!important;height:auto!important;min-height:0!important;padding:0!important;margin:0!important;overflow:visible!important;transform:none!important;zoom:1!important;border:0!important;box-shadow:none!important';
+  doc.body.style.cssText=printRootStyle;
+  content.querySelectorAll<HTMLElement>('.page-break-container,.custom-preview-container,.markdown-viewer-root,.visual-document-surface').forEach(node=>{
+    const reset=doc.createElement('div');reset.style.cssText=printRootStyle;
+    for(const property of Array.from(reset.style))node.style.setProperty(property,reset.style.getPropertyValue(property),'important');
+  });
+
   // Repeated/end breaks must not create accidental blank pages.
-  const breaks=Array.from(content.querySelectorAll<HTMLElement>('[data-onrivi-page-break]'));
-  const emptyElement=(node:Element)=>!node.textContent?.trim() && !node.querySelector('img,svg,table,video,canvas,math') && !node.matches('[data-onrivi-page-break]');
-  breaks.forEach(marker=>{
-    let before=marker.previousElementSibling,after=marker.nextElementSibling;
-    while(before&&emptyElement(before))before=before.previousElementSibling;
-    while(after&&(emptyElement(after)||after.matches('[data-onrivi-page-break]')))after=after.nextElementSibling;
-    if(!before || !after || before.matches('[data-onrivi-page-break]'))marker.remove();
+  const isBreakEl = (el: Element | null | undefined): el is HTMLElement =>
+    Boolean(el && (el.matches('[data-onrivi-page-break], .onrivi-page-break, .page-break, hr.page-break')));
+
+  const breaks = Array.from(content.querySelectorAll<HTMLElement>('[data-onrivi-page-break], .onrivi-page-break, .page-break, hr.page-break'));
+  const emptyElement = (node: Element) =>
+    !node.textContent?.trim() && !node.querySelector('img,svg,table,video,canvas,math') && !isBreakEl(node);
+
+  breaks.forEach(marker => {
+    if (!marker.parentNode) return;
+    // Blank editor paragraphs beside an explicit break must not consume a page
+    // before the break is applied. This only changes the print clone.
+    let before = marker.previousElementSibling;
+    while (before && emptyElement(before)) {
+      const previous = before.previousElementSibling;
+      before.remove();
+      before = previous;
+    }
+    let after = marker.nextElementSibling;
+    while (after && emptyElement(after)) {
+      const next = after.nextElementSibling;
+      after.remove();
+      after = next;
+    }
+    if (after && !isBreakEl(after)) {
+      // Attach the break to real content instead of a zero-height standalone
+      // element, which can land on an automatic boundary and create a blank page.
+      const target = after as HTMLElement;
+      target.setAttribute('data-onrivi-forced-break', 'true');
+      target.style.setProperty('break-before', 'page', 'important');
+      target.style.setProperty('page-break-before', 'always', 'important');
+    }
+    marker.remove();
   });
   const staging=doc.createElement('div');staging.style.width=`${geometry.contentWidth}mm`;staging.append(content);doc.body.append(staging);
   const preloadStyle=doc.createElement('style');preloadStyle.textContent=css;doc.head.append(preloadStyle);
@@ -95,6 +136,7 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
   win.PagedConfig={auto:false};
   const script=doc.createElement('script');script.textContent=source;doc.head.append(script);
   const pageCss=`${css}\n${PAGE_BREAK_CSS}\n
+  [data-onrivi-forced-break]{break-before:page!important;page-break-before:always!important}
   @page {size:${geometry.width}mm ${geometry.height}mm;margin:${geometry.top}mm ${geometry.right}mm ${geometry.bottom}mm ${geometry.left}mm;}
   html,body{height:auto!important;min-height:0!important;overflow:visible!important;padding:0!important;margin:0!important}
   .page-break-container,.custom-preview-container,.markdown-viewer-root,.visual-document-surface{width:auto!important;max-width:none!important;height:auto!important;min-height:0!important;padding:0!important;margin:0!important;overflow:visible!important;transform:none!important;zoom:1!important}
@@ -112,6 +154,12 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
   `;
   const markup=content.innerHTML;staging.remove();preloadStyle.remove();
   await work(timeout(win.PagedPolyfill.preview(markup,[{[new URL('/onrivi-print.css',location.href).href]:pageCss}],output),90000,'페이지 계산'));
+  // PagedJS has already consumed these breaks. Native PDF printing must not
+  // apply the inline !important rules a second time inside the generated pages.
+  output.querySelectorAll<HTMLElement>('[data-onrivi-forced-break]').forEach(node => {
+    node.style.setProperty('break-before', 'auto', 'important');
+    node.style.setProperty('page-break-before', 'auto', 'important');
+  });
   const pages=Array.from(output.querySelectorAll<HTMLElement>('.pagedjs_page'));
   if(!pages.length)throw new Error('페이지를 만들지 못했습니다.');
   for(let index=0;index<pages.length;index++){
@@ -123,7 +171,7 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
    const y=watermark.position.startsWith('top')?'8%':watermark.position.startsWith('bottom')?'92%':'50%';
    const tx=watermark.position.endsWith('left')?'0':watermark.position.endsWith('right')?'-100%':'-50%';
    const ty=watermark.position.startsWith('top')?'0':watermark.position.startsWith('bottom')?'-100%':'-50%';
-   layer.style.cssText=`position:absolute;z-index:1000;pointer-events:none;user-select:none;left:${x};top:${y};opacity:${watermark.opacity/100};transform:translate(${tx},${ty}) rotate(${watermark.rotation}deg);width:${watermark.width}%;text-align:center;color:#475569;font-family:system-ui,sans-serif;font-size:${watermark.fontSize}px;line-height:1.2;overflow-wrap:anywhere`;
+   layer.style.cssText=`position:absolute;z-index:1000;pointer-events:none;user-select:none;left:${x};top:${y};opacity:${watermark.opacity/100};transform:translate(${tx},${ty}) rotate(${watermark.rotation}deg);width:${watermark.width}%;text-align:center;color:#334155;font-family:'Pretendard', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;font-weight:800;letter-spacing:0.04em;font-size:${watermark.fontSize}px;line-height:1.2;overflow-wrap:anywhere`;
    if(watermark.kind==='image'){
     const imgSrc = watermark.image || DEFAULT_WATERMARK_IMAGE;
     const image=doc.createElement('img');image.src=imgSrc;image.style.cssText='width:100%;height:auto;max-height:80mm;object-fit:contain';layer.append(image);
@@ -137,7 +185,13 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
   .pagedjs_pages{display:block!important}.pagedjs_page{position:relative!important;overflow:hidden!important;break-after:page!important;page-break-after:always!important;margin:0!important;box-shadow:none!important}.pagedjs_page:last-child{break-after:auto!important;page-break-after:auto!important}
   [data-onrivi-page-break]{break-before:auto!important;page-break-before:auto!important}
   @media screen{body,body.custom-preview-container{background:#e2e8f0!important;padding:20px!important}.pagedjs_page{margin:0 auto 28px!important;box-shadow:0 2px 10px #0003!important}.pagedjs_page::after{content:attr(data-onrivi-page);position:absolute;right:12px;bottom:4px;font:11px system-ui;color:#64748b}}
-  @media print{.pagedjs_page::after{display:none}}
-  </style></head><body class="${parsed.body.className.replace(/[^\w\s-]/g,'')}" data-onrivi-pages="${pages.length}">${output.innerHTML}</body></html>`;
+  @media print{
+    .pagedjs_page::after{display:none}
+    .pagedjs_page, .pagedjs_page *, .pagedjs_sheet, .pagedjs_area {
+      box-shadow:none!important;text-shadow:none!important;
+    }
+    .pagedjs_page,.pagedjs_sheet{border:0!important;border-radius:0!important;filter:none!important}
+  }
+  </style></head><body class="${parsed.body.className.replace(/[^\w\s-]/g,'')}" data-onrivi-pages="${pages.length}" style="${printRootStyle}">${output.innerHTML}</body></html>`;
  }finally{signal?.removeEventListener('abort',stopped);frame.remove();}
 }

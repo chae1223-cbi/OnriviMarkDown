@@ -2,6 +2,15 @@
 // 📊 [OMD-EDIT-markdownCleaner-0001 ✅ FIXED] markdownCleaner.ts ➔ cleanMarkdownDocument
 // 🎯 @KICK  : 마크다운 문서 내 서식 및 문법을 지능적으로 교정하고 표를 수직 정렬하는 뷰티파이어 엔진
 // 🛡️ @GUARD : 코드블록/수식/Frontmatter 마스킹 보호, 동아시아 문자 폭 계산, 실행 취소 안전성 보장
+// 🚨 @PATCH : **2026-10-20** — [Frontmatter 마스킹 오탐 결함 해소 및 <p></p> 선행 완전 제거]:
+//             1) 본문 중간의 수평선(---)으로 인해 첫 번째 ---부터 본문 전체(# 헤딩, <p></p>)가 프론트매터로 오인되어 서식 정리가 무시되던 결함 해결
+//             2) 마스킹 이전 0단계에서 단독 라인 및 인라인 빈 문단 태그(<p></p>, <p\b[^>]*>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>)를 100% 선행 소거
+//             3) 프론트매터 내부에 마크다운 헤딩(# ), 인용구(> ), 코드블록이 포함된 경우 본문 수평선 오인으로 판별하여 마스킹에서 제외
+// 🚨 @PATCH : **2026-10-20** — [불필요한 빈 문단 HTML 태그(<p></p>) 자동 정돈 및 제거]:
+//             1) 문서 내 잔존하거나 외부에서 유입된 빈 문단 태그(<p></p>, <p\b[^>]*>\s*<\/p>)를 마크다운 서식 정리 시 100% 자동 제거하여 깨끗한 순수 마크다운 보장
+// 🚨 @PATCH : **2026-10-20** — [문서 최상단 고아/깨진 워터마크 메타데이터 찌꺼기 및 Frontmatter base64 자동 정돈]:
+//             1) 인쇄/워터마크 설정이 깨져 본문 상단에 노출된 고아 메타 찌꺼기(iL59...base64 및 워터마크 JSON 닫힘 태그) 감지 및 즉시 완전 제거
+//             2) Frontmatter 내부 onrivi_print에 저장된 data: base64 이미지 바이너리 자동 축소 제거로 마크다운 본문 오염 원천 방어
 // 🚨 @PATCH : **2026-10-10** — [볼드(**) 닫힘 태그 뒤 한글 조사/단어 1칸 띄어쓰기 자동 교정]: 마크다운 파서에서 **온리비**는 과 같이 닫는 태그 바로 뒤에 한글 조사가 붙어 서식이 풀리고 태그가 그대로 노출되는 결함을 방어하기 위해, 문서서식 일괄정리(CLEAN_DOC) 시 **온리비** 는 과 같이 닫힘 태그 뒤에 1칸 공백을 자동 삽입하여 정상 렌더링되도록 fixEmphasisSpacing 로직 강화
 // 🚨 @PATCH : **2026-09-11** — 표 셀 내부 리스트 불릿 일관성 정돈(normalizeTableBullets): 셀 내부 <br> 뒤의 하이픈/대시/별표 리스트 항목(`<br>- `, `<br> - ` 등)을 상위 불릿 기호(`• `)로 지능적 통일 변환 및 닫히지 않은 고아 백틱(`) 안전 정돈 연동; 볼드(**) 및 취소선(~~) 내부 선행/후행 공백(예: ** 상속세·증여세**, (** 단, 당해세는 예외** )) 및 닫힘 뒤 쉼표 앞 공백 자동 교정 탑재; 에디터 줄바꿈(Word Wrap) 가독성을 위해 과대 하이픈 및 패딩 공백을 최소화하여 단정한 컴팩트 표(formatCompactMarkdownTable)로 축소 정돈; 코드/수식/프론트매터 마스킹, 헤딩/인용구 공백 자동 교정, HTML 태그 마크다운 변환, 세부 통계 수집 기능 통합 신설
 // 🔗 @CALLS : formatCompactMarkdownTable
@@ -249,6 +258,34 @@ export function cleanMarkdownDocument(
   let working = content;
 
   // -------------------------------------------------------------
+  // 0단계. 문서 최상단에 잔존하는 고아/깨진 워터마크 메타 찌꺼기 및 Frontmatter 내 base64 이미지 바이너리 자동 정돈
+  // -------------------------------------------------------------
+  const ORPHANED_WATERMARK_PATTERNS = [
+    /^(?:\uFEFF)?[A-Za-z0-9+/=]{10,}[\s\S]*?(?:"opacity":\s*-?\d+|"rotation":\s*-?\d+|"position":\s*"[^"]+"|"excludeFirst":\s*(?:true|false))[\s\S]*?\}\s*\r?\n---\s*(\r?\n|$)/,
+    /^(?:\uFEFF)?onrivi_print:\s*\{[\s\S]*?\}\s*\r?\n---\s*(\r?\n|$)/,
+    /^(?:\uFEFF)?---[^\S\r\n]*\r?\n[A-Za-z0-9+/=]{10,}[\s\S]*?(?:"opacity":\s*-?\d+|"rotation":\s*-?\d+|"position":\s*"[^"]+"|"excludeFirst":\s*(?:true|false))[\s\S]*?\}\s*\r?\n---\s*(\r?\n|$)/
+  ];
+  for (const pattern of ORPHANED_WATERMARK_PATTERNS) {
+    if (pattern.test(working)) {
+      working = working.replace(pattern, '');
+    }
+  }
+  // Frontmatter 내부 불필요한 '메타영역', '#서식설정' 라인 제거
+  working = working.replace(/^(---\s*\r?\n)(?:[^\S\r\n]*메타영역[^\S\r\n]*\r?\n)?(?:[^\S\r\n]*#서식설정[^\S\r\n]*\r?\n)?/m, '$1');
+  // Frontmatter 내부 onrivi_print에 주입된 거대 base64 data URL 제거
+  working = working.replace(/^(onrivi_print\s*:\s*\{[^\n]*?"image"\s*:\s*")data:image\/[^"]+(")/m, '$1$2');
+  // 비활성화(enabled: false)된 불필요한 onrivi_print 라인 제거
+  working = working.replace(/^[^\S\r\n]*onrivi_print\s*:\s*\{[^\n]*?"enabled"\s*:\s*false[^\n]*?\}\s*\r?\n/m, '');
+
+  // 0-1. 문서 전체(Frontmatter 경계 포함)에서 단독 라인 및 인라인의 불필요한 빈 문단 HTML 태그 (<p></p>, <p> </p> 등) 사전 100% 제거
+  const emptyPRegex = /<p\b[^>]*>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>/gi;
+  if (emptyPRegex.test(working)) {
+    working = working.replace(/^[ \t]*<p\b[^>]*>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>[ \t]*(?:\r?\n|$)/gmi, '');
+    working = working.replace(emptyPRegex, '');
+    stats.htmlConverted++;
+  }
+
+  // -------------------------------------------------------------
   // 1단계. 코드 블록, 수식 블록, YAML Frontmatter 마스킹 보호
   // -------------------------------------------------------------
   const masks: string[] = [];
@@ -258,8 +295,16 @@ export function cleanMarkdownDocument(
     return token;
   };
 
-  // 1-1. YAML Frontmatter 마스킹
-  working = working.replace(/^---[\s\S]*?---(?:\r?\n|$)/, match => createMask(match));
+  // 1-1. YAML Frontmatter 마스킹 (진짜 프론트매터 블록만 마스킹)
+  // - 본문 중간의 수평선(---)까지 본문 전체(# 헤딩, 인용구 등)가 삼켜지지 않도록 내부 블록 정밀 검증
+  working = working.replace(/^(?:\uFEFF)?---[^\S\r\n]*\r?\n([\s\S]*?)\r?\n---[^\S\r\n]*(?:\r?\n|$)/, (fullMatch, body) => {
+    // 만약 body 내부에 마크다운 헤딩(# ), 인용구(> ), 코드블록(```, ~~~)이 포함되어 있다면,
+    // 이는 정상 프론트매터가 아니라 본문 중간의 수평선(---)까지 잘못 매칭된 것이므로 마스킹하지 않고 통과
+    if (/(?:^|\n)#{1,6}[ \t]/.test(body) || /(?:^|\n)>[ \t]/.test(body) || /(?:^|\n)(?:```|~~~)/.test(body)) {
+      return fullMatch;
+    }
+    return createMask(fullMatch);
+  });
 
   // 1-2. 펜스형 코드 블록 (``` 또는 ~~~) 마스킹
   working = working.replace(/(```[\s\S]*?```|~~~[\s\S]*?~~~)/g, match => createMask(match));
@@ -309,6 +354,13 @@ export function cleanMarkdownDocument(
     working = working.replace(delRegex, (_, text) => {
       delMatches++;
       return `~~${text.trim()}~~`;
+    });
+
+    // 불필요한 빈 문단 HTML 태그 (<p></p>, <p> </p> 등) 제거 및 순수 마크다운 개행으로 정돈
+    const emptyPRegex = /<p\b[^>]*>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>/gi;
+    working = working.replace(emptyPRegex, () => {
+      stats.htmlConverted++;
+      return '';
     });
 
     // 불필요한 래퍼 태그 찌꺼기 제거 (span, font, div 등)

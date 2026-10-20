@@ -1,4 +1,8 @@
 // ====================================================================
+// 📊 [OMD-API-VIEW-0001] src/app/api/view/route.ts
+// 🎯 @KICK  : 로컬 및 워크스페이스 이미지 프록시 뷰 서빙 엔드포인트
+// 🚨 @PATCH : **2026-10-20** — [url 파라미터 호환 및 쿼리스트링 분리 처리 지원]: filePath 외에 url 쿼리 파라미터도 지원하고, 경로 뒤의 캐시 무효화 쿼리(?v=...)를 분리하여 파일 검사 시 400 에러 방지
+// ====================================================================
 import { NextResponse } from 'next/server';
 
 let fs: any;
@@ -13,12 +17,13 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const filePath = searchParams.get('filePath');
+    const rawPath = (searchParams.get('filePath') || searchParams.get('url') || '').trim();
 
-    if (!filePath) {
+    if (!rawPath) {
       return new NextResponse('Missing filePath', { status: 400 });
     }
 
+    const filePath = rawPath.split('?')[0];
     let actualPath = filePath;
 
     if (!fs.existsSync(actualPath)) {

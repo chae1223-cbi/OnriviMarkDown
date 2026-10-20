@@ -2464,4 +2464,10 @@ input::-ms-clear {
 /* Manual page breaks stay editable/selectable and never become ordinary rules. */
 .onrivi-page-break { display:block; border-top:2px dashed #f97316; color:#c2410c; background:#fff7ed; text-align:center; font:12px/24px system-ui; margin:16px 0; min-height:24px; user-select:none; }
 .dark .onrivi-page-break { color:#fdba74; background:#431407; border-color:#fb923c; }
+/* This is a screen display preference; keep the marker in the document for export. */
+@media screen {
+  html:not([data-onrivi-page-guides="true"]) :is(.onrivi-page-break, [data-onrivi-page-break], hr.page-break) {
+    display: none !important;
+  }
+}
 @media print { .onrivi-page-break { break-before:page;page-break-before:always;height:0;min-height:0;margin:0;border:0;font-size:0;line-height:0; } }

@@ -9,6 +9,9 @@ import PicturebookPreview from './PicturebookPreview';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { exportContentFingerprint } from '@/lib/exportPreparation';
 import katex from 'katex';
+// 🚨 @PATCH : **2026-10-20** — [PDF 인쇄 시 화면 페이지 나누기 1:1 완벽 일치 및 파싱 정밀화]:
+//             1) cleanContent에서 마크다운 주석(<!-- onrivi:page-break -->) 및 LaTeX(\\pagebreak)를 data-onrivi-page-break 블록으로 선행 표준화
+//             2) rehypeBrRaw에서 페이지 나누기 노드 생성 시 data-onrivi-page-break='true' 속성을 온전히 보존하여 PagedJS/인쇄 엔진 수집 100% 보장
 // 🚨 @PATCH : **2026-10-17** — [목록 항목 간 줄 여백(margin-bottom) 및 들여쓰기 너비(var(--list-indent)) 서식 프로필 1:1 반영]:
 //             1) .onrivi-content-root ul/ol의 hardcoded padding-left: 1.5em !important를 var(--list-indent, 1.5em)으로 변경하여 서식 프로필의 들여쓰기 설정이 즉각 적용되도록 개선
 //             2) .onrivi-content-root li의 hardcoded margin: 0 !important를 해제하고 margin-bottom: var(--li-margin-bottom, 6px) 및 dynamicCssString 연동을 허용하여 목록 및 체크박스 줄 여백이 정상 작동하도록 조치
@@ -2031,6 +2034,16 @@ function MarkdownViewer({
     // 🛡️ [Frontmatter 메타데이터 숨김] 뷰어에 메타데이터(예: css_profile)가 노출되지 않도록 전처리
     const { content: strippedContent } = extractFrontmatter(content);
     let processed = strippedContent;
+
+    // 📄 [페이지 나누기 표준화]
+    // 1) 마크다운 주석형: <!-- onrivi:page-break -->, <!-- [page-break] -->, <!-- pagebreak -->
+    // 2) LaTeX 명령어형: \pagebreak, \newpage
+    // 3) HTML 인라인/태그형: <div class="page-break">, <hr class="page-break">
+    // 위의 모든 페이지 나누기 마커를 파서와 PagedJS 인쇄 엔진이 100% 인식하는 data-onrivi-page-break 블록 요소로 정규화
+    processed = processed.replace(
+      /(^[ \t]*)(?:<!--\s*(?:onrivi:)?page-?break\s*-->|<!--\s*\[page-?break\]\s*-->|\\pagebreak\b|\\newpage\b|<(?:div|hr)[^>]*class=["'][^"']*page-break[^"']*["'][^>]*>[\s\S]*?(?:<\/(?:div|hr)>)?)(?=[ \t]*$)/gim,
+      '\n\n<div data-onrivi-page-break="true" class="onrivi-page-break page-break" aria-label="수동 페이지 나누기">수동 페이지 나누기</div>\n\n'
+    );
     
     // 🛡️ [목록 번호 변환 방어]
     // 1) 웹 모드 처럼 숫자에 괄호 닫기 패턴(예: 1) )을 라인 시작 지점에 작성했을 때,
@@ -2355,10 +2368,35 @@ function MarkdownViewer({
           for (const child of node.children) {
             // 💡 [OMD-HOTFIX] 기존 병합 파일에서 <div style="page-break-before: always"></div> 문자열이 
             // 텍스트나 인라인 코드로 파싱되어 화면에 노출되는 현상 방어 및 출판용 페이지 나누기로 강제 변환
-            const isPageBreakString = (val: string) => 
-              typeof val === 'string' && (val.includes('page-break-before: always') || val.includes('class="page-break"'));
+            const isPageBreakString = (val: string) => {
+              if (typeof val !== 'string') return false;
+              return (
+                /<!--\s*(?:onrivi:)?page-?break\s*-->/i.test(val) ||
+                /<!--\s*\[page-?break\]\s*-->/i.test(val) ||
+                /\\pagebreak\b/i.test(val) ||
+                /\\newpage\b/i.test(val) ||
+                val.includes('page-break-before: always') ||
+                val.includes('break-before: page') ||
+                val.includes('class="page-break"') ||
+                val.includes('class="onrivi-page-break"') ||
+                val.includes('data-onrivi-page-break')
+              );
+            };
 
-            if (child.type === 'raw' && /<br\s*\/?>/i.test(child.value)) {
+            const makePageBreakElement = () => ({
+              type: 'element',
+              tagName: 'div',
+              properties: {
+                className: ['onrivi-page-break', 'page-break'],
+                'data-onrivi-page-break': 'true',
+                'aria-label': '수동 페이지 나누기'
+              },
+              children: [{ type: 'text', value: '수동 페이지 나누기' }]
+            });
+
+            if (child.type === 'comment' && isPageBreakString(child.value)) {
+              newChildren.push(makePageBreakElement());
+            } else if (child.type === 'raw' && /<br\s*\/?>/i.test(child.value)) {
               const parts = child.value.split(/(<br\s*\/?>)/gi);
               for (const part of parts) {
                 if (/^<br\s*\/?>$/i.test(part)) {
@@ -2369,21 +2407,27 @@ function MarkdownViewer({
               }
             } else if (child.type === 'raw' && isPageBreakString(child.value)) {
               // raw HTML 텍스트로 인식되었을 때 교체
-              newChildren.push({ type: 'element', tagName: 'hr', properties: { className: ['page-break'] }, children: [] });
+              newChildren.push(makePageBreakElement());
             } else if (child.type === 'element' && child.tagName === 'code' && child.children?.length === 1 && child.children[0].type === 'text' && isPageBreakString(child.children[0].value)) {
               // inlineCode 안의 텍스트로 인식되었을 때 (파서 오작동 방어)
-              newChildren.push({ type: 'element', tagName: 'hr', properties: { className: ['page-break'] }, children: [] });
+              newChildren.push(makePageBreakElement());
             } else if (child.type === 'text' && isPageBreakString(child.value)) {
               // 일반 텍스트 노드로 인식되었을 때
-              const parts = child.value.split(/(<div[^>]*page-break[^>]*><\/div>|<hr[^>]*page-break[^>]*\/>)/i);
+              const parts = child.value.split(/(<!--\s*(?:onrivi:)?page-?break\s*-->|<!--\s*\[page-?break\]\s*-->|\\pagebreak\b|\\newpage\b|<div[^>]*page-break[^>]*><\/div>|<hr[^>]*page-break[^>]*\/>)/i);
               for (const part of parts) {
                 if (isPageBreakString(part)) {
-                  newChildren.push({ type: 'element', tagName: 'hr', properties: { className: ['page-break'] }, children: [] });
+                  newChildren.push(makePageBreakElement());
                 } else if (part) {
                   newChildren.push({ type: 'text', value: part });
                 }
               }
             } else {
+              if (child.type === 'element' && (child.properties?.className?.includes?.('page-break') || child.properties?.className?.includes?.('onrivi-page-break') || child.properties?.['data-onrivi-page-break'])) {
+                if (!child.properties) child.properties = {};
+                child.properties['data-onrivi-page-break'] = 'true';
+                const curClasses = Array.isArray(child.properties.className) ? child.properties.className : (typeof child.properties.className === 'string' ? child.properties.className.split(/\s+/) : []);
+                child.properties.className = Array.from(new Set([...curClasses, 'onrivi-page-break', 'page-break']));
+              }
               newChildren.push(child);
               if (child.children) walk(child);
             }

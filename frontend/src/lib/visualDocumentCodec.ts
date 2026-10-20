@@ -2,6 +2,13 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-visual-codec
+ * 🚨 @PATCH : **2026-10-20** — [빈 문단 HTML 태그(<p></p>) 마크다운 직렬화 오염 차단 및 순수 개행 정돈]:
+ *             1) 위지윅 문서보기에서 엔터 입력 시 빈 문단이 <p></p> HTML 태그로 무조건 직렬화되어 에디터에 노출되던 결함 해결
+ *             2) 오직 연속된 두 리스트 사이의 분리 보존(isBetweenLists)을 제외한 모든 일반 본문, 헤딩, 수평선 뒤 등의 빈 문단은 <p></p> 대신 순수 마크다운 개행(\n\n)으로 깔끔하게 직렬화
+ *             3) 기존 문서에 잔존하는 불필요한 <p></p> 태그도 편집 시 순수 마크다운 개행으로 자동 정돈
+ * 🚨 @PATCH : **2026-10-20** — [createVisualDocumentCodec 진입 시 고아/비정상 워터마크 메타데이터 자동 정돈 및 압축]:
+ *             1) 프론트매터 파싱 전 compactLegacyPrintMetadata를 선행 호출하여 본문 상단에 노출된 고아 워터마크 메타 찌꺼기 자동 제거
+ *             2) onrivi_print 내 잔존하는 base64 data: URL 이미지 바이너리 자동 축소로 노드 파싱 오류 및 본문 텍스트 오염 원천 방어
  * 🚨 @PATCH : **2026-10-18** — [마크다운 자동 링크(<http(s)://...>, <이메일>) 포함 목록/본문이 source_block(읽기 전용 박스)으로 오분기되던 결함 완전 해소]:
  *             1) safeRaw 전처리 단계에서 표준 마크다운 자동 링크(<scheme:...>, <user@domain>)를 사전 제거하여 unsupported 태그 오탐 방지
  *             2) 자동 링크가 포함된 순서 있는 목록(ordered_list) 및 글머리 기호 목록(bullet_list)이 네이티브 노드로 온전히 파싱되어 본문에서 직접 편집 가능하도록 개선
@@ -291,7 +298,22 @@ function normalizeQuotes(node: DocumentNode): DocumentNode {
   }
   return node.type.create(attrs,children,node.marks);
 }
+function cleanCorruptWatermarkMetadata(source: string): string {
+  const patterns = [
+    /^(?:\uFEFF)?[A-Za-z0-9+/=]{10,}[\s\S]*?(?:"opacity":\s*-?\d+|"rotation":\s*-?\d+|"position":\s*"[^"]+"|"excludeFirst":\s*(?:true|false))[\s\S]*?\}\s*\r?\n---\s*(\r?\n|$)/,
+    /^(?:\uFEFF)?onrivi_print:\s*\{[\s\S]*?\}\s*\r?\n---\s*(\r?\n|$)/,
+    /^(?:\uFEFF)?---[^\S\r\n]*\r?\n[A-Za-z0-9+/=]{10,}[\s\S]*?(?:"opacity":\s*-?\d+|"rotation":\s*-?\d+|"position":\s*"[^"]+"|"excludeFirst":\s*(?:true|false))[\s\S]*?\}\s*\r?\n---\s*(\r?\n|$)/
+  ];
+  for (const pattern of patterns) {
+    if (pattern.test(source)) {
+      source = source.replace(pattern, '');
+    }
+  }
+  return source;
+}
+
 export function createVisualDocumentCodec(markdown: string) {
+  markdown = cleanCorruptWatermarkMetadata(markdown);
   markdown = bulletNumbersAsText(normalizeVisualMarkdownSpacing(markdown));
   const originals = new WeakMap<DocumentNode, string>();
   const rawSuffixes: string[] = [];
@@ -448,8 +470,17 @@ export function createVisualDocumentCodec(markdown: string) {
       if(changed && result){result=result.replace(/\n{3,}$/,'\n\n');}
       let previousOriginal = true;
       let previousNode: DocumentNode | null = null;
+      const isListType = (name?: string) => name === 'bullet_list' || name === 'ordered_list' || name === 'task_list';
       doc.forEach((node, _offset, index) => {
-        const original = originals.get(node);
+        const nextNode = index + 1 < doc.childCount ? doc.child(index + 1) : null;
+        const isListAdjacent = isListType(previousNode?.type.name) || isListType(nextNode?.type.name);
+
+        let original = originals.get(node);
+        // 리스트와 인접하지 않은 일반 본문/헤딩/수평선 등의 빈 문단에 저장되어 있던 <p></p>는 제거하여 순수 마크다운 개행으로 정돈
+        if (original && /^<p\b[^>]*>\s*<\/p>$/i.test(original.trim()) && !isListAdjacent) {
+          original = undefined;
+        }
+
         if(changed && node.type.name==='heading'){
           if(result && !result.endsWith('\n\n')) result += result.endsWith('\n') ? '\n' : '\n\n';
         }
@@ -468,11 +499,10 @@ export function createVisualDocumentCodec(markdown: string) {
             if (!result.endsWith('\n\n')) result += result.endsWith('\n') ? '\n' : '\n\n';
           }
         }
-        // Blank lines alone cannot encode an empty paragraph between two lists:
-        // Markdown merges the lists on the next parse. A standard empty HTML
-        // paragraph preserves the editable exit position through save/reload.
+        // Blank lines alone cannot encode an empty paragraph adjacent to a list:
+        // Markdown merges lists on the next parse. A standard empty HTML paragraph preserves the editable exit position through save/reload.
         result += original ?? (node.type.name==='paragraph' && node.content.size===0 && doc.childCount>1
-          ? '<p></p>' : ['source_block', 'visual_image', 'visual_media'].includes(node.type.name)
+          ? (isListAdjacent ? '<p></p>' : '') : ['source_block', 'visual_image', 'visual_media'].includes(node.type.name)
           ? node.attrs.source
           : node.type.name === 'visual_math'
           ? `\n$$\n${(node.attrs.latex || '').trim()}\n$$\n\n`

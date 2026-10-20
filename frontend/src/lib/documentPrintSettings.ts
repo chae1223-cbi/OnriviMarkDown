@@ -1,6 +1,10 @@
 // ====================================================================
 // 📊 [OMD-DOC-DOCUMENTPRINTSETTINGS-0001] documentPrintSettings.ts
 // 🎯 @KICK  : 문서 단위 인쇄·워터마크 설정 및 전역 기본 워터마크(환경설정) 직렬화/역직렬화 관리
+// 🚨 @PATCH : **2026-10-20** — [워터마크 frontmatter base64 바이너리 주입 원천 차단 및 고아 메타데이터 자동 정돈]:
+//             1) writePrintSettings 시 data: URL(base64 바이너리)이 frontmatter에 직접 주입되는 현상 원천 차단 (image: ''로 치환 저장)
+//             2) compactLegacyPrintMetadata에서 기존 문서에 잔존하는 orphaned 워터마크 찌꺼기(iL59...base64 및 닫는 ---) 자동 제거
+//             3) legacy JSON의 data: base64 이미지 바이너리 자동 제거로 파일 용량 비대화 및 파서 오작동 방어
 // 🚨 @PATCH : **2026-10-19** — [워터마크 디폴트 이미지 및 Onrivi Author 문구 자동 적용]:
 //             1) 워터마크 이미지 미지정 시 공식 엠블럼(512x512 투명) 자동 기본값 지정 및 기본 종류를 'image'로 설정
 //             2) 워터마크 문구 미지정 시 'Onrivi Author' 자동 기본값 지정
@@ -125,8 +129,11 @@ export function readEffectivePrintSettings(source: string): DocumentPrintSetting
 
 export function writePrintSettings(source: string, settings: DocumentPrintSettings): string {
   const normalized = normalizePrintSettings(settings);
-  // Text watermarks do not need image bytes; the bundled emblem has a built-in fallback.
-  const value = JSON.stringify({...normalized,image:normalized.kind==='text'||normalized.image===DEFAULT_WATERMARK_IMAGE?'':normalized.image});
+  // Text watermarks and embedded data URLs never store base64 bytes in frontmatter.
+  const value = JSON.stringify({
+    ...normalized,
+    image: normalized.kind === 'text' || normalized.image.startsWith('data:') ? '' : normalized.image
+  });
   const match = source.match(/^(?:\uFEFF)?---[^\S\r\n]*\r?\n([\s\S]*?)\r?\n---[^\S\r\n]*(?:\r?\n|$)/);
   if (!match) return `---\nonrivi_print: ${value}\n---\n\n${source}`;
   const newline = match[0].includes('\r\n') ? '\r\n' : '\n';
@@ -137,6 +144,17 @@ export function writePrintSettings(source: string, settings: DocumentPrintSettin
 
 /** Compact legacy JSON without rewriting unrelated frontmatter or user image data. */
 export function compactLegacyPrintMetadata(source:string):string {
+  // 🛡️ [고아/깨진 워터마크 메타 찌꺼기 제거]: 앞쪽 ---가 잘려 본문 상단에 노출된 base64 및 워터마크 JSON 찌꺼기 감지 및 정돈
+  const ORPHANED_WATERMARK_PATTERNS = [
+    /^(?:\uFEFF)?[A-Za-z0-9+/=]{10,}[\s\S]*?(?:"opacity":\s*-?\d+|"rotation":\s*-?\d+|"position":\s*"[^"]+"|"excludeFirst":\s*(?:true|false))[\s\S]*?\}\s*\r?\n---\s*(\r?\n|$)/,
+    /^(?:\uFEFF)?onrivi_print:\s*\{[\s\S]*?\}\s*\r?\n---\s*(\r?\n|$)/,
+    /^(?:\uFEFF)?---[^\S\r\n]*\r?\n[A-Za-z0-9+/=]{10,}[\s\S]*?(?:"opacity":\s*-?\d+|"rotation":\s*-?\d+|"position":\s*"[^"]+"|"excludeFirst":\s*(?:true|false))[\s\S]*?\}\s*\r?\n---\s*(\r?\n|$)/
+  ];
+  for (const pattern of ORPHANED_WATERMARK_PATTERNS) {
+    if (pattern.test(source)) {
+      source = source.replace(pattern, '');
+    }
+  }
   const match=source.match(/^(?:\uFEFF)?---[^\S\r\n]*\r?\n([\s\S]*?)\r?\n---[^\S\r\n]*(?:\r?\n|$)/);
   if(!match)return source;
   const compact=match[0].replace(/^(onrivi_print\s*:\s*)([^\r\n]*)/m,(line,prefix,json)=>{
@@ -144,7 +162,6 @@ export function compactLegacyPrintMetadata(source:string):string {
       const raw=JSON.parse(json);
       if(!raw||typeof raw!=='object'||Array.isArray(raw))return line;
       if(typeof raw.image!=='string'||!raw.image.startsWith('data:'))return line;
-      if(raw.kind!=='text'&&raw.image!==DEFAULT_WATERMARK_IMAGE)return line;
       delete raw.image;
       return prefix+JSON.stringify(raw);
     }catch{return line;}

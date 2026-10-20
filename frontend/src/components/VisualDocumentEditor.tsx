@@ -1,9 +1,12 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
+  * 🚨 @PATCH : **2026-10-20** — [텍스트 선택(블록 지정) 상태에서 마우스 클릭 시 선택 해제 및 커서 즉시 이동]:
+ *             1) mousedown 및 handleClick 핸들러에 선택 해제 파이프라인 신설: Ctrl+A 또는 드래그로 텍스트가 광범위하게 선택된 상태에서 본문/여백 클릭 시 Chromium 드래그 대기로 인한 선택 불풀림 버그를 원천 차단
+ *             2) 마우스 클릭 좌표(posAtCoords)를 계산하여 TextSelection.near로 단일 커서(Caret)를 즉시 배치하고 깜빡임 캐럿 및 에디터 포커스를 100% 정상 활성화
  * 🚨 @PATCH : **2026-10-20** — [문서 서식 일괄 정리(CLEAN_DOC) 기능 문서보기(VisualDocumentEditor) 완벽 연동]:
  *             1) cleanMarkdownDocument 유틸리티를 연동하여 commands['CLEAN_DOC'] 핸들러 신설
- *             2) 위지윅 문서보기 모드에서도 마크다운 소스를 직렬화하여 코드/수식/프론트매터 보존, 표 정렬, 불필요한 줄바꿈 정리, 헤딩/인용구 공백 교정 등을 일괄 수행한 뒤 replaceSource 및 callback(onChange)을 통해 실시간 화면 반영 및 자동 저장 연동
+ *             2) 위지윅 문서보기 모드에서도 마크다운 소스를 직렬화하여 빈 문단 HTML 태그(<p></p>) 완전 소거, 코드/수식/프론트매터 보존, 표 정렬, 불필요한 줄바꿈 정리, 헤딩/인용구 공백 교정 등을 일괄 수행한 뒤 replaceSource 및 callback(onChange)을 통해 실시간 화면 반영 및 자동 저장 연동
  * 🚨 @PATCH : **2026-10-19** — [페이지 분할 가이드 활성화 시 인쇄 용지 시트(Print Layout) 스타일 1:1 동기화]:
  *             1) pageGuides 활성화 시 resolvePageGeometry(pageStyle)를 연동하여 .visual-document-surface의 너비와 여백을 용지 규격(A4 210mm, 좌우 12mm, 상하 18mm)으로 정밀 일치
  *             2) 화면 너비에 따른 텍스트 줄바꿈 왜곡을 원천 방어하여 에디터의 페이지 분할 위치와 실제 인쇄/PDF 출력 위치를 1:1 완벽 동기화
@@ -2381,6 +2384,23 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         }
         href = href.trim();
         if (!href) {
+          // 🛡️ [텍스트 선택 상태에서 클릭 시 선택 해제 및 커서 이동 보장]
+          const isSelected = !currentView.state.selection.empty || Boolean(document.getSelection() && !document.getSelection()?.isCollapsed);
+          if (isSelected && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
+            const target = event.target as HTMLElement | null;
+            if (!target?.closest('a, button, input[type="checkbox"], [contenteditable="false"]')) {
+              const coords = { left: event.clientX, top: event.clientY };
+              const posInfo = currentView.posAtCoords(coords);
+              if (posInfo && typeof posInfo.pos === 'number') {
+                const $targetPos = currentView.state.doc.resolve(posInfo.pos);
+                currentView.dispatch(currentView.state.tr.setSelection(TextSelection.near($targetPos)));
+                currentView.focus();
+                caretRef.current?.schedule();
+                return true;
+              }
+            }
+          }
+
           const target = event.target as HTMLElement | null;
           const li = target?.closest?.('li');
           if (li && !target?.matches?.('input[type="checkbox"]')) {
@@ -2457,7 +2477,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         mousedown(currentView, event) {
           if (!currentView.editable) return false;
           const e = event as MouseEvent;
-          if (e.button !== 0) return false;
+          if (e.button !== 0 || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return false;
           const hrPos = findClickedHorizontalRulePos(currentView, e);
           if (hrPos >= 0) {
             e.preventDefault();
@@ -2465,6 +2485,43 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             placeCursorBeforeHorizontalRule(currentView, hrPos);
             caretRef.current?.schedule();
             return true;
+          }
+
+          // 🛡️ [선택 영역 내부 클릭 시 선택 해제 및 커서 즉시 이동]
+          // Chromium contenteditable에서 선택된 텍스트 위를 클릭했을 때 브라우저가 드래그(DnD)를 대기하느라
+          // 선택이 풀리지 않고 유지되는 고질적 결함을 원천 방어하여, 마우스 클릭 위치로 즉시 단일 커서(Caret) 배치
+          const target = e.target as HTMLElement | null;
+          if (!target?.closest('a, button, input, [contenteditable="false"]')) {
+            const isSelected = !currentView.state.selection.empty || Boolean(document.getSelection() && !document.getSelection()?.isCollapsed);
+            if (isSelected) {
+              const coords = { left: e.clientX, top: e.clientY };
+              const posInfo = currentView.posAtCoords(coords);
+              let targetPos: number | null = null;
+              if (posInfo && typeof posInfo.pos === 'number') {
+                targetPos = posInfo.pos;
+              } else {
+                const surfaceEl = currentView.dom;
+                const rect = surfaceEl.getBoundingClientRect();
+                if (e.clientY > rect.bottom) {
+                  targetPos = currentView.state.doc.content.size;
+                } else {
+                  const clampX = Math.max(rect.left + 8, Math.min(e.clientX, rect.right - 8));
+                  const fallbackInfo = currentView.posAtCoords({ left: clampX, top: e.clientY });
+                  if (fallbackInfo && typeof fallbackInfo.pos === 'number') {
+                    targetPos = fallbackInfo.pos;
+                  }
+                }
+              }
+
+              if (targetPos !== null) {
+                e.preventDefault();
+                const $target = currentView.state.doc.resolve(Math.max(0, Math.min(targetPos, currentView.state.doc.content.size)));
+                currentView.dispatch(currentView.state.tr.setSelection(TextSelection.near($target)));
+                currentView.focus();
+                caretRef.current?.schedule();
+                return true;
+              }
+            }
           }
           return false;
         },
@@ -3490,9 +3547,18 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             .dark .custom-preview-container:has(.visual-document-surface) {
               background-color: #09090b !important;
             }
+            .preview-page-sheet:has(.visual-document-editor) {
+              padding-bottom: 0 !important;
+              border: 0 !important;
+              border-radius: 0 !important;
+              box-shadow: none !important;
+              background: transparent !important;
+              overflow-x: auto !important;
+            }
             .visual-document-surface {
               width: ${geom.width}mm !important;
-              max-width: 100% !important;
+              min-height: var(--onrivi-sheet-min-height, ${geom.height}mm) !important;
+              max-width: none !important;
               margin-left: auto !important;
               margin-right: auto !important;
               padding: ${geom.top}mm ${geom.right}mm ${geom.bottom}mm ${geom.left}mm !important;

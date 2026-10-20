@@ -1,6 +1,10 @@
 // @ts-nocheck
 // ====================================================================
 // 📊 [OMD-HOOK-useEditorHandlers-0001] useEditorHandlers.ts ➔ 에디터 액션 핸들러 훅
+// 🚨 @PATCH : **2026-10-20** — [문서 서식 정리(cleanDoc) 실행 시 readOnly 모나코 에디터 및 분할 화면 즉각 100% 동기화]:
+//             1) 나란히 보기(both) 등 readOnly 상태에서 editor.executeEdits가 무시되던 결함을 model.pushEditOperations 및 setValue 강제 동기화로 해결
+//             2) 서식 정리 후 contentRef, updateContent, setTabs를 즉시 호출하여 React 상태 및 우측 뷰어까지 완벽 동기화
+// 🚨 @PATCH : **2026-10-20** — [문서 메타영역(Frontmatter) 사용자 수동 삭제 시 재주입 방어]: 기본 서식(system-1) 상태에서 사용자가 에디터 상단의 Frontmatter를 삭제한 경우 저장 시 강제 재생성(persistDefault)을 배제하여 순수 마크다운 상태 영구 보존
 // 🚨 @PATCH : **2026-10-19** — [페이지 나누기(pageBreak) 핸들러 신설]: Monaco 에디터 커서 위치에 <!-- onrivi:page-break --> 페이지 구분 마커 삽입 핸들러 연동
 // ====================================================================
 import { reportClientLog } from '@/lib/clientLogs';
@@ -13,7 +17,7 @@ import { readPrintSettings, writePrintSettings, readEffectivePrintSettings, comp
 import { vfsWriteFile } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { stripFrontmatter } from "@/lib/editorUtils";
-import { updateCssProfileInFrontmatter } from '@/lib/frontmatter';
+import { extractFrontmatter, updateCssProfileInFrontmatter } from '@/lib/frontmatter';
 import { documentBookProfile } from '@/lib/picturebook';
 import { supabase } from '@/lib/supabaseClient';
 import { clearAuthSessionStorage } from '@/lib/authSessionHelper';
@@ -77,6 +81,7 @@ import { organizeMarkdownFootnotes } from '@/lib/footnoteOrganizer';
 // ====================================================================
 export const useEditorHandlers = ({
   editorRef,
+  previewModeRef,
   contentRef,
   currentFileNameRef,
   currentFileNodeRef,
@@ -139,16 +144,27 @@ export const useEditorHandlers = ({
 
   const prepareEditorForExport = async () => {
     try {
-      if (editorRef.current) {
+      // The mounted visual editor owns the latest document; Monaco may still hold
+      // the source from before a manual page-break edit. Never copy that back.
+      const visualEditor = previewRef.current?.querySelector('.visual-document-editor');
+      const sourceEditorActive = editorRef.current && previewModeRef?.current !== 'preview' && !visualEditor;
+      if (sourceEditorActive || visualEditor) {
         // Moving focus commits Korean IME before reading the editor model.
         const input = document.createElement('input');
         input.style.cssText = 'position:fixed;left:-9999px;opacity:0';
         document.body.appendChild(input);
         try { input.focus({ preventScroll: true }); input.blur(); } finally { input.remove(); }
         await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        if (visualEditor) {
+          await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+          return true;
+        }
         const value = editorRef.current.getValue();
         if (value !== contentRef.current) updateContent(value);
         if (previewRef.current) await waitForExportContent(previewRef.current, value);
+      }
+      if (!visualEditor && previewRef.current) {
+        await waitForExportContent(previewRef.current, contentRef.current);
       }
       return true;
     } catch (error: any) {
@@ -379,7 +395,10 @@ export const useEditorHandlers = ({
     // 📊 [OMD-EDIT-USEEDITORHANDLERS-0011 ✅ FIXED] useEditorHandlers.ts ➔ cleanDoc
     // 🎯 @KICK  : 문서 내 마크다운 서식(코드/수식 마스킹, 표 정렬, 헤딩/인용구 공백, HTML 변환) 지능형 일괄 정리
     // 🛡️ @GUARD : editorRef 존재 여부, 드래그 선택 영역(Selection) 부분 정리 분기, 정리할 내용이 없으면 안내
-    // 🚨 @PATCH : **2026-09-11** — cleanMarkdownDocument 전면 연동: 코드/수식/Frontmatter 마스킹 보호, 표 수직 줄맞춤(Pretty Table), 헤딩/인용구 공백 교정, HTML 마크다운 변환, 드래그 선택 영역 부분 정리 및 상세 통계 토스트 안내 탑재
+    // 🚨 @PATCH : **2026-10-20** — cleanMarkdownDocument 전면 연동 고도화:
+    //             1) readOnly 에디터(both 모드 등)에서 executeEdits 무시 방어를 위해 model.pushEditOperations 및 setValue 강제 동기화
+    //             2) 서식 정리 즉시 contentRef, updateContent, setTabs 갱신으로 좌우 분할 뷰 및 React 상위 상태 100% 동기화
+    //             **2026-09-11** — cleanMarkdownDocument 전면 연동: 코드/수식/Frontmatter 마스킹 보호, 표 수직 줄맞춤(Pretty Table), 헤딩/인용구 공백 교정, HTML 마크다운 변환, 드래그 선택 영역 부분 정리 및 상세 통계 토스트 안내 탑재
     // 🔗 @CALLS : cleanMarkdownDocument, showToast
     // ====================================================================
     cleanDoc: () => {
@@ -405,11 +424,27 @@ export const useEditorHandlers = ({
 
         if (result.isModified) {
           editor.pushUndoStop();
-          editor.executeEdits("cleanDoc", [{
-            range: selection,
-            text: result.cleanedText
-          }]);
+          if (typeof model.pushEditOperations === 'function') {
+            model.pushEditOperations([], [{
+              range: selection,
+              text: result.cleanedText,
+              forceMoveMarkers: true
+            }], () => null);
+          } else {
+            editor.executeEdits("cleanDoc", [{
+              range: selection,
+              text: result.cleanedText
+            }]);
+          }
           editor.pushUndoStop();
+
+          const nextFull = model.getValue();
+          contentRef.current = nextFull;
+          if (typeof updateContent === 'function') updateContent(nextFull, false, true);
+          if (typeof setTabs === 'function') {
+            setTabs((prev: any[]) => prev.map(t => t.id === activeTabIdRef.current ? { ...t, content: nextFull, isModified: true } : t));
+          }
+
           showToast(`선택 영역 ${result.summaryMessage}`, "success");
         } else {
           showToast("선택 영역에 정리할 서식이 없습니다.", "info");
@@ -420,11 +455,25 @@ export const useEditorHandlers = ({
 
         if (result.isModified) {
           editor.pushUndoStop();
-          editor.executeEdits("cleanDoc", [{
-            range: model.getFullModelRange(),
-            text: result.cleanedText
-          }]);
+          const fullRange = model.getFullModelRange();
+          if (typeof model.pushEditOperations === 'function') {
+            model.pushEditOperations([], [{
+              range: fullRange,
+              text: result.cleanedText,
+              forceMoveMarkers: true
+            }], () => null);
+          }
+          if (model.getValue() !== result.cleanedText) {
+            model.setValue(result.cleanedText);
+          }
           editor.pushUndoStop();
+
+          contentRef.current = result.cleanedText;
+          if (typeof updateContent === 'function') updateContent(result.cleanedText, false, true);
+          if (typeof setTabs === 'function') {
+            setTabs((prev: any[]) => prev.map(t => t.id === activeTabIdRef.current ? { ...t, content: result.cleanedText, isModified: true } : t));
+          }
+
           showToast(result.summaryMessage, "success");
         } else {
           showToast("정리할 서식이 없습니다.", "info");
@@ -520,10 +569,13 @@ export const useEditorHandlers = ({
         return;
       }
 
-      // [서식 자동 주입 패치] 커스텀 서식 프로필이 활성화된 경우에만 Frontmatter에 정보 자동 갱신
+      // [서식 자동 주입 패치] 사용자가 메타영역을 지웠거나 기본 서식 사용 시 불필요한 Frontmatter 강제 주입 배제
       {
         const profile = profiles?.find((p: any) => p.id === activeProfileId) || DEFAULT_PROFILE;
-        const nextVal = updateCssProfileInFrontmatter(compactLegacyPrintMetadata(currentVal), profile.id, profile.name, { persistDefault: true });
+        const compacted = compactLegacyPrintMetadata(currentVal);
+        const hasExistingProfile = Boolean(extractFrontmatter(compacted).data.css_profile);
+        const isCustomProfile = profile.id !== 'system-1' && profile.id !== 'default';
+        const nextVal = updateCssProfileInFrontmatter(compacted, profile.id, profile.name, { persistDefault: hasExistingProfile || isCustomProfile });
         if (nextVal !== currentVal) {
           currentVal = nextVal;
           contentRef.current = nextVal;
@@ -870,10 +922,13 @@ export const useEditorHandlers = ({
       const rootFld = rootFolderRef.current;
       let currentVal = contentRef.current;
 
-      // [서식 자동 주입 패치] 현재 활성화된 프로필 정보를 Frontmatter에 자동 갱신
+      // [서식 자동 주입 패치] 사용자가 메타영역을 지웠거나 기본 서식 사용 시 불필요한 Frontmatter 강제 주입 배제
       {
         const profile = profiles?.find((p: any) => p.id === activeProfileId) || DEFAULT_PROFILE;
-        const nextVal = updateCssProfileInFrontmatter(compactLegacyPrintMetadata(currentVal), profile.id, profile.name, { persistDefault: true });
+        const compacted = compactLegacyPrintMetadata(currentVal);
+        const hasExistingProfile = Boolean(extractFrontmatter(compacted).data.css_profile);
+        const isCustomProfile = profile.id !== 'system-1' && profile.id !== 'default';
+        const nextVal = updateCssProfileInFrontmatter(compacted, profile.id, profile.name, { persistDefault: hasExistingProfile || isCustomProfile });
         if (nextVal !== currentVal) {
           currentVal = nextVal;
           contentRef.current = nextVal;

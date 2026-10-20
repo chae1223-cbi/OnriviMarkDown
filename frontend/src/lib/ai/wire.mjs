@@ -2,6 +2,9 @@
 // 📊 [OMD-AI-Wire-0001] src/lib/ai/wire.mjs
 // 🎯 @KICK  : 다중 AI(Google, OpenAI, Claude) 프로토콜 및 스트리밍 엔진
 // 🛡️ @GUARD : Rule 1(단일 주석 관리), Google Gemma/Gemini 실전 API 호환성 보장
+// 🚨 @PATCH : **2026-10-20** — [listModels Google/OpenAI 모델 조회 시 구버전·스냅샷·실험용 모델 사전 필터링]:
+//             1) Google API (/v1beta/models) 호출 시 구버전(1.0, 1.5, 2.x, gemma-2-), 실험용(-exp, -preview, -8b, lite), 스냅샷(-\d{3,4}) 등을 사전 필터링
+//             2) OpenAI API (/v1/models) 호출 시 날짜 스냅샷(-\d{4}-\d{2}-\d{2}, -\d{8}), search, preview, deep-research, live, nano, 3.5 등을 사전에 걸러 로컬 저장소 오염 원천 차단
 // 🚨 @PATCH : **2026-10-20** — [Google 공식 안내 모델(gemini-3.8-flash)로 전면 통일 및 폐기 모델 원천 교체]:
 //             1) 구글 API의 'gemini-2.0-flash is no longer available. Please update to models/gemini-3.8-flash' 지침 100% 반영
 //             2) MODEL_RUNTIME_MAP의 Google Gemini 및 Gemma 4 매핑 대상을 Google 공식 권장 플래그십인 'gemini-3.8-flash'로 일원화
@@ -140,8 +143,8 @@ export async function listModels(provider,key,signal,fetcher=fetch) {
     for(const m of data.models||data.data||[]){
       const id=String(m.name||m.id||'').replace(/^models\//,'');
       if(provider==='google'&&!m.supportedGenerationMethods?.includes('generateContent'))continue;
-      if(provider==='google'&&(!/^(gemini|gemma)-/.test(id)||/image|banana|tts|live|robotics|transcrib|embedding/.test(id)))continue;
-      if(provider==='openai'&&(!/^(gpt-|o\d|chatgpt-)/.test(id)||/audio|realtime|transcrib|tts|image|embedding|moderation/.test(id)))continue;
+      if(provider==='google'&&(!/^(gemini|gemma)-/.test(id)||/image|banana|tts|live|robotics|transcrib|embedding|exp|preview|learnlm|-8b|lite|-\d{3,4}$|-\d{2}-\d{2}$|^gemini-1\.|^gemini-2\.|^gemma-2-/.test(id)))continue;
+      if(provider==='openai'&&(!/^(gpt-|o\d|chatgpt-)/.test(id)||/audio|realtime|transcrib|tts|image|embedding|moderation|search|deep-research|live|nano|babbage|davinci|curie|ada|3\.5|-\d{4}-\d{2}-\d{2}|-\d{8}$/.test(id)))continue;
       rows.push({id,name:m.displayName||m.display_name||id,family:provider==='google'?(id.startsWith('gemma')?'Gemma':'Gemini'):provider==='openai'?'GPT':'Claude'});
     }
     if(provider==='google'&&data.nextPageToken)url=`https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&pageToken=${encodeURIComponent(data.nextPageToken)}`;
