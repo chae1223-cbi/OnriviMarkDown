@@ -1,5 +1,9 @@
 /**
  * 프로그램명 : OnriviAuthor 
+// 🚨 @PATCH : **2026-10-21** — [문서보기(VisualDocumentEditor) 서명/발신인(SIGNATURE) 네이티브 지원 및 차단 해제]:
+//             1) dispatchCommand의 문서보기 미지원 차단 목록에서 'SIGNATURE' 제거
+//             2) case 'SIGNATURE': 에서 VisualDocumentEditor 활성 시 visualCommandRef.current('SIGNATURE')를 우선 실행하여 위지윅 문서보기에서도 단축키(Ctrl+Alt+R) 및 플로팅 툴바 버튼으로 서명/발신인 서식이 즉시 적용되도록 연동
+//             3) 플로팅 툴바 서명/발신인 툴팁을 '서명/발신인 (왼쪽 정렬) (Ctrl+Alt+R)'으로 동기화
 // 🚨 @PATCH : **2026-10-21** — [문서 미열림 시 AI_DRAFT 명령 호출 차단 안내 토스트 탑재]:
 //             1) case 'AI_DRAFT': 실행 시 !activeTabId 상태이면 '문서를 먼저 열어주세요.' 경고 토스트를 표시하고 판넬 오픈 방어
 // 🚨 @PATCH : **2026-10-21** — [공통 리소스 폴더 변경/해제 시 해당 폴더의 AI 환경정보(키/모델) 실시간 즉각 연동]:
@@ -369,7 +373,9 @@
 
 // @ts-nocheck
 
-"use client"; // next.js의 규칙, 이 페이지는 client side에서 렌더링됨. 
+"use client";
+import { reportNumberingCss } from '@/lib/reportNumbering';
+// next.js의 규칙, 이 페이지는 client side에서 렌더링됨. 
 //지시어 종류실행 및 렌더링 위치설명 및 아키텍처적 역할"use client";
 //최종 유저의 웹 브라우저자바스크립트 Hooks(useState, useEffect)를 허용하고, 마우스 클릭·키보드 타이핑 등 실시간 UI 인터랙션을 처리할 때 선언합니다.
 //"use server";백엔드 Node.js 서버프론트엔드(브라우저)에서 백엔드 서버의 함수를 마치 API 호출하듯이 다이렉트로 안전하게 원격 실행할 수 있게 만드는 서버 
@@ -7712,7 +7718,7 @@ blockquote li p {
     const extraCss = prof.customCss?.trim()
       ? `\n@layer onrivi-extra {\n${prof.customCss}\n}`
       : '';
-    return `@layer onrivi-settings, onrivi-extra;\n@layer onrivi-settings {\n${css}\n}${extraCss}`;
+    return `@layer onrivi-settings, onrivi-extra;\n@layer onrivi-settings {\n${css}\n${reportNumberingCss(prof)}\n}${extraCss}`;
   }, [profiles, activeProfileId, previewMode, isStyleModalOpen]);
 
   // ====================================================================
@@ -8152,7 +8158,7 @@ blockquote li p {
     if (!executingVisualSourceActionRef.current && previewRef.current?.querySelector('.visual-document-editor') && [
       'UNDERLINE', 'STRIKETHROUGH', 'IMAGE', 'VIDEO', 'MAP', 'TABLE', 'QUICK_TABLE',
       'INSERT_TABLE_ROW', 'DELETE_TABLE_ROW', 'CHART', 'CODE', 'CHECK',
-      'REMOVE_PREFIX', 'DOC_LINK', 'SIGNATURE', 'MERGE',
+      'REMOVE_PREFIX', 'DOC_LINK', 'MERGE',
     ].includes(type)) {
       showToast('이 기능은 현재 마크다운 보기에서 사용할 수 있습니다.', 'info');
       return;
@@ -8501,7 +8507,13 @@ blockquote li p {
         handlers.math();
         break;
       }
-      case 'SIGNATURE': handlers.signature(); break;
+      case 'SIGNATURE': {
+        if (!executingVisualSourceActionRef.current && previewRef.current?.querySelector('.visual-document-editor') && visualCommandRef.current?.('SIGNATURE')) {
+          return;
+        }
+        handlers.signature();
+        break;
+      }
 
       // ★ 퀵 래핑 (Quick Transform)
       case 'WRAP_H1': handlers.quickWrap('h1'); break;
@@ -10290,7 +10302,7 @@ blockquote li p {
                                         setFloatingToolbar(prev => ({ ...prev, visible: false }));
                                       }}
                                       className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-zinc-800 dark:text-zinc-100"
-                                      title="서명/발신인 (우측 정렬) (Ctrl+Alt+R)"
+                                      title="서명/발신인 (왼쪽 정렬) (Ctrl+Alt+R)"
                                     >
                                       <Icon name="Signature" size={19} className="text-zinc-800 dark:text-zinc-100" />
                                     </button>

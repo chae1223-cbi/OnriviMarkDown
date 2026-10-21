@@ -3,28 +3,54 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, X } from 'lucide-react';
+import { reportCaption, formatMediaCaption } from '@/lib/aiFriendlyReport';
+import { type MediaCaptionFormat } from '@/components/MediaLayoutFields';
 
 interface TableModalProps {
   isOpen: boolean;
   onClose: () => void;
   onInsert: (code: string) => void;
   isDarkMode: boolean;
+  nextNumber?: number;
+  captionConfig?: {
+    position?: 'top' | 'bottom';
+    format?: string;
+    customTemplate?: string;
+  };
 }
 
 // ====================================================================
 // 📊 [OMD-EDIT-TableModal-0003] TableModal ➔ TableModal
 // 🎯 @KICK  : 표 삽입 모달 - 10x10 그리드 UI로 마우스 표 크기 선택 후 마크다운 코드 생성
 // 🛡️ @GUARD : isOpen false 또는 mounted false 시 null 반환으로 조기 종료
+// 🚨 @PATCH : **2026-10-21** — [표 설명(캡션) 위치(상단/하단) 및 표현 구문(mediaCaptionStructure) 연동]:
+//             1) 서식 프로필의 mediaCaptionStructure(position, format) 설정을 표 캡션 생성에 반영
+//             2) formatMediaCaption 연동으로 표준/대괄호/화살괄호 및 상/하단 배치 지원
 // 🚨 @PATCH : **2026-10-14** — [표 삽입 모달 Enter 키 즉시 생성 및 첫 번째 헤더 안착 연동]: 모달 내에서 Enter 키 입력 시 즉시 표가 생성되도록 키보드 편의성 지원
 // 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-02 - 헤더는 중앙 정렬 · 본문 열 정렬 프리셋 4종(기본 좌측, 전체 중앙, 회계형, 요약형) 선택 UI 및 마크다운 자동 생성 지원
 //             2026-07-15 - 마우스 드래그 그리드 10x10 디자인 전면 개편 및 안개 블러 제거, 라운드 4px 규격 장착
 // 🔗 @CALLS : handleInsert, createPortal
 // ====================================================================
-export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: TableModalProps) {
+export default function TableModal({ isOpen, onClose, onInsert, isDarkMode, nextNumber = 1, captionConfig }: TableModalProps) {
   const [hoverPos, setHoverPos] = useState({ r: 3, c: 2 });
   const [selectedPos, setSelectedPos] = useState({ r: 3, c: 2 });
   const [alignPreset, setAlignPreset] = useState<'default' | 'center' | 'numeric' | 'summary'>('default');
+  const [tableTitle, setTableTitle] = useState('');
+  const [tableNumber, setTableNumber] = useState(1);
+  const [captionPosition, setCaptionPosition] = useState<'top' | 'bottom'>('top');
+  const [captionFormat, setCaptionFormat] = useState<MediaCaptionFormat>('standard');
+  const [customTemplate, setCustomTemplate] = useState('**{kind} {n}. {title}**');
+
+  useEffect(() => {
+    if (isOpen) {
+      setTableTitle('');
+      setTableNumber(nextNumber);
+      setCaptionPosition(captionConfig?.position || 'top');
+      setCaptionFormat((captionConfig?.format as MediaCaptionFormat) || 'standard');
+      setCustomTemplate(captionConfig?.customTemplate || '**{kind} {n}. {title}**');
+    }
+  }, [isOpen, nextNumber, captionConfig]);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -51,15 +77,26 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
     let row = "| " + Array(c).fill("내용").join(" | ") + " |\n";
     let body = Array(r).fill(row).join("");
     
-    onInsert(`\n${header}${divider}${body}\n`);
+    const caption = tableTitle.trim() ? formatMediaCaption('표', tableNumber, tableTitle, captionFormat, customTemplate) : '';
+    let finalCode = '';
+    if (caption) {
+      if (captionPosition === 'bottom') {
+        finalCode = `\n${header}${divider}${body}\n\n${caption}\n`;
+      } else {
+        finalCode = `\n${caption}\n\n${header}${divider}${body}\n`;
+      }
+    } else {
+      finalCode = `\n${header}${divider}${body}\n`;
+    }
+    onInsert(finalCode);
     onClose();
-  }, [selectedPos, alignPreset, onInsert, onClose]);
+  }, [selectedPos, alignPreset, tableTitle, tableNumber, captionPosition, captionFormat, customTemplate, onInsert, onClose]);
 
   // ⌨️ Enter 키 입력 시 즉시 표 삽입 처리
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' && !e.isComposing) {
         e.preventDefault();
         handleInsert();
       }
@@ -147,6 +184,15 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
             그리드를 클릭하여 크기를 지정하세요
           </p>
 
+          <div className="w-full mb-4 space-y-2">
+            <label className="block text-xs font-semibold">표 제목 (선택)
+              <input aria-label="표 제목" value={tableTitle} onChange={e=>setTableTitle(e.target.value)} placeholder="예: 추진 일정" className="mt-1 w-full rounded border p-2 bg-transparent" />
+            </label>
+            <label className="flex items-center gap-2 text-xs">표 번호
+              <input aria-label="표 번호" type="number" min={1} value={tableNumber} onChange={e=>setTableNumber(Math.max(1,Number(e.target.value)||1))} className="w-20 rounded border p-2 bg-transparent" />
+            </label>
+            <p className="text-xs text-slate-500">제목을 입력하면 표 위에 ‘표 {tableNumber}. 제목’을 원문으로 저장합니다. 번호는 삽입 후에도 직접 수정할 수 있습니다. 표 안의 표와 복잡한 병합은 피하세요.</p>
+          </div>
           {/* Column Alignment Presets */}
           <div className="w-full mb-4">
             <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 mb-2 block text-center">

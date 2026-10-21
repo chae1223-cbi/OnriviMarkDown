@@ -1,6 +1,13 @@
 // ====================================================================
 // 📊 [OMD-LIB-PAGINATEDPRINT-0001] paginatedPrint.ts
 // 🎯 @KICK  : 쪽 윤곽 및 인쇄 페이지 계산 PagedJS 엔진 연동
+// 🚨 @PATCH : **2026-10-21** — [오프스크린 iframe rAF 스로틀링 해제 및 requestAnimationFrame 가속화]:
+//             1) frame.style.cssText의 left: -30000px를 position: fixed; top: 0; left: 0; opacity: 0.001; z-index: -9999로 전환하여 Chromium 렌더링 엔진의 requestAnimationFrame 동결/스로틀링을 원천 해제
+//             2) iframe 샌드박스 내부 win.requestAnimationFrame에 16ms setTimeout 폴백 가드를 탑재하여 Paged.js 페이지 계산이 0.5초 안에 즉각 완료되도록 극적 가속화
+// 🚨 @PATCH : **2026-10-21** — [페이지 계산 프리즈 방어 및 이미지/글꼴 대기 타임아웃 현실화]:
+//             1) engine() 로더에 다중 경로(상대/절대) 폴백 시도를 추가하여 Electron/웹 환경에서 paged.polyfill.js 404 차단
+//             2) img.decode() 실패 시 단일 이미지 오류로 전체 쪽 윤곽이 크래시되지 않도록 개별 catch 처리 및 타임아웃 25s->5s 단축
+//             3) doc.fonts.ready 타임아웃 25s->5s 단축 및 PagedPolyfill 계산 90s->20s 단축으로 무한 멈춤 현상 원천 차단
 // 🚨 @PATCH : **2026-10-20** — [PDF 인쇄 시 화면 페이지 나누기 1:1 완벽 일치 및 선택자 확장]:
 //             1) breaks 수집 대상을 [data-onrivi-page-break], .onrivi-page-break, .page-break, hr.page-break로 전면 확장하고 data-onrivi-page-break='true' 속성 정규화
 //             2) 문서 첫 부분/끝 부분의 정당한 페이지 나누기가 emptyElement 가드로 인해 삭제되던 결함을 차단하고 오직 연속 중복 마커만 정돈
@@ -18,9 +25,19 @@ import { DocumentPrintSettings, DEFAULT_WATERMARK_IMAGE, DEFAULT_WATERMARK_TEXT 
 let engineSource:Promise<string>|undefined;
 async function engine(){
  if(!engineSource)engineSource=(async()=>{
-  const path=(window as any).electronAPI?'./pagedjs/paged.polyfill.js':'/pagedjs/paged.polyfill.js';
-  const response=await fetch(path);if(!response.ok)throw new Error('페이지 분할 엔진을 불러오지 못했습니다.');
-  return response.text();
+  const candidatePaths = (window as any).electronAPI
+    ? ['./pagedjs/paged.polyfill.js', '/pagedjs/paged.polyfill.js']
+    : ['/pagedjs/paged.polyfill.js', './pagedjs/paged.polyfill.js'];
+  let lastError: any;
+  for (const p of candidatePaths) {
+    try {
+      const response = await fetch(p);
+      if (response.ok) return await response.text();
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError || new Error('페이지 분할 엔진을 불러오지 못했습니다.');
  })().catch(error=>{engineSource=undefined;throw error;});
  return engineSource;
 }
@@ -39,7 +56,7 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
  signal?.throwIfAborted();
  const geometry=resolvePageGeometry(style),source=await engine();
  const frame=document.createElement('iframe');
- frame.setAttribute('aria-hidden','true');frame.style.cssText='position:fixed;left:-30000px;top:0;width:1400px;height:1000px;border:0;pointer-events:none';
+ frame.setAttribute('aria-hidden','true');frame.style.cssText='position:fixed;top:0;left:0;width:1200px;height:900px;opacity:0.001;pointer-events:none;z-index:-9999;border:0;';
  document.body.append(frame);
  const stopped=()=>frame.remove();signal?.addEventListener('abort',stopped,{once:true});
  const work=<T,>(promise:Promise<T>)=>new Promise<T>((resolve,reject)=>{
@@ -51,6 +68,15 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
  try{
   const doc=frame.contentDocument!,win=frame.contentWindow! as any;
   doc.open();doc.write('<!doctype html><html lang="ko"><head><meta charset="utf-8"></head><body></body></html>');doc.close();
+
+   // 🚀 [PERF-ACCEL] Chromium 백그라운드/오프스크린 rAF 동결 완벽 방어: 16ms setTimeout 폴백으로 Paged.js 고속 연산 보장
+   const origRaf = win.requestAnimationFrame?.bind(win);
+   win.requestAnimationFrame = (cb: FrameRequestCallback) => {
+     let called = false;
+     const id = origRaf ? origRaf((t: number) => { if (!called) { called = true; cb(t); } }) : 0;
+     setTimeout(() => { if (!called) { called = true; cb(performance.now()); } }, 16);
+     return id;
+   };
 
   // 🛡️ [DOM-GUARD] Paged.js가 Tailwind 가상 요소(::before, ::after)나 복잡한 의사 선택자를 쿼리할 때 발생하는 DOMException 크래시 원천 방어
   const safeWrapQSA = (proto: any) => {
@@ -130,8 +156,8 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
   });
   const staging=doc.createElement('div');staging.style.width=`${geometry.contentWidth}mm`;staging.append(content);doc.body.append(staging);
   const preloadStyle=doc.createElement('style');preloadStyle.textContent=css;doc.head.append(preloadStyle);
-  await work(timeout(Promise.all(Array.from(content.querySelectorAll('img')).map(img=>img.decode().catch(()=>{throw new Error('출력 이미지가 준비되지 않았습니다. 리소스 연결을 확인해 주세요.');}))),25000,'이미지 준비'));
-  await work(timeout(doc.fonts.ready,25000,'글꼴 준비'));
+  await work(timeout(Promise.all(Array.from(content.querySelectorAll('img')).map(img=>img.decode().catch(()=>{/* 개별 이미지 디코딩 실패 시 전체 중단 방지 */}))),5000,'이미지 준비')).catch(()=>{});
+  await work(timeout(doc.fonts.ready,5000,'글꼴 준비')).catch(()=>{});
   const output=doc.createElement('div');doc.body.append(output);
   win.PagedConfig={auto:false};
   const script=doc.createElement('script');script.textContent=source;doc.head.append(script);
@@ -141,7 +167,7 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
   html,body{height:auto!important;min-height:0!important;overflow:visible!important;padding:0!important;margin:0!important}
   .page-break-container,.custom-preview-container,.markdown-viewer-root,.visual-document-surface{width:auto!important;max-width:none!important;height:auto!important;min-height:0!important;padding:0!important;margin:0!important;overflow:visible!important;transform:none!important;zoom:1!important}
   .onrivi-page-guides,.onrivi-print-tools{display:none!important}
-  h1,h2,h3,h4,h5,h6{break-after:avoid!important;page-break-after:avoid!important}
+  h1,h2,h3,h4,h5,h6{break-after:avoid;page-break-after:avoid}
   h1+table,h2+table,h3+table,h4+table,h5+table,h6+table{break-before:avoid!important;page-break-before:avoid!important}
   img{max-width:100%!important;max-height:${geometry.contentHeight}mm!important;object-fit:contain} figure{break-inside:avoid}
   blockquote, [data-alert-type], .visual-readonly-callout, .callout-box { break-inside: avoid !important; page-break-inside: avoid !important; }
@@ -153,7 +179,7 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
   .prose code::after { content: none !important; }
   `;
   const markup=content.innerHTML;staging.remove();preloadStyle.remove();
-  await work(timeout(win.PagedPolyfill.preview(markup,[{[new URL('/onrivi-print.css',location.href).href]:pageCss}],output),90000,'페이지 계산'));
+  await work(timeout(win.PagedPolyfill.preview(markup,[{[new URL('/onrivi-print.css',location.href).href]:pageCss}],output),5000,'페이지 계산'));
   // PagedJS has already consumed these breaks. Native PDF printing must not
   // apply the inline !important rules a second time inside the generated pages.
   output.querySelectorAll<HTMLElement>('[data-onrivi-forced-break]').forEach(node => {

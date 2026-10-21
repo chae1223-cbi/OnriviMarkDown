@@ -363,7 +363,7 @@ function buildSectionXml(containerEl: HTMLElement, images: ExtractedImage[]): { 
       const isOrdered = tag === 'ol';
       const items = Array.from(el.children).filter((c) => c.tagName.toLowerCase() === 'li');
       items.forEach((item, idx) => {
-        const prefix = isOrdered ? `${(Number(el.getAttribute('start')) || 1) + idx}. ` : `• `;
+        const prefix = item.hasAttribute('data-onrivi-report-marker') ? '　'.repeat(Math.max(0,Number(el.getAttribute('data-onrivi-report-depth'))-1)) : isOrdered ? `${(Number(el.getAttribute('start')) || 1) + idx}. ` : `• `;
         const own = item.cloneNode(true) as HTMLElement;
         own.querySelectorAll('ul,ol').forEach(list=>list.remove());
         const inlines = parseInlines(own, 0);

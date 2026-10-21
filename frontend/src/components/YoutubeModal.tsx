@@ -1,3 +1,7 @@
+// 🚨 @PATCH : **2026-10-21** — [동영상 설명(캡션) 위치(상단/하단) 및 표현 구문(표준/대괄호/화살괄호/일반/제목만/커스텀) 설정 연동]:
+//             1) MediaCaptionControl 위젯을 탑재하여 영상 제목, 순번, 상단/하단 위치, 표현 구문 선택 및 실시간 미리보기 제공
+//             2) 서식 프로필의 mediaCaptionStructure 및 nextReportNumber(content, '영상') 기본값 자동 반영
+//             3) 삽입 시 선택된 위치와 표현 구문으로 완성된 동영상 캡션 마크다운 자동 생성
 // 🚨 @PATCH : **2026-10-18** — [동영상 저장 안내 문구 안전 복사로 통일]:
 //             1) 데스크톱/웹 동영상 저장 시 동일명 파일 덮어쓰기 방어 및 안전 보존 정책과 일치하도록 토스트 메시지 갱신
 // 🚨 @PATCH : **2026-10-07** — [환경설정 리소스 폴더(참조파일 등) 동영상 media 하위폴더 직결 바인딩]: 구글 드라이브 동영상 저장 시 cloudSettings.mediaFolderId 우선 참조 및 부모 리소스 폴더 하위 탐색으로 안전 업로드
@@ -16,7 +20,8 @@ import { loadSecureData } from '@/lib/secureStorage';
 import { getEffectiveResourceFolder } from '@/lib/profileStorage';
 import { getSavedDriveToken, getSavedWorkspaceInfo, uploadDriveImage, getDriveMediaImageBlobUrl } from '@/lib/gdrive/googleDriveClient';
 import { pickDriveResourceFile } from '@/lib/gdrive/ResourceFilePicker';
-import { MediaAlignmentControl, MediaSizeInputs, normalizeMediaDimension, type MediaAlign } from '@/components/MediaLayoutFields';
+import { MediaAlignmentControl, MediaSizeInputs, MediaCaptionControl, normalizeMediaDimension, type MediaAlign, type MediaCaptionFormat } from '@/components/MediaLayoutFields';
+import { formatMediaCaption } from '@/lib/aiFriendlyReport';
 
 interface YoutubeModalProps {
   isOpen: boolean;
@@ -30,6 +35,12 @@ interface YoutubeModalProps {
   workspaceType?: string;
   rootFolder?: any;
   resourceFolder?: string | null;
+  captionConfig?: {
+    position?: 'top' | 'bottom';
+    format?: string;
+    customTemplate?: string;
+  };
+  nextNumber?: number;
 }
 
 // ====================================================================
@@ -52,6 +63,8 @@ export default function YoutubeModal({
   workspaceType,
   rootFolder,
   resourceFolder,
+  captionConfig,
+  nextNumber = 1,
 }: YoutubeModalProps) {
   const { showToast } = useToast();
   const [mounted, setMounted] = useState(false);
@@ -98,6 +111,11 @@ export default function YoutubeModal({
   const [sourceUrl, setSourceUrl] = useState("");
   const [appliedPath, setAppliedPath] = useState("");
   const [customDisplayName, setCustomDisplayName] = useState("");
+  const [captionTitle, setCaptionTitle] = useState("");
+  const [captionNumber, setCaptionNumber] = useState(1);
+  const [captionPosition, setCaptionPosition] = useState<'top' | 'bottom'>('top');
+  const [captionFormat, setCaptionFormat] = useState<MediaCaptionFormat>('standard');
+  const [customTemplate, setCustomTemplate] = useState('**{kind} {n}. {title}**');
   const [videoWidth, setVideoWidth] = useState('600');
   const [videoHeight, setVideoHeight] = useState('340');
   const [videoAlign, setVideoAlign] = useState<MediaAlign>('center');
@@ -114,12 +132,18 @@ export default function YoutubeModal({
       setVideoWidth(details?.width || '600'); setVideoHeight(details?.height || '340');
       setVideoAlign((['left','center','right'].includes(details?.align || '') ? details!.align : 'center') as MediaAlign);
       setCustomDisplayName(details?.title || '');
+      setCaptionTitle(details?.title || '');
+      setCaptionNumber(nextNumber || 1);
+      setCaptionPosition(captionConfig?.position || 'top');
+      setCaptionFormat((captionConfig?.format as MediaCaptionFormat) || 'standard');
+      setCustomTemplate(captionConfig?.customTemplate || '**{kind} {n}. {title}**');
     } else if (!isOpen) {
       setSourceUrl("");
       setAppliedPath("");
       setCustomDisplayName("");
+      setCaptionTitle("");
     }
-  }, [isOpen, initialUrl, initialSource]);
+  }, [isOpen, initialUrl, initialSource, nextNumber, captionConfig]);
 
   const uploadVideo = async (file: File, _base64Data: string) => {
     const finalPath = await saveResourceMedia(file,file.name,resourceFolderHandle);
@@ -237,10 +261,23 @@ export default function YoutubeModal({
     try {
     const copied = await importResourceMedia(url,resourceFolderHandle);
     const code = copied === url ? insertCode : videoMarkup(copied,normalizeMediaDimension(videoWidth,'600px'),normalizeMediaDimension(videoHeight,'340px'),videoAlign,customDisplayName || displayName);
-    onInsert(`\n${code}\n`);
+    
+    let finalCode = `\n${code}\n`;
+    const titleToUse = captionTitle.trim() || customDisplayName || displayName || '';
+    if (captionFormat !== 'none' && titleToUse) {
+      const caption = formatMediaCaption('영상', captionNumber, titleToUse, captionFormat, customTemplate);
+      if (captionPosition === 'top') {
+        finalCode = `\n${caption}\n\n${code}\n`;
+      } else {
+        finalCode = `\n${code}\n\n${caption}\n`;
+      }
+    }
+    
+    onInsert(finalCode);
     setSourceUrl("");
     setAppliedPath("");
     setCustomDisplayName("");
+    setCaptionTitle("");
     onClose();
     showToast("동영상을 적용했습니다.", "success");
     } catch(error:any) { showToast(error.message || "동영상 복사 실패", "error"); } finally { setSaving(false); }
@@ -498,6 +535,11 @@ export default function YoutubeModal({
                 </div>
               )}
             </div>
+            {captionPosition === 'bottom' && captionFormat !== 'none' && (captionTitle.trim() || customDisplayName || displayName) && (
+              <div className="text-center font-bold text-xs text-zinc-800 dark:text-zinc-200 py-1.5 px-3 rounded bg-zinc-100 dark:bg-zinc-800/80">
+                {formatMediaCaption('영상', captionNumber, captionTitle.trim() || customDisplayName || displayName, captionFormat, customTemplate)}
+              </div>
+            )}
           </div>
         </div>
 

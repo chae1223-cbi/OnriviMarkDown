@@ -5,7 +5,8 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Search, Plus, Minus, MapPin, Copy, Check, Map, Link2 } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
-import { MediaAlignmentControl, MediaSizeInputs, normalizeMediaDimension, type MediaAlign } from '@/components/MediaLayoutFields';
+import { MediaAlignmentControl, MediaSizeInputs, MediaCaptionControl, normalizeMediaDimension, type MediaAlign, type MediaCaptionFormat } from '@/components/MediaLayoutFields';
+import { formatMediaCaption } from '@/lib/aiFriendlyReport';
 
 interface MapModalProps {
   isOpen: boolean;
@@ -13,11 +14,21 @@ interface MapModalProps {
   onInsert: (code: string) => void;
   isDarkMode: boolean;
   initialSource?: string;
+  captionConfig?: {
+    position?: 'top' | 'bottom';
+    format?: string;
+    customTemplate?: string;
+  };
+  nextNumber?: number;
 }
 
 // ====================================================================
 // 📊 [OMD-CORE-MapModal-0006] MapModal ➔ MapModal
 // 🎯 @KICK  : Google Maps / My Maps iframe 기반 지도 삽입 모달 - 지도 URL 파싱, 주소 검색, 줌 제어, 크기/정렬 설정
+// 🚨 @PATCH : **2026-10-21** — [지도 설명(캡션) 위치(상단/하단) 및 표현 구문(표준/대괄호/화살괄호/일반/제목만/커스텀) 설정 연동]:
+//             1) MediaCaptionControl 위젯을 탑재하여 지도 제목, 순번, 상단/하단 위치, 표현 구문 선택 및 실시간 미리보기 제공
+//             2) 서식 프로필의 mediaCaptionStructure 및 nextReportNumber(content, '지도') 기본값 자동 반영
+//             3) 삽입 시 선택된 위치와 표현 구문으로 완성된 지도 캡션 마크다운 자동 생성
 // 🚨 @PATCH : **2026-10-21** — [지도 삽입 모달 지도 주소(URL) 및 iframe 자동 파싱·삽입 지원]:
 //             1) 주소/장소명 텍스트 검색뿐만 아니라 구글 지도/구글 내 지도(My Maps) 공유 링크(URL) 및 <iframe> 태그 직접 입력 지원
 //             2) My Maps URL(edit/viewer/embed) 감지 시 임베드 주소(/embed?mid=...)로 자동 변환 및 프리뷰/삽입 코드 즉시 연동
@@ -148,7 +159,7 @@ function parseMapInput(input: string): ParsedMapInput | null {
   return null;
 }
 
-export default function MapModal({ isOpen, onClose, onInsert, isDarkMode, initialSource }: MapModalProps) {
+export default function MapModal({ isOpen, onClose, onInsert, isDarkMode, initialSource, captionConfig, nextNumber = 1 }: MapModalProps) {
   const { showToast } = useToast();
   const [address, setAddress] = useState("서울시청");
   const [coords, setCoords] = useState("37.5665, 126.9780");
@@ -161,6 +172,11 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode, initia
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [captionTitle, setCaptionTitle] = useState("");
+  const [captionNumber, setCaptionNumber] = useState(1);
+  const [captionPosition, setCaptionPosition] = useState<'top' | 'bottom'>('top');
+  const [captionFormat, setCaptionFormat] = useState<MediaCaptionFormat>('standard');
+  const [customTemplate, setCustomTemplate] = useState('**{kind} {n}. {title}**');
   const addressInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -217,17 +233,23 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode, initia
       setMapWidth(details?.width || '100%');
       setMapHeight(details?.height || '480');
       setMapAlign((['left', 'center', 'right'].includes(details?.align || '') ? details!.align : 'center') as MediaAlign);
+      setCaptionTitle(details?.title || parsed?.placeName || '');
     } else {
       setCoords("37.5665, 126.9780");
       setAddress("서울시청");
       setPlaceName("서울시청");
+      setCaptionTitle("");
       setCustomEmbedUrl('');
       setZoom(15);
       setMapWidth("100%");
       setMapHeight("480");
       setMapAlign('center');
     }
-  }, [isOpen, initialSource]);
+    setCaptionNumber(nextNumber || 1);
+    setCaptionPosition(captionConfig?.position || 'top');
+    setCaptionFormat((captionConfig?.format as MediaCaptionFormat) || 'standard');
+    setCustomTemplate(captionConfig?.customTemplate || '**{kind} {n}. {title}**');
+  }, [isOpen, initialSource, nextNumber, captionConfig]);
 
   // 지도 주소 파싱 또는 주소/장소명 검색
   const handleSearch = async (e?: React.FormEvent) => {
@@ -311,7 +333,17 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode, initia
   const mapCode = `<iframe src="${googleEmbedUrl}" title="${safeTitle}" style="width:${normalizeMediaDimension(mapWidth, '100%')}; height:${normalizeMediaDimension(mapHeight, '480px')}; border:0;" allowfullscreen loading="lazy" data-align="${mapAlign}"></iframe>`;
 
   const handleInsert = () => {
-    onInsert(`\n${mapCode}\n`);
+    let finalCode = `\n${mapCode}\n`;
+    if (captionFormat !== 'none' && (captionTitle.trim() || placeName || address)) {
+      const titleToUse = captionTitle.trim() || placeName || address || '지도';
+      const caption = formatMediaCaption('지도', captionNumber, titleToUse, captionFormat, customTemplate);
+      if (captionPosition === 'top') {
+        finalCode = `\n${caption}\n\n${mapCode}\n`;
+      } else {
+        finalCode = `\n${mapCode}\n\n${caption}\n`;
+      }
+    }
+    onInsert(finalCode);
     onClose();
   };
 

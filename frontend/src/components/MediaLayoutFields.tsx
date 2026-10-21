@@ -1,6 +1,15 @@
+// ====================================================================
+// 📊 [OMD-UI-MediaLayoutFields-0001] MediaLayoutFields.tsx ➔ 미디어 레이아웃/크기/정렬 및 캡션 설정 위젯
+// 🚨 @PATCH : **2026-10-21** — [미디어 설명(캡션) 위치 및 표현 구문 제어 위젯(MediaCaptionControl) 신설]:
+//             1) 그림/지도/영상 공용 캡션 제목, 순번, 상단/하단 배치 토글, 표현 구문(표준/대괄호/화살괄호/일반/제목만/커스텀) 선택 UI 탑재
+//             2) 실시간 포맷 미리보기 칩 제공으로 사용자가 문서 삽입 전 결과를 직관적으로 확인하도록 지원
+// ====================================================================
+
 import React, { useEffect, useState } from 'react';
+import { formatMediaCaption } from '@/lib/aiFriendlyReport';
 
 export type MediaAlign = 'left' | 'center' | 'right';
+export type MediaCaptionFormat = 'standard' | 'bracket' | 'angle' | 'plain' | 'title-only' | 'custom' | 'none';
 
 export function imagePathWithDimensions(path:string,width:string,height:string,align:string):string {
   const hashIndex=path.indexOf('#'),hash=hashIndex<0?'':path.slice(hashIndex);
@@ -98,4 +107,160 @@ export function normalizeMediaDimension(value: string, fallback: string): string
   if (/^\d+(?:\.\d+)?$/.test(trimmed)) return `${trimmed}px`;
   if (/^\d+(?:\.\d+)?(?:px|%)$/i.test(trimmed) || trimmed.toLowerCase() === 'auto') return trimmed;
   return fallback;
+}
+
+export interface MediaCaptionControlProps {
+  kind: '그림' | '지도' | '영상';
+  title: string;
+  onTitleChange: (value: string) => void;
+  number: number;
+  onNumberChange: (value: number) => void;
+  position: 'top' | 'bottom';
+  onPositionChange: (value: 'top' | 'bottom') => void;
+  format: MediaCaptionFormat;
+  onFormatChange: (value: MediaCaptionFormat) => void;
+  customTemplate?: string;
+  onCustomTemplateChange?: (value: string) => void;
+  isDarkMode: boolean;
+}
+
+export function MediaCaptionControl({
+  kind,
+  title,
+  onTitleChange,
+  number,
+  onNumberChange,
+  position,
+  onPositionChange,
+  format,
+  onFormatChange,
+  customTemplate = '**{kind} {n}. {title}**',
+  onCustomTemplateChange,
+  isDarkMode
+}: MediaCaptionControlProps) {
+  const previewCaption = formatMediaCaption(kind, number, title.trim() || '제목 예시', format === 'none' ? 'standard' : format, customTemplate);
+
+  const inputClass = `w-full text-xs border rounded px-3 py-2 outline-none focus:ring-1 transition-all ${
+    isDarkMode
+      ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-500 focus:border-[#1d4ed8] focus:ring-[#1d4ed8]/30'
+      : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-[#1d4ed8] focus:ring-[#1d4ed8]/20'
+  }`;
+
+  return (
+    <div className={`rounded-lg p-4 border space-y-3.5 ${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'}`}>
+      <div className="flex items-center justify-between">
+        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 block">
+          {kind} 설명(캡션) 설정
+        </label>
+        <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded">
+          {position === 'top' ? '상단 배치' : '하단 배치'}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-4 gap-2">
+        <div className="col-span-3">
+          <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 mb-1 block">
+            {kind} 제목 (선택)
+          </label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => onTitleChange(e.target.value)}
+            placeholder={`예: ${kind === '그림' ? '안양예술공원 산책로 풍경' : kind === '지도' ? '서울시청 위치' : '시스템 소개 영상'}`}
+            className={inputClass}
+          />
+        </div>
+        <div className="col-span-1">
+          <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 mb-1 block">
+            순번
+          </label>
+          <input
+            type="number"
+            min={1}
+            value={number}
+            onChange={(e) => onNumberChange(Math.max(1, Number(e.target.value) || 1))}
+            className={inputClass + ' font-mono text-center'}
+          />
+        </div>
+      </div>
+
+      {/* 위치 토글 (상단 vs 하단) */}
+      <div>
+        <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 mb-1.5 block">
+          설명(캡션) 위치
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => onPositionChange('top')}
+            className={`py-2 rounded text-xs font-bold transition-all border ${
+              position === 'top'
+                ? 'bg-[#1d4ed8] text-white border-[#1d4ed8] shadow-sm'
+                : isDarkMode
+                  ? 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+                  : 'border-slate-300 bg-slate-50 text-slate-600 hover:text-slate-800'
+            }`}
+          >
+            ⬆ 상단 (AI 친화 표준)
+          </button>
+          <button
+            type="button"
+            onClick={() => onPositionChange('bottom')}
+            className={`py-2 rounded text-xs font-bold transition-all border ${
+              position === 'bottom'
+                ? 'bg-[#1d4ed8] text-white border-[#1d4ed8] shadow-sm'
+                : isDarkMode
+                  ? 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+                  : 'border-slate-300 bg-slate-50 text-slate-600 hover:text-slate-800'
+            }`}
+          >
+            ⬇ 하단 (전통 출판)
+          </button>
+        </div>
+      </div>
+
+      {/* 표현 구문 (Format) 선택 */}
+      <div>
+        <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 mb-1.5 block">
+          표현 구문 포맷
+        </label>
+        <select
+          value={format}
+          onChange={(e) => onFormatChange(e.target.value as MediaCaptionFormat)}
+          className={inputClass + ' font-medium cursor-pointer'}
+        >
+          <option value="standard">표준 볼드: **{kind} {number}. {title || '제목'}**</option>
+          <option value="bracket">대괄호형: **[{kind} {number}] {title || '제목'}**</option>
+          <option value="angle">화살괄호형: **&lt;{kind} {number}&gt; {title || '제목'}**</option>
+          <option value="plain">일반 텍스트: {kind} {number}. {title || '제목'}</option>
+          <option value="title-only">제목만: **{title || '제목'}**</option>
+          <option value="custom">직접 정의 (커스텀 템플릿)</option>
+          <option value="none">설명 미포함 (단독 삽입)</option>
+        </select>
+      </div>
+
+      {format === 'custom' && (
+        <div className="space-y-1.5 pt-1">
+          <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 block">
+            커스텀 템플릿 ({'{kind}'}: 구분, {'{n}'}: 번호, {'{title}'}: 제목)
+          </label>
+          <input
+            type="text"
+            value={customTemplate}
+            onChange={(e) => onCustomTemplateChange?.(e.target.value)}
+            placeholder="예: **{kind} {n}. {title}**"
+            className={inputClass + ' font-mono'}
+          />
+        </div>
+      )}
+
+      {/* 실시간 구문 미리보기 안내 */}
+      {format !== 'none' && (
+        <div className="rounded p-2.5 bg-blue-500/5 border border-blue-500/20 text-[11px] flex items-center justify-between text-blue-700 dark:text-blue-300">
+          <span className="font-semibold">결과 미리보기:</span>
+          <span className="font-bold">{previewCaption}</span>
+        </div>
+      )}
+    </div>
+  );
 }

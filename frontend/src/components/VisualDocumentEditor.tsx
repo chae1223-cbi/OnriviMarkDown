@@ -1,6 +1,10 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
+ * 🚨 @PATCH : **2026-10-21** — [문서보기(VisualDocumentEditor) 서명/발신인(SIGNATURE) 네이티브 지원 및 양방향 연동]:
+ *             1) 문서보기 위지윅 에디터에서 플로팅 툴바 '서명/발신인' 버튼(Signature 아이콘), 단축키(Ctrl+Alt+R), 슬래시 커맨드(/sign, /서명, /사인) 실행 시 마크다운 전환 없이 즉시 실행
+ *             2) 선택 텍스트가 있을 시 줄바꿈(공백 2개) 보존 <div align="left">...</div> 감싸기 및 기존 서명 블록 토글 해제(Unwrap) 지원
+ *             3) 미선택 시 오늘 날짜 기반 표준 공문서 발신인·서명 인감 템플릿 자동 삽입 및 replaceSource·callback을 통한 실시간 반영 및 토스트 알림 연동
  * 🚨 @PATCH : **2026-10-21** — [리스트-빈문단 간 방향키(↑/↓) 건너뛰기 방어 및 리스트 끝 Delete 시 빈문단 삭제·자동 병합 연동]:
  *             1) ArrowUp / ArrowDown 키맵에 moveUpAcrossListBoundary / moveDownAcrossListBoundary를 연동하여 리스트 사이의 빈 줄을 방향키가 건너뛰지 않고 정확히 안착하도록 보정
  *             2) Delete 키맵에 deleteAtEndOfList를 연동하여 리스트 마지막 항목 끝에서 Delete 입력 시 후행 빈 문단을 깔끔하게 삭제하고 분리된 리스트를 하나로 원상 복구
@@ -169,9 +173,11 @@
  *             2) 사용자가 기존 문단에서 오타나 이전 변환으로 '# #2장'처럼 해시가 본문에 박힌 경우에도 제목 2 클릭 시 정상적인 H2 제목으로 변환 보장
  */
 'use client';
+import { nextReportNumber } from '@/lib/aiFriendlyReport';
+
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Fragment, type Node as DocumentNode } from 'prosemirror-model';
+import { Fragment, Slice, type Node as DocumentNode } from 'prosemirror-model';
 import type { SearchEditorHost } from '@/lib/documentFind';
 import { createPortal } from 'react-dom';
 import TableModal from '@/components/TableModal';
@@ -969,6 +975,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   const linkTargetRef = useRef<{ from: number; to: number; valid: boolean } | null>(null);
   const linkCommandRef = useRef<Command>(() => false);
   const insertFootnoteRef = useRef<(removeSlash?: boolean) => void>(() => {});
+  const applySignatureRef = useRef<(removeSlash?: boolean) => boolean>(() => false);
   const [selection, setSelection] = useState(false);
   const manualFloatingRef = useRef(false);
   const selectionVisibleRef = useRef(false);
@@ -1573,6 +1580,10 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         'Mod-k': (state, dispatch) => linkCommandRef.current(state, dispatch),
         'Mod-Alt-f': () => { insertFootnoteRef.current?.(); return true; },
         'Mod-Alt-F': () => { insertFootnoteRef.current?.(); return true; },
+        'Mod-Alt-r': () => { applySignatureRef.current?.(); return true; },
+        'Mod-Alt-R': () => { applySignatureRef.current?.(); return true; },
+        'Mod-Alt-s': () => { applySignatureRef.current?.(); return true; },
+        'Mod-Alt-S': () => { applySignatureRef.current?.(); return true; },
         ArrowDown: chainCommands(moveDownAcrossListBoundary, (state,dispatch,currentView)=>{
           if (state.selection instanceof NodeSelection && ATOM_BLOCK_TYPES.has(state.selection.node.type.name)) {
             return exitMediaBlock(true)(state, dispatch, currentView);
@@ -3006,6 +3017,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     pagebreak:insertPageBreak,
     math: () => { executeItem('math'); return true; }, latex: () => { executeItem('math'); return true; },
     footnote: () => { insertFootnote(); return true; }, fn: () => { insertFootnote(); return true; },
+    signature: () => { applySignature(); return true; }, sign: () => { applySignature(); return true; },
     citation: () => { openCitation(); return true; }, cite: () => { openCitation(); return true; },
     add_reference: () => { onReferenceSettingsRef.current?.(); return true; }, vibe: () => { onReferenceSettingsRef.current?.(); return true; },
   };
@@ -3042,6 +3054,69 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     view.focus();
   };
   insertFootnoteRef.current = insertFootnote;
+
+  const applySignature = (removeSlash = false) => {
+    const view = viewRef.current;
+    if (!view || !view.editable || !codecRef.current) return false;
+
+    if (removeSlash && slashRange.current) {
+      const range = slashRange.current;
+      view.dispatch(view.state.tr.delete(range.from, range.to));
+      slashRange.current = null;
+      setSlash(false);
+    }
+
+    const { from, to } = view.state.selection;
+    const token = `ONRIVICURSOR${Date.now()}${Math.floor(Math.random() * 1000000)}`;
+    const transaction = view.state.tr.insertText(`${token}END`, to).insertText(`${token}START`, from);
+    const marked = codecRef.current.serialize(transaction.doc);
+    const start = marked.indexOf(`${token}START`);
+    const end = marked.indexOf(`${token}END`);
+    const source = marked.replace(`${token}START`, '').replace(`${token}END`, '');
+    const selectedLength = Math.max(0, end - start - `${token}START`.length);
+    const rawSelectedText = selectedLength > 0 ? source.slice(start, start + selectedLength) : '';
+    const trimmedText = rawSelectedText.trim();
+
+    let newSource = '';
+    const divRegex = /^<div\s+align=["'](right|left)["'][^>]*>([\s\S]*?)<\/div>$/i;
+    const match = trimmedText.match(divRegex);
+
+    if (match) {
+      // 1. 이미 <div align="left|right"> 로 감싸진 경우 unwrap 토글
+      const unwrapped = match[2].trim();
+      newSource = source.slice(0, start) + unwrapped + source.slice(start + selectedLength);
+    } else if (trimmedText) {
+      // 2. 텍스트가 선택된 경우: 공문서 서식 줄바꿈(공백 2칸) 보존하며 <div align="left">로 감싸기
+      const lines = trimmedText.split('\n');
+      const processedLines = lines.map((line: string) => {
+        const rTrimmed = line.trimEnd();
+        if (rTrimmed.length > 0 && !rTrimmed.endsWith('  ') && !rTrimmed.endsWith('<br>') && !rTrimmed.endsWith('<br/>')) {
+          return rTrimmed + '  ';
+        }
+        return line;
+      });
+      const contentText = processedLines.join('\n');
+      const wrapped = `<div align="left">\n\n${contentText}\n\n</div>\n`;
+      newSource = source.slice(0, start) + wrapped + source.slice(start + selectedLength);
+    } else {
+      // 3. 선택 영역이 없는 경우: 오늘 날짜 기반 기본 공문서 서명 템플릿 삽입
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일`;
+      const template = `\n\n<div align="left">\n\n${dateStr}  \n**작성자: 홍길동** <span style="color:#dc2626; border:1.5px solid #dc2626; border-radius:50%; padding:0 3px; font-size:0.85em; font-weight:bold;">인</span>\n\n</div>\n\n`;
+      newSource = source.slice(0, start) + template + source.slice(start);
+    }
+
+    (view as any).replaceSource?.(newSource);
+    callback.current(newSource);
+    if (onToastRef.current) {
+      onToastRef.current('서명/발신인 서식이 적용되었습니다.', 'success');
+    } else {
+      setNotice('서명/발신인 서식이 적용되었습니다.');
+    }
+    view.focus();
+    return true;
+  };
+  applySignatureRef.current = applySignature;
   beginImageRef.current = (source, position, file) => {
     const view = viewRef.current;
     if (!view || !view.editable) return;
@@ -3142,6 +3217,10 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     if (['citation','cite'].includes(id)){openCitation(removeSlash);return;}
     if (['footnote', 'fn'].includes(id)) {
       insertFootnote(removeSlash);
+      return;
+    }
+    if (['signature', 'sign', '서명', '사인'].includes(id)) {
+      applySignature(removeSlash);
       return;
     }
     if (['youtube','map'].includes(id) && images.current.onMediaDialog) {
@@ -3323,6 +3402,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       NOW: () => { openDatePickerRef.current(); return true; }, CALENDAR: () => { openDatePickerRef.current(); return true; },
       MATH: () => { executeItemRef.current('math'); return true; }, LATEX: () => { executeItemRef.current('math'); return true; },
       FOOTNOTE: () => { insertFootnoteRef.current?.(); return true; }, FN: () => { insertFootnoteRef.current?.(); return true; },
+      SIGNATURE: () => { applySignatureRef.current(); return true; },
       CITATION: () => { openCitation(); return true; }, CITE: () => { openCitation(); return true; },
       TOGGLE_CSS_STYLE: () => { onStyleSettingsRef.current?.(); return true; },
             CLEAN_DOC: () => {
@@ -3450,7 +3530,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       if (commands[command]) { run(commands[command]); return true; }
       const aliases: Record<string, string> = { HR:'divider', CHECK:'checklist', CHECKLIST:'checklist', CITE:'citation', CITATION:'citation', FOOTNOTE:'footnote', FN:'footnote', DOCLINK:'taglink',
         NOW:'now', CALENDAR:'now',
-        VIDEO:'youtube', YOUTUBE:'youtube', ADD_REFERENCE:'add_reference', TOGGLE_CSS_STYLE:'styleSettings', AI_DRAFT:'aiHelp', CODE:'codeblock', LATEX:'math', MATH:'math' };
+        VIDEO:'youtube', YOUTUBE:'youtube', ADD_REFERENCE:'add_reference', TOGGLE_CSS_STYLE:'styleSettings', AI_DRAFT:'aiHelp', CODE:'codeblock', LATEX:'math', MATH:'math',
+        SIGNATURE:'signature', SIGN:'signature' };
       const item = TOOLBAR_ITEMS.find(tool => tool.id === aliases[command] || tool.id.replace(/([A-Z])/g, '_$1').toUpperCase() === command);
       if (!item) return false;
       executeItemRef.current(item.id);
@@ -3553,13 +3634,14 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       {(['addRow','deleteRow','addColumn','deleteColumn','left','center','right','afterTable','deleteTable'] as const).map(action=><button key={action} type="button" className="rounded border bg-white px-2 py-1 text-sm" onMouseDown={e=>e.preventDefault()} onClick={()=>{const view=viewRef.current,command=tableAction(action);if(view && !command(view.state))setNotice('헤더 행과 마지막 열은 삭제할 수 없습니다. 표 전체를 지우려면 표 삭제를 사용해 주세요.');else run(command);}}>
         {{addRow:'행 추가',deleteRow:'행 삭제',addColumn:'열 추가',deleteColumn:'열 삭제',left:'본문 왼쪽',center:'본문 중앙',right:'본문 오른쪽',afterTable:'표 아래 본문',deleteTable:'표 삭제'}[action]}</button>)}
     </div>, document.body)}
-    <TableModal isOpen={tableDialog} isDarkMode={false} onClose={()=>{setTableDialog(false);if(tableTargetRef.current)imageTargets.current.delete(tableTargetRef.current);tableTargetRef.current=null;}} onInsert={source=>{
+    <TableModal nextNumber={nextReportNumber(content, '표')} isOpen={tableDialog} isDarkMode={false} onClose={()=>{setTableDialog(false);if(tableTargetRef.current)imageTargets.current.delete(tableTargetRef.current);tableTargetRef.current=null;}} onInsert={source=>{
       const view=viewRef.current,target=tableTargetRef.current;
       if(!view || !target?.valid || !view.editable || !codecRef.current){setNotice('문서나 삽입 위치가 변경되었습니다.');return;}
-      const parsed=createVisualDocumentCodec(source),table=parsed.doc.firstChild;
+      const parsed=createVisualDocumentCodec(source);
+      const table = Array.from({length:parsed.doc.childCount},(_,index)=>parsed.doc.child(index)).find(node=>node.type===visualSchema.nodes.table);
       if(table?.type!==visualSchema.nodes.table)return;
       codecRef.current.adopt(parsed);imageTargets.current.delete(target);
-      let tr=view.state.tr.setSelection(TextSelection.between(view.state.doc.resolve(target.from),view.state.doc.resolve(target.to))).replaceSelectionWith(table);
+      let tr=view.state.tr.setSelection(TextSelection.between(view.state.doc.resolve(target.from),view.state.doc.resolve(target.to))).replaceSelection(new Slice(parsed.doc.content,0,0));
       let first=0,tablePos=-1;tr.doc.descendants((node,pos)=>{if(node===table){tablePos=pos;first=pos+4;return false;}return true;});
       if(tablePos>=0)tr=tr.insert(tablePos+table.nodeSize,visualSchema.nodes.paragraph.create());
       const headerTextLength=table.firstChild!.firstChild!.firstChild!.content.size;

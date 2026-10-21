@@ -9,6 +9,7 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-10-21 — [미디어 설명(캡션) 위치 및 표현 구문(mediaCaptionStructure) 서식 제어 패널 신설]: 서식 제어판 [6] 미디어 아코디언 내에 캡션 기본 위치(상단/하단) 토글, 표현 구문(표준/대괄호/화살괄호/일반/제목만/커스텀) 선택 및 커스텀 템플릿 입력 UI 탑재
  *   2026-10-17 — [목록 기본 들여쓰기 너비 슬라이더 조작 시 triggerUpdate 연동]: '목록 기본 들여쓰기 너비' 슬라이더 변경 시 onUpdateProfile 직접 호출 대신 triggerUpdate(updated, 'ul', '목록 기본 들여쓰기 너비')를 호출하여 실시간 미리보기 펄스 하이라이트 및 상태 동기화 완벽 보장
  *   2026-10-14 — [서식관리 아코디언 [5] 타이틀에 '각주' 명시 및 각주 스타일 설정 시인성 강화]: 아코디언 [5] 타이틀을 '🏺 표, 하이퍼링크, 소스코드, 인용구, 각주'로 명시하여 사용자가 각주 글자 크기, 색상, 줄간격, 상하 여백을 한눈에 찾아 설정할 수 있도록 접근성 극대화
  *   2026-10-01 — [내보내기 페이지 나누기 설정 UI 제거]: PDF/EPUB 내보내기 시 제목 기준 강제 페이지 분할 폐지에 따라 페이지 설정 탭의 '내보내기 페이지 나누기' 드롭다운 컨트롤 제거
@@ -1133,6 +1134,22 @@ ${guideContent}
     triggerUpdate(updated);
   };
 
+  /* ─── 미디어 캡션 위치 및 표현 구문 데이터 및 업데이트 ─── */
+  const mediaCaptionStructure = currentProfile.mediaCaptionStructure || {
+    position: 'top',
+    format: 'standard',
+    customTemplate: '**{kind} {n}. {title}**'
+  };
+
+  const updateMediaCaption = (key: string, value: string) => {
+    if (isSystemProfile) return;
+    const updated = {
+      ...currentProfile,
+      mediaCaptionStructure: { ...mediaCaptionStructure, [key]: value }
+    };
+    triggerUpdate(updated, 'img', `미디어 설명(캡션) ${key === 'position' ? '위치' : '표현 구문'} 변경`);
+  };
+
   /* ─── 표 구조(외곽선/행/열 두께) 데이터 및 업데이트 ─── */
   const tableStructure = currentProfile.tableStructure || {
     outerBorderWidth: (currentProfile.rules.table && currentProfile.rules.table['border-width']) || '1px',
@@ -2216,6 +2233,7 @@ ${guideContent}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
               >
                 <option value="decimal">1, 2, 3</option>
+                <option value="onrivi-report">보고서: Ⅰ. → 1. → 가. → 1) → 가)</option>
                 <option value="decimal-leading-zero">01, 02, 03</option>
                 <option value="lower-roman">i, ii, iii</option>
                 <option value="upper-roman">I, II, III</option>
@@ -2223,6 +2241,9 @@ ${guideContent}
               </select>
             </div>
 
+            {(currentProfile.rules.ol || {})['list-style-type'] === 'onrivi-report' && (
+              <p className="text-xs text-zinc-500">단계별로 Ⅰ. → 1. → 가. → 1) → 가)를 표시합니다. Enter로 다음 항목, Tab·Shift+Tab으로 단계를 바꿉니다. 마크다운 원문은 표준 숫자 목록과 계층을 유지하며, 지정 서식과 출력물에서 보고서 번호를 표시합니다. 6단계부터는 숫자를 사용합니다.</p>
+            )}
             {/* 숫자 마커 색상 */}
             <ColorPickerWidget
               label="숫자 마커 색상"
@@ -3340,6 +3361,75 @@ ${guideContent}
                 <option value="left">왼쪽 정렬</option>
                 <option value="right">오른쪽 정렬</option>
               </select>
+            </div>
+
+            {/* 🏷️ 미디어 설명(캡션) 위치 및 표현 구문 설정 */}
+            <div className="border-t border-zinc-200 dark:border-zinc-800/60 pt-4 space-y-3.5">
+              <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">
+                🏷️ 미디어(이미지·지도·동영상) 설명(캡션) 위치 및 표현 구문
+              </span>
+              <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+                <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">설명(캡션) 기본 위치</span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={isSystemProfile}
+                    onClick={() => updateMediaCaption('position', 'top')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                      (currentProfile.mediaCaptionStructure?.position || 'top') === 'top'
+                        ? 'bg-[#1d4ed8] text-white shadow-xs'
+                        : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-300'
+                    }`}
+                  >
+                    상단 (AI 친화 표준)
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSystemProfile}
+                    onClick={() => updateMediaCaption('position', 'bottom')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                      currentProfile.mediaCaptionStructure?.position === 'bottom'
+                        ? 'bg-[#1d4ed8] text-white shadow-xs'
+                        : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-300'
+                    }`}
+                  >
+                    하단 (전통 출판)
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+                <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">표현 구문 포맷</span>
+                <select
+                  value={currentProfile.mediaCaptionStructure?.format || 'standard'}
+                  disabled={isSystemProfile}
+                  onChange={(e) => updateMediaCaption('format', e.target.value)}
+                  className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+                >
+                  <option value="standard">표준: **그림 1. 제목**</option>
+                  <option value="bracket">대괄호: **[그림 1] 제목**</option>
+                  <option value="angle">화살괄호: &lt;그림 1&gt; 제목</option>
+                  <option value="plain">일반: 그림 1. 제목</option>
+                  <option value="title-only">제목만: **제목**</option>
+                  <option value="custom">직접 정의 (커스텀 템플릿)</option>
+                </select>
+              </div>
+
+              {currentProfile.mediaCaptionStructure?.format === 'custom' && (
+                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60 space-y-2">
+                  <label className="text-xs font-bold text-zinc-600 dark:text-zinc-400 block">
+                    커스텀 표현 템플릿 ({'{kind}'}: 구분, {'{n}'}: 번호, {'{title}'}: 제목)
+                  </label>
+                  <input
+                    type="text"
+                    disabled={isSystemProfile}
+                    value={currentProfile.mediaCaptionStructure?.customTemplate || '**{kind} {n}. {title}**'}
+                    onChange={(e) => updateMediaCaption('customTemplate', e.target.value)}
+                    placeholder="예: **{kind} {n}. {title}**"
+                    className="w-full text-xs px-2.5 py-1.5 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono"
+                  />
+                </div>
+              )}
             </div>
           </div>
 

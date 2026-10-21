@@ -1,3 +1,7 @@
+// 🚨 @PATCH : **2026-10-21** — [이미지 설명(캡션) 위치(상단/하단) 및 표현 구문(표준/대괄호/화살괄호/일반/제목만/커스텀) 설정 연동]:
+//             1) MediaCaptionControl 위젯을 탑재하여 그림 제목, 순번, 상단/하단 위치, 표현 구문 선택 및 실시간 미리보기 제공
+//             2) 서식 프로필의 mediaCaptionStructure 및 nextReportNumber(content, '그림') 기본값 자동 반영
+//             3) 삽입 시 fullMarkdown 파라미터를 통해 선택된 위치와 표현 구문으로 완성된 마크다운 자동 생성
 // 🚨 @PATCH : **2026-10-18** — [이미지 저장 안내 문구 안전 복사로 통일]:
 //             1) 데스크톱/웹 이미지 저장 시 동일명 파일 덮어쓰기 방어 및 안전 보존 정책과 일치하도록 토스트 메시지 갱신
 // 🚨 @PATCH : **2026-10-14** — [이미지 미리보기 실패 원인(임시 상대경로 주입/로드에러 영구고착/경로 해석 실패) 근본 해결 및 실시간 프리뷰 정상화]:
@@ -26,12 +30,13 @@ import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { loadSecureData } from '@/lib/secureStorage';
 import { getEffectiveResourceFolder } from '@/lib/profileStorage';
 import { getSavedDriveToken, getSavedWorkspaceInfo, uploadDriveImage, getDriveMediaImageBlobUrl } from '@/lib/gdrive/googleDriveClient';
-import { MediaAlignmentControl, MediaSizeInputs, imagePathWithDimensions, type MediaAlign } from '@/components/MediaLayoutFields';
+import { MediaAlignmentControl, MediaSizeInputs, MediaCaptionControl, imagePathWithDimensions, type MediaAlign, type MediaCaptionFormat } from '@/components/MediaLayoutFields';
+import { formatMediaCaption } from '@/lib/aiFriendlyReport';
 
 interface ImageModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onInsert: (path: string, alt: string, range?: any) => void;
+  onInsert: (path: string, alt: string, range?: any, fullMarkdown?: string) => void;
   isDarkMode: boolean;
   initialData?: {
     alt: string;
@@ -47,6 +52,12 @@ interface ImageModalProps {
   workspaceType?: string;
   rootFolder?: any;
   resourceFolder?: string | null;
+  captionConfig?: {
+    position?: 'top' | 'bottom';
+    format?: string;
+    customTemplate?: string;
+  };
+  nextNumber?: number;
 }
 
 // ====================================================================
@@ -73,12 +84,19 @@ export default function ImageModal({
   workspaceType,
   rootFolder,
   resourceFolder,
+  captionConfig,
+  nextNumber = 1,
 }: ImageModalProps) {
   const [saving, setSaving] = useState(false);
   const [imagePath, setImagePath] = useState("");
   const [clipboardMessage, setClipboardMessage] = useState('');
   const [appliedPath, setAppliedPath] = useState("");
   const [imageAlt, setImageAlt] = useState("");
+  const [captionTitle, setCaptionTitle] = useState("");
+  const [captionNumber, setCaptionNumber] = useState(1);
+  const [captionPosition, setCaptionPosition] = useState<'top' | 'bottom'>('top');
+  const [captionFormat, setCaptionFormat] = useState<MediaCaptionFormat>('standard');
+  const [customTemplate, setCustomTemplate] = useState('**{kind} {n}. {title}**');
   const [imageWidth, setImageWidth] = useState("");
   const [imageHeight, setImageHeight] = useState("");
   const [imageAlign, setImageAlign] = useState<MediaAlign>('center');
@@ -122,22 +140,28 @@ export default function ImageModal({
       setTempPreviewUrl("");
       setDesktopPreviewUrl("");
       setImageLoadError(false);
+      setCaptionNumber(nextNumber || 1);
+      setCaptionPosition(captionConfig?.position || 'top');
+      setCaptionFormat((captionConfig?.format as MediaCaptionFormat) || 'standard');
+      setCustomTemplate(captionConfig?.customTemplate || '**{kind} {n}. {title}**');
       if (initialData) {
         setImagePath(initialData.path);
         setImageAlt(initialData.alt ?? "");
+        setCaptionTitle(initialData.alt ?? "");
         setImageWidth(initialData.width);
         setImageHeight(initialData.height || "");
         setImageAlign((['left', 'center', 'right'].includes(initialData.align) ? initialData.align : 'center') as MediaAlign);
       } else {
         setImagePath("");
         setImageAlt("");
+        setCaptionTitle("");
         setImageWidth("");
         setImageHeight("");
         setImageAlign("center");
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, nextNumber, captionConfig]);
 
   // 🔄 [경로 변경 시 로드 에러 자동 초기화]
   useEffect(() => {
@@ -486,10 +510,23 @@ export default function ImageModal({
       try {
       let finalPath = await importResourceMedia(insertPath,resourceFolderHandle);
       finalPath = imagePathWithDimensions(finalPath,imageWidth,imageHeight,imageAlign);
-      onInsert(finalPath, imageAlt, initialData?.range);
+
+      const altText = imageAlt || captionTitle || '';
+      let fullMarkdown = undefined;
+      if (captionFormat !== 'none' && captionTitle.trim()) {
+        const caption = formatMediaCaption('그림', captionNumber, captionTitle.trim(), captionFormat, customTemplate);
+        if (captionPosition === 'top') {
+          fullMarkdown = `\n${caption}\n\n![${altText}](${finalPath})\n`;
+        } else {
+          fullMarkdown = `\n![${altText}](${finalPath})\n\n${caption}\n`;
+        }
+      }
+
+      onInsert(finalPath, altText, initialData?.range, fullMarkdown);
       setImagePath("");
       setAppliedPath("");
       setImageAlt("");
+      setCaptionTitle("");
       setImageWidth("");
       setImageHeight("");
       setImageAlign("center");
@@ -654,21 +691,40 @@ export default function ImageModal({
             </button>
             {clipboardMessage && <p role="status" className="text-xs text-indigo-700 dark:text-indigo-300">{clipboardMessage}</p>}
 
+            {/* 🏷️ 그림 설명(캡션) 설정 */}
+            <MediaCaptionControl
+              kind="그림"
+              title={captionTitle}
+              onTitleChange={(val) => {
+                setCaptionTitle(val);
+                if (!imageAlt || imageAlt === captionTitle) setImageAlt(val);
+              }}
+              number={captionNumber}
+              onNumberChange={setCaptionNumber}
+              position={captionPosition}
+              onPositionChange={setCaptionPosition}
+              format={captionFormat}
+              onFormatChange={setCaptionFormat}
+              customTemplate={customTemplate}
+              onCustomTemplateChange={setCustomTemplate}
+              isDarkMode={isDarkMode}
+            />
+
             {/* 이미지 속성 */}
             <div className={`rounded-lg p-4 border ${
               isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'
             }`}>
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 mb-3 block">
-                이미지 속성
+                이미지 크기 및 대체 텍스트 (Alt)
               </label>
               <div className="space-y-3">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 mb-1 block">설명 (Alt)</label>
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 mb-1 block">대체 텍스트 (Alt)</label>
                   <input
                     type="text"
                     value={imageAlt}
                     onChange={(e) => setImageAlt(e.target.value)}
-                    placeholder="설명 (Alt) - 선택사항"
+                    placeholder="이미지 대체 텍스트 (기본: 그림 제목 연동)"
                     className={`w-full text-xs border rounded px-3 py-2.5 outline-none focus:ring-1 transition-all ${
                       isDarkMode
                         ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-600 focus:border-indigo-500 focus:ring-indigo-500/30'
@@ -703,6 +759,12 @@ export default function ImageModal({
             </div>
 
             <div className="flex-grow flex flex-col p-5 gap-3">
+              {/* 이미지 캡션 상단 표시 */}
+              {captionPosition === 'top' && captionFormat !== 'none' && captionTitle.trim() && (
+                <div className="text-center font-bold text-xs text-zinc-800 dark:text-zinc-200 py-1 px-2 rounded bg-zinc-100 dark:bg-zinc-800/80">
+                  {formatMediaCaption('그림', captionNumber, captionTitle.trim(), captionFormat, customTemplate)}
+                </div>
+              )}
               {/* 이미지 표시 영역 */}
               <div
                 className={`relative flex-grow rounded-lg overflow-hidden border flex items-center justify-center ${

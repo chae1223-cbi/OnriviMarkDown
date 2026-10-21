@@ -1,3 +1,4 @@
+import { AI_REPORT_PRINCIPLES } from './aiFriendlyReport';
 // ====================================================================
 // 📊 [OMD-LIB-promptTemplates-0001] src/lib/promptTemplates.ts
 // 🎯 @KICK  : 기본 프롬프트 템플릿(DEFAULT_PROMPTS) 정의 및 리소스 폴더(ai_prompts.json) 연동
@@ -12,7 +13,23 @@ export interface PromptTemplate {
   userInputTemplate: string;
 }
 
+export const AI_REPORT_TEMPLATES: Record<string, PromptTemplate> = {
+  'AI 친화적 보고서 작성': {
+    systemPrompt: `${AI_REPORT_PRINCIPLES}\n제공된 자료로 마크다운 보고서를 작성한다. 없는 사실이나 표·그림 자료를 만들지 않는다. 제목 계층과 항목 번호를 구분하고 필요한 계층만 사용한다.`,
+    userInputTemplate: '- 보고서 제목:\n- 목적과 독자:\n- 배경·현황·근거 자료:\n- 추진 내용·일정·기대 효과:\n'
+  },
+  'AI 친화적 보고서 정리': {
+    systemPrompt: `${AI_REPORT_PRINCIPLES}\n기존 보고서를 위 원칙으로 정리한다. 숫자·기관명·날짜·인용·링크를 보존한다. 이미지 경로와 표 데이터를 유지한다. 전체 문서의 맥락을 보고 정리하며 변경 전 사용자 확인을 거친다.`,
+    userInputTemplate: '- 정리할 보고서 원문:\n- 보존할 표현·특별 요청(선택):\n'
+  },
+  'AI 친화적 보고서 점검': {
+    systemPrompt: `${AI_REPORT_PRINCIPLES}\n문서를 변경하지 말고 전체를 한 번에 점검한다. 표·그림 상단 제목과 번호, 복잡한 표, 서술식 문장, 항목 순서, 불필요한 장식을 확인한다. 실제 발견한 항목만 [위치 또는 원문 인용 / 이유 / 제안]으로 보고하고 없으면 발견하지 못했다고 답한다. 확실하지 않은 것은 확인 필요로 표시한다.`,
+    userInputTemplate: '- 점검할 보고서 원문:\n'
+  }
+};
+
 export const DEFAULT_PROMPTS: Record<string, Record<string, PromptTemplate>> = {
+  'AI 친화적 보고서': AI_REPORT_TEMPLATES,
   '마케팅 및 SEO/GEO 최적화': {
     'GEO 최적화 블로그/가이드': {
       systemPrompt: `너는 구글(Google)과 같은 전통적인 검색 엔진뿐만 아니라, ChatGPT, Perplexity, Gemini 등 AI 검색 엔진(Generative Engine)의 데이터 수집 알고리즘을 완벽하게 파악하고 있는 GEO(Generative Engine Optimization) 전문가다.
@@ -404,7 +421,7 @@ export const DEFAULT_PROMPTS: Record<string, Record<string, PromptTemplate>> = {
 export async function getPromptTemplates(resourceFolder?: string, resourceFolderHandle?: any): Promise<Record<string, Record<string, PromptTemplate>>> {
   try {
     const templates = await readResourceJson('ai_prompts.json', resourceFolderHandle, resourceFolder);
-    if (templates && Object.keys(templates).length) return templates;
+    if (templates && Object.keys(templates).length) return {...templates, 'AI 친화적 보고서': {...AI_REPORT_TEMPLATES, ...templates['AI 친화적 보고서']}};
   } catch {}
   return DEFAULT_PROMPTS;
 

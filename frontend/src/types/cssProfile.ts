@@ -1,3 +1,27 @@
+// ====================================================================
+// 📊 [OMD-STYLE-CssProfile-0001] cssProfile.ts ➔ 서식 프로필 및 타이포그래피/미디어 타입 정의
+// 🚨 @PATCH : **2026-10-21** — [미디어 설명(캡션) 위치 및 표현 구문 구조체(MediaCaptionStructure) 신설]:
+//             1) 미디어(이미지·지도·동영상) 캡션 위치('top' 상단 / 'bottom' 하단) 및 표현 구문 포맷(standard, bracket, angle, plain, custom) 타입 정의
+//             2) CssProfile에 mediaCaptionStructure 속성을 추가하여 서식 프로필별 미디어 캡션 환경설정 지원
+// ====================================================================
+
+/** 미디어(이미지·지도·동영상) 설명(캡션) 위치 및 표현 구문 설정 구조체 */
+export interface MediaCaptionStructure {
+  /** 캡션 위치: 'top' (상단 - AI 친화 표준) | 'bottom' (하단 - 전통 출판) */
+  position: 'top' | 'bottom';
+  /** 표현 구문 프리셋:
+   * 'standard': "**{kind} {n}. {title}**" (예: **그림 1. 풍경**)
+   * 'bracket': "**[{kind} {n}] {title}**" (예: **[그림 1] 풍경**)
+   * 'angle': "**<{kind} {n}> {title}**" (예: **<그림 1> 풍경**)
+   * 'plain': "{kind} {n}. {title}" (볼드 없음)
+   * 'title-only': "**{title}**" (번호 없이 제목만)
+   * 'custom': 사용자 지정 템플릿
+   */
+  format: 'standard' | 'bracket' | 'angle' | 'plain' | 'title-only' | 'custom';
+  /** 커스텀 템플릿 문자열 ({kind}, {n}, {title} 치환 플레이스홀더) */
+  customTemplate?: string;
+}
+
 /** CSS 속성-값 쌍을 담는 규칙 집합 (예: { "text-align": "center", "font-weight": "bold" }) */
 export interface CssRuleSet {
   [cssProperty: string]: string;
@@ -105,4 +129,5 @@ export interface CssProfile {
     rowBorderWidth: string;   // 행(가로선) 두께 (예: '1px')
     colBorderWidth: string;   // 열(세로선) 두께 (예: '1px')
   };
+  mediaCaptionStructure?: MediaCaptionStructure;
 }

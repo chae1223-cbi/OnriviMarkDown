@@ -15,7 +15,7 @@ assert.equal(settings.writePrintSettings(saved,settings.readPrintSettings(saved)
 fs.writeFileSync(path.join(dir,'ts-loader.cjs'),`const ts=require(${JSON.stringify(require.resolve(path.join(frontend,'node_modules/typescript')))});module.exports=function(source){return ts.transpileModule(source,{compilerOptions:{module:99,target:7,jsx:4,esModuleInterop:true}}).outputText;};`);
 fs.writeFileSync(path.join(dir,'css-loader.cjs'),'module.exports=function(){return "";};');
 fs.writeFileSync(path.join(dir,'resourceStub.js'),`exports.saveResourceMedia=async(file,name)=>{window.savedImage={name,size:file.size};return '/media/'+name;};`);
-fs.writeFileSync(path.join(dir,'entry.js'),`window.paginate=require('./lib/paginatedPrint').paginatePrintHtml;window.defaults=require('./lib/documentPrintSettings').DEFAULT_PRINT_SETTINGS;window.runExport=require(${JSON.stringify(path.join(frontend,'src/lib/exportHandlers.ts'))}).exportPDF;window.runEpub=require(${JSON.stringify(path.join(frontend,'src/lib/exportHandlers.ts'))}).exportEPUB;
+fs.writeFileSync(path.join(dir,'entry.js'),`window.paginate=require('./lib/paginatedPrint').paginatePrintHtml;window.defaults=require('./lib/documentPrintSettings').DEFAULT_PRINT_SETTINGS;window.runExport=require(${JSON.stringify(path.join(frontend,'src/lib/exportHandlers.ts'))}).exportPDF;window.runEpub=require(${JSON.stringify(path.join(frontend,'src/lib/exportHandlers.ts'))}).exportEPUB;window.exportDocx=require(${JSON.stringify(path.join(frontend,'src/lib/exportHandlers.ts'))}).exportDOCX;window.exportHwpx=require(${JSON.stringify(path.join(frontend,'src/lib/exportHandlers.ts'))}).exportHWPX;window.numbering=require(${JSON.stringify(path.join(frontend,'src/lib/reportNumbering.ts'))});window.reportProfile=require(${JSON.stringify(path.join(frontend,'src/constants/cssProfile.ts'))}).SYSTEM_PROFILES.find(p=>p.id==='ai-friendly-report');
 const React=require('react'),{createRoot}=require('react-dom/client'),Guides=require(${JSON.stringify(path.join(frontend,'src/components/DocumentPageGuides.tsx'))}).default,Modal=require(${JSON.stringify(path.join(frontend,'src/components/ExportModal.tsx'))}).default;
 window.mountGuides=css=>{
  const style=document.createElement('style');style.textContent=css;document.head.append(style);
@@ -218,11 +218,54 @@ async function main(){
     return ['fontSize','lineHeight','paddingTop','paddingLeft','borderBottomStyle','textAlign','backgroundColor'].map(key=>cell.style[key]);
   },epubTable);
   assert.deepEqual(epubStyle,['19px','31px','13px','17px','dashed','right','rgb(240, 245, 250)'],'EPUB cell CSS must retain displayed table styles');
+  await page.goto(`http://127.0.0.1:${server.address().port}`);
+  const captions=await page.evaluate(async()=>{
+    const style=document.createElement('style');style.textContent=window.reportProfile.customCss;document.head.append(style);
+    const root=document.createElement('div');root.innerHTML='<div class="markdown-viewer-root"><p><strong>표 1. 추진 일정</strong></p><table><tr><th>단계</th></tr><tr><td>자료 확인</td></tr></table><figure class="onrivi-image-figure"><img alt="그림 1. 처리 흐름" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWo4AAAAASUVORK5CYII="><figcaption>그림 1. 처리 흐름</figcaption></figure></div>';document.body.append(root);
+    const original=root.innerHTML;
+    const html=await window.runExport({previewEl:root,currentFileName:'report.md',isDarkMode:false,showToast(){},activeProfile:window.reportProfile,previewOnly:true,printSettings:{...window.defaults,enabled:false}});
+    let bytes;
+    window.electronAPI={showSaveDialog:async()=>({canceled:false,filePath:'report.epub'}),saveBinaryFile:async(path,data)=>bytes=Array.from(data)};
+    try {await window.runEpub({previewEl:root,currentFileName:'report.md',isDarkMode:false,showToast(){},activeProfile:window.reportProfile,printSettings:{...window.defaults,enabled:false}});}finally{delete window.electronAPI;}
+    if(root.querySelector('figure').firstElementChild.tagName!=='IMG' || root.querySelector('figcaption').textContent!=='그림 1. 처리 흐름')throw Error('Report export changed original caption order');
+    return {html,bytes};
+  });
+  await page.setContent(captions.html);
+  assert.equal(await page.locator('.pagedjs_page figure').first().evaluate(node=>node.firstElementChild.tagName),'FIGCAPTION','PDF caption DOM must precede picture');
+  const reportZip=await req('jszip').loadAsync(Buffer.from(captions.bytes));
+  const reportChapters=(await Promise.all(Object.keys(reportZip.files).filter(n=>/section.*\.xhtml$/.test(n)).map(n=>reportZip.file(n).async('string')))).join('');
+  assert.ok(reportChapters.includes('표 1. 추진 일정') && reportChapters.includes('그림 1. 처리 흐름'));
+  assert.ok(reportChapters.indexOf('<figcaption')<reportChapters.indexOf('<img'),'EPUB caption must precede picture in reading order');
+  await page.goto(`http://127.0.0.1:${server.address().port}`);
+  const numbered=await page.evaluate(async()=>{
+    const style=document.createElement('style');style.textContent=window.numbering.reportNumberingCss(window.reportProfile);document.head.append(style);
+    const root=document.createElement('div');root.innerHTML='<div class="markdown-viewer-root"><ol><li><p>Level one</p><ol><li><p>Level two</p><ol><li><p>Level three</p><ol><li><p>Level four</p><ol><li><p>Level five</p></li><li><p>Next five</p></li></ol></li></ol></li></ol></li></ol></li><li><p>Second top</p></li></ol></div>';document.body.append(root);
+    const html=await window.runExport({previewEl:root,currentFileName:'numbering.md',isDarkMode:false,showToast(){},activeProfile:window.reportProfile,previewOnly:true,printSettings:{...window.defaults,enabled:false}});
+    let epub,docx,hwpx;
+    window.electronAPI={showSaveDialog:async()=>({canceled:false,filePath:'fixture'}),saveBinaryFile:async(path,data)=>{if(!epub)epub=Array.from(data);else hwpx=Array.from(data);},saveFileAs:async data=>{docx=data.split(',')[1];return true;}};
+    try {
+      const options={previewEl:root,currentFileName:'numbering.md',isDarkMode:false,showToast(){},activeProfile:window.reportProfile,printSettings:{...window.defaults,enabled:false}};
+      await window.runEpub(options);await window.exportDocx(options);await window.exportHwpx(options);
+    }finally{delete window.electronAPI;}
+    if(root.querySelector('.onrivi-report-marker'))throw Error('Live editor was mutated');
+    return {html,epub,docx,hwpx};
+  });
+  await page.setContent(numbered.html);
+  assert.deepEqual(await page.locator('.pagedjs_page .onrivi-report-marker').allTextContents(),['Ⅰ. ','1. ','가. ','1) ','가) ','나) ','Ⅱ. ']);
+  const nPdf=await pdfjs.getDocument({data:new Uint8Array(await page.pdf({preferCSSPageSize:true}))}).promise;
+  assert.equal(nPdf.numPages,1,'Report numbering must not add pages');
+  const zipReader=req('jszip');
+  for(const [kind,bytes,bodyPath] of [['epub',numbered.epub,null],['docx',Buffer.from(numbered.docx,'base64'),'word/document.xml'],['hwpx',numbered.hwpx,'Contents/section0.xml']]) {
+    const zip=await zipReader.loadAsync(Buffer.from(bytes));
+    const body=bodyPath?await zip.file(bodyPath).async('string'):(await Promise.all(Object.keys(zip.files).filter(n=>/section.*\.xhtml$/.test(n)).map(n=>zip.file(n).async('string')))).join('');
+    for(const label of ['Ⅰ.','1.','가.','1)','가)','나)','Ⅱ.'])assert.ok(body.includes(label),kind+' must include '+label);
+    if(kind==='docx')assert.ok(!body.includes('<w:numPr>'),'Explicit report labels must not have duplicate Word numbering');
+  }
   if(process.argv.includes('--breaks-only')) {console.log('PASS: manual breaks survive actual export and PDF printing (HR, comments, inline styles).');return;}
   await page.goto(`http://127.0.0.1:${server.address().port}`);await page.evaluate(()=>window.mountModal());
+  await page.getByRole('button',{name:/쪽 윤곽 미리보기/}).click();
   await page.getByText(/총 2페이지/).waitFor();
-  assert.equal(await page.getByLabel('워터마크 문구').count(),0,'watermark management belongs to general settings');
-  await page.getByRole('button',{name:'환경설정에서 워터마크 관리'}).click();assert.equal(await page.evaluate(()=>window.settingsRequested),true);
+  await page.getByRole('button',{name:/환경설정에서 관리/}).click();assert.equal(await page.evaluate(()=>window.settingsRequested),true);
   assert.deepEqual(errors,[]);
   console.log('PASS: shared geometry; metadata preservation; manual/automatic pages; text/image watermark; first-page exclusion; actual PDF page count, paper size, orientation and text');
  }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}

@@ -575,7 +575,13 @@ function buildDocumentXml(
             return `<w:pPr>${inner}${wordParagraphProperties(rule, context.baseSize)}</w:pPr>`;
           });
         });
-        if (!hasCheckbox) {
+        if (item.hasAttribute('data-onrivi-report-marker')) {
+          paragraphIndexes.forEach((index,offset)=>{
+            const indent=`<w:ind w:left="${(level+1)*420}" w:hanging="${offset===0?300:0}"/>`;
+            bodyXmls[index]=bodyXmls[index].replace(/<w:pPr\/>|<w:pPr>/,match=>match==='<w:pPr/>'?`<w:pPr>${indent}</w:pPr>`:`<w:pPr>${indent}`);
+          });
+        }
+        if (!hasCheckbox && !item.hasAttribute('data-onrivi-report-marker')) {
           const props = `<w:numPr><w:ilvl w:val="${level}"/><w:numId w:val="${numId}"/></w:numPr>`;
           if (bodyXmls[startIndex] && !bodyXmls[startIndex].trimStart().startsWith('<w:p>')) bodyXmls.splice(startIndex, 0, '<w:p><w:pPr/></w:p>');
           bodyXmls[startIndex] = bodyXmls[startIndex]?.replace(/<w:pPr\/>|<w:pPr>/, match => match === '<w:pPr/>' ? `<w:pPr>${props}</w:pPr>` : `<w:pPr>${props}`) || `<w:p><w:pPr>${props}</w:pPr></w:p>`;

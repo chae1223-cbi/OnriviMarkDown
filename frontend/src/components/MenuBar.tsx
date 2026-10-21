@@ -1,5 +1,7 @@
 // ====================================================================
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
+// 🚨 @PATCH : **2026-10-21** — [편집 메뉴 '서명/발신인 (공문서)' 연동]:
+//             편집(Edit) 메뉴에 '서명/발신인 (공문서)'(Signature 아이콘, 단축키 Ctrl+Alt+R) 항목을 신설하여 마크다운 및 문서보기(위지윅) 어디서든 공문서 서명 서식을 원클릭 삽입·감싸기 지원
 // 🚨 @PATCH : **2026-10-19** — [파일 메뉴 내보내기 하위 메뉴 제거 및 통합 인쇄/쪽 윤곽 모달 직결]:
 //             1) 파일 메뉴의 '내보내기' 하위 메뉴(PDF, Word, 한글, HTML, EPUB, PNG)를 전면 제거하고 클릭 시 즉시 인쇄/쪽 윤곽 모달(ExportModal)이 열리도록 개편
 //             2) dispatch('OPEN_EXPORT') 단독 핸들러 지정으로 상단 메뉴 접근 동선 단순화 및 사용자 경험 개선
@@ -330,6 +332,15 @@ export default function MenuBar() {
           { divider: true },
           { label: t('find'), icon: <Icon name="Search" size={15} />, shortcut: 'Ctrl+F', disabled: isRestrictedUser, onClick: () => dispatch('FIND') },
           { label: t('replace'), icon: <Icon name="Refresh" size={15} />, shortcut: 'Ctrl+H', disabled: isRestrictedUser, onClick: () => dispatch('REPLACE') },
+          { divider: true },
+          { 
+            label: "서명/발신인 (공문서)", 
+            icon: <Icon name="Signature" size={15} />, 
+            shortcut: 'Ctrl+Alt+R', 
+            disabled: isRestrictedUser || !activeTabId, 
+            title: isRestrictedUser ? "읽기 전용(제한사용자) 모드에서는 사용할 수 없습니다." : "서명/발신인 서식을 삽입하거나 선택 영역을 공문서 서식으로 감쌉니다.",
+            onClick: () => !isRestrictedUser && dispatch('SIGNATURE') 
+          },
         ]}
       />
       <MenuDropdown 

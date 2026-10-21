@@ -30,6 +30,10 @@ interface ExportModalProps {
 // 📊 [OMD-IO-ExportModal-0001] ExportModal ➔ ExportModal
 // 🎯 @KICK  : OS 인쇄(미리보기+PDF저장)/Word/HTML/EPUB/PNG 포맷 선택 및 내보내기 요청을 처리하는 모달 창
 // 🛡️ @GUARD : isOpen 및 mounted 상태 모두 true일 때만 포털 렌더링
+// 🚨 @PATCH : **2026-10-21** — [모달 진입 시 무한 대기 프리즈 방어 및 인쇄/저장 즉시 실행 보장]:
+//             1) 모달 오픈 시 쪽 윤곽(Paged.js) 미리보기 자동 실행(setPreviewOpen=true)을 비활성화(false)하여 무거운 페이지 계산으로 인한 모달 멈춤 원천 차단
+//             2) 쪽 윤곽 미리보기를 사용자가 원할 때만 실행할 수 있도록 '쪽 윤곽 미리보기 펼치기/접기' 토글 버튼 UI 개선
+//             3) 쪽 윤곽 계산 중(busy)이거나 미리보기 실패 시에도 메인 [인쇄 / PDF 저장] 버튼이 잠기지 않도록 개선하여 즉시 인쇄/저장 가능 보장
 // 🚨 @PATCH : **2026-10-20** — [ESLint react-hooks/exhaustive-deps 경고 해소]: 모달 오픈 및 문서 변경 초기화 effect에서 contentRef/isPicturebookRef를 활용하여 의존성 누락 경고 및 불필요한 포맷 리셋 방어
 // 🚨 @PATCH : **2026-10-20** — [내보내기 모달 워터마크 사용 여부(토글) 및 종류(문구/이미지) 즉석 선택 UI 탑재]:
 //             1) 내보내기(ExportModal) 화면에서 워터마크 사용/미사용 및 문구(텍스트)/이미지 종류를 즉시 선택할 수 있는 직관적인 세그먼트 컨트롤 배치
@@ -57,13 +61,13 @@ export default function ExportModal({
   const [selectedFormat, setSelectedFormat] = useState<'print' | 'docx' | 'hwpx' | 'html' | 'png' | 'epub'>('print');
   const [mounted, setMounted] = useState(false);
   const [settings,setSettings]=useState<DocumentPrintSettings>(DEFAULT_PRINT_SETTINGS);
-  const [pageHtml,setPageHtml]=useState(''),[previewOpen,setPreviewOpen]=useState(false),[busy,setBusy]=useState(false),[printError,setPrintError]=useState('');
+  const [pageHtml,setPageHtml]=useState(''),[previewOpen,setPreviewOpen]=useState(false),[busy,setBusy]=useState(false),[printError,setPrintError]=useState(''),[isExporting,setIsExporting]=useState(false);
   const generation=useRef(0),currentDocument=useRef(documentId),previewCallback=useRef(onPagePreview);
   const settingsRef=useRef(settings);settingsRef.current=settings;
   const contentRef=useRef(documentContent);contentRef.current=documentContent;
   const isPicturebookRef=useRef(isPicturebook);isPicturebookRef.current=isPicturebook;
   currentDocument.current=documentId;previewCallback.current=onPagePreview;
-  useEffect(()=>{generation.current++;const value=normalizePrintSettings(readEffectivePrintSettings(contentRef.current));settingsRef.current=value;setSettings(value);setSelectedFormat('print');setPageHtml('');setPreviewOpen(Boolean(isOpen&&!isPicturebookRef.current&&previewCallback.current));setPrintError('');setBusy(false);},[isOpen,documentId]);
+  useEffect(()=>{generation.current++;const value=normalizePrintSettings(readEffectivePrintSettings(contentRef.current));settingsRef.current=value;setSettings(value);setSelectedFormat('print');setPageHtml('');setPreviewOpen(false);setPrintError('');setBusy(false);setIsExporting(false);},[isOpen,documentId]);
   useEffect(()=>{
     if(!isOpen)return;
     const refresh=()=>setSettings(normalizePrintSettings(readEffectivePrintSettings(documentContent)));
@@ -286,12 +290,44 @@ export default function ExportModal({
                 </button>
               </div>
             </div>
-            {selectedFormat==='print' && <><button type="button" className="rounded border px-4 py-2" onClick={()=>setPreviewOpen(v=>!v)}>{previewOpen?'쪽 윤곽 닫기':'쪽 윤곽 미리보기'}</button>
+            {selectedFormat==='print' && (
+              <div className="mt-3 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={()=>setPreviewOpen(v=>!v)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-slate-700 dark:text-zinc-300"
+                  >
+                    <span>{previewOpen ? '쪽 윤곽 미리보기 접기 ▲' : '쪽 윤곽 미리보기 펼치기 ▼'}</span>
+                  </button>
+                  {previewOpen && pageHtml && !busy && !printError && (
+                    <span className="text-xs text-slate-500 dark:text-zinc-400 font-medium">
+                      총 {pageHtml.match(/data-onrivi-pages="(\d+)"/)?.[1] || '—'}페이지
+                    </span>
+                  )}
+                </div>
 
-            {busy&&<p role="status">페이지를 계산하고 있습니다. 이전 미리보기는 갱신 중입니다.</p>}
-            {previewOpen&&pageHtml&&!busy&&!printError&&<p>총 {pageHtml.match(/data-onrivi-pages="(\d+)"/)?.[1] || '—'}페이지 · 용지 설정은 서식관리에서 변경할 수 있습니다.</p>}
-            {printError&&<p role="alert" className="text-red-600">{printError}</p>}
-            {previewOpen&&pageHtml&&!printError&&<iframe title="쪽 윤곽 미리보기" sandbox="allow-same-origin" srcDoc={pageHtml} className={`h-[65vh] w-full border ${busy?'opacity-40':''}`}/>}</>
+                {previewOpen && busy && (
+                  <div className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 py-1 font-medium">
+                    <span className="inline-block w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <span>페이지를 계산하고 있습니다...</span>
+                  </div>
+                )}
+                {previewOpen && printError && (
+                  <div className="text-xs text-rose-500 bg-rose-50 dark:bg-rose-950/30 p-2 rounded-lg border border-rose-200 dark:border-rose-900">
+                    쪽 윤곽 미리보기를 불러올 수 없습니다 ({printError}). OS 인쇄/PDF 저장은 정상적으로 이용하실 수 있습니다.
+                  </div>
+                )}
+                {previewOpen && pageHtml && !printError && (
+                  <iframe
+                    title="쪽 윤곽 미리보기"
+                    sandbox="allow-same-origin"
+                    srcDoc={pageHtml}
+                    className={`h-[45vh] w-full border border-slate-200 dark:border-zinc-700 rounded-lg bg-slate-100 dark:bg-zinc-900 transition-opacity ${busy ? 'opacity-40' : 'opacity-100'}`}
+                  />
+                )}
+              </div>
+            )
           }</section>}
         </div>
 
@@ -305,12 +341,29 @@ export default function ExportModal({
             취소
           </button>
           <button 
-            disabled={selectedFormat==='print' && (busy || !!printError)}
-            onClick={() => onExport(selectedFormat as any, settings)}
-            className="px-5 py-2.5 rounded-xl bg-[#1d4ed8] hover:bg-[#1e40af] text-white text-sm font-bold shadow-md shadow-[#1d4ed8]/20 transition-all flex items-center gap-2"
+            disabled={isExporting}
+            onClick={async () => {
+              if (isExporting) return;
+              setIsExporting(true);
+              try {
+                await onExport(selectedFormat as any, settings);
+              } finally {
+                setIsExporting(false);
+              }
+            }}
+            className="px-5 py-2.5 rounded-xl bg-[#1d4ed8] hover:bg-[#1e40af] disabled:opacity-50 text-white text-sm font-bold shadow-md shadow-[#1d4ed8]/20 transition-all flex items-center gap-2"
           >
-            {selectedFormat === 'print' ? <Printer size={16} /> : <Download size={16} />}
-            {selectedFormat === 'print' ? '인쇄 / PDF 저장' : '파일 생성 및 저장'}
+            {isExporting ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>처리 중...</span>
+              </>
+            ) : (
+              <>
+                {selectedFormat === 'print' ? <Printer size={16} /> : <Download size={16} />}
+                <span>{selectedFormat === 'print' ? '인쇄 / PDF 저장' : '파일 생성 및 저장'}</span>
+              </>
+            )}
           </button>
         </div>
       </div>

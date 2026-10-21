@@ -4,6 +4,9 @@ import { normalizeBookLayout } from '../lib/picturebook';
 // ====================================================================
 // 📊 [OMD-CORE-cssProfile-0006] cssProfile ➔ SYSTEM_PROFILE_IDS
 // 🎯 @KICK  : 시스템 프로필 식별자 목록을 정의한다
+// 🚨 @PATCH : **2026-10-21** — [미디어 설명(캡션) 위치 및 표현 구문(mediaCaptionStructure) 서식 프로필 탑재]:
+//             1) DEFAULT_PROFILE에 mediaCaptionStructure(position: 'top', format: 'standard', customTemplate: '**{kind} {n}. {title}**') 기본 탑재
+//             2) normalizeCssProfile에서 mediaCaptionStructure 안전 병합 연동으로 모든 서식 프로필에서 미디어 캡션 환경설정 지원
 // 🚨 @PATCH : **2026-10-15** — [Story Book-전체표지 시스템 서식 최신 규격(ID: profile-1792073192013, 글자크기 20px) 갱신]: 기본 본문 글자 크기를 16px에서 20px로 확대하고 신규 프로필 ID(profile-1792073192013) 반영 (기존 profile-1792072443551 하위 호환 유지)
 // 🚨 @PATCH : **2026-10-15** — [그림책/동화책(Story Book) 2종 시스템 서식 신규 탑재]: 가로(Landscape) A4 규격의 'Story Book-전체표지'(full-image) 및 'Story Book - 오른쪽 그림 표지'(image-right)를 공식 시스템 프로필(SYSTEM_PROFILES, SYSTEM_PROFILE_IDS)에 등록하여 삭제 불가 표준 서식으로 제공
 // 🚨 @PATCH : **2026-10-09** — [신규 시스템 서식 '편안한 전자책 서식' 추가]: 시니어 독자 및 저자를 위한 큰 글자(20px), 여유로운 줄 간격(1.85), 편안한 미색 배경(#fcfbf7), 고대비 타이포그래피 규격의 공식 시스템 서식(profile-1791514218283) 등록
@@ -34,6 +37,7 @@ import { normalizeBookLayout } from '../lib/picturebook';
  */
 export const SYSTEM_PROFILE_IDS = [
   'system-1',
+  'ai-friendly-report',
   'github-readme-style',
   'legal-contract-a4',
   'naver-blog-style',
@@ -386,6 +390,11 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "outerBorderWidth": "1px",
       "rowBorderWidth": "1px",
       "colBorderWidth": "0px"
+    },
+    "mediaCaptionStructure": {
+      "position": "top",
+      "format": "standard",
+      "customTemplate": "**{kind} {n}. {title}**"
     },
     "customCss": ""
   },
@@ -2999,6 +3008,27 @@ export const SYSTEM_PROFILES: CssProfile[] = [
  * DEFAULT_PROFILE: 사용자 정의 프로필 생성/가져오기 시 템플릿으로 사용합니다.
  * (시스템 프로필이 아니므로 가져온 스타일로 덮어쓸 수 있습니다)
  */
+// Optional report theme. Layout values below are product defaults, not government-prescribed measurements.
+const aiReportProfile: CssProfile = JSON.parse(JSON.stringify(SYSTEM_PROFILES[0]));
+aiReportProfile.id = 'ai-friendly-report';
+aiReportProfile.name = 'AI 친화적 보고서';
+aiReportProfile.description = '2026.8.24. 행안부 보도자료의 핵심 원칙을 참고한 선택 서식: 서술형 본문, 단순 표, 상단 그림 제목. 정부 지정 양식은 아닙니다.';
+aiReportProfile.pageStyle.fontFamily = "'Noto Sans KR', 'Malgun Gothic', sans-serif";
+aiReportProfile.pageStyle.backgroundColor = '#ffffff';
+for (const key of ['h1','h2','h3','h4','h5','h6','p','table','th','td','blockquote'] as const) {
+  Object.assign(aiReportProfile.rules[key], {'color':'#202123','box-shadow':'none','text-shadow':'none','background-color':'transparent'});
+}
+Object.assign(aiReportProfile.rules.th, {'background-color':'#f3f4f6','font-weight':'700'});
+Object.assign(aiReportProfile.rules.table, {'border-style':'solid','border-color':'#9ca3af'});
+aiReportProfile.tableStructure = {outerBorderWidth:'1px',rowBorderWidth:'1px',colBorderWidth:'1px'};
+aiReportProfile.rules.ol['list-style-type'] = 'onrivi-report';
+aiReportProfile.customCss = `.custom-preview-container figure.onrivi-image-figure, .markdown-viewer-root figure.onrivi-image-figure { display:flex; flex-direction:column; }
+.custom-preview-container figure.onrivi-image-figure > figcaption, .markdown-viewer-root figure.onrivi-image-figure > figcaption { order:-1!important; text-align:left!important; align-self:flex-start!important; font-weight:700!important; color:inherit!important; margin:0 0 8px!important; }
+.custom-preview-container :is(h1,h2,h3,h4,h5,h6) { border:0!important; background:transparent!important; box-shadow:none!important; padding-left:0!important; }
+.custom-preview-container p:has(+table), .custom-preview-container p:has(+.table-wrapper-area) { break-after:avoid; }
+.custom-preview-container img { box-shadow:none!important; }`;
+SYSTEM_PROFILES.push(aiReportProfile);
+
 export const DEFAULT_PROFILE: CssProfile = SYSTEM_PROFILES[0]; // system-gov
 
 // ====================================================================
@@ -3233,6 +3263,12 @@ export function normalizeCssProfile(
     ...(imported?.tableStructure || {}),
   };
 
+  const mergedMediaCaptionStructure = {
+    position: (imported?.mediaCaptionStructure?.position === 'bottom') ? 'bottom' : 'top',
+    format: imported?.mediaCaptionStructure?.format || 'standard',
+    customTemplate: imported?.mediaCaptionStructure?.customTemplate || '**{kind} {n}. {title}**',
+  };
+
   // 6. 최종 서식 객체 조립
   return {
     ...DEFAULT_PROFILE,
@@ -3246,6 +3282,7 @@ export function normalizeCssProfile(
     hrStructure: mergedHrStructure,
     checkboxStructure: mergedCheckboxStructure,
     tableStructure: mergedTableStructure,
+    mediaCaptionStructure: mergedMediaCaptionStructure,
     layout: normalizeBookLayout(imported?.layout),
   };
 }

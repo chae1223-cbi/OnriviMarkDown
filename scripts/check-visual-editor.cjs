@@ -156,6 +156,9 @@ async function visual() {
   fs.writeFileSync(path.join(dir, 'tableCommands.js'), compile(path.join(frontend, 'src/lib/visualTableCommands.ts')));
   fs.writeFileSync(path.join(dir, 'icons.js'), "const React=require('react');exports.Plus=exports.X=(props)=>React.createElement('svg',props);");
   fs.writeFileSync(path.join(dir, 'tableModal.js'), compile(path.join(frontend, 'src/components/TableModal.tsx')));
+  fs.writeFileSync(path.join(dir, 'aiFriendlyReport.js'), compile(path.join(frontend, 'src/lib/aiFriendlyReport.ts')));
+  fs.writeFileSync(path.join(dir, 'reportNumbering.js'), compile(path.join(frontend, 'src/lib/reportNumbering.ts')));
+  fs.writeFileSync(path.join(dir, 'markdownCleaner.js'), compile(path.join(frontend, 'src/utils/markdownCleaner.ts')));
   fs.writeFileSync(path.join(dir, 'tableHeader.js'), compile(path.join(frontend, 'src/components/TableHeaderCell.tsx')));
   fs.writeFileSync(path.join(dir, 'readonly.js'), compile(path.join(frontend, 'src/components/VisualReadOnlyMarkdownBlock.tsx')));
   fs.writeFileSync(path.join(dir, 'catalog.js'), compile(path.join(frontend, 'src/lib/visualCommandCatalog.ts')));
@@ -194,7 +197,8 @@ async function visual() {
       const [shared,setShared]=React.useState(false);
       const [documentId,setDocumentId]=React.useState('test-document');
       const [floating,setFloating]=React.useState({visible:false,top:0,left:0});
-      const sharedCommand=React.useRef(null);const aiTarget=React.useRef(null);window.qaAITarget=scope=>aiTarget.current?.(scope);
+      const sharedCommand=React.useRef(null);window.qaEditorCommand=command=>sharedCommand.current?.(command);const aiTarget=React.useRef(null);window.qaAITarget=scope=>aiTarget.current?.(scope);
+      window.qaReportNumbering=require('./reportNumbering');
       window.setTestSource=setContent;
       window.setTestCommands=setCommands;
       window.setTestHotkeys=setHotkeys;
@@ -217,7 +221,7 @@ async function visual() {
     createRoot(document.getElementById('root')).render(React.createElement(App));
   `);
   const webpack = req('webpack');
-  const focusedAliases = { '@/components/DocumentPageGuides':path.join(dir,'pageGuides.js'), '@/lib/pageGeometry':path.join(dir,'pageGeometry.js'), '../constants/paperSizes':path.join(dir,'paperSizes.js'), '@/lib/browserAccountStorage':path.join(dir,'accountStorage.js'), '@/lib/bibliography':path.join(dir,'bibliography.js'), '@/components/BibliographySummary':path.join(dir,'bibliographySummary.js'), '@/lib/bulletNumberText':path.join(dir,'bulletNumberText.js'), ...(process.argv.some(arg=>['--inline-ai-only','--image-resize-only','--page-break-only','--list-enter-only','--list-indentation-only','--typing-scroll-only','--spacing-emphasis-only','--list-markers-only','--image-drops-only'].includes(arg)) ? {
+  const focusedAliases = { '../visualDocumentCodec':path.join(dir,'codec.js'), '@/utils/markdownCleaner':path.join(dir,'markdownCleaner.js'), '@/lib/aiFriendlyReport':path.join(dir,'aiFriendlyReport.js'), '@/components/DocumentPageGuides':path.join(dir,'pageGuides.js'), '@/lib/pageGeometry':path.join(dir,'pageGeometry.js'), '../constants/paperSizes':path.join(dir,'paperSizes.js'), '@/lib/browserAccountStorage':path.join(dir,'accountStorage.js'), '@/lib/bibliography':path.join(dir,'bibliography.js'), '@/components/BibliographySummary':path.join(dir,'bibliographySummary.js'), '@/lib/bulletNumberText':path.join(dir,'bulletNumberText.js'), ...(process.argv.some(arg=>['--report-numbering-only','--report-table-only','--inline-ai-only','--image-resize-only','--page-break-only','--list-enter-only','--list-indentation-only','--typing-scroll-only','--spacing-emphasis-only','--list-markers-only','--image-drops-only'].includes(arg)) ? {
     '@/lib/footnoteOrganizer': path.join(dir, 'footnoteOrganizer.js'),
     '@/lib/resourceMedia': path.join(dir, 'resourceMedia.js'),
     './resourceSettings':path.join(dir,'dropStorageStubs.js'),
@@ -279,6 +283,44 @@ async function visual() {
       await page.waitForFunction(()=>document.querySelector('#source').value.includes('수정할 문장 수정'));const fullAfter=await page.locator('#source').inputValue();assert.ok(fullAfter.includes('수정할 문장 수정'));assert.equal(await surface.locator('.visual-image-block').count(),1);await page.keyboard.press('Control+z');assert.equal(await page.locator('#source').inputValue(),fullBefore);
       await surface.getByText('아래 본문',{exact:true}).click();await page.keyboard.press('End');await page.evaluate(()=>{window.actualAITarget=window.qaAITarget();});await page.keyboard.type('changed');assert.equal(await page.evaluate(()=>window.actualAITarget.apply('금지','replace')),false);
       console.log('PASS: actual VisualDocumentEditor AI target bridge, source synchronization, image/body preservation, one undo and stale target rejection');return;
+    }
+    if(process.argv.includes('--report-numbering-only')){
+      await surface.waitFor();
+      await page.evaluate(()=>{
+        const style=document.createElement('style');style.textContent='@layer onrivi-settings { .visual-document-surface ol{list-style-type:onrivi-report!important;} '+window.qaReportNumbering.reportNumberingCss({rules:{ol:{'list-style-type':'onrivi-report'}}})+' }';document.head.append(style);
+        window.setTestSource('1. First level\n   1. Second level\n      1. Third level\n         1. Fourth level\n            1. Fifth level');
+      });
+      await surface.getByText('Fifth level',{exact:true}).waitFor();
+      const styles=await surface.locator('ol').evaluateAll(nodes=>nodes.map(node=>getComputedStyle(node).listStyleType));
+      assert.deepEqual(styles,['onrivi-report','decimal','onrivi-report-hangul','onrivi-report-decimal-paren','onrivi-report-hangul-paren']);
+      const labels=()=>surface.evaluate(node=>{const clone=node.cloneNode(true);window.qaReportNumbering.materializeReportNumbers(node,clone);return Array.from(clone.querySelectorAll('.onrivi-report-marker')).map(n=>n.textContent.trim());});
+      assert.deepEqual(await labels(),['Ⅰ.','1.','가.','1)','가)']);
+      await surface.getByText('Fifth level',{exact:true}).click();await page.keyboard.press('End');await page.keyboard.press('Enter');await page.keyboard.type('Next fifth level');
+      assert.deepEqual(await labels(),['Ⅰ.','1.','가.','1)','가)','나)']);
+      await page.keyboard.press('Shift+Tab');
+      assert.deepEqual(await labels(),['Ⅰ.','1.','가.','1)','가)','2)']);
+      await page.keyboard.press('Tab');
+      assert.deepEqual(await labels(),['Ⅰ.','1.','가.','1)','가)','나)']);
+      const saved=await page.locator('#source').inputValue();await page.evaluate(source=>window.setTestSource(source+'\n'),saved);
+      await surface.getByText('Next fifth level',{exact:true}).waitFor();
+      assert.deepEqual(await labels(),['Ⅰ.','1.','가.','1)','가)','나)']);
+      assert.deepEqual(errors,[]);console.log('PASS: 5-level report numbering, native Enter/Tab/Shift+Tab, sequential labels, standard Markdown save/reload');return;
+    }
+    if(process.argv.includes('--report-table-only')){
+      await surface.waitFor();await page.evaluate(()=>window.setTestSource('**표 3. 기존 자료**\n\n앞 본문\n\n뒤 본문'));
+      await surface.getByText('앞 본문',{exact:true}).click();await page.keyboard.press('End');await page.keyboard.press('Enter');
+      await page.evaluate(()=>window.qaEditorCommand('TABLE'));
+      await page.getByLabel('표 제목',{exact:true}).fill('추진 일정');
+      assert.equal(await page.getByLabel('표 번호',{exact:true}).inputValue(),'4');
+      await page.keyboard.press('Enter');await surface.locator('table').waitFor();
+      const saved=await page.locator('#source').inputValue();
+      assert.ok(saved.includes('표 4. 추진 일정'),'Caption must survive editor insertion');
+      assert.ok(saved.indexOf('표 4. 추진 일정')<saved.indexOf('|'),'Caption must precede the table in Markdown');
+      assert.ok(saved.includes('뒤 본문'));
+      await page.keyboard.type('담당자');assert.ok((await page.locator('#source').inputValue()).includes('담당자'));
+      await page.evaluate(s=>window.setTestSource(s+'\n'),await page.locator('#source').inputValue());
+      await surface.getByText('표 4. 추진 일정',{exact:true}).waitFor();
+      assert.deepEqual(errors,[]);console.log('PASS: report table title and next number, insertion before table, editable first header, body preservation and reload');return;
     }
     if(process.argv.includes('--page-break-only')){
       await surface.waitFor();await page.evaluate(()=>window.setTestSource('앞 문단\n\n뒤 문단'));

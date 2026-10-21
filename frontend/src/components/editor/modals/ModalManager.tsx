@@ -1,7 +1,9 @@
+import { nextReportNumber } from '@/lib/aiFriendlyReport';
 /**
  * 프로그램명 : OnriviAuthor
  * 프로그램 ID : oaar-modal-manager
  * 🚨 @PATCH : **2026-10-18** — [인용 모달 useEffect 의존성 보강]: citationTarget 설정 시 deps.activeTabId 및 deps.editorRef 의존성 등록 및 불필요한 cancel-citation 이벤트 방어
+ * 🚨 @PATCH : **2026-10-21** — [내보내기 모달 onExport 실행 시 모달 자동 닫기]: 인쇄/PDF/Word 등 내보내기 버튼 클릭 시 모달(ExportModal)을 닫아 저장 다이얼로그 및 진행 토스트가 에디터 화면에 즉시 노출되도록 개선
  * 🚨 @PATCH : **2026-10-20** — [내보내기 모달 워터마크 설정(exportSettings) handlers.print 직결 전달]: ExportModal에서 실시간 조정한 워터마크(사용 여부, 문구, 이미지, 진하기)가 인쇄/PDF 사출 시 즉각 반영되도록 handlers.print(false, exportSettings) 연동
  * 🚨 @PATCH : **2026-10-17** — [표 생성 시 하단 빈 행(\n\n) 보장]: TableModal에서 표 마크다운 삽입 시 항상 하단에 빈 행이 포함되도록 보장하여 마우스 클릭으로 다음 작업을 이어갈 수 있도록 지원
  * 🚨 @PATCH : **2026-10-14** — [표 생성 시 첫 번째 열 헤더("제목") 자동 선택 및 다단계 포커스 안착]: TableModal에서 표 생성 시 모델 내 첫 번째 헤더 라인(| 행)과 첫 번째 열("제목") 컬럼 범위를 동적으로 정밀 계산하고, 모달 언마운트 포커스 유실을 방어하기 위해 다단계(0ms, 40ms, 120ms, 250ms)로 커서 및 선택영역을 자동 안착시켜 즉시 타이핑 수정이 가능하도록 전면 개선
@@ -105,6 +107,8 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
   } = modals;
 
   // deps에서 필요한 속성들 추출
+  const activeProfile = deps.profiles?.find((p: any) => p.id === deps.activeProfileId) || deps.profiles?.[0] || deps.DEFAULT_PROFILE;
+
   const {
     isDarkMode, setIsDarkMode, fontSize, setFontSize, wordWrap, setWordWrap,   // 다크모드, 글자크기, 단어줄바꿈
     autoSave, setAutoSave, rootFolder, rootFolderRef, selectRootFolder, driveLetter, setDriveLetter,    // 자동저장, 루트폴더, 루트폴더참조, 루트폴더선택, 드라이브문자
@@ -259,6 +263,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
             showToast("정품 라이선스 키 등록이 필요합니다. (설정 -> 애플리케이션 탭에서 등록)", 'error');
             return;
           }
+          setIsExportModalOpen(false);
           if (format === 'print') handlers.print(false, exportSettings);
           else if (format === 'docx') handlers.exportDOCX();
           else if (format === 'hwpx') handlers.exportHWPX();
@@ -470,6 +475,8 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
           setEditingImageInfo(null);
         }}
         initialData={editingImageInfo}
+        captionConfig={activeProfile?.mediaCaptionStructure}
+        nextNumber={nextReportNumber(content, '그림')}
         targetFolder={(() => {
           const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
           if (api) {
@@ -499,7 +506,8 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
       workspaceType={deps.workspaceType}
       rootFolder={deps.rootFolder}
       showToast={showToast}
-      onInsert={(path: string, alt: string, range: any) => {
+      onInsert={(path: string, alt: string, range: any, fullMarkdown?: string) => {
+        const textToInsert = fullMarkdown || `![${alt}](${path})`;
         if (range?.documentMedia) {
           deps.replaceDocumentMedia?.(range,path,alt);
         } else if (range?.visualImage) {
@@ -512,14 +520,14 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
           if (editor) {
             editor.executeEdits("edit-image", [{
               range: range,
-              text: `![${alt}](${path})`,
+              text: textToInsert,
               forceMoveMarkers: true
             }]);
             editor.focus();
           }
         } else {
           // 새 이미지 삽입: 빈 줄 2행 추가 및 커서 이동
-          insertMediaAtCursor(editorRef, lastSelectionRef, `![${alt}](${path})`, updateContent);
+          insertMediaAtCursor(editorRef, lastSelectionRef, textToInsert, updateContent);
         }
         setEditingImageInfo(null);
       }}
@@ -528,6 +536,8 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
     <YoutubeModal
       isOpen={isYoutubeModalOpen}
       onClose={() => { setIsYoutubeModalOpen(false); setYoutubeInitialUrl(null); deps.clearMediaDialog?.(); }}
+      captionConfig={activeProfile?.mediaCaptionStructure}
+      nextNumber={nextReportNumber(content, '영상')}
       onInsert={(code: string) => {
         if (deps.mediaDialogSource?.kind === 'video') deps.insertVisualMedia?.('video',code);
         else insertMediaAtCursor(editorRef, lastSelectionRef, code, updateContent);
@@ -544,6 +554,8 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
       <MapModal
         isOpen={isMapModalOpen}
         onClose={() => {setIsMapModalOpen(false);deps.clearMediaDialog?.();}}
+        captionConfig={activeProfile?.mediaCaptionStructure}
+        nextNumber={nextReportNumber(content, '지도')}
         initialSource={deps.mediaDialogSource?.kind === 'map' ? deps.mediaDialogSource.source : undefined}
         onInsert={(code: string) => {
           if (deps.mediaDialogSource?.kind === 'map') deps.insertVisualMedia?.('map',code);
@@ -552,6 +564,8 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         isDarkMode={isDarkMode}
       />
       <TableModal
+        captionConfig={activeProfile?.mediaCaptionStructure}
+        nextNumber={nextReportNumber(content, '표')}
         isOpen={isTableModalOpen}
         onClose={() => setIsTableModalOpen(false)}
         onInsert={(code: string) => {

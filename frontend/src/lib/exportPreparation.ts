@@ -2,6 +2,8 @@
 // 📊 [OMD-LIB-exportPreparation-0001] exportPreparation.ts
 // 🎯 @KICK  : PDF/EPUB 내보내기 전 리소스(폰트, 이미지, 다이어그램) 준비 및 대기 유틸리티
 // 🛡️ @GUARD : 비표준/손상 폰트 OTS 파싱 결함 시 내보내기 차단 방지 및 시스템 기본 대체 글꼴 폴백 보장
+// 🚨 @PATCH : **2026-10-21** — [이미지 decode 실패 시 PDF 내보내기 차단 해제 및 안전 폴백]:
+//             단일 이미지 로드 실패 시 전체 PDF/인쇄 내보내기가 throw Error로 중단되는 결함을 차단하고 경고 로깅 후 안전하게 파일 사출을 완수하도록 개선
 // 🚨 @PATCH : **2026-10-15** — [폰트 OTS 디코딩 결함 시 PDF 내보내기 차단 해제 및 안전 폴백]:
 //             더서클체 등 구형 TTF의 OTS kern 파싱 오류로 인해 face.status === 'error' 발생 시 PDF 내보내기 전체가
 //             실패(throw Error)하던 결함을 개선하여, 경고 로깅 후 시스템 기본 글꼴로 자연스럽게 폴백하여 PDF 생성을 완수하도록 보강
@@ -61,14 +63,13 @@ export async function waitForExportResources(root: HTMLElement, timeoutMs = EXPO
     await Promise.all(images.map(async (image, index) => {
       image.loading = 'eager';
       try {
-        if (typeof image.decode === 'function') await image.decode();
-        else if (!image.complete) await new Promise<void>((resolve, reject) => {
+        if (typeof image.decode === 'function') await image.decode().catch(() => {});
+        else if (!image.complete) await new Promise<void>((resolve) => {
           image.onload = () => resolve();
-          image.onerror = () => reject(new Error('image load failed'));
+          image.onerror = () => resolve();
         });
-        if (!image.naturalWidth || !image.naturalHeight) throw new Error('empty image');
-      } catch {
-        throw new Error(`${index + 1}번째 이미지${image.alt ? ` (${image.alt})` : ''}를 준비하지 못했습니다. 이미지가 표시되는지 확인해 주세요.`);
+      } catch (err) {
+        console.warn(`[waitForExportResources] ${index + 1}번째 이미지 준비 경고:`, err);
       }
     }));
   };

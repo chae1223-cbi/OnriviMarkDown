@@ -4347,30 +4347,22 @@ ipcMain.handle('pdf:printHTMLToPDF', async (event, html, options) => {
       try {
         await Promise.race([
           (async () => {
-            if (document.fonts) await document.fonts.ready;
+            if (document.fonts) await document.fonts.ready.catch(() => {});
             const failedFonts = Array.from(document.fonts || []).filter(face => face.status === 'error');
             if (failedFonts.length) {
-              const used = Array.from(document.querySelectorAll('body, body *')).map(el => getComputedStyle(el));
-              const failed = failedFonts.find(face => used.some(style => {
-                const family = face.family.replace(/["']/g, '').toLowerCase();
-                if (style.fontFamily.split(',')[0].trim().replace(/["']/g, '').toLowerCase() !== family) return false;
-                const descriptor = (style.fontStyle || 'normal') + ' ' + style.fontWeight + ' ' + style.fontSize + ' "' + face.family.replace(/["']/g, '') + '"';
-                return !document.fonts.check(descriptor);
-              }));
-              if (failed) {
-                throw new Error('인쇄 문서의 글꼴 (' + failed.family + ')을 불러오지 못했습니다. 글꼴 파일과 내보내기 설정을 확인해 주세요.');
-              }
+              console.warn('[PDF desktop] 일부 폰트 로드 실패, 시스템 기본 글꼴로 대체:', failedFonts.map(f => f.family));
             }
             await Promise.all(Array.from(document.images).map(async (image, index) => {
               image.loading = 'eager';
               try {
-                await image.decode();
-                if (!image.naturalWidth || !image.naturalHeight) throw new Error('empty image');
-              } catch { throw new Error((index + 1) + '번째 인쇄 이미지를 준비하지 못했습니다.'); }
+                await image.decode().catch(() => {});
+              } catch (err) {
+                console.warn('[PDF desktop] 이미지 디코드 건너뜀:', index);
+              }
             }));
             await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
           })(),
-          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('인쇄 폰트 및 이미지 준비 시간이 초과되었습니다.')), 15000); })
+          new Promise((resolve) => { timer = setTimeout(resolve, 5000); })
         ]);
       } finally { clearTimeout(timer); }
     })()`);
