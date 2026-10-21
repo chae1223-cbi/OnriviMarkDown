@@ -1,6 +1,22 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
+ * 🚨 @PATCH : **2026-10-21** — [리스트-빈문단 간 방향키(↑/↓) 건너뛰기 방어 및 리스트 끝 Delete 시 빈문단 삭제·자동 병합 연동]:
+ *             1) ArrowUp / ArrowDown 키맵에 moveUpAcrossListBoundary / moveDownAcrossListBoundary를 연동하여 리스트 사이의 빈 줄을 방향키가 건너뛰지 않고 정확히 안착하도록 보정
+ *             2) Delete 키맵에 deleteAtEndOfList를 연동하여 리스트 마지막 항목 끝에서 Delete 입력 시 후행 빈 문단을 깔끔하게 삭제하고 분리된 리스트를 하나로 원상 복구
+ * 🚨 @PATCH : **2026-10-21** — [서로 다른 리스트(글머리↔숫자) 간 Tab 들여쓰기 지원 및 리스트 중간 엔터 시 아래 리스트 들여쓰기 100% 보존]:
+ *             1) exitEmptyListItem 안전 분할(safe split) 로직 연동: 리스트 중간에서 엔터로 볼트 삭제 시 리스트를 상/하단으로 안전 분할하여 아래 리스트의 하위 들여쓰기/구조가 깨지는 현상 원천 해결
+ *             2) independentIndentListItem 교차 리스트 들여쓰기 연동: 같은 레벨에 글머리 리스트와 숫자 리스트가 서로 다르게 인접한 경우에도 이전 리스트의 하위 항목으로 자연스럽게 들여쓰기(Tab) 지원
+ * 🚨 @PATCH : **2026-10-21** — [리스트 연속 들여쓰기 방어(safeListIndent) 및 빈 행 Delete 시 아래 리스트 서식 보존 끌어올림(deleteEmptyParagraphBeforeList)]:
+ *             1) 빈 문단에서 Delete 키 입력 시 아래 리스트가 일반 텍스트로 풀리는(unwrap) 버그를 원천 차단하고 빈 문단만 깔끔히 삭제하여 아래 리스트를 100% 서식 유지한 채 위로 즉시 끌어올림
+ *             2) safeListIndent를 신설하여 리스트 항목 내에서 Tab 입력 시 형제가 없거나 같은 레벨에서 무분별하게 들여쓰기/구조가 왜곡되는 현상을 완벽 방어
+ *             3) visualMarkdownInputRules의 리스트 항목 내 하이픈 중복 발동을 차단하여 마크다운 소스의 - -  중복 및 불릿 2개(•   •) 노출 버그 원천 해결 및 자동 치유
+ *             4) 마크다운 직렬화 시 불필요한 <p></p> 태그 생성을 전면 배제하고 순수 마크다운 개행으로 정규화
+ * 🚨 @PATCH : **2026-10-21** — [문서보기 커서 및 스크롤 마크다운(Monaco) 1:1 실시간 동기화 개선]:
+ *             1) 스크롤 리스너에서 포커스 차단 가드(viewRef.current?.hasFocus())를 해제하여 문서보기 스크롤 시 마크다운 에디터 스크롤이 즉각 추종하도록 수정
+ *             2) posAtCoords 좌표를 컨테이너 가로 중앙(centerX) 및 상단(topY)으로 정밀 보정하고, 상단(offset 0) 및 하단(max offset) 클램프 처리
+ *             3) mouseup 및 dispatchTransaction selectionSet 처리 시 cursorCallback.current(offset, true)를 전달하여 마우스 클릭 또는 방향키 이동 시 마크다운 에디터 커서 이동 및 뷰포트 노출(reveal) 완벽 일치
+ *             4) onrivi:source-cursor 수신 시 caretRef.current?.schedule()을 호출하여 마크다운 커서 이동 시 문서보기 캐럿(Caret) 렌더링 즉시 동기화
   * 🚨 @PATCH : **2026-10-20** — [텍스트 선택(블록 지정) 상태에서 마우스 클릭 시 선택 해제 및 커서 즉시 이동]:
  *             1) mousedown 및 handleClick 핸들러에 선택 해제 파이프라인 신설: Ctrl+A 또는 드래그로 텍스트가 광범위하게 선택된 상태에서 본문/여백 클릭 시 Chromium 드래그 대기로 인한 선택 불풀림 버그를 원천 차단
  *             2) 마우스 클릭 좌표(posAtCoords)를 계산하여 TextSelection.near로 단일 커서(Caret)를 즉시 배치하고 깜빡임 캐럿 및 에디터 포커스를 100% 정상 활성화
@@ -155,14 +171,14 @@
 'use client';
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Fragment } from 'prosemirror-model';
+import { Fragment, type Node as DocumentNode } from 'prosemirror-model';
 import type { SearchEditorHost } from '@/lib/documentFind';
 import { createPortal } from 'react-dom';
 import TableModal from '@/components/TableModal';
 import LinkModal from '@/components/LinkModal';
 import CalendarModal from '@/components/CalendarModal';
 import DateTimeInsertPicker from '@/components/DateTimeInsertPicker';
-import { selectedList, removeListMarkerAtStart, moveUpFromEmptyOrderedItem, exitEmptyListItem, joinOrderedListsAcrossEmptyParagraph, extendSelectionToListEnd, deleteNextListBoundary } from '@/lib/visualListCommands';
+import { selectedList, removeListMarkerAtStart, moveUpFromEmptyOrderedItem, exitEmptyListItem, joinOrderedListsAcrossEmptyParagraph, extendSelectionToListEnd, deleteNextListBoundary, deleteEmptyParagraphBeforeList, independentIndentListItem, independentLiftListItem, moveUpAcrossListBoundary, moveDownAcrossListBoundary, deleteAtEndOfList } from '@/lib/visualListCommands';
 import DocumentPageGuides from '@/components/DocumentPageGuides';
 import { resolvePageGeometry } from '@/lib/pageGeometry';
 import { browserAccountStorage as pageStorage } from '@/lib/browserAccountStorage';
@@ -505,7 +521,57 @@ function findClickedHorizontalRulePos(currentView: EditorView, event: MouseEvent
   }
   return hrPos;
 }
+function createListNormalizationPlugin() {
+  return new Plugin({
+    key: new PluginKey('onrivi:list-normalization'),
+    appendTransaction(transactions, oldState, newState) {
+      if (!transactions.some(tr => tr.docChanged)) return null;
+
+      const fixes: { pos: number; nodeSize: number; items: DocumentNode[] }[] = [];
+
+      newState.doc.descendants((node, pos) => {
+        if (node.type === visualSchema.nodes.list_item) {
+          const firstChild = node.firstChild;
+          if (firstChild && (firstChild.type === visualSchema.nodes.bullet_list || firstChild.type === visualSchema.nodes.ordered_list)) {
+            // 문단(paragraph) 없이 곧바로 하위 리스트가 들어있는 고아 빈 list_item 발견!
+            const items: DocumentNode[] = [];
+            firstChild.forEach(child => items.push(child));
+            fixes.push({ pos, nodeSize: node.nodeSize, items });
+            return false;
+          }
+        }
+      });
+
+      if (fixes.length === 0) return null;
+
+      const tr = newState.tr;
+      for (let i = fixes.length - 1; i >= 0; i--) {
+        const { pos, nodeSize, items } = fixes[i];
+        tr.replaceWith(pos, pos + nodeSize, items);
+      }
+
+      return tr;
+    }
+  });
+}
+
 const makeChecklist=selectedList('check');
+const safeListIndent: Command = (state, dispatch, currentView) => {
+  const { $from } = state.selection;
+  let inListItem = false;
+  for (let d = $from.depth; d > 0; d--) {
+    if ($from.node(d).type === visualSchema.nodes.list_item) {
+      inListItem = true;
+      break;
+    }
+  }
+  if (inListItem) {
+    sinkListItem(visualSchema.nodes.list_item)(state, dispatch, currentView);
+    return true; // 리스트 내부에서는 추가적인 indentDocument로 구조가 깨지지 않도록 방어
+  }
+  return indentDocument()(state, dispatch, currentView);
+};
+
 const indentDocument = (backward=false): Command => (state,dispatch,currentView) => {
   const {$from,from,to}=state.selection;
   for(let depth=$from.depth;depth>0;depth--)if($from.node(depth).type===visualSchema.nodes.list_item){
@@ -818,20 +884,30 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     const sync=(event:Event)=>{
       const container=host.current?.closest('.custom-preview-container');
       if(!container || event.target!==container || frame)return;
-      // 🛡️ [타이핑 중 스크롤 동기화 간섭 차단] 유저가 직접 입력 중일 때 불필요한 Monaco 스크롤 점프 차단
-      if (viewRef.current?.hasFocus()) return;
       frame=requestAnimationFrame(()=>{
         frame=0;const view=viewRef.current,codec=codecRef.current;if(!view || !codec || !scrollCallback.current)return;
-        const rect=container.getBoundingClientRect(),body=view.dom.getBoundingClientRect();
-        const point=view.posAtCoords({left:Math.max(rect.left+24,body.left+32),top:Math.max(rect.top+32,body.top+4)});
+        const totalLen = codec.serialize(view.state.doc).length;
+        if (container.scrollTop <= 5) {
+          scrollCallback.current(0);
+          return;
+        }
+        const maxScroll = container.scrollHeight - container.clientHeight;
+        if (maxScroll > 0 && container.scrollTop >= maxScroll - 5) {
+          scrollCallback.current(totalLen);
+          return;
+        }
+        const rect=container.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const topY = rect.top + 50;
+        const point=view.posAtCoords({left: centerX, top: topY});
         if(point){
           const position=TextSelection.near(view.state.doc.resolve(point.pos)).head;
           const token='ONRIVISCROLLMAP';
           const offset=codec.serialize(view.state.tr.insertText(token,position).doc).indexOf(token);
           if(offset>=0){scrollCallback.current(offset);return;}
         }
-        const ratio=container.scrollTop/Math.max(1,container.scrollHeight-container.clientHeight);
-        scrollCallback.current(Math.round(codec.serialize(view.state.doc).length*Math.max(0,Math.min(1,ratio))));
+        const ratio=container.scrollTop/Math.max(1,maxScroll);
+        scrollCallback.current(Math.round(totalLen*Math.max(0,Math.min(1,ratio))));
       });
     };
     document.addEventListener('scroll',sync,true);
@@ -1473,9 +1549,9 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       },
       state: cached?.source === content ? cached.state : EditorState.create({ doc: codec.doc, plugins: [history(), visualMarkdownInputRules(), createFootnoteHeaderPlugin(), keymap({
         'Mod-z': undo, 'Mod-y': redo, 'Mod-Shift-z': redo,
-        ArrowUp: moveUpFromEmptyOrderedItem,
+        ArrowUp: chainCommands(moveUpAcrossListBoundary, moveUpFromEmptyOrderedItem),
         Backspace: chainCommands(removeHeadingAtStart, backspaceInCodeBlock, undoInputRule, removeListMarkerAtStart, baseKeymap.Backspace),
-        Delete: chainCommands(deleteInCodeBlock, deleteNextListBoundary, joinOrderedListsAcrossEmptyParagraph, baseKeymap.Delete),
+        Delete: chainCommands(deleteEmptyParagraphBeforeList, deleteInCodeBlock, deleteAtEndOfList, deleteNextListBoundary, joinOrderedListsAcrossEmptyParagraph, baseKeymap.Delete),
         'Mod-Shift-k': (state, dispatch) => {
           const { $from } = state.selection;
           if ($from.parent.type === visualSchema.nodes.code_block) {
@@ -1497,7 +1573,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         'Mod-k': (state, dispatch) => linkCommandRef.current(state, dispatch),
         'Mod-Alt-f': () => { insertFootnoteRef.current?.(); return true; },
         'Mod-Alt-F': () => { insertFootnoteRef.current?.(); return true; },
-        ArrowDown:(state,dispatch,currentView)=>{
+        ArrowDown: chainCommands(moveDownAcrossListBoundary, (state,dispatch,currentView)=>{
           if (state.selection instanceof NodeSelection && ATOM_BLOCK_TYPES.has(state.selection.node.type.name)) {
             return exitMediaBlock(true)(state, dispatch, currentView);
           }
@@ -1506,7 +1582,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           if(table && table.row===table.table.childCount-1)return tableAction('afterTable')(state,dispatch,currentView);
           if(state.selection.$from.parent.type===visualSchema.nodes.code_block && state.selection.$from.parentOffset===state.selection.$from.parent.content.size)return exitCode(state,dispatch,currentView);
           return false;
-        },
+        }),
         'Mod-Enter': chainCommands(tableAction('afterTable'),exitCode,exitQuote(),exitMediaBlock()),
         Enter: chainCommands(
           exitMediaBlock(true),
@@ -1524,7 +1600,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           if (dispatch) dispatch(state.tr.replaceSelectionWith(visualSchema.nodes.hard_break.create()).scrollIntoView());
           return true;
         }),
-        Tab: chainCommands(moveTableCell(),sinkListItem(visualSchema.nodes.list_item),indentDocument()), 'Shift-Tab': chainCommands(moveTableCell(true),liftListItem(visualSchema.nodes.list_item),indentDocument(true)),
+        Tab: chainCommands(moveTableCell(),independentIndentListItem,safeListIndent), 'Shift-Tab': chainCommands(moveTableCell(true),independentLiftListItem,liftListItem(visualSchema.nodes.list_item),indentDocument(true)),
       }), keymap(baseKeymap)] }),
       editable: () => !readOnly,
       attributes: { spellcheck: String(spellCheck), class: 'visual-document-surface', 'aria-label': '문서 직접 편집', role: 'textbox', 'aria-multiline': 'true', 'data-editor-tab-size': String(tabSize) },
@@ -2153,7 +2229,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             const token='ONRIVICURSORMAP';
             const marker=view.state.tr.insertText(token,view.state.selection.head);
             const offset=codecRef.current?.serialize(marker.doc).indexOf(token);
-            if(offset!==undefined && offset>=0)cursorCallback.current(offset);
+            if(offset!==undefined && offset>=0)cursorCallback.current(offset, true);
           } catch {}
         }
         setInTable(Boolean(tableContext(view.state)));
@@ -2588,7 +2664,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             try {
               const token='ONRIVICURSORMAP';
               const offset=codec.serialize(currentView.state.tr.insertText(token,currentView.state.selection.head).doc).indexOf(token);
-              if(offset>=0)cursorCallback.current(offset);
+              if(offset>=0)cursorCallback.current(offset, true);
             } catch {}
           });
           return false;
@@ -2717,6 +2793,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         }
       }
       view.dispatch(view.state.tr.setSelection(targetSelection).scrollIntoView());
+      caretRef.current?.schedule();
       if (detail?.highlight) {
         try {
           const domPos = view.domAtPos(best);

@@ -2,6 +2,7 @@
 // 📊 [OMD-PRELOAD-0001] preload.js ➔ Desktop GDrive Auth Bridge & Secure APIs
 // 🎯 @KICK  : Electron contextBridge API 노출 및 안전한 IPC 통신 채널 제공
 // 🛡️ @GUARD : contextIsolation 및 nodeIntegration 보안 원칙 준수
+// 🚨 @PATCH : **2026-10-21** — [AI 인증정보 리소스 폴더 암호화 브리지(loadAICredentials, saveAICredentials, getDeviceInfo) 노출]: 리소스 폴더 settings/ai_credentials.enc 파일 및 물리 기기 정보 IPC 브리지 연동
 // 🚨 @PATCH : **2026-10-14** — [클립보드 네이티브 비트맵 이미지 복사 API(copyImageToClipboard) 노출]: clipboard:writeImage IPC 연동을 통해 이미지 경로/URL/DataURL을 OS 시스템 클립보드에 비트맵으로 직접 복사하는 브리지 API 노출
 // 🚨 @PATCH : **2026-10-14** — [외부 웹 이미지 바이너리 안전 다운로드 브리지(fetchExternalImage) 노출]: net:fetchImageBlob IPC 연동을 통해 CORS 제약 없이 웹 이미지 바이너리를 다운로드할 수 있도록 API 노출
 // 🚨 @PATCH : **2026-10-04** — [구글 드라이브 데스크톱 외부 브라우저 안전 인증]: requestDesktopGDriveAuth IPC 호출 브리지 API(gdrive:request-auth) 추가
@@ -147,6 +148,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 18-4. AI 프리셋 저장
   savePresets: (presets, resourceFolder) => ipcRenderer.invoke('presets:save', presets, resourceFolder),
+
+  // 18-5. AI 인증정보 암호화 파일 로드 및 저장 (리소스 폴더/기기별 격리 관리)
+  loadAICredentials: (resourceFolder) => ipcRenderer.invoke('ai-credentials:load', resourceFolder),
+  saveAICredentials: (cipherText, resourceFolder) => ipcRenderer.invoke('ai-credentials:save', cipherText, resourceFolder),
+  getDeviceInfo: () => ipcRenderer.invoke('device:get-info'),
+
 
   // 19. OS 네이티브 글꼴 선택 대화상자 호출
   openFontDialog: () => ipcRenderer.invoke('dialog:openFontPicker'),

@@ -1,5 +1,21 @@
 /**
  * 프로그램명 : OnriviAuthor 
+// 🚨 @PATCH : **2026-10-21** — [문서 미열림 시 AI_DRAFT 명령 호출 차단 안내 토스트 탑재]:
+//             1) case 'AI_DRAFT': 실행 시 !activeTabId 상태이면 '문서를 먼저 열어주세요.' 경고 토스트를 표시하고 판넬 오픈 방어
+// 🚨 @PATCH : **2026-10-21** — [공통 리소스 폴더 변경/해제 시 해당 폴더의 AI 환경정보(키/모델) 실시간 즉각 연동]:
+//             1) 리소스 폴더 변경 시 loadResourceAICredentials를 즉시 호출하여 새 폴더의 AI 인증정보를 읽고 setGeminiApiKey, setAiModelName 및 onrivi:ai-connections 이벤트 즉시 전파
+//             2) 리소스 폴더 해제 시 AI 키 및 연결 상태를 깨끗하게 리셋하여 타 폴더와의 오염 원천 차단
+// 🚨 @PATCH : **2026-10-21** — [setGeminiApiKey TDZ(ReferenceError) 초기화 순서 에러 완전 해소]:
+//             loadResourceAICredentials useEffect를 useEditorSettingsResult 구조 분해 선언부 이후로 안전하게 재배치하여 런타임 크래시 박멸
+// 🚨 @PATCH : **2026-10-21** — [AI API 키 리소스 폴더(settings/ai_credentials.enc) 암호화 로드 및 로컬스토리지 소거]:
+//             1) resourceFolder/resourceFolderHandle 준비 완료 시 loadResourceAICredentials를 호출하여 기기/드라이브별 암호화 키를 메모리에 안전 복원
+//             2) purgeLocalStorageAICredentials를 실행하여 로컬 스토리지에 잔존하는 API 키를 완전 소거
+// 🚨 @PATCH : **2026-10-21** — [동일 타입 분리 리스트(ul+ul) 및 빈 문단 과도 여백 정상화]:
+//             1) .visual-document-surface 내 동일 타입 리스트 연속 배치 시 1.5em 과도한 여백 대신 표준 리스트 여백(4px) 적용
+//             2) 빈 문단(p:empty)의 상하 여백을 0.25em으로 최적화하여 방향키 및 시각적 유령 빈 줄 체감 왜곡 완전 해소
+// 🚨 @PATCH : **2026-10-21** — [문서보기 커서 및 스크롤 마크다운(Monaco) 1:1 실시간 동기화 개선]:
+//             1) onSourceScroll에서 뷰포트 내 침묵 리턴 가드를 해제하고 editor.setScrollTop을 통해 문서보기 스크롤 시 마크다운 에디터 스크롤이 부드럽고 즉각 추종하도록 개선
+//             2) onSourceCursor에서 reveal: true 시 editor.revealPositionInCenter(position)를 호출하여 문서보기에서 클릭 또는 방향키 이동 시 마크다운 에디터의 해당 라인이 화면 중앙에 즉시 표시되도록 보장
 // 🚨 @PATCH : **2026-10-20** — [AI 사이드바 판넬 에디터 오른쪽 툴바 안쪽 안착을 위한 isToolbarOpen 연동]:
 //             1) InlineAIAssistant에 isToolbarOpen prop 전달하여 오른쪽 세로 툴바의 안쪽(좌측)에 AI 판넬이 배치되도록 연동
 // 🚨 @PATCH : **2026-10-20** — [문서 서식 일괄 정리(CLEAN_DOC) 에디터/문서보기 포커스 기반 정밀 분기 및 양방향 동기화 강화]:
@@ -452,6 +468,7 @@ import CalendarModal from '@/components/CalendarModal'; // 달력 모달
 import DateTimeInsertPicker from '@/components/DateTimeInsertPicker';
 import { supabase } from '@/lib/supabaseClient';
 import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
+import { loadResourceAICredentials, purgeLocalStorageAICredentials } from '@/lib/ai/resourceAICredentials';
 import UnifiedTabBar, { EditorTab } from '@/components/UnifiedTabBar';
 import * as utilsPasteHandlers from '@/utils/pasteHandlers';
 import { htmlToImportMarkdown, importHtmlWithImages } from '@/lib/importHtmlMarkdown';
@@ -1507,16 +1524,29 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // 🌟 [공통 리소스 폴더 동적 변경 실시간 감지 리스너] (구글 드라이브 ↔ 로컬 전환 등)
   useEffect(() => {
-    const handleResourceFolderChange = (e: any) => {
+    const handleResourceFolderChange = async (e: any) => {
       const newFolder = getResourceSettings()?.path || '';
       setResourceFolder(newFolder || null);
       setProfileStorageRevision(revision => revision + 1);
+      let handle = null;
       if (getResourceSettings()?.kind === 'drive') {
         setResourceFolderHandle(null);
         (window as any).__resourceFolderHandle = null;
       } else {
-        const handle = (window as any).__resourceFolderHandle;
+        handle = (window as any).__resourceFolderHandle;
         setResourceFolderHandle(handle?.name === newFolder ? handle : null);
+      }
+
+      // 🚀 [리소스 폴더 변경 즉시 해당 폴더의 AI 환경정보 실시간 재로드]
+      try {
+        const creds = await loadResourceAICredentials(newFolder || undefined, handle);
+        setGeminiApiKey(creds?.apiKey || '');
+        setAiModelName(creds?.aiModelName || 'gemini-3.8-flash');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('onrivi:ai-connections'));
+        }
+      } catch (err) {
+        console.warn('[handleResourceFolderChange reload error]:', err);
       }
     };
     if (typeof window !== 'undefined') {
@@ -3494,6 +3524,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     setResourceFolder(null);
     setResourceFolderHandle(null);
     (window as any).__resourceFolderHandle = null;
+    setGeminiApiKey('');
+    setAiModelName('gemini-3.8-flash');
+    void deleteResourceAICredentials();
+    purgeLocalStorageAICredentials();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('onrivi:ai-connections'));
+    }
     setIsDismissedGuide(false);
     if (clearingLocal) {
     try { saveSecureData('resourceFolder', ''); } catch {}
@@ -3758,9 +3795,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (decrypted && !decrypted.startsWith('U2FsdGVkX1')) {
         setGeminiApiKey?.(decrypted);
         try {
-          localStorage.setItem('onrivi_gemini_api_key', decrypted);
-          saveSecureData('onrivi_gemini_api_key', decrypted);
-          saveSecureData('geminiApiKey', decrypted);
+          purgeLocalStorageAICredentials();
         } catch {}
       }
     }
@@ -3779,6 +3814,25 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       } catch {}
     }
   }, [geminiApiKey, aiModelName, setGeminiApiKey, setAiModelName]);
+
+  // 🔐 [AI API 키 리소스 폴더 암호화 자격증명 자동 로드 및 로컬스토리지 소거]
+  useEffect(() => {
+    if (!mounted) return;
+    const loadCreds = async () => {
+      try {
+        const creds = await loadResourceAICredentials(resourceFolder || undefined, resourceFolderHandle);
+        setGeminiApiKey(creds?.apiKey || '');
+        setAiModelName(creds?.aiModelName || 'gemini-3.8-flash');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('onrivi:ai-connections'));
+        }
+      } catch (err) {
+        console.warn('[MainEditorApp loadResourceAICredentials Error]:', err);
+      }
+    };
+    void loadCreds();
+  }, [mounted, resourceFolder, resourceFolderHandle, setGeminiApiKey, setAiModelName]);
+
 
   const [isAiLoading, setIsAiLoading] = useState(false);
 
@@ -7563,8 +7617,18 @@ blockquote li p {
   word-break: normal !important;
 }
 /* Separate top-level lists retain the same gap as a following paragraph. */
+.custom-preview-container .visual-document-surface > ul + ul,
+.custom-preview-container .visual-document-surface > ol + ol {
+  margin-top: 4px !important;
+}
 .custom-preview-container .visual-document-surface > :is(ul,ol) + :is(ul,ol) {
-  margin-top: 1.5em !important;
+  margin-top: 0.75em !important;
+}
+.custom-preview-container .visual-document-surface > p:empty,
+.custom-preview-container .visual-document-surface > p:has(> br:only-child) {
+  min-height: 1.25em;
+  margin-top: 0.25em !important;
+  margin-bottom: 0.25em !important;
 }
 `; 
 
@@ -10910,15 +10974,8 @@ blockquote li p {
                                        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
                                        scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 150);
                                        const position = editor.getModel().getPositionAt(offset);
-                                       const visibleRanges = editor.getVisibleRanges?.();
-                                       if (visibleRanges && visibleRanges.length > 0) {
-                                         const startLine = visibleRanges[0].startLineNumber;
-                                         const endLine = visibleRanges[visibleRanges.length - 1].endLineNumber;
-                                         if (position.lineNumber >= startLine + 1 && position.lineNumber <= endLine - 1) {
-                                           return;
-                                         }
-                                       }
-                                       editor.revealLineInCenterIfOutsideViewport(position.lineNumber);
+                                       const targetTop = Math.max(0, editor.getTopForLineNumber(position.lineNumber) - 30);
+                                       editor.setScrollTop(targetTop);
                                      }}
                                      onSourceCursor={(offset, reveal = false) => {
                                        const editor = editorRef.current;
@@ -10950,7 +11007,7 @@ blockquote li p {
                                        scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 150);
                                        editor.setPosition(position);
                                        if (reveal) {
-                                         editor.revealPositionInCenterIfOutsideViewport(position);
+                                         editor.revealPositionInCenter(position);
                                        }
                                      }}
                                      commandRef={visualCommandRef} aiTargetRef={visualAITargetRef} customCommands={customSlashCommands} customHotkeys={customHotkeys}

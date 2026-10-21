@@ -8,6 +8,7 @@ import { initializeBrowserDefaultStorage } from '@/lib/browserDefaultStorage';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { normalizeAIModelName } from '@/lib/gemini';
+import { getActiveResourceApiKey, getActiveResourceAIModel, purgeLocalStorageAICredentials } from '@/lib/ai/resourceAICredentials';
 import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
 import { getSavedWorkspaceInfo } from '@/lib/gdrive/googleDriveClient';
 import { getDefaultWatermarkSettings, saveDefaultWatermarkSettings, normalizePrintSettings,watermarkSettingsForStorage, DocumentPrintSettings } from '@/lib/documentPrintSettings';
@@ -58,19 +59,7 @@ export const useEditorSettings = (
   const [quoteStyle, setQuoteStyle] = useState<'modern' | 'clean' | 'none'>('modern');
   const [themePalette, setThemePalette] = useState<string>('onrivi-light');
   const [licenseKey, setLicenseKey] = useState<string>('');
-  const [geminiApiKey, setGeminiApiKey] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      const raw = (localStorage.getItem('onrivi_gemini_api_key') || localStorage.getItem('geminiApiKey') || '').trim();
-      if (raw.startsWith('U2FsdGVkX1')) {
-        const dec = (loadSecureData<string>('onrivi_gemini_api_key') || loadSecureData<string>('geminiApiKey') || '').trim();
-        if (dec && !dec.startsWith('U2FsdGVkX1')) return dec;
-      }
-      if (raw && !raw.startsWith('U2FsdGVkX1')) return raw;
-      const secKey = (loadSecureData<string>('onrivi_gemini_api_key') || loadSecureData<string>('geminiApiKey') || '').trim();
-      if (secKey && !secKey.startsWith('U2FsdGVkX1')) return secKey;
-    }
-    return '';
-  });
+  const [geminiApiKey, setGeminiApiKey] = useState<string>(() => getActiveResourceApiKey());
   const [aiModelName, setAiModelName] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       let localModel = (localStorage.getItem('onrivi_ai_model_name') || '').trim();
@@ -349,13 +338,11 @@ export const useEditorSettings = (
       setCustomHotkeys(baseSettings.customHotkeys);
       setCustomSlashCommands(baseSettings.customSlashCommands);
       setThemePalette(baseSettings.themePalette);
-      const finalApiKey = (baseSettings.geminiApiKey || '').trim();
-      setGeminiApiKey(finalApiKey);
-      if (finalApiKey && !finalApiKey.startsWith('U2FsdGVkX1')) {
-        localStorage.setItem('onrivi_gemini_api_key', finalApiKey);
-        saveSecureData('onrivi_gemini_api_key', finalApiKey);
-        saveSecureData('geminiApiKey', finalApiKey);
+      const activeResourceKey = getActiveResourceApiKey();
+      if (activeResourceKey) {
+        setGeminiApiKey(activeResourceKey);
       }
+      purgeLocalStorageAICredentials();
       const finalModel = normalizeAIModelName(baseSettings.aiModelName || 'gemini-3.8-flash');
       const safeModel = (finalModel && !finalModel.startsWith('U2FsdGVkX1')) ? finalModel : 'gemini-3.8-flash';
       setAiModelName(safeModel);
@@ -530,17 +517,8 @@ export const useEditorSettings = (
     localStorage.setItem('customSlashCommands', JSON.stringify(customSlashCommands));
     localStorage.setItem('themePalette', themePalette);
     localStorage.setItem('autoSave', autoSave ? 'true' : 'false');
-    const cleanKey = (geminiApiKey || '').trim();
-    if (cleanKey && !cleanKey.startsWith('U2FsdGVkX1')) {
-      localStorage.setItem('onrivi_gemini_api_key', cleanKey);
-      saveSecureData('onrivi_gemini_api_key', cleanKey);
-      saveSecureData('geminiApiKey', cleanKey);
-    } else if (!cleanKey) {
-      localStorage.removeItem('onrivi_gemini_api_key');
-      localStorage.setItem('onrivi_gemini_api_key', '');
-      saveSecureData('onrivi_gemini_api_key', '');
-      saveSecureData('geminiApiKey', '');
-    }
+    // 🛡️ API 키는 로컬스토리지에 보관하지 않고 오직 리소스 폴더에만 암호화 보관
+    purgeLocalStorageAICredentials();
     const cleanModel = normalizeAIModelName(aiModelName);
     const safeModel = (cleanModel && !cleanModel.startsWith('U2FsdGVkX1')) ? cleanModel : 'gemini-3.8-flash';
     localStorage.setItem('onrivi_ai_model_name', safeModel);
@@ -578,6 +556,21 @@ export const useEditorSettings = (
     autoClosingBrackets,
     defaultWatermarkSettings
   ]);
+
+
+  useEffect(() => {
+    const handleCredsChange = (e: any) => {
+      const detail = e?.detail;
+      if (detail) {
+        if (typeof detail.apiKey === 'string') setGeminiApiKey(detail.apiKey);
+        if (detail.aiModelName) setAiModelName(detail.aiModelName);
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('onrivi:resource_ai_credentials_changed', handleCredsChange);
+      return () => window.removeEventListener('onrivi:resource_ai_credentials_changed', handleCredsChange);
+    }
+  }, []);
 
   return {
     isDarkMode,

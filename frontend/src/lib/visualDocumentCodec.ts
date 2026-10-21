@@ -2,6 +2,9 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-visual-codec
+ * 🚨 @PATCH : **2026-10-21** — [마크다운 역슬래시(\\) 과도한 이스케이프 차단 및 특수문자 직렬화 정돈]:
+ *             1) visualSerializer의 text 노드 직렬화 시 escape: false를 지정하여 백틱(\  \)과 대괄호([]) 앞에 불필요한 역슬래시(\\)가 강제 삽입되던 결함 해결
+ *             2) normalizeVisualMarkdownSpacing에서 기존 문서에 잔존하는 불필요한 이스케이프(\\\, \\[, \\], \\-)를 자동 소거하여 순수 마크다운으로 복원
  * 🚨 @PATCH : **2026-10-20** — [빈 문단 HTML 태그(<p></p>) 마크다운 직렬화 오염 차단 및 순수 개행 정돈]:
  *             1) 위지윅 문서보기에서 엔터 입력 시 빈 문단이 <p></p> HTML 태그로 무조건 직렬화되어 에디터에 노출되던 결함 해결
  *             2) 오직 연속된 두 리스트 사이의 분리 보존(isBetweenLists)을 제외한 모든 일반 본문, 헤딩, 수평선 뒤 등의 빈 문단은 <p></p> 대신 순수 마크다운 개행(\n\n)으로 깔끔하게 직렬화
@@ -59,6 +62,9 @@ import { defaultMarkdownParser, defaultMarkdownSerializer, MarkdownParser, Markd
 
 // Unsupported syntax remains an immutable source block. Never round-trip a whole
 // existing document through a generic Markdown serializer.
+// 🚨 @PATCH : **2026-10-21** — [마크다운 <p></p> 완전 소거 및 이중 불릿(- - ) 단일 불릿 자동 치유]:
+//             1) 직렬화 시 빈 문단 <p></p> 생성을 완전 배제하고 순수 마크다운 개행으로 통일
+//             2) 이중 불릿(- - ) 패턴을 단일 불릿(- )으로 정규화하여 볼트 2개 노출 현상 자동 치유
 export const visualSchema = new Schema({
   nodes: markdownSchema.spec.nodes.update('list_item',{...markdownSchema.spec.nodes.get('list_item'),attrs:{checked:{default:null}},toDOM:node=>['li',{'data-task-checked':node.attrs.checked===null?undefined:String(node.attrs.checked)},0]}).update('doc', { ...markdownSchema.spec.nodes.get('doc'), attrs: { frontmatter: { default: '' } } }).update('blockquote', { ...markdownSchema.spec.nodes.get('blockquote'), attrs:{alertType:{default:null}}, toDOM:node=>{
     const tag=String(node.attrs.alertType || '').trim().toUpperCase();
@@ -239,9 +245,9 @@ export const visualSerializer = new MarkdownSerializer({
     if(node.marks.some(mark=>mark.type.name==='code')){defaultMarkdownSerializer.nodes.text(state,node,parent,index);return;}
     const value=node.text||'';let offset=0;
     for(const match of Array.from(value.matchAll(new RegExp('\\[@([\\p{L}\\p{N}_:\\-.+]+)\\]','gu')))){
-      state.text(value.slice(offset,match.index));state.write(match[0]);offset=match.index!+match[0].length;
+      state.text(value.slice(offset,match.index), false);state.write(match[0]);offset=match.index!+match[0].length;
     }
-    state.text(value.slice(offset));
+    state.text(value.slice(offset), false);
   },
   hard_break(state) { state.write('\n'); },
   bullet_list(state,node) { state.renderList(node.type.create({...node.attrs,tight:true},node.content),'  ',()=>'- '); },
@@ -284,8 +290,9 @@ function normalizeQuotes(node: DocumentNode): DocumentNode {
   const children:DocumentNode[]=[];node.forEach(child=>children.push(normalizeQuotes(child)));
   // Markdown parsers can omit the empty leading paragraph of an item whose
   // only content is a nested list. Keep a real caret/Enter target for it.
+  // 🛡️ 문단 없는 list_item에 빈 문단을 강제 주입하면 이중 볼트(• •)가 발생하므로 하위 리스트를 정규화하도록 위임
   if(node.type.name==='list_item' && children[0] && ['bullet_list','ordered_list'].includes(children[0].type.name)){
-    children.unshift(visualSchema.nodes.paragraph.create());
+    // 빈 문단을 unshift하지 않음
   }
   let attrs=node.attrs;
   if(node.type.name==='blockquote' && children[0]?.type.name==='paragraph') {
@@ -477,7 +484,7 @@ export function createVisualDocumentCodec(markdown: string) {
 
         let original = originals.get(node);
         // 리스트와 인접하지 않은 일반 본문/헤딩/수평선 등의 빈 문단에 저장되어 있던 <p></p>는 제거하여 순수 마크다운 개행으로 정돈
-        if (original && /^<p\b[^>]*>\s*<\/p>$/i.test(original.trim()) && !isListAdjacent) {
+        if (original && /^<p\b[^>]*>\s*<\/p>$/i.test(original.trim())) {
           original = undefined;
         }
 
@@ -502,7 +509,7 @@ export function createVisualDocumentCodec(markdown: string) {
         // Blank lines alone cannot encode an empty paragraph adjacent to a list:
         // Markdown merges lists on the next parse. A standard empty HTML paragraph preserves the editable exit position through save/reload.
         result += original ?? (node.type.name==='paragraph' && node.content.size===0 && doc.childCount>1
-          ? (isListAdjacent ? '<p></p>' : '') : ['source_block', 'visual_image', 'visual_media'].includes(node.type.name)
+          ? '' : ['source_block', 'visual_image', 'visual_media'].includes(node.type.name)
           ? node.attrs.source
           : node.type.name === 'visual_math'
           ? `\n$$\n${(node.attrs.latex || '').trim()}\n$$\n\n`
@@ -519,6 +526,12 @@ export function createVisualDocumentCodec(markdown: string) {
 
 /** Remove accidental long blank runs between blocks, never code/math/metadata. */
 export function normalizeVisualMarkdownSpacing(source: string): string {
+  // 🛡️ 이중 불릿(- - , * - 등) 패턴을 단일 불릿으로 자동 치유
+  source = source.replace(/^([ \t]*[-*+])[ \t]+[-*+][ \t]+/gm, '$1 ');
+  // 🛡️ 잔존하는 <p></p> 태그 소거
+  source = source.replace(/<p\b[^>]*>\s*<\/p>/gi, '');
+  // 🛡️ 불필요하게 역슬래시로 이스케이프된 백틱(`), 대괄호([ ]), 목록 하이픈(\-) 자동 소거
+  source = source.replace(/\\(`)/g, '$1').replace(/\\(\[|\])/g, '$1').replace(/(^|\s)\\([-*+])(\s)/gm, '$1$2$3');
   const lines = source.match(/[^\n]*\n|[^\n]+$/g) || [];
   const output: string[] = [];
   let blanks: string[] = [], fence = '', fenceLength = 0, math = false, pre = false;

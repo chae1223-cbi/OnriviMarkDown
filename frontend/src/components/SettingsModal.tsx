@@ -1,5 +1,11 @@
 // ====================================================================
 // 📊 [OMD-EDIT-SettingsModal-0006 ✅ FIXED] SettingsModal.tsx ➔ SettingsModal
+// 🚨 @PATCH : **2026-10-21** — [환경설정 오픈 시 현재 연결된 리소스 폴더 기반 AI 설정정보 즉시 강제 세팅]:
+//             1) 모달 열림 즉시 loadResourceAICredentials 실행으로 리소스 폴더의 최신 키/모델을 화면에 즉각 동기화
+// 🚨 @PATCH : **2026-10-21** — [리소스 폴더 변경 시 환경설정 모달 내부 AI 환경정보 실시간 자동 갱신]:
+//             1) resourceFolder prop 변경 감지 즉시 loadResourceAICredentials를 실행하여 해당 폴더의 API 키와 모델을 즉각 반영
+// 🚨 @PATCH : **2026-10-21** — [다중 AI 제공사 리소스 폴더 연동 보호]: Gemini 키 부재로 타 제공사 키가 삭제되던 결함 차단
+// 🚨 @PATCH : **2026-10-20** — [ESLint react-hooks/exhaustive-deps 경고 해소]: 워터마크 리소스 갱신 effect cleanup 시 watermarkGeneration ref를 로컬 변수로 캡처하여 참조 안정성 확보
 // 🚨 @PATCH : **2026-10-20** — [다중 AI(OpenAI, Claude, Google) 연동 보존 및 저장 토스트 안내 개선]: 다중 AI 중 하나라도 활성화 시 AI 연결 정상 유지로 인식하여 오안내 방어
 // 🚨 @PATCH : **2026-10-19** — [환경설정 일반설정에 기본 워터마크(위치/문구/이미지/진하기/회전/너비/첫페이지제외) 설정 UI 신설]: PDF 및 EPUB 내보내기 시 적용할 기본 워터마크 조판 컨트롤 및 실시간 스토리지 동기화 구현
 // 🚨 @PATCH : **2026-09-25** — [에디터 글꼴 크기(Font Size) 조절 UI 신설 및 가독성 개선]: 13px~22px 단계별 폰트 크기 선택 셀렉트박스를 신설하여 작은 글씨로 인한 눈 피로 완전 해소
@@ -29,6 +35,7 @@
 
 import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import AIConnectionSettings from '@/components/ai/AIConnectionSettings';
+import { resolveCurrentProfile, loadResourceAICredentials, saveResourceAICredentials, deleteResourceAICredentials, purgeLocalStorageAICredentials } from '@/lib/ai/resourceAICredentials';
 import {aiAccountScope, getProviderApiKey} from '@/lib/ai/client';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { saveResourceMedia } from '@/lib/resourceMedia';
@@ -123,6 +130,33 @@ export default function SettingsModal({
   const [closing, setClosing] = useState(false);
   const [activeTab, setActiveTab] = useState<'general' | 'hotkeys' | 'account'>('general');
   const [availableAIModels, setAvailableAIModels] = useState<OnriviAIModelItem[]>(() => getCachedAIModels());
+  const [currentProfileLabel, setCurrentProfileLabel] = useState<string>('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    // 🚀 [환경설정 열릴 때 현재 리소스 폴더 내용으로 AI 설정정보 100% 즉시 강제 세팅]
+    loadResourceAICredentials(resourceFolder || undefined).then((creds: any) => {
+      setGeminiApiKey(creds?.apiKey || '');
+      setAiModelName(creds?.aiModelName || 'gemini-3.8-flash');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('onrivi:ai-connections'));
+      }
+    }).catch(() => {});
+
+    resolveCurrentProfile(resourceFolder || undefined).then((res) => {
+      setCurrentProfileLabel(res.profileLabel);
+    });
+
+    // 🚀 [리소스 폴더 변경 시 해당 폴더의 AI 인증정보 즉각 재로드]
+    loadResourceAICredentials(resourceFolder || undefined).then((creds: any) => {
+      setGeminiApiKey(creds?.apiKey || '');
+      setAiModelName(creds?.aiModelName || 'gemini-3.8-flash');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('onrivi:ai-connections'));
+      }
+    }).catch(() => {});
+  }, [isOpen, resourceFolder, setGeminiApiKey, setAiModelName]);
+
 
   // 🌟 [기본 워터마크 설정 상태]
   const [watermarkSettings, setWatermarkSettings] = useState<DocumentPrintSettings>(() => getDefaultWatermarkSettings());
@@ -138,7 +172,8 @@ export default function SettingsModal({
     void reloadWatermarkResources();
     const refresh=()=>{void reloadWatermarkResources();};
     window.addEventListener('onrivi:resource_folder_changed',refresh);window.addEventListener('onrivi:media-updated',refresh);
-    return()=>{watermarkGeneration.current++;window.removeEventListener('onrivi:resource_folder_changed',refresh);window.removeEventListener('onrivi:media-updated',refresh);};
+    const wmGen = watermarkGeneration;
+    return()=>{wmGen.current++;window.removeEventListener('onrivi:resource_folder_changed',refresh);window.removeEventListener('onrivi:media-updated',refresh);};
   },[isOpen,reloadWatermarkResources]);
   useEffect(()=>{
     let disposed=false,url='';setWatermarkPreview('');
@@ -368,23 +403,17 @@ export default function SettingsModal({
   const [testResult, setTestResult] = useState<{ success: boolean; msg: string } | null>(null);
 
   // 🤖 [AI 설정 삭제 핸들러] Gemini API 키 및 AI 연동 상태를 스토리지에서 즉시 완전 삭제
-  const handleDeleteAiSettings = useCallback(() => {
+  const handleDeleteAiSettings = useCallback(async () => {
     setGeminiApiKey('');
     setTestResult(null);
     try {
-      localStorage.removeItem('onrivi_gemini_api_key');
-      localStorage.setItem('onrivi_gemini_api_key', '');
-      saveSecureData('onrivi_gemini_api_key', '');
-      saveSecureData('geminiApiKey', '');
+      await deleteResourceAICredentials(resourceFolder || undefined);
+      purgeLocalStorageAICredentials();
       const raw = localStorage.getItem('onrivi_settings');
       if (raw) {
         const parsed = JSON.parse(raw);
         parsed.geminiApiKey = '';
         localStorage.setItem('onrivi_settings', JSON.stringify(parsed));
-      }
-      const chromeStorage = (window as any).chrome?.storage?.local;
-      if (chromeStorage) {
-        chromeStorage.set({ onrivi_gemini_api_key: '' });
       }
       const api = (window as any).electronAPI;
       if (api && typeof api.saveSettings === 'function') {
@@ -394,8 +423,8 @@ export default function SettingsModal({
     } catch (err) {
       console.error('AI 연동 해제 중 오류:', err);
     }
-    showToast('Gemini API 키가 제거되고 AI 연동이 해제되었습니다.', 'info');
-  }, [setGeminiApiKey, showToast]);
+    showToast('Gemini API 키가 리소스 폴더에서 안전하게 제거되었습니다.', 'info');
+  }, [resourceFolder, setGeminiApiKey, showToast]);
 
   useEffect(() => {
     setMounted(true);
@@ -589,18 +618,11 @@ export default function SettingsModal({
                   setAiModelName(modelToSave);
 
                   try {
-                    if (cleanKey && !cleanKey.startsWith('U2FsdGVkX1')) {
-                      localStorage.setItem('onrivi_gemini_api_key', cleanKey);
-                      saveSecureData('onrivi_gemini_api_key', cleanKey);
-                      saveSecureData('geminiApiKey', cleanKey);
-                    } else {
-                      localStorage.removeItem('onrivi_gemini_api_key');
-                      localStorage.setItem('onrivi_gemini_api_key', '');
-                      saveSecureData('onrivi_gemini_api_key', '');
-                      saveSecureData('geminiApiKey', '');
+    if (cleanKey && !cleanKey.startsWith('U2FsdGVkX1')) {
+                      await saveResourceAICredentials({ apiKey: cleanKey, aiModelName: modelToSave }, resourceFolder || undefined);
                     }
-                    // 모델명은 보안 암호화 대상이 아니므로 순수 평문으로만 저장
-                    localStorage.setItem('onrivi_ai_model_name', modelToSave);
+    purgeLocalStorageAICredentials();
+    localStorage.setItem('onrivi_ai_model_name', modelToSave);
 
                       const raw = localStorage.getItem('onrivi_settings');
                       if (raw) {
@@ -812,6 +834,40 @@ export default function SettingsModal({
                         </button>
                       )}
                   </div>
+                </div>
+              </div>
+
+              {/* 📁 AI 인증정보 리소스 폴더 암호화 보관 배너 */}
+              <div className="p-4 rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-950/20 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🔐</span>
+                    <span className="text-[13px] font-bold text-blue-900 dark:text-blue-300">
+                      AI API 키 리소스 폴더 암호화 관리 (로컬스토리지 보관 배제)
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-md bg-blue-600 text-white shadow-xs">
+                    AES-256 암호화
+                  </span>
+                </div>
+                <p className="text-[12px] text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                  보안과 편의성을 위해 API 키는 브라우저 로컬스토리지에 저장되지 않으며, 연결된 공통 리소스 폴더의 <code className="font-mono text-zinc-800 dark:text-zinc-200 font-bold bg-white dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700">settings/ai_credentials.enc</code> 파일에만 안전하게 암호화 보관됩니다.
+                </p>
+                <div className="flex flex-wrap items-center gap-3 pt-1 text-[12px] font-semibold text-zinc-700 dark:text-zinc-300">
+                  <div className="flex items-center gap-1.5">
+                    <span>📁 리소스 폴더:</span>
+                    <span className="font-mono font-bold text-blue-700 dark:text-blue-400">
+                      {resourceFolder || '⚠️ 미설정 (폴더를 먼저 선택해 주세요)'}
+                    </span>
+                  </div>
+                  {currentProfileLabel && (
+                    <div className="flex items-center gap-1.5">
+                      <span>🖥️ 현재 식별 환경:</span>
+                      <span className="px-2 py-0.5 rounded-md bg-white dark:bg-zinc-800 border border-blue-300 dark:border-blue-800 font-mono font-bold text-blue-600 dark:text-blue-400 shadow-xs">
+                        {currentProfileLabel}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

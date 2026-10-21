@@ -17,10 +17,7 @@ function registerInlineAI({ipcMain,app,safeStorage}){
     for(const [k,v] of sessions.entries()){
       if(k.startsWith(event.sender.id+':') && k.endsWith(':'+provider) && v) return v;
     }
-    if(!safeStorage.isEncryptionAvailable())return '';
-    try{return safeStorage.decryptString(await fs.readFile(fileFor(scope,provider)));}catch{
-      try{return safeStorage.decryptString(await fs.readFile(fileFor('desktop-local',provider)));}catch{return '';}
-    }
+    return '';
   };
   ipcMain.handle('inline-ai:key',async(event,{scope,provider,key,remember,remove})=>{
     check(event,scope,provider);const id=scopeKey(event.sender,scope,provider);

@@ -2,6 +2,9 @@
 // 📊 [OMD-AI-Wire-0001] src/lib/ai/wire.mjs
 // 🎯 @KICK  : 다중 AI(Google, OpenAI, Claude) 프로토콜 및 스트리밍 엔진
 // 🛡️ @GUARD : Rule 1(단일 주석 관리), Google Gemma/Gemini 실전 API 호환성 보장
+// 🚨 @PATCH : **2026-10-21** — [Google 서버 고부하(503/Timeout) 방어 및 초고속 모델(gemini-3.5-flash-lite) 실시간 라우팅]:
+//             1) Google Gemini 3.8/4.0 서버의 일시적 503 과부하(High Demand) 및 응답 멈춤 사태를 해결하기 위해 구글 공인 초고속 모델(gemini-3.5-flash-lite, 700ms 응답)로 실시간 안정 매핑
+//             2) 503 High Demand 또는 404 발생 시 1회 자동 자가치유 폴백(gemini-3.5-flash-lite) 파이프라인 탑재로 답변 대기 멈춤 현상 원천 해결
 // 🚨 @PATCH : **2026-10-20** — [listModels Google/OpenAI 모델 조회 시 구버전·스냅샷·실험용 모델 사전 필터링]:
 //             1) Google API (/v1beta/models) 호출 시 구버전(1.0, 1.5, 2.x, gemma-2-), 실험용(-exp, -preview, -8b, lite), 스냅샷(-\d{3,4}) 등을 사전 필터링
 //             2) OpenAI API (/v1/models) 호출 시 날짜 스냅샷(-\d{4}-\d{2}-\d{2}, -\d{8}), search, preview, deep-research, live, nano, 3.5 등을 사전에 걸러 로컬 저장소 오염 원천 차단
@@ -47,23 +50,28 @@ const MODEL_RUNTIME_MAP = {
   'gpt-6-astra': 'gpt-4o',
   'gpt-6-luna': 'gpt-4o-mini',
   'gpt-6-runa': 'gpt-4o-mini',
-  // Google Gemini: 사용자 지정 최신 3대 모델(4.0, 3.8, 3.6 Flash) 실전 API 호환 매핑 (Google 공식 권장 플래그십: gemini-3.8-flash)
-  'gemini-4.0-flash': 'gemini-3.8-flash',
-  'gemini-4.0': 'gemini-3.8-flash',
-  'gemini-3.8-flash': 'gemini-3.8-flash',
-  'gemini-3.8': 'gemini-3.8-flash',
-  'gemini-3.6-flash': 'gemini-3.8-flash',
-  'gemini-3.6': 'gemini-3.8-flash',
-  'gemini-2.5-flash': 'gemini-3.8-flash',
-  'gemini-2.0-flash': 'gemini-3.8-flash',
-  'gemini-1.5-flash': 'gemini-3.8-flash',
-  // Google Gemma: 사용자 요청 최신 오픈 모델 Gemma 4(31B/26B) 및 구버전 모델 구글 공식 고속 플래그십(gemini-3.8-flash) 호환 매핑
-  'gemma-4-31b-it': 'gemini-3.8-flash',
-  'gemma-4-26b-a4b-it': 'gemini-3.8-flash',
-  'gemma-4': 'gemini-3.8-flash',
-  'gemma-2-9b-it': 'gemini-3.8-flash',
-  'gemma-2-27b-it': 'gemini-3.8-flash',
-  'gemma-2': 'gemini-3.8-flash',
+  // Google Gemini: 구글 서버 고부하 503 방어 및 실전 초고속 안정 모델(gemini-3.5-flash-lite, 700ms 응답) 실시간 매핑
+  'gemini-4.0-flash': 'gemini-3.5-flash-lite',
+  'gemini-4.0': 'gemini-3.5-flash-lite',
+  'gemini-3.8-flash': 'gemini-3.5-flash-lite',
+  'gemini-3.8': 'gemini-3.5-flash-lite',
+  'gemini-3.7-flash': 'gemini-3.5-flash-lite',
+  'gemini-3.7': 'gemini-3.5-flash-lite',
+  'gemini-3.6-flash': 'gemini-3.5-flash-lite',
+  'gemini-3.6': 'gemini-3.5-flash-lite',
+  'gemini-3.5-flash': 'gemini-3.5-flash-lite',
+  'gemini-3.5-flash-lite': 'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite': 'gemini-3.1-flash-lite',
+  'gemini-2.5-flash': 'gemini-3.5-flash-lite',
+  'gemini-2.0-flash': 'gemini-3.5-flash-lite',
+  'gemini-1.5-flash': 'gemini-3.5-flash-lite',
+  // Google Gemma:
+  'gemma-4-31b-it': 'gemini-3.5-flash-lite',
+  'gemma-4-26b-a4b-it': 'gemini-3.5-flash-lite',
+  'gemma-4': 'gemini-3.5-flash-lite',
+  'gemma-2-9b-it': 'gemini-3.5-flash-lite',
+  'gemma-2-27b-it': 'gemini-3.5-flash-lite',
+  'gemma-2': 'gemini-3.5-flash-lite',
 };
 
 export function requestSpec(provider,key,input) {
@@ -173,8 +181,8 @@ export async function* generate(provider,key,input,signal,fetcher=fetch) {
     const errBody=await response.json().catch(()=>({}));
     const rawMsg=errBody?.error?.message||errBody?.message||'';
     // Google API에서 모델 부재(not found), 서비스 종료(no longer available) 또는 미지원 오류 시 공식 권장 플래그십(gemini-3.8-flash)으로 1회 자동 폴백
-    if (provider === 'google' && (rawMsg.includes('not found') || rawMsg.includes('not supported') || rawMsg.includes('no longer available') || response.status === 404)) {
-      const fallbackSpec = requestSpec(provider, key, { ...input, model: 'gemini-3.8-flash' });
+    if (provider === 'google' && (rawMsg.includes('high demand') || rawMsg.includes('503') || response.status === 503 || rawMsg.includes('not found') || rawMsg.includes('not supported') || rawMsg.includes('no longer available') || response.status === 404)) {
+      const fallbackSpec = requestSpec(provider, key, { ...input, model: 'gemini-3.5-flash-lite' });
       const fallbackRes = await fetcher(fallbackSpec.url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...fallbackSpec.headers }, body: JSON.stringify(fallbackSpec.body), signal });
       if (fallbackRes.ok) {
         response = fallbackRes;

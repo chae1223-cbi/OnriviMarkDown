@@ -1048,12 +1048,13 @@ export async function initializeDriveResourceFolder(token:string, resourceFolder
   if (!resourceFolderId) throw new Error('리소스 폴더를 선택해 주세요.');
   const authToken=resolveAuthToken(token);
   // 5. [로컬 리소스 폴더 규격 완벽 일치] 5대 하위 디렉토리(profiles, prompt, bible, media, db) 일괄 병렬 생성
-  const [profilesFolderId, promptFolderId, bibleFolderId, mediaFolderId, dbFolderId] = await Promise.all([
+  const [profilesFolderId, promptFolderId, bibleFolderId, mediaFolderId, dbFolderId, settingsFolderId] = await Promise.all([
     ensureDriveFolder(authToken, 'profiles', resourceFolderId),
     ensureDriveFolder(authToken, 'prompt', resourceFolderId),
     ensureDriveFolder(authToken, 'bible', resourceFolderId),
     ensureDriveFolder(authToken, 'media', resourceFolderId),
     ensureDriveFolder(authToken, 'db', resourceFolderId),
+    ensureDriveFolder(authToken, 'settings', resourceFolderId),
   ]);
 
   // 6. [로컬 기본 파일 규격 완벽 일치] 6대 기본 파일 & 작업장 파일 목록 일괄 병렬 확인/생성
@@ -1733,4 +1734,37 @@ export async function copyDriveFolderRecursive(
   }
 
   return newFolderId;
+}
+
+
+export async function readDriveAICredentials(token?: string, resourceFolderId?: string): Promise<string | null> {
+  const authToken = resolveAuthToken(token);
+  if (!resourceFolderId) return null;
+  try {
+    const settingsFolderId = await ensureDriveFolder(authToken, 'settings', resourceFolderId);
+    const fileId = await findDriveFile(authToken, 'ai_credentials.enc', settingsFolderId);
+    if (!fileId) return null;
+    return await readDriveFileContent(authToken, fileId);
+  } catch (err) {
+    console.warn('[readDriveAICredentials failed]:', err);
+    return null;
+  }
+}
+
+export async function saveDriveAICredentials(token?: string, resourceFolderId?: string, cipherText: string = ''): Promise<boolean> {
+  const authToken = resolveAuthToken(token);
+  if (!resourceFolderId) return false;
+  try {
+    const settingsFolderId = await ensureDriveFolder(authToken, 'settings', resourceFolderId);
+    const existingFileId = await findDriveFile(authToken, 'ai_credentials.enc', settingsFolderId);
+    if (existingFileId) {
+      return await saveDriveFileContent(authToken, existingFileId, cipherText);
+    } else {
+      await ensureDriveTextFile(authToken, 'ai_credentials.enc', settingsFolderId, cipherText, 'text/plain');
+      return true;
+    }
+  } catch (err) {
+    console.error('[saveDriveAICredentials failed]:', err);
+    return false;
+  }
 }

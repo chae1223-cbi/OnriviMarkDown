@@ -2,6 +2,7 @@
 // 📊 [OMD-AI-PromptStudioModal-0001] src/components/ai/PromptStudioModal.tsx
 // 🎯 @KICK  : 프롬프트 템플릿 전체 원문 열람·입력사항(변수) 작성, 도메인(Category) 관리 및 질의창 연동 전용 스튜디오 모달
 // 🛡️ @GUARD : Rule 1(소스코드 주석 관리), Rule 2(코드값 대문자 통일), Rule 3(역할 기반 컴포넌트 분리), Rule 6(Modern Technical Editorial), Rule 8(고대비 시인성 보장)
+// 🚨 @PATCH : **2026-10-20** — [ESLint react-hooks/exhaustive-deps 경고 해소]: 모달 오픈 시 선택 초기화 effect에서 selectedIdRef를 참조하여 불필요한 재실행 및 의존성 누락 경고 제거
 // 🚨 @PATCH : **2026-10-20** — [UI 정돈: 도메인 직접입력 인풋 및 상단 중복 삭제버튼 제거, 신규 버튼 풋터 이동]:
 //             1) 우측 상단 메타데이터 영역의 도메인 직접입력 중복 인풋창(<input>)을 제거하고 단일 <select> 드롭다운(새 도메인 직접 추가 기능 포함)으로 정돈
 //             2) 우측 상단에 중복 노출되던 '🗑️ 삭제' 버튼을 제거하여 하단 풋터의 '🗑️ 템플릿 삭제'로 일원화
@@ -173,18 +174,21 @@ export default function PromptStudioModal({
 
   // 신규 템플릿 작성 모드 여부
   const isCreatingNew = selectedId === 'NEW_TEMPLATE';
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
 
   // 모달 열릴 때 기본 선택 초기화
   useEffect(() => {
     if (!isOpen) return;
     setFeedbackMsg('');
-    if (selectedId === 'NEW_TEMPLATE') return;
-    if (allTemplates.length > 0 && !selectedId) {
+    const curId = selectedIdRef.current;
+    if (curId === 'NEW_TEMPLATE') return;
+    if (allTemplates.length > 0 && !curId) {
       const first = allTemplates[0];
       setSelectedId(first.id);
       loadTemplateIntoView(first);
-    } else if (selectedId) {
-      const found = allTemplates.find((t) => t.id === selectedId);
+    } else if (curId) {
+      const found = allTemplates.find((t) => t.id === curId);
       if (found) loadTemplateIntoView(found);
     }
   }, [isOpen, allTemplates]);

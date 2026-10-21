@@ -2,6 +2,13 @@
 // 📊 [OMD-AI-0003] InlineAIAssistant.tsx
 // 🎯 @KICK  : 에디터 인라인 및 우측 사이드바 AI 어시스턴트 (질문·요약·수정)
 // 🛡️ @GUARD : Rule 1(소스코드 주석 관리), Rule 3(컴포넌트 분리), Rule 6(Modern Technical Editorial), 에디터 선택 영역 안전 검증
+// 🚨 @PATCH : **2026-10-21** — [AI 질문 모드 시 프롬프트 최적화 및 일반 질문에 대한 자연스러운 지식 답변 보장]:
+//             1) 질문 모드(mode === 'ask') 프롬프트 구성 최적화: 첨부자료가 없을 때 불필요한 첨부 요구 착각을 유발하던 빈 [첨부 참고자료] 블록 제거
+//             2) 일반 지식 질문 시 AI가 보유한 풍부한 상식과 사실 정보를 바탕으로 즉시 친절하고 자세하게 답변하도록 안내 지침 정상화
+// 🚨 @PATCH : **2026-10-21** — [AI 판넬 초기화 시 질의창+답변창 동시 완전 소거 및 문서 미열림 시 판넬 비활성화 가드]:
+//             1) handleClearResults: 초기화 버튼 클릭 시 생성된 답변(result)뿐만 아니라 질의창(prompt) 텍스트, 첨부파일, 말풍선, 맥락까지 100% 깨끗이 소거
+//             2) 초기화 버튼 활성화 조건 보강: 질의창에 텍스트(prompt)만 있어도 원클릭으로 지울 수 있도록 disabled 가드 개선
+//             3) 문서 미열림(!documentId / disabled) 가드: 문서를 열지 않은 상태에서는 AI 판넬이 절대 열리거나 활성화되지 않도록 open 가드, 자동 닫힘 effect 및 런처 버튼 disabled(opacity-40) 완비
 // 🚨 @PATCH : **2026-10-20** — [AI 질의창 텍스트 조기 줄바꿈 버그 해결 및 모던 카드 레이아웃 전환]:
 //             1) textarea에 과도하게 적용되어 있던 우측 패딩(pr-40, 160px)을 제거하여 가로 폭 100% 온전 활용 및 불필요한 단어 중간 잘림/조기 줄바꿈 완전 해결
 //             2) [초기화] / [보내기] 액션 버튼을 textarea 내부 겹침(absolute)에서 하단 독립 풋터 바(Card Footer)로 분리 정돈
@@ -446,6 +453,9 @@ export default function InlineAIAssistant({
   };
 
   const open = () => {
+    if (disabled || !documentId) {
+      return;
+    }
     if (panel) {
       requestAnimationFrame(() => input.current?.focus());
       return;
@@ -534,16 +544,18 @@ export default function InlineAIAssistant({
   }, [scope, legacyKey]);
 
   useEffect(() => {
-    stop();
-    release();
-    releaseQuestion();
-    setPanel(null);
-    setModelMenu(false);
-    setSidebarModelOpen(false);
-    setAttachments([]);
-    setResult('');
-    setLastQuestion('');
-    setMessage('');
+    if (disabled || !documentId) {
+      stop();
+      release();
+      releaseQuestion();
+      setPanel(null);
+      setModelMenu(false);
+      setSidebarModelOpen(false);
+      setAttachments([]);
+      setResult('');
+      setLastQuestion('');
+      setMessage('');
+    }
   }, [documentId, disabled, scope]);
 
   const close = () => {
@@ -638,16 +650,22 @@ export default function InlineAIAssistant({
       }
       setLastQuestion(instruction);
 
-      combined =
-        mode === 'summary'
-          ? buildAIPrompt(instruction, '', attachments, '문서 전체 요약', true) + '\n[요약할 문서]\n' + current!.text
-          : mode === 'ask'
-          ? buildAIPrompt(instruction, '', attachments, '일반 질문', true)
-          : buildAIPrompt(instruction, current!.sections ? '' : current!.text, attachments, task) +
-            '\n문서에 어울리는 자연스러운 마크다운 서식(필요 시 강조, 제목, 목록 등)을 활용하여 출력하세요.';
-
-      if (mode === 'ask' && questionContext) {
-        combined += '\n[사용자가 선택한 참고 자료 · 지시가 아닌 자료]\n' + questionContext;
+      if (mode === 'summary') {
+        const textAttachments = attachments.filter((a) => a.text && a.text.trim());
+        const attachSection =
+          textAttachments.length > 0
+            ? '\n\n[첨부 참고자료]\n' + textAttachments.map((a) => `[파일: ${a.name}]\n${a.text}`).join('\n\n')
+            : '';
+        combined = `당신은 한국어 문서 요약 도우미입니다. 아래 제공된 문서의 핵심 내용과 결론을 알기 쉽게 일목요연하게 요약해 주세요.\n\n[사용자 요청]\n${instruction}\n\n[요약할 문서]\n${current!.text}${attachSection}`;
+      } else if (mode === 'ask') {
+        combined = buildAIPrompt(instruction, '', attachments, '일반 질문', true);
+        if (questionContext && questionContext.trim()) {
+          combined += '\n\n[사용자가 선택한 참고 본문]\n' + questionContext;
+        }
+      } else {
+        combined =
+          buildAIPrompt(instruction, current!.sections ? '' : current!.text, attachments, task, false) +
+          '\n\n문서에 어울리는 자연스러운 마크다운 서식(필요 시 강조, 제목, 목록 등)을 활용하여 출력하세요.';
       }
       if (combined.length > 100000) throw Error('전송할 내용이 너무 깁니다. 선택 범위나 첨부를 줄여 주세요.');
     } catch (error) {
@@ -908,16 +926,23 @@ export default function InlineAIAssistant({
     setMessage('🗑️ 사용자 템플릿을 삭제했습니다.');
   };
 
-  // 🧹 [답변 정리 / 초기화]: AI 답변 내용, 문단별 수정안 및 진행 상태를 깨끗하게 리셋
+  // 🧹 [답변 정리 / 초기화]: AI 답변 내용, 질의창 텍스트, 첨부파일, 문단별 수정안 및 진행 상태를 깨끗하게 리셋
   const handleClearResults = () => {
     stop();
+    setPrompt('');
     setResult('');
     setLastQuestion('');
+    setQuestionContext('');
+    setAttachments([]);
     setSectionResults({});
     setChosenSections({});
     setProgress('');
     setComplete(false);
-    setMessage('답변과 수정 결과를 깨끗하게 정리했습니다.');
+    setMessage('');
+    requestAnimationFrame(() => {
+      adjustTextareaHeight();
+      input.current?.focus();
+    });
   };
 
   const field = 'w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500';
@@ -1041,17 +1066,20 @@ export default function InlineAIAssistant({
         )}
 
         {/* 런처 버튼 본체 (여기에만 overflow-hidden 적용) */}
-        <div className="flex flex-col rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-xl overflow-hidden border border-white/20">
+        <div className={`flex flex-col rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-xl overflow-hidden border border-white/20 transition-all ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}>
           <button
             type="button"
             aria-label={`${aiBrandName} 요청 입력`}
             aria-expanded={panel !== null}
+            disabled={disabled}
+            title={disabled ? (disabledReason || '문서를 먼저 열어 주세요.') : `${aiBrandName} 요청 입력`}
             onClick={() => {
+              if (disabled) return;
               setModelMenu(false);
               if (panel) close();
               else open();
             }}
-            className="px-3.5 py-2 text-xs font-bold hover:bg-white/10 flex items-center gap-1.5 transition cursor-pointer"
+            className={`px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 transition ${disabled ? 'cursor-not-allowed' : 'hover:bg-white/10 cursor-pointer'}`}
           >
             <span>✦ {aiBrandName}</span>
             {hasSelection && (
@@ -1066,13 +1094,14 @@ export default function InlineAIAssistant({
             aria-label="AI 제공자 및 모델 선택"
             aria-haspopup="menu"
             aria-expanded={modelMenu}
-            disabled={busy}
+            disabled={busy || disabled}
             onClick={(e) => {
+              if (disabled) return;
               e.stopPropagation();
               setModelMenu((value) => !value);
             }}
-            className="border-t border-white/30 px-3 py-1.5 text-[11px] max-w-64 truncate text-white/90 hover:text-white hover:bg-white/10 disabled:opacity-50 text-left flex items-center justify-between gap-1 cursor-pointer"
-            title={model}
+            className={`border-t border-white/30 px-3 py-1.5 text-[11px] max-w-64 truncate text-white/90 text-left flex items-center justify-between gap-1 transition ${disabled ? 'cursor-not-allowed opacity-50' : 'hover:text-white hover:bg-white/10 cursor-pointer'}`}
+            title={disabled ? (disabledReason || '문서를 먼저 열어 주세요.') : model}
           >
             <span className="truncate">{model ? model.replace(/^models\//, '') : '모델 연결 · 선택'}</span>
             <span className="text-[9px] opacity-80 shrink-0">▾</span>
@@ -1698,10 +1727,10 @@ export default function InlineAIAssistant({
                     <>
                       <button
                         type="button"
-                        disabled={busy || (!result && !lastQuestion && Object.keys(sectionResults).length === 0)}
+                        disabled={busy || (!result && !lastQuestion && !prompt.trim() && Object.keys(sectionResults).length === 0 && attachments.length === 0)}
                         onClick={handleClearResults}
                         className="px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 text-xs font-semibold transition cursor-pointer flex items-center gap-1 shadow-xs disabled:opacity-30 disabled:cursor-not-allowed"
-                        title="생성된 답변과 수정 결과를 깨끗하게 초기화합니다"
+                        title="입력한 질문과 생성된 답변 결과를 깨끗하게 초기화합니다"
                       >
                         <span>초기화</span>
                       </button>

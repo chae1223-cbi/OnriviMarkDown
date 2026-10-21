@@ -2,6 +2,11 @@
 // 📊 [OMD-AI-Client-0001] src/lib/ai/client.ts
 // 🎯 @KICK  : 다중 AI(Google, OpenAI, Claude) 클라이언트 통신 및 키 영구 보존 엔진
 // 🛡️ @GUARD : Rule 1(주석 최신화), AES-256 보안 저장소 영구 연동, 멀티 스코프 탐색
+// 🚨 @PATCH : **2026-10-21** — [Google/OpenAI/Claude 키 형식 엄격 검증 및 비정상 키 메모리 캐시 배제]:
+//             1) getProviderApiKey & useLegacyGoogleKey: Google 키에 sk- 또는 googleusercontent.com 유입 시 즉시 차단 및 메모리 삭제
+// 🚨 @PATCH : **2026-10-21** — [키 미등록 제공사 유령 모델 노출 차단 및 리소스 폴더 연동 강화]:
+//             1) selectedConnection: 리소스 폴더에 해당 제공사 키가 등록되어 있지 않으면 모델을 빈 문자열('')로 안전 반환하여 유령 모델 노출 차단
+//             2) readConnections: 리소스 폴더(settings/ai_credentials.enc)를 단일 진실 공급원(SSOT)으로 삼아 모델 및 연결 정보 동기화
 // 🚨 @PATCH : **2026-10-20** — [연결 해제 시 connection 정보 완전 삭제(removeConnection) 파이프라인 추가]:
 //             1) removeConnection 함수 신설: 연결 해제 시 스토리지에서 해당 프로바이더 정보 완전 삭제 및 이벤트 전파
 // 🚨 @PATCH : **2026-10-20** — [OpenAI/Claude/Google API 키 다중 스코프 자가치유 탐색 및 질의 연동 무결성 완비]:
@@ -12,6 +17,9 @@
 import {browserAccountStorage as storage,getBrowserAccountScope} from '../browserAccountStorage';
 import {supabase} from '../supabaseClient';
 import {saveSecureData,loadSecureData} from '../secureStorage';
+import { getActiveResourceApiKey, getProviderResourceApiKey, getProviderResourceModel, getProviderResourceModels, saveProviderResourceCredentials, deleteProviderResourceCredentials, purgeLocalStorageAICredentials } from './resourceAICredentials';
+import { RECOMMENDED_MODELS } from './recommendedModels';
+import { ONRIVI_AI_MODELS } from '../gemini';
 import type {AIProvider,AIModel,AIInput} from './types';
 export const AI_LABELS:Record<AIProvider,string>={google:'Google · Gemini / Gemma',openai:'OpenAI',anthropic:'Claude'};
 const STORE='onrivi_ai_connections';
@@ -30,71 +38,49 @@ const disabledKey=(scope:string,provider:AIProvider)=>`onrivi_ai_disabled:${scop
  * - 3순위: 로컬 AES-256 보안 저장소(loadSecureData) 및 로컬스토리지 다중 폴백
  */
 export function getProviderApiKey(scope:string,provider:AIProvider):string{
-  const inMem=memoryKeys.get(scope+':'+provider);
-  if(inMem&&inMem.trim())return inMem.trim();
-
-  // 스코프 불일치 방어 (desktop-local vs user_id 등)
-  let foundInMem = '';
-  memoryKeys.forEach((v, k) => {
-    if (!foundInMem && k.endsWith(':' + provider) && v && v.trim()) {
-      foundInMem = v.trim();
+  // 🛡️ [리소스 폴더 기반 SSOT 원칙] 오직 리소스 폴더 활성 키만 단일 진실 공급원으로 판정
+  const resKey = getProviderResourceApiKey(provider);
+  if (resKey && resKey.trim()) {
+    const k = resKey.trim();
+    if (provider === 'google' && (!k.startsWith('AIza') || k.includes('googleusercontent.com') || k.startsWith('sk-'))) {
+      memoryKeys.delete(scope + ':' + provider);
+      return '';
     }
-  });
-  if (foundInMem) {
-    memoryKeys.set(scope + ':' + provider, foundInMem);
-    return foundInMem;
+    if (provider === 'openai' && (!k.startsWith('sk-') || k.startsWith('sk-ant-'))) {
+      memoryKeys.delete(scope + ':' + provider);
+      return '';
+    }
+    if (provider === 'anthropic' && !k.startsWith('sk-ant-')) {
+      memoryKeys.delete(scope + ':' + provider);
+      return '';
+    }
+    memoryKeys.set(scope + ':' + provider, k);
+    return k;
   }
-
-  if(typeof window!=='undefined'){
-    try{
-      const candidates: (string | null | undefined)[] = [
-        loadSecureData<string>(`onrivi_ai_key_${provider}`),
-        loadSecureData<string>(`onrivi_${provider}_api_key`),
-        window.localStorage.getItem(`onrivi_ai_key_${provider}`),
-        window.localStorage.getItem(`onrivi_${provider}_api_key`),
-        window.localStorage.getItem(`${provider}_api_key`),
-        window.localStorage.getItem(`${provider}ApiKey`),
-        storage.getItem(`onrivi_ai_key_${provider}`),
-        storage.getItem(`onrivi_${provider}_api_key`),
-      ];
-
-      if(provider==='google'){
-        candidates.push(
-          loadSecureData<string>('onrivi_gemini_api_key'),
-          loadSecureData<string>('geminiApiKey'),
-          window.localStorage.getItem('onrivi_gemini_api_key'),
-          window.localStorage.getItem('geminiApiKey'),
-          storage.getItem('onrivi_gemini_api_key'),
-          storage.getItem('geminiApiKey')
-        );
-      }
-
-      for(const val of candidates){
-        if(!val||typeof val!=='string')continue;
-        const clean=val.trim();
-        if(clean&&!clean.startsWith('U2FsdGVkX1')){
-          memoryKeys.set(scope+':'+provider,clean);
-          memoryKeys.set('default:'+provider,clean);
-          return clean;
-        }
-      }
-    }catch{}
-  }
+  // 리소스 폴더에 키가 없으면 메모리 캐시도 즉시 삭제
+  memoryKeys.delete(scope + ':' + provider);
   return '';
 }
 
 export function readConnections():Partial<Record<AIProvider,Connection>>{
   try{
-    const raw=JSON.parse(storage.getItem(connectionKey())||'{}'),result:Partial<Record<AIProvider,Connection>>={};
-    for(const provider of ['google','openai','anthropic'] as AIProvider[]){
-      const row=raw?.[provider];if(!row||typeof row!=='object')continue;
-      result[provider]={model:typeof row.model==='string'?row.model:'',updatedAt:typeof row.updatedAt==='number'?row.updatedAt:undefined,models:Array.isArray(row.models)?row.models.filter((m:any)=>typeof m?.id==='string'&&typeof m?.name==='string'&&typeof m?.family==='string').slice(0,2000):[]};
+    const result:Partial<Record<AIProvider,Connection>>={};
+    const googleKey = getActiveResourceApiKey();
+    if (googleKey && googleKey.trim()) {
+      result.google = {
+        model: 'gemini-3.8-flash',
+        models: ONRIVI_AI_MODELS.map(m => ({
+          id: m.id,
+          name: m.name,
+          family: m.id.startsWith('gemma-') ? 'Gemma' : 'Gemini'
+        }))
+      };
     }
     return result;
   }catch{return {};}
 }
-export function saveConnection(provider:AIProvider,connection:Connection){const all=readConnections();all[provider]=connection;storage.setItem(connectionKey(),JSON.stringify(all));window.dispatchEvent(new Event('onrivi:ai-connections'));}
-export function removeConnection(provider:AIProvider){const all=readConnections();delete all[provider];storage.setItem(connectionKey(),JSON.stringify(all));window.dispatchEvent(new Event('onrivi:ai-connections'));}
+export function saveConnection(provider:AIProvider,connection:Connection){void saveProviderResourceCredentials(provider, { model: connection.model, models: connection.models });window.dispatchEvent(new Event('onrivi:ai-connections'));}
+export function removeConnection(provider:AIProvider){void deleteProviderResourceCredentials(provider);window.dispatchEvent(new Event('onrivi:ai-connections'));}
 export function selectedConnection():{provider:AIProvider;model:string}{try{const v=JSON.parse(storage.getItem(selectedKey())||'{}');return {provider:['google','openai','anthropic'].includes(v?.provider)?v.provider:'google',model:typeof v?.model==='string'?v.model:''};}catch{return {provider:'google',model:''};}}
 export function selectConnection(provider:AIProvider,model:string){storage.setItem(selectedKey(),JSON.stringify({provider,model}));window.dispatchEvent(new Event('onrivi:ai-connections'));}
 export async function configureAI(scope:string,provider:AIProvider,key:string,remember=true,remove=false){
@@ -104,40 +90,29 @@ export async function configureAI(scope:string,provider:AIProvider,key:string,re
   }
   if(remove){
     memoryKeys.delete(scope+':'+provider);
-    const toDelete: string[] = [];
-    memoryKeys.forEach((_v, k) => {
-      if (k.endsWith(':' + provider)) toDelete.push(k);
-    });
-    toDelete.forEach((k) => memoryKeys.delete(k));
-    if(typeof window!=='undefined'){
-      try{
-        saveSecureData(`onrivi_ai_key_${provider}`,'');
-        saveSecureData(`onrivi_${provider}_api_key`,'');
-        window.localStorage.removeItem(`onrivi_ai_key_${provider}`);
-        window.localStorage.removeItem(`onrivi_${provider}_api_key`);
-      }catch{}
-    }
+    await deleteProviderResourceCredentials(provider);
+    purgeLocalStorageAICredentials();
   }else if(cleanKey){
     memoryKeys.set(scope+':'+provider,cleanKey);
-    memoryKeys.set('default:'+provider,cleanKey);
-    if(typeof window!=='undefined'){
-      try{
-        saveSecureData(`onrivi_ai_key_${provider}`,cleanKey);
-        saveSecureData(`onrivi_${provider}_api_key`,cleanKey);
-      }catch{}
-    }
+    await saveProviderResourceCredentials(provider, { apiKey: cleanKey });
+    purgeLocalStorageAICredentials();
   }
-  if(remove)storage.setItem(disabledKey(scope,provider),'true');else if(cleanKey)storage.removeItem(disabledKey(scope,provider));
   window.dispatchEvent(new Event('onrivi:ai-connections'));
 }
-export async function connectedAI(scope:string,provider:AIProvider){
-  if(Boolean(getProviderApiKey(scope,provider)))return true;
-  return api()?.inlineAIKey?Boolean((await api().inlineAIKey({scope,provider})).connected):false;
+export async function connectedAI(scope:string,provider:AIProvider):Promise<boolean>{
+  // 🛡️ [리소스 폴더 기반 SSOT 원칙] OS 금고 잔여물 배제 및 오직 리소스 폴더 키 존재 여부로만 연결 판정
+  const key = getProviderApiKey(scope, provider);
+  return Boolean(key && key.trim());
 }
 export function useLegacyGoogleKey(scope:string,key:string){
   if(key?.trim()&&storage.getItem(disabledKey(scope,'google'))!=='true'){
     const clean=key.trim();
-    memoryKeys.set(scope+':google',clean);
+      if (!clean.startsWith('AIza') || clean.includes('googleusercontent.com') || clean.startsWith('sk-')) {
+    memoryKeys.delete(scope+':google');
+    memoryKeys.delete('default:google');
+    return;
+  }
+  memoryKeys.set(scope+':google',clean);
     memoryKeys.set('default:google',clean);
     try{
       saveSecureData('onrivi_ai_key_google',clean);

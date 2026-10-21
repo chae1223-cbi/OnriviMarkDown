@@ -4,6 +4,9 @@ import { loadSecureData } from '@/lib/secureStorage';
 
 /**
  * [ONR-AI-001] Gemini API 헬퍼 유틸리티
+ * 🚨 @PATCH : **2026-10-21** — [Google Gemini API 키 유효성 엄격 검증 및 OpenAI 키/OAuth 클라이언트 ID 오유입 차단]:
+ *             1) ensureDecryptedApiKey: AIza로 시작하지 않거나 sk- 또는 googleusercontent.com이 포함된 유효하지 않은 키는 즉시 빈 문자열('') 반환
+ *             2) fetchGoogleAIStudioModels: 키가 AIza로 시작하지 않는 경우 외부 Google API 호출을 원천 차단하여 400 Bad Request 콘솔 에러 완전 박멸
  * 🚨 @PATCH : **2026-10-20** — [Google 최신 오픈 가중치 모델 Gemma 4(31B IT, 26B A4B IT) 공식 라인업 재추가]:
  *             1) 사용자 요청에 따라 Gemma 4 최신 모델(gemma-4-31b-it, gemma-4-26b-a4b-it)을 공인 모델(ONRIVI_AI_MODELS)에 공식 탑재
  *             2) systemInstruction 미지원 Gemma 특성에 맞춘 시스템 지침 자동 통합 주입 및 500/과부하 오류 진단 파이프라인 유지
@@ -73,6 +76,10 @@ export function ensureDecryptedApiKey(apiKey?: string): string {
       }
     } catch {}
   }
+    // 🛡️ [Google Gemini API 키 무결성 검증] AIza로 시작하지 않거나 OpenAI(sk-)/OAuth 클라이언트 ID 오유입 원천 차단
+  if (!cleanKey || !cleanKey.startsWith('AIza') || cleanKey.includes('googleusercontent.com') || cleanKey.startsWith('sk-')) {
+    return '';
+  }
   return cleanKey;
 }
 
@@ -130,7 +137,7 @@ export function normalizeAIModelName(rawModel?: string): string {
  */
 export async function fetchGoogleAIStudioModels(apiKey?: string): Promise<OnriviAIModelItem[]> {
   const cleanKey = ensureDecryptedApiKey(apiKey);
-  if (!cleanKey || cleanKey.startsWith('U2FsdGVkX1')) return getCachedAIModels();
+  if (!cleanKey || cleanKey.startsWith('U2FsdGVkX1') || !cleanKey.startsWith('AIza')) return getCachedAIModels();
 
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`);

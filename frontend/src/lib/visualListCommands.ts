@@ -1,21 +1,214 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 파일명 : visualListCommands.ts
+ * 🚨 @PATCH : **2026-10-21** — [1레벨 리스트 항목 및 빈 줄 너머 이전 리스트로 Tab 들여쓰기 스마트 연동]:
+ *             1) independentIndentListItem 개선: 1레벨 첫 번째 항목이거나 사이에 빈 줄이 있어 분리된 리스트더라도 Tab 입력 시 이전 리스트(안전 규정 등)의 하위 2레벨 항목으로 즉시 들여쓰기 수행
+ * 🚨 @PATCH : **2026-10-21** — [리스트 사이 빈 줄 방향키 건너뛰기 방어 및 빈 항목 백스페이스 삭제/병합 일원화]:
+ *             1) moveUpFromEmptyOrderedItem을 bullet_list까지 확장하여 불릿 빈 항목에서 백스페이스 시 리스트 분할/빈문단 없이 즉시 삭제 및 이전 항목 끝으로 복귀
+ *             2) moveUpAcrossListBoundary / moveDownAcrossListBoundary를 신설하여 리스트와 빈 문단 사이를 방향키(↑/↓)로 이동 시 건너뛰지 않고 빈 줄에 정확히 안착
+ *             3) deleteAtEndOfList를 신설하여 리스트 끝에서 Delete 시 바로 뒤 빈 문단을 깔끔하게 삭제하고 분리된 리스트를 하나로 자동 병합
+ * 🚨 @PATCH : **2026-10-21** — [상위 리스트 들여쓰기 시 하위 레벨 항목 보존(상위 레벨 역주행 튀어나옴 방어)]:
+ *             1) independentIndentListItem 및 indentItemIntoPreviousList 개선: 상위 항목 Tab 들여쓰기 시 하위 리스트가 상위 레벨(1레벨)로 역주행 튀어나오던 분리 결함을 제거하고, 하위 항목과의 부모-자식 위계 구조를 100% 온전히 유지하도록 정돈
+ * 🚨 @PATCH : **2026-10-21** — [서로 다른 리스트(글머리↔숫자) 간 Tab 들여쓰기 지원 및 리스트 중간 엔터 분할 시 아래 리스트 들여쓰기 100% 보존]:
+ *             1) exitEmptyListItem 전면 개선: 리스트 중간에서 볼트 삭제를 위해 엔터 입력 시 리스트를 상/하단으로 안전 분할하여 아래 리스트의 하위 들여쓰기/구조가 깨지는 현상 원천 해결
+ *             2) independentIndentListItem 개선: 이전 리스트 항목이 서로 다른 타입(bullet_list ↔ ordered_list)이어도 이전 항목의 하위 리스트로 쏙 들어가는 교차 리스트 들여쓰기 완벽 지원
+ * 🚨 @PATCH : **2026-10-21** — [빈 문단에서 Delete 시 아래 리스트 보존 및 원클릭 올림(deleteEmptyParagraphBeforeList) 구현]:
+ *             1) 빈 문단에서 Delete 키 입력 시 아래 리스트가 일반 텍스트로 풀리는(unwrap) 버그를 원천 차단하고 빈 문단만 깔끔히 삭제하여 아래 리스트를 100% 서식 유지한 채 위로 즉시 끌어올림
  * 🚨 @PATCH : **2026-10-18** — [목록 번호 백스페이스 삭제 시 재진입/번호 재생성(핑퐁 토글) 결함 완전 해소]:
  *             1) 목록 항목에서 백스페이스로 번호를 지운 뒤 직후 백스페이스를 한 번 더 누를 때, generic joinBackward로 인해 다시 목록 항목으로 흡수되어 번호가 부활하던 결함 차단
  *             2) 목록 바로 아래 문단에서 백스페이스 시 이전 목록 끝에 빈 항목이 있으면 해당 빈 항목을 안전하게 삭제하고, 내용이 있으면 텍스트로 합쳐지도록 개선
  */
 import { Fragment, Node as DocumentNode } from 'prosemirror-model';
-import { Command, TextSelection } from 'prosemirror-state';
+import { Command, TextSelection, Transaction, EditorState } from 'prosemirror-state';
 import { closeHistory } from 'prosemirror-history';
-import { liftListItem } from 'prosemirror-schema-list';
+import { liftListItem, sinkListItem } from 'prosemirror-schema-list';
 import { joinForward } from 'prosemirror-commands';
 import { visualSchema } from './visualDocumentCodec';
 
 const isList=(node:DocumentNode)=>['bullet_list','ordered_list'].includes(node.type.name);
 
+/** 서로 다른 리스트 타입 간(bullet_list ↔ ordered_list) 들여쓰기 지원 헬퍼 */
+function indentItemIntoPreviousList(
+  state: EditorState,
+  dispatch: ((tr: Transaction) => void) | undefined,
+  _currentView: any,
+  itemDepth: number,
+  listDepth: number,
+  prevList: DocumentNode,
+  prevListPos?: number
+): boolean {
+  if (!dispatch) return true;
+  const { $from } = state.selection;
+  const currentList = $from.node(listDepth);
+  const currentItem = $from.node(itemDepth);
+  const listPos = $from.before(listDepth);
+  const currentEnd = $from.after(listDepth);
+
+  // prevList의 마지막 항목(lastChild) 가져오기
+  const lastChild = prevList.lastChild;
+  if (!lastChild) return true;
+
+  // 🛡️ currentItem 전체(하위 리스트 포함)를 온전히 유지하여 하위 레벨이 상위로 튀어나오지 않도록 보존
+  const lastChildChildren: DocumentNode[] = [];
+  let existingSubListIndex = -1;
+  for (let i = 0; i < lastChild.childCount; i++) {
+    const c = lastChild.child(i);
+    if (c.type === currentList.type) {
+      existingSubListIndex = i;
+    }
+    lastChildChildren.push(c);
+  }
+
+  if (existingSubListIndex !== -1) {
+    const oldSubList = lastChildChildren[existingSubListIndex];
+    const newSubListChildren: DocumentNode[] = [];
+    oldSubList.forEach(child => newSubListChildren.push(child));
+    newSubListChildren.push(currentItem);
+    const updatedSubList = oldSubList.type.create(oldSubList.attrs, Fragment.fromArray(newSubListChildren));
+    lastChildChildren[existingSubListIndex] = updatedSubList;
+  } else {
+    const newSubList = currentList.type.create(currentList.attrs, Fragment.fromArray([currentItem]));
+    lastChildChildren.push(newSubList);
+  }
+
+  const updatedLastItem = lastChild.type.create(lastChild.attrs, Fragment.fromArray(lastChildChildren));
+
+  const updatedPrevChildren: DocumentNode[] = [];
+  for (let i = 0; i < prevList.childCount - 1; i++) {
+    updatedPrevChildren.push(prevList.child(i));
+  }
+  updatedPrevChildren.push(updatedLastItem);
+  const updatedPrevList = prevList.type.create(prevList.attrs, Fragment.fromArray(updatedPrevChildren));
+
+  // 현재 리스트에 남은 항목들
+  const remainingInCurrent: DocumentNode[] = [];
+  for (let i = 1; i < currentList.childCount; i++) {
+    remainingInCurrent.push(currentList.child(i));
+  }
+
+  const replacementNodes: DocumentNode[] = [updatedPrevList];
+  if (remainingInCurrent.length > 0) {
+    const updatedCurrentList = currentList.type.create({
+      ...currentList.attrs,
+      order: currentList.type.name === 'ordered_list' ? (currentList.attrs.order || 1) + 1 : undefined
+    }, Fragment.fromArray(remainingInCurrent));
+    replacementNodes.push(updatedCurrentList);
+  }
+
+  const actualPrevPos = prevListPos !== undefined ? prevListPos : listPos;
+  const replaceFrom = actualPrevPos - prevList.nodeSize;
+  const tr = state.tr.replaceWith(replaceFrom, currentEnd, replacementNodes);
+
+  let targetPos = -1;
+  tr.doc.nodesBetween(replaceFrom, replaceFrom + updatedPrevList.nodeSize, (node: DocumentNode, pos: number) => {
+    if (node === currentItem) {
+      targetPos = pos + 1;
+      return false;
+    }
+  });
+
+  if (targetPos !== -1) {
+    tr.setSelection(TextSelection.near(tr.doc.resolve(targetPos + $from.parentOffset)));
+  }
+  dispatch(closeHistory(tr).scrollIntoView());
+  return true;
+}
+
+
 /** Remove the next item's boundary without letting a structural replacement
  * move the caret to an unrelated trailing paragraph. */
+/** 빈 문단에서 Delete 시 아래 리스트가 일반 텍스트로 풀리는 현상을 방지하고,
+ * 빈 문단만 삭제하며 아래 리스트의 서식을 온전히 유지한 채 위로 끌어올림 */
+/** 상위 리스트 항목에서 Tab 입력 시 하위 리스트의 위계 구조를 그대로 보존하며
+ * 이전 형제 항목 또는 교차 리스트로 안전하게 들여쓰기 수행 */
+export const independentIndentListItem: Command = (state, dispatch, currentView) => {
+  const { $from } = state.selection;
+  let itemDepth = -1;
+  for (let d = $from.depth; d > 0; d--) {
+    if ($from.node(d).type === visualSchema.nodes.list_item) {
+      itemDepth = d;
+      break;
+    }
+  }
+  if (itemDepth === -1) return false;
+
+  const listDepth = itemDepth - 1;
+  const itemIndexInList = $from.index(listDepth);
+
+  // 1) 같은 리스트 내에서 이전 형제가 있는 경우 -> sinkListItem으로 이전 항목의 하위로 안전 들여쓰기
+  // 🛡️ 하위 리스트(사전 동의 원칙 등)가 상위 레벨(1레벨)로 튀어나오지 않고 하위 위계를 100% 온전히 유지
+  if (itemIndexInList > 0) {
+    sinkListItem(visualSchema.nodes.list_item)(state, dispatch, currentView);
+    return true;
+  }
+
+  // 2) 리스트의 첫 번째 항목(itemIndexInList === 0)인 경우:
+  // 바로 앞 블록(또는 빈 줄 너머의 이전 블록)이 리스트인지 검사하여 이전 리스트의 하위로 안전 들여쓰기
+  const listPos = $from.before(listDepth);
+  if (listPos > 0) {
+    let prevNode = state.doc.resolve(listPos).nodeBefore;
+    let prevListPos = listPos;
+    if (prevNode && prevNode.type === visualSchema.nodes.paragraph && prevNode.content.size === 0) {
+      const emptyStart = listPos - prevNode.nodeSize;
+      const nodeBeforeEmpty = state.doc.resolve(emptyStart).nodeBefore;
+      if (nodeBeforeEmpty && isList(nodeBeforeEmpty)) {
+        prevNode = nodeBeforeEmpty;
+        prevListPos = emptyStart;
+      }
+    }
+    if (prevNode && isList(prevNode)) {
+      return indentItemIntoPreviousList(state, dispatch, currentView, itemDepth, listDepth, prevNode, prevListPos);
+    }
+  }
+  return true;
+};
+
+/** 상위 리스트 항목에서 Shift+Tab 입력 시 하위 레벨 항목의 위계를 보존하며 안전하게 내어쓰기 수행 */
+export const independentLiftListItem: Command = (state, dispatch, view) => {
+  const { $from } = state.selection;
+  let itemDepth = -1;
+  for (let d = $from.depth; d > 0; d--) {
+    if ($from.node(d).type === visualSchema.nodes.list_item) {
+      itemDepth = d;
+      break;
+    }
+  }
+  if (itemDepth === -1) return false;
+
+  // 🛡️ 하위 리스트를 억지로 떼어내지 않고 자연스럽게 상위 레벨로 안전 내어쓰기 수행
+  return liftListItem(visualSchema.nodes.list_item)(state, dispatch, view);
+};
+
+export const deleteEmptyParagraphBeforeList: Command = (state, dispatch) => {
+  const { $from, empty } = state.selection;
+  if (!empty || $from.parent.type !== visualSchema.nodes.paragraph) return false;
+
+  let isBlank = true;
+  $from.parent.forEach(node => {
+    if (node.type !== visualSchema.nodes.hard_break && (!node.isText || /[^\s\u200b\ufeff]/.test(node.text || ''))) {
+      isBlank = false;
+    }
+  });
+  if (!isBlank) return false;
+
+  const depth = $from.depth;
+  const container = $from.node(depth - 1);
+  const index = $from.index(depth - 1);
+  if (index + 1 >= container.childCount) return false;
+
+  const nextNode = container.child(index + 1);
+  if (!isList(nextNode)) return false;
+
+  if (dispatch) {
+    const fromPos = $from.before(depth);
+    const toPos = $from.after(depth);
+    const tr = state.tr.delete(fromPos, toPos);
+    tr.setSelection(TextSelection.near(tr.doc.resolve(fromPos)));
+    dispatch(closeHistory(tr).scrollIntoView());
+  }
+  return true;
+};
+
 export const deleteNextListBoundary: Command = (state,dispatch,view) => {
   const {$from,empty}=state.selection;
   if(!empty || !$from.parent.isTextblock || $from.parentOffset!==$from.parent.content.size)return false;
@@ -76,36 +269,116 @@ export const joinOrderedListsAcrossEmptyParagraph: Command = (state,dispatch) =>
 /** Enter exits an empty item at its own position; Backspace has a different
  * contract and may move to the preceding item. */
 export const exitEmptyListItem: Command = (state, dispatch, view) => {
-  const {$from,empty}=state.selection;
-  if(!empty || $from.parent.type!==visualSchema.nodes.paragraph)return false;
-  let blank=true;
-  $from.parent.forEach(node=>{
-    if(node.type!==visualSchema.nodes.hard_break && (!node.isText || /[^\s\u200b\ufeff]/.test(node.text||'')))blank=false;
+  const { $from, empty } = state.selection;
+  if (!empty || $from.parent.type !== visualSchema.nodes.paragraph) return false;
+  let blank = true;
+  $from.parent.forEach(node => {
+    if (node.type !== visualSchema.nodes.hard_break && (!node.isText || /[^\s\u200b\ufeff]/.test(node.text || ''))) blank = false;
   });
-  if(!blank)return false;
-  const depth=$from.depth-1;
-  if(depth<1 || $from.node(depth).type!==visualSchema.nodes.list_item)return false;
-  // A blank item may still own sublists or images. Lift its blocks together
-  // instead of handing Enter to splitListItem and creating another number.
-  const tr=state.tr;
-  if($from.parent.content.size)tr.delete($from.start(),$from.end());
-  const cleaned=tr.docChanged?state.apply(tr):state;
-  return liftListItem(visualSchema.nodes.list_item)(cleaned,dispatch?lifted=>{
-    for(const step of lifted.steps)tr.step(step);
-    tr.setSelection(TextSelection.create(tr.doc,lifted.selection.anchor,lifted.selection.head));
+  if (!blank) return false;
+  const depth = $from.depth - 1;
+  if (depth < 1 || $from.node(depth).type !== visualSchema.nodes.list_item) return false;
+
+  const itemNode = $from.node(depth);
+  // 만약 itemNode가 paragraph 외에 하위 리스트를 가지고 있다면 unwrap/lift 처리
+  if (itemNode.childCount > 1) {
+    const tr = state.tr;
+    if ($from.parent.content.size) tr.delete($from.start(), $from.end());
+    const cleaned = tr.docChanged ? state.apply(tr) : state;
+    return liftListItem(visualSchema.nodes.list_item)(cleaned, dispatch ? (lifted: Transaction) => {
+      for (const step of lifted.steps) tr.step(step);
+      tr.setSelection(TextSelection.create(tr.doc, lifted.selection.anchor, lifted.selection.head));
+      dispatch(closeHistory(tr).scrollIntoView());
+    } : undefined, view);
+  }
+
+  const listDepth = depth - 1;
+  const listNode = $from.node(listDepth);
+  const itemIndex = $from.index(listDepth);
+
+  // 1) 리스트에 이 빈 항목 하나뿐인 경우 -> 리스트를 빈 문단으로 교체
+  if (listNode.childCount === 1) {
+    if (dispatch) {
+      const listPos = $from.before(listDepth);
+      const listEnd = $from.after(listDepth);
+      const emptyP = visualSchema.nodes.paragraph.create();
+      const tr = state.tr.replaceWith(listPos, listEnd, emptyP);
+      tr.setSelection(TextSelection.near(tr.doc.resolve(listPos + 1)));
+      dispatch(closeHistory(tr).scrollIntoView());
+    }
+    return true;
+  }
+
+  // 2) 리스트의 마지막 항목인 경우 -> 빈 항목 삭제 후 리스트 뒤에 빈 문단 배치
+  if (itemIndex === listNode.childCount - 1) {
+    if (dispatch) {
+      const itemPos = $from.before(depth);
+      const listEnd = $from.after(listDepth);
+      const emptyP = visualSchema.nodes.paragraph.create();
+      const tr = state.tr.delete(itemPos, listEnd);
+      const insertPos = tr.mapping.map(listEnd);
+      tr.insert(insertPos, emptyP);
+      tr.setSelection(TextSelection.near(tr.doc.resolve(insertPos + 1)));
+      dispatch(closeHistory(tr).scrollIntoView());
+    }
+    return true;
+  }
+
+  // 3) 리스트의 첫 번째 항목인 경우 -> 빈 항목 삭제 후 리스트 앞에 빈 문단 배치
+  if (itemIndex === 0) {
+    if (dispatch) {
+      const listPos = $from.before(listDepth);
+      const itemEnd = $from.after(depth);
+      const emptyP = visualSchema.nodes.paragraph.create();
+      const tr = state.tr.delete(listPos + 1, itemEnd);
+      tr.insert(listPos, emptyP);
+      tr.setSelection(TextSelection.near(tr.doc.resolve(listPos + 1)));
+      dispatch(closeHistory(tr).scrollIntoView());
+    }
+    return true;
+  }
+
+  // 4) 리스트 중간 항목인 경우 (0 < itemIndex < listNode.childCount - 1)
+  // 🛡️ 리스트를 둘로 안전 분할하여 아래 리스트의 들여쓰기/구조를 100% 온전히 보존!
+  if (dispatch) {
+    const listPos = $from.before(listDepth);
+    const listEnd = $from.after(listDepth);
+
+    const beforeItems: DocumentNode[] = [];
+    for (let i = 0; i < itemIndex; i++) {
+      beforeItems.push(listNode.child(i));
+    }
+
+    const afterItems: DocumentNode[] = [];
+    for (let i = itemIndex + 1; i < listNode.childCount; i++) {
+      afterItems.push(listNode.child(i));
+    }
+
+    const firstList = listNode.type.create(listNode.attrs, Fragment.fromArray(beforeItems));
+    const emptyP = visualSchema.nodes.paragraph.create();
+    const secondList = listNode.type.create({
+      ...listNode.attrs,
+      order: listNode.type.name === 'ordered_list' ? (listNode.attrs.order || 1) + beforeItems.length + 1 : undefined
+    }, Fragment.fromArray(afterItems));
+
+    const tr = state.tr.replaceWith(listPos, listEnd, [firstList, emptyP, secondList]);
+    const emptyPPos = listPos + firstList.nodeSize;
+    tr.setSelection(TextSelection.near(tr.doc.resolve(emptyPPos + 1)));
     dispatch(closeHistory(tr).scrollIntoView());
-  }:undefined,view);
+  }
+  return true;
 };
 
 /** Native vertical movement preserves the empty item's horizontal column,
  * which can land halfway through a wrapped previous item. */
+/** 빈 리스트 항목(순서형 및 불릿 공통)에서 위쪽 방향키 또는 백스페이스 시 이전 항목 끝으로 안전 이동 */
 export const moveUpFromEmptyOrderedItem: Command = (state, dispatch) => {
   const { $from, empty } = state.selection;
   if (!empty || !$from.parent.isTextblock || $from.parent.content.size) return false;
   const itemDepth = $from.depth - 1;
   const listDepth = itemDepth - 1;
   if (listDepth < 0 || $from.node(itemDepth).type.name !== 'list_item'
-    || $from.node(listDepth).type.name !== 'ordered_list'
+    || !['ordered_list', 'bullet_list'].includes($from.node(listDepth).type.name)
     || $from.index(itemDepth) !== 0 || $from.index(listDepth) === 0) return false;
   const previous = $from.node(listDepth).child($from.index(listDepth) - 1);
   const previousStart = $from.before(itemDepth) - previous.nodeSize;
@@ -116,6 +389,155 @@ export const moveUpFromEmptyOrderedItem: Command = (state, dispatch) => {
   if (end === undefined) return false;
   if (dispatch) dispatch(state.tr.setSelection(TextSelection.create(state.doc, end)).scrollIntoView());
   return true;
+};
+
+/** 리스트와 빈 문단 사이를 위쪽 방향키(↑)로 이동 시 건너뛰지 않고 빈 문단에 정확히 멈추도록 보정 */
+export const moveUpAcrossListBoundary: Command = (state, dispatch) => {
+  const { $from, empty } = state.selection;
+  if (!empty) return false;
+
+  // 1) 현재 커서가 리스트 사이의 빈 문단에 있는 경우 -> 위쪽 리스트의 마지막 항목으로 이동
+  if ($from.parent.type === visualSchema.nodes.paragraph && $from.parent.content.size === 0) {
+    const depth = $from.depth;
+    if (depth === 1) {
+      const posBefore = $from.before(depth);
+      if (posBefore > 0) {
+        const prevBlock = state.doc.resolve(posBefore).nodeBefore;
+        if (prevBlock && isList(prevBlock)) {
+          let lastTextPos = -1;
+          const listStart = posBefore - prevBlock.nodeSize;
+          prevBlock.descendants((n, p) => {
+            if (n.isTextblock) lastTextPos = listStart + 1 + p + n.content.size;
+          });
+          if (lastTextPos !== -1) {
+            if (dispatch) dispatch(state.tr.setSelection(TextSelection.create(state.doc, lastTextPos)).scrollIntoView());
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  // 2) 현재 커서가 리스트의 첫 번째 항목 맨 앞줄에 있는 경우 -> 바로 위의 빈 문단으로 이동
+  let itemDepth = -1;
+  for (let d = $from.depth; d > 0; d--) {
+    if ($from.node(d).type === visualSchema.nodes.list_item) {
+      itemDepth = d;
+      break;
+    }
+  }
+  if (itemDepth === -1) return false;
+  const listDepth = itemDepth - 1;
+  if ($from.index(listDepth) === 0 && $from.index(itemDepth) === 0) {
+    const listPos = $from.before(listDepth);
+    if (listPos > 0) {
+      const prevBlock = state.doc.resolve(listPos).nodeBefore;
+      if (prevBlock && prevBlock.type === visualSchema.nodes.paragraph && prevBlock.content.size === 0) {
+        const targetPos = listPos - 1;
+        if (dispatch) dispatch(state.tr.setSelection(TextSelection.create(state.doc, targetPos)).scrollIntoView());
+        return true;
+      }
+    }
+  }
+
+  return false;
+};
+
+/** 리스트와 빈 문단 사이를 아래쪽 방향키(↓)로 이동 시 건너뛰지 않고 빈 문단에 정확히 멈추도록 보정 */
+export const moveDownAcrossListBoundary: Command = (state, dispatch) => {
+  const { $from, empty } = state.selection;
+  if (!empty) return false;
+
+  // 1) 현재 커서가 리스트 사이의 빈 문단에 있는 경우 -> 아래쪽 리스트의 첫 번째 항목으로 이동
+  if ($from.parent.type === visualSchema.nodes.paragraph && $from.parent.content.size === 0) {
+    const depth = $from.depth;
+    if (depth === 1) {
+      const posAfter = $from.after(depth);
+      if (posAfter < state.doc.content.size) {
+        const nextBlock = state.doc.resolve(posAfter).nodeAfter;
+        if (nextBlock && isList(nextBlock)) {
+          let firstTextPos = -1;
+          nextBlock.descendants((n, p) => {
+            if (n.isTextblock && firstTextPos === -1) firstTextPos = posAfter + 1 + p + 1;
+          });
+          if (firstTextPos !== -1) {
+            if (dispatch) dispatch(state.tr.setSelection(TextSelection.create(state.doc, firstTextPos)).scrollIntoView());
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  // 2) 현재 커서가 리스트의 마지막 항목에 있는 경우 -> 바로 아래의 빈 문단으로 이동
+  let itemDepth = -1;
+  for (let d = $from.depth; d > 0; d--) {
+    if ($from.node(d).type === visualSchema.nodes.list_item) {
+      itemDepth = d;
+      break;
+    }
+  }
+  if (itemDepth === -1) return false;
+  const listDepth = itemDepth - 1;
+  const listNode = $from.node(listDepth);
+  if ($from.index(listDepth) === listNode.childCount - 1 && $from.index(itemDepth) === $from.node(itemDepth).childCount - 1) {
+    const listEnd = $from.after(listDepth);
+    if (listEnd < state.doc.content.size) {
+      const nextBlock = state.doc.resolve(listEnd).nodeAfter;
+      if (nextBlock && nextBlock.type === visualSchema.nodes.paragraph && nextBlock.content.size === 0) {
+        const targetPos = listEnd + 1;
+        if (dispatch) dispatch(state.tr.setSelection(TextSelection.create(state.doc, targetPos)).scrollIntoView());
+        return true;
+      }
+    }
+  }
+
+  return false;
+};
+
+/** 리스트 마지막 항목 끝에서 Delete 시 바로 뒤의 빈 문단을 삭제하고 분리된 리스트를 원상 병합 */
+export const deleteAtEndOfList: Command = (state, dispatch) => {
+  const { $from, empty } = state.selection;
+  if (!empty || !$from.parent.isTextblock || $from.parentOffset !== $from.parent.content.size) return false;
+  let itemDepth = -1;
+  for (let d = $from.depth; d > 0; d--) {
+    if ($from.node(d).type === visualSchema.nodes.list_item) {
+      itemDepth = d;
+      break;
+    }
+  }
+  if (itemDepth === -1) return false;
+  const listDepth = itemDepth - 1;
+  const listNode = $from.node(listDepth);
+  if ($from.index(listDepth) !== listNode.childCount - 1) return false;
+
+  const listEnd = $from.after(listDepth);
+  if (listEnd >= state.doc.content.size) return false;
+
+  const nextNode = state.doc.resolve(listEnd).nodeAfter;
+  if (!nextNode) return false;
+
+  // 바로 다음이 빈 문단인 경우:
+  if (nextNode.type === visualSchema.nodes.paragraph && nextNode.content.size === 0) {
+    if (dispatch) {
+      const emptyEnd = listEnd + nextNode.nodeSize;
+      const followingNode = state.doc.resolve(emptyEnd).nodeAfter;
+      if (followingNode && followingNode.type === listNode.type) {
+        const mergedItems: DocumentNode[] = [];
+        listNode.forEach(c => mergedItems.push(c));
+        followingNode.forEach(c => mergedItems.push(c));
+        const mergedList = listNode.type.create(listNode.attrs, Fragment.fromArray(mergedItems));
+        const tr = state.tr.replaceWith($from.before(listDepth), emptyEnd + followingNode.nodeSize, mergedList);
+        tr.setSelection(TextSelection.near(tr.doc.resolve($from.pos)));
+        dispatch(closeHistory(tr).scrollIntoView());
+      } else {
+        const tr = state.tr.delete(listEnd, emptyEnd);
+        dispatch(closeHistory(tr).scrollIntoView());
+      }
+    }
+    return true;
+  }
+  return false;
 };
 function inlineLines(node:DocumentNode):Fragment[] {
   if(node.isTextblock){const lines:Fragment[]=[];let current:DocumentNode[]=[];

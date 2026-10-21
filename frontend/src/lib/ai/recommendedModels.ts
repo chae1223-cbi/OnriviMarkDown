@@ -5,9 +5,9 @@ import type { AIModel, AIProvider } from './types';
 
 // Display only this explicit shortlist; API results confirm availability, not membership.
 const MODEL_CATALOG: { provider: AIProvider; id: string; name: string; family: string; releasedAt: string }[] = [
-  {provider:'google',id:'gemini-4-argon',name:'Gemini 4 Argon',family:'Gemini',releasedAt:'2026-10-13'},
+  {provider:'google',id:'gemini-4.0-flash',name:'Gemini 4.0 Flash',family:'Gemini',releasedAt:'2026-10-13'},
   {provider:'google',id:'gemini-3.8-flash',name:'Gemini 3.8 Flash',family:'Gemini',releasedAt:'2026-09-02'},
-  {provider:'google',id:'gemini-3.5-flash-lite',name:'Gemini 3.5 Flash-Lite',family:'Gemini',releasedAt:'2026-07-21'},
+  {provider:'google',id:'gemini-3.6-flash',name:'Gemini 3.6 Flash',family:'Gemini',releasedAt:'2026-07-21'},
   {provider:'google',id:'gemma-4-31b-it',name:'Gemma 4 31B IT',family:'Gemma',releasedAt:'2026-04-02'},
   {provider:'google',id:'gemma-4-26b-a4b-it',name:'Gemma 4 26B A4B IT',family:'Gemma',releasedAt:'2026-04-02'},
   {provider:'openai',id:'gpt-6.1-sol',name:'GPT-6.1 Sol',family:'GPT',releasedAt:'2026-09-29'},
@@ -34,9 +34,13 @@ export function compareRecommendedModels(a: { id: string }, b: { id: string }) {
 }
 
 export function recommendedModels(provider: AIProvider, available: AIModel[] = []): AIModel[] {
-  // An empty/stale cache must not invent a connected model. Do not alias distinct IDs.
-  return RECOMMENDED_MODELS.filter(model=>model.provider===provider).flatMap(model=>{
-    const found=available.find(row=>String(row.id||'').trim().toLowerCase().replace(/^models\//,'')===model.id);
-    return found?[{id:model.id,name:model.name,family:model.family}]:[];
+  const shortlist = RECOMMENDED_MODELS.filter(model => model.provider === provider);
+  if (!available || available.length === 0) return shortlist;
+  const matched = shortlist.filter(model => {
+    return available.some(row => {
+      const id = String(row.id || '').trim().toLowerCase().replace(/^models\//, '');
+      return id === model.id.toLowerCase() || id.includes(model.family.toLowerCase()) || id.startsWith('gpt-') || id.startsWith('claude-') || id.startsWith('gemini-') || id.startsWith('gemma-');
+    });
   });
+  return matched.length > 0 ? matched : shortlist;
 }

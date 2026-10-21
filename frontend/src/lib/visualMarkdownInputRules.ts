@@ -26,6 +26,8 @@
  *             3) 이미 헤딩인 블록의 시작 위치에서 '## ' 등 다른 레벨의 마크다운 헤딩 입력 시 해당 레벨(H2 등)로 즉시 승격/전환 지원
  */
 import { InputRule, inputRules, textblockTypeInputRule, wrappingInputRule } from 'prosemirror-inputrules';
+// 🚨 @PATCH : **2026-10-21** — [리스트 내부 불릿(-, *, +) 타이핑 시 중첩 리스트 파괴 및 - - / 불릿 2개 생성 원천 방어]:
+//             1) bullet_list 및 ordered_list InputRule에 list_item 내부 중복 발동 방어 가드를 추가하여 리스트 안에서 하이픈 타이핑 시 중첩 리스트로 감싸지는 결함 차단
 import { Fragment, MarkType } from 'prosemirror-model';
 import { EditorState, Transaction, TextSelection } from 'prosemirror-state';
 import { visualSchema } from '@/lib/visualDocumentCodec';
@@ -195,6 +197,7 @@ export function visualMarkdownInputRules() {
       const position = state.selection.$from;
       const parent = position.parent;
       if (parent.type !== nodes.paragraph || insideCell(state)) return null;
+      for (let d = position.depth; d > 0; d--) { if (position.node(d).type === nodes.list_item) return null; }
       const converted=convertExistingList(state,'bullet',start,end);
       if(converted)return converted;
       const blockStart = position.start();
@@ -228,6 +231,7 @@ export function visualMarkdownInputRules() {
       const position = state.selection.$from;
       const parent = position.parent;
       if (parent.type !== nodes.paragraph || insideCell(state)) return null;
+      for (let d = position.depth; d > 0; d--) { if (position.node(d).type === nodes.list_item) return null; }
       // In an existing bullet/checklist, "1. " is editable item text.
       // Changing its list type is an explicit toolbar action.
       if(position.depth>=2 && position.node(position.depth-2).type===nodes.bullet_list)return null;

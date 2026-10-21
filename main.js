@@ -2,6 +2,12 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-10-21** — [AI API 키 리소스 폴더 암호화(AES-256) 전용 격리 및 다중 기기/드라이브 자동 구분 관리]:
+//             1) 로컬 스토리지 API 키 보관을 배제하고 리소스 폴더({resourceFolder}/settings/ai_credentials.enc)를 단일 진실 공급원으로 통일
+//             2) device:get-info IPC 신설로 물리 기기 UUID 및 호스트명(os.hostname()) 자동 감지
+//             3) ai-credentials:load / ai-credentials:save IPC 신설로 리소스 폴더 암호화 자격증명 파일 입출력 완비
+//             4) initializeDesktopResourceFolder에 settings 디렉토리 생성 포함
+// 🚨 @PATCH : **2026-10-21** — [iframe 내 구글 내 지도(My Maps)/외부 미디어 CSP 차단 버그 해결]: onHeadersReceived에서 3rd-party 외부 iframe(google.com, youtube.com 등)에 앱 전용 CSP를 강제 주입하지 않도록 출처 필터링을 적용하고, gstatic.com 도메인을 CSP 화이트리스트에 추가하여 구글 내 지도 캔버스가 빈 화면(텍스트만 표시)으로 멈추는 결함 완벽 해결
 // 🚨 @PATCH : **2026-10-19** — [Windows/macOS OS 네이티브 이모지 창(system:showEmojiPicker) Electron 내장 app.showEmojiPanel 직결]:
 //             1) 외부 PowerShell 스크립트 실행으로 인한 포커스 상실 및 실행 지연을 전면 폐기하고, Electron 네이티브 app.showEmojiPanel()을 직결 호출하여 Windows 10/11 및 macOS에서 즉각 시스템 이모지 창 팝업 보장
 //             2) mainWindow.focus()를 선행 호출하여 입력 커서 포커스를 유지하고 이모지 선택 시 즉각 본문에 입력되도록 연동
@@ -363,16 +369,23 @@ function createWindow(port) {
     "default-src 'self' app:",
     // Monaco와 Mermaid는 로컬 정적 스크립트 태그로 로드합니다. wasm-unsafe-eval을
     // 허용하여 WebAssembly 모듈 인스턴스화가 CSP에 의해 차단되지 않도록 보호합니다.
-    "script-src 'self' app: 'unsafe-inline' 'wasm-unsafe-eval' https://maps.gstatic.com https://maps.googleapis.com https://cdn.jsdelivr.net https://accounts.google.com",
+    "script-src 'self' app: 'unsafe-inline' 'wasm-unsafe-eval' https://maps.gstatic.com https://maps.googleapis.com https://*.gstatic.com https://cdn.jsdelivr.net https://accounts.google.com",
     "worker-src 'self' app: blob:",
-    "style-src 'self' app: 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
-    "img-src 'self' app: data: blob: http: https: file: media: https://*.googleusercontent.com",
-    "font-src 'self' app: data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
+    "style-src 'self' app: 'unsafe-inline' https://fonts.googleapis.com https://*.gstatic.com https://cdn.jsdelivr.net",
+    "img-src 'self' app: data: blob: http: https: file: media: https://*.googleusercontent.com https://*.gstatic.com",
+    "font-src 'self' app: data: https://fonts.gstatic.com https://*.gstatic.com https://cdn.jsdelivr.net",
     "connect-src 'self' app: data: blob: ws: wss: https: http: chrome-extension: http://localhost:* http://127.0.0.1:* http://localhost:3100 http://localhost:3000 http://localhost:4000 http://localhost:5000 http://localhost:11434 http://127.0.0.1:3100 http://127.0.0.1:3000 http://127.0.0.1:4000 http://127.0.0.1:5000 media: media-local: https://*.supabase.co wss://*.supabase.co https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://onrivi.com https://cdn.jsdelivr.net https://maps.googleapis.com https://accounts.google.com https://www.googleapis.com",
     "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com https://accounts.google.com",
     "media-src 'self' app: media: https:"
   ];
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    // 🛡️ 외부 사이트(iframe 내 구글 지도, 유튜브 등)의 응답에는 앱 전용 CSP를 강제 주입하지 않고 자체 보안 정책을 보존합니다.
+    const url = (details.url || '').toLowerCase();
+    const isAppOrigin = url.startsWith('app://') || url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1') || url.startsWith('file://');
+    if (!isAppOrigin || url.includes('google.com') || url.includes('youtube.com')) {
+      callback({ responseHeaders: details.responseHeaders });
+      return;
+    }
     callback({
       responseHeaders: {
         ...details.responseHeaders,
@@ -4472,7 +4485,7 @@ async function initializeDesktopResourceFolder(resourceFolder, initialProfiles =
     }
 
     // 1. 5대 하위 디렉토리 생성
-    const subDirs = ['profiles', 'prompt', 'bible', 'media', 'db'];
+    const subDirs = ['profiles', 'prompt', 'bible', 'media', 'db', 'settings'];
     for (const dir of subDirs) {
       const dirPath = path.join(resourceFolder, dir);
       if (!fs.existsSync(dirPath)) {
@@ -4749,6 +4762,64 @@ ipcMain.handle('presets:save', async (event, presets, resourceFolder) => {
     return { success: true };
   } catch (e) {
     console.error('AI 프리셋 저장 실패:', e);
+    return { success: false, error: e.message };
+  }
+});
+
+
+// --- AI Credentials Encrypted Storage in Resource Folder ---
+ipcMain.handle('device:get-info', async () => {
+  const os = require('os');
+  let deviceId = '';
+  try {
+    const { execSync } = require('child_process');
+    if (process.platform === 'win32') {
+      deviceId = execSync('powershell -Command "Get-CimInstance Win32_ComputerSystemProduct | Select-Object -ExpandProperty UUID"', { encoding: 'utf-8' }).trim();
+    } else if (process.platform === 'darwin') {
+      deviceId = execSync("ioreg -rd1 -c IOPlatformExpertDevice | awk '/IOPlatformUUID/ { split($0, line, \"\\\"\"); print line[4] }'", { encoding: 'utf-8' }).trim();
+    } else {
+      deviceId = fs.readFileSync('/var/lib/dbus/machine-id', 'utf-8').trim();
+    }
+  } catch (err) {
+    deviceId = os.hostname();
+  }
+  return {
+    deviceId: deviceId || os.hostname(),
+    hostName: os.hostname(),
+    platform: process.platform,
+  };
+});
+
+ipcMain.handle('ai-credentials:load', async (event, resourceFolder) => {
+  try {
+    if (!resourceFolder || resourceFolder.trim() === '' || !fs.existsSync(resourceFolder)) {
+      return null;
+    }
+    const credPath = path.join(resourceFolder, 'settings', 'ai_credentials.enc');
+    if (fs.existsSync(credPath)) {
+      return fs.readFileSync(credPath, 'utf-8');
+    }
+    return null;
+  } catch (e) {
+    console.error('AI 인증정보 로드 실패:', e);
+    return null;
+  }
+});
+
+ipcMain.handle('ai-credentials:save', async (event, cipherText, resourceFolder) => {
+  try {
+    if (!resourceFolder || resourceFolder.trim() === '' || !fs.existsSync(resourceFolder)) {
+      return { success: false, error: 'NO_RESOURCE_FOLDER', receivedPath: resourceFolder };
+    }
+    const settingsDir = path.join(resourceFolder, 'settings');
+    if (!fs.existsSync(settingsDir)) {
+      fs.mkdirSync(settingsDir, { recursive: true });
+    }
+    const credPath = path.join(settingsDir, 'ai_credentials.enc');
+    fs.writeFileSync(credPath, cipherText || '', 'utf-8');
+    return { success: true };
+  } catch (e) {
+    console.error('AI 인증정보 저장 실패:', e);
     return { success: false, error: e.message };
   }
 });

@@ -30,6 +30,7 @@ interface ExportModalProps {
 // 📊 [OMD-IO-ExportModal-0001] ExportModal ➔ ExportModal
 // 🎯 @KICK  : OS 인쇄(미리보기+PDF저장)/Word/HTML/EPUB/PNG 포맷 선택 및 내보내기 요청을 처리하는 모달 창
 // 🛡️ @GUARD : isOpen 및 mounted 상태 모두 true일 때만 포털 렌더링
+// 🚨 @PATCH : **2026-10-20** — [ESLint react-hooks/exhaustive-deps 경고 해소]: 모달 오픈 및 문서 변경 초기화 effect에서 contentRef/isPicturebookRef를 활용하여 의존성 누락 경고 및 불필요한 포맷 리셋 방어
 // 🚨 @PATCH : **2026-10-20** — [내보내기 모달 워터마크 사용 여부(토글) 및 종류(문구/이미지) 즉석 선택 UI 탑재]:
 //             1) 내보내기(ExportModal) 화면에서 워터마크 사용/미사용 및 문구(텍스트)/이미지 종류를 즉시 선택할 수 있는 직관적인 세그먼트 컨트롤 배치
 //             2) 문구 선택 시 출력 텍스트 직접 입력창 노출 및 진하기(투명도 5%~60%) 슬라이더 간편 조절 기능 제공
@@ -59,8 +60,10 @@ export default function ExportModal({
   const [pageHtml,setPageHtml]=useState(''),[previewOpen,setPreviewOpen]=useState(false),[busy,setBusy]=useState(false),[printError,setPrintError]=useState('');
   const generation=useRef(0),currentDocument=useRef(documentId),previewCallback=useRef(onPagePreview);
   const settingsRef=useRef(settings);settingsRef.current=settings;
+  const contentRef=useRef(documentContent);contentRef.current=documentContent;
+  const isPicturebookRef=useRef(isPicturebook);isPicturebookRef.current=isPicturebook;
   currentDocument.current=documentId;previewCallback.current=onPagePreview;
-  useEffect(()=>{generation.current++;const value=normalizePrintSettings(readEffectivePrintSettings(documentContent));settingsRef.current=value;setSettings(value);setSelectedFormat('print');setPageHtml('');setPreviewOpen(Boolean(isOpen&&!isPicturebook&&previewCallback.current));setPrintError('');setBusy(false);},[isOpen,documentId]);
+  useEffect(()=>{generation.current++;const value=normalizePrintSettings(readEffectivePrintSettings(contentRef.current));settingsRef.current=value;setSettings(value);setSelectedFormat('print');setPageHtml('');setPreviewOpen(Boolean(isOpen&&!isPicturebookRef.current&&previewCallback.current));setPrintError('');setBusy(false);},[isOpen,documentId]);
   useEffect(()=>{
     if(!isOpen)return;
     const refresh=()=>setSettings(normalizePrintSettings(readEffectivePrintSettings(documentContent)));
