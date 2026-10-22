@@ -36,7 +36,7 @@ function openExternal(url: string) {
 }
 
 export default function Toolbar({ documentEditing = false }: { documentEditing?: boolean }) {
-  const { dispatchCommand: dispatch, previewMode, isExpired, activeTabId, geminiApiKey, showToast, isRestrictedUser, isEmojiPanelOpen } = useEditorContext();
+  const { dispatchCommand: dispatch, previewMode, isExpired, activeTabId, geminiApiKey, showToast, isRestrictedUser } = useEditorContext();
   const router = useRouter();
   const showProductivity = (previewMode !== 'preview' || documentEditing) && !isExpired && !isRestrictedUser && activeTabId;
 
@@ -49,7 +49,7 @@ export default function Toolbar({ documentEditing = false }: { documentEditing?:
           <button
             onMouseDown={(e) => { e.preventDefault(); dispatch('TOGGLE_EMOJI_PANEL'); }}
             className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-zinc-500 dark:text-zinc-400 transition-all"
-            title="OS 이모지 입력기 (Windows 키 + . 또는 Ctrl+Shift+E)"
+            title="OS 이모지 입력기 (Windows: Win + . / macOS: Control + Command + Space)"
           >
             <Icon name="Smile" size={20} className="text-zinc-500 dark:text-zinc-400" />
           </button>

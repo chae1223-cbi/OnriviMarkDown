@@ -44,6 +44,7 @@ import { normalizeBookLayout } from '../lib/picturebook';
  */
 export const SYSTEM_PROFILE_IDS = [
   'system-1',
+  'onrivi-help',
   'ai-friendly-report',
   'github-readme-style',
   'legal-contract-a4',
@@ -3020,6 +3021,29 @@ export const SYSTEM_PROFILES: CssProfile[] = [
  * (시스템 프로필이 아니므로 가져온 스타일로 덮어쓸 수 있습니다)
  */
 // Optional report theme. Layout values below are product defaults, not government-prescribed measurements.
+export const HELP_PROFILE: CssProfile = JSON.parse(JSON.stringify(SYSTEM_PROFILES[0]));
+HELP_PROFILE.id = 'onrivi-help';
+HELP_PROFILE.name = '온리비 도움말';
+HELP_PROFILE.description = '사용 설명서 전용 서식. 읽기 편한 본문, 파란 제목, 표와 코드 예제, 제목 자동 번호 없음.';
+HELP_PROFILE.headingNumbering = [];
+delete HELP_PROFILE.layout;
+HELP_PROFILE.pageStyle = { ...HELP_PROFILE.pageStyle, fontFamily: "'Noto Sans KR', 'Malgun Gothic', sans-serif", fontSize: '16px', lineHeight: '1.8', letterSpacing: '0', backgroundColor: '#ffffff', paperSize: 'a4', orientation: 'portrait', marginTop: '18mm', marginBottom: '18mm', marginLeft: '16mm', marginRight: '16mm', headingSizeOffset: '0px' };
+for (const [index, key] of Array.from((['h1','h2','h3','h4','h5','h6'] as const).entries())) {
+  HELP_PROFILE.rules[key] = { 'font-size': [28,24,21,19,17,16][index] + 'px', 'font-weight':'700', 'line-height':'1.4', color: index < 2 ? '#1d4ed8' : '#1e293b', 'text-align':'left', 'text-indent':'0', 'margin-top': index ? '28px' : '0', 'margin-bottom':'12px', padding:'0', 'background-color':'transparent', border:'none', 'box-shadow':'none', 'text-shadow':'none', 'border-bottom':index === 1 ? '1px solid #dbeafe' : 'none' };
+}
+Object.assign(HELP_PROFILE.rules.p, { 'font-size':'16px', 'line-height':'1.8', 'text-align':'left', 'text-indent':'0', 'margin-top':'0', 'margin-bottom':'14px', color:'#334155', 'background-color':'transparent' });
+Object.assign(HELP_PROFILE.rules.li, { 'font-size':'16px', 'line-height':'1.8', 'margin-bottom':'6px', color:'#334155' });
+Object.assign(HELP_PROFILE.rules.ol, { 'list-style-type':'decimal' });
+Object.assign(HELP_PROFILE.rules.table, { width:'100%', 'border-collapse':'collapse', 'font-size':'14px', 'margin-top':'16px', 'margin-bottom':'20px', 'border-color':'#cbd5e1' });
+for (const key of ['th','td'] as const) Object.assign(HELP_PROFILE.rules[key], { padding:'10px 12px', border:'1px solid #cbd5e1', 'font-size':'14px', 'line-height':'1.65', color:'#334155', 'background-color': key === 'th' ? '#eff6ff' : 'transparent', 'text-align':'left' });
+Object.assign(HELP_PROFILE.rules.a, { color:'#1d4ed8', 'text-decoration':'underline' });
+Object.assign(HELP_PROFILE.rules.blockquote, { 'border-left':'3px solid #93c5fd', 'background-color':'#eff6ff', padding:'12px 16px', color:'#334155' });
+Object.assign(HELP_PROFILE.rules.codeBlock, { 'background-color':'#f1f5f9', color:'#1e293b', padding:'16px', 'font-size':'14px', 'line-height':'1.6', 'border-radius':'8px' });
+HELP_PROFILE.rules.code = { 'background-color':'#eff6ff', color:'#1e40af', padding:'2px 5px', 'border-radius':'4px', 'font-size':'0.9em' };
+HELP_PROFILE.tableStructure = {outerBorderWidth:'1px',rowBorderWidth:'1px',colBorderWidth:'1px'};
+HELP_PROFILE.customCss = '';
+SYSTEM_PROFILES.push(HELP_PROFILE);
+
 const aiReportProfile: CssProfile = JSON.parse(JSON.stringify(SYSTEM_PROFILES[0]));
 aiReportProfile.id = 'ai-friendly-report';
 aiReportProfile.name = 'AI 친화적 보고서';

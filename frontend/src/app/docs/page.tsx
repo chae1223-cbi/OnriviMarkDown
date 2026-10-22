@@ -19,7 +19,7 @@ import React, { useEffect, useState, useRef, MouseEvent, useMemo } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { BookOpen, ChevronRight, Search, FileText } from "lucide-react";
-import MarkdownViewer from '@/components/MarkdownViewer';
+import HelpDocument from '@/components/HelpDocument';
 import { stripFrontmatter } from "@/lib/editorUtils";
 import initialHelpAssets from '@/lib/helpAssets.json';
 
@@ -430,7 +430,7 @@ export default function HelpCenterPage() {
                 </div>
               ) : (
                 <div className="prose prose-slate dark:prose-invert max-w-none prose-headings:text-slate-900 dark:prose-headings:text-white prose-a:text-[#1d4ed8] dark:prose-a:text-blue-400 prose-a:font-bold hover:prose-a:underline">
-                  <MarkdownViewer 
+                  <HelpDocument 
                     content={docContent || "도움말 내용이 없습니다."}
                   />
                 </div>

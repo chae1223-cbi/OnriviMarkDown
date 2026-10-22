@@ -11,7 +11,7 @@
 import React, { useEffect, useState, MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { X, BookOpen, ChevronRight } from 'lucide-react';
-import MarkdownViewer from '@/components/MarkdownViewer';
+import HelpDocument from '@/components/HelpDocument';
 import { stripFrontmatter } from "@/lib/editorUtils";
 
 // 💡 하드코딩된 도움말 파일 목록
@@ -217,7 +217,7 @@ export default function HelpModal({ isOpen, onClose, title = "도움말 센터",
               </div>
             ) : (
               <div className="prose prose-zinc dark:prose-invert max-w-none">
-                <MarkdownViewer 
+                <HelpDocument 
                   content={docContent || "도움말 내용이 없습니다."}
                 />
               </div>

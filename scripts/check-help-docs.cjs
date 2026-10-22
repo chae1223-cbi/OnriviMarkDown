@@ -10,6 +10,7 @@ const assets = JSON.parse(fs.readFileSync(path.join(root, 'frontend/src/lib/help
 const modal = fs.readFileSync(path.join(root, 'frontend/src/components/HelpModal.tsx'), 'utf8');
 const page = fs.readFileSync(path.join(root, 'frontend/src/app/docs/page.tsx'), 'utf8');
 const parser = new MarkdownIt({html:true});
+assert.ok(modal.includes('<HelpDocument') && page.includes('<HelpDocument'), 'Help views must share the dedicated style');
 let references = 0;
 assert.equal(documents.length, 33);
 assert.equal(new Set(assets.map(asset => asset.id)).size, assets.length);
@@ -19,6 +20,7 @@ for (const name of documents) {
   assert.ok(source.includes('lastUpdated: 2026-10-22'), name);
   assert.ok(/^---\r?\ntitle: "/.test(source), `Invalid metadata opening: ${name}`);
   assert.ok(!source.includes('\ufffd'), `Broken text encoding: ${name}`);
+  assert.ok(source.includes('css_profile: onrivi-help'), `Missing help style: ${name}`);
   assert.ok(modal.includes(`"${name}"`) && page.includes(`"${name}"`), `Unregistered document: ${name}`);
   assert.equal(assets.filter(asset => asset.file_name === name).length, 1, `Asset entry: ${name}`);
   const body = source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '');

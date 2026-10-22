@@ -3,8 +3,8 @@ title: "문제 해결과 자주 묻는 질문"
 description: "현재 구현 기준 사용 방법과 제한 안내"
 version: 1.2.0
 lastUpdated: 2026-10-22
-css_profile: system-1
-css_profile_name: "Onrivi 기본서식"
+css_profile: onrivi-help
+css_profile_name: "온리비 도움말"
 ---
 
 # 문제 해결과 자주 묻는 질문

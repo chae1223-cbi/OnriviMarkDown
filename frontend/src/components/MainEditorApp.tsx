@@ -35,9 +35,9 @@
 //             1) onSourceCursor에서 previewMode === 'both' 조기 반환 가드를 해제하고 offset 기반 행/열 정밀 계산(content 및 Monaco 모델 연동)을 통해 setCursorLine, setCursorColumn 및 onrivi:cursor-position 이벤트 디스패치 보장
 //             2) 문서보기 모드에서 클릭, 방향키 이동, 타이핑 시 하단 상태바의 Ln/Col이 동결되지 않고 실시간 즉각 갱신되도록 완벽 연동
 //             3) InlineAIAssistant에 resourceFolder 전달하여 로컬 리소스 폴더의 프롬프트 템플릿(D:\Onrivi_Asset\prompt) 1:1 연동 보장
-// 🚨 @PATCH : **2026-10-19** — [OS 네이티브 이모지 피커(Windows/macOS) 연동 정밀화 및 웹/미지원 환경 EmojiPanel 스마트 폴백 보장]:
+// 🚨 @PATCH : **2026-10-19** — [OS 네이티브 이모지 피커 연동 — 2026-10-22 자체 패널 폴백 제거]:
 //             1) TOGGLE_EMOJI_PANEL 실행 시 VisualDocumentEditor(viewRef.focus) 및 Monaco 에디터 활성 포커스를 정확히 타겟팅하여 OS 이모지 피커가 커서 위치에 즉시 도킹되도록 보강
-//             2) Electron 데스크톱에서는 app.showEmojiPanel()을 직결 호출하고, 웹 브라우저 환경이나 OS 피커 미지원 환경에서는 내장 EmojiPanel 보관함이 자동으로 열리는 2중 안전 폴백 체계 구축
+//             2) Electron 데스크톱에서는 app.showEmojiPanel()을 직결 호출하고, 웹 브라우저 및 미지원 환경에서는 OS 단축키를 안내하며 자체 패널은 열지 않음
 // 🚨 @PATCH : **2026-10-19** — [onrivi:open-print 리스너 TDZ(ReferenceError) 결함 즉시 해결]:
 //             dispatchCommand 선언부 이후로 onrivi:open-print useEffect의 배치 위치를 조정하여 런타임 초기화 순서 에러 완전 해소
 // 🚨 @PATCH : **2026-10-19** — [상태바 인쇄/쪽 윤곽 모달 호출(onrivi:open-print) 연동 및 PAGEBREAK 페이지 나누기 마커 삽입 명령 지원]:
@@ -471,7 +471,6 @@ import YoutubeModal from '@/components/YoutubeModal'; // 모달
 import AboutModal from '@/components/AboutModal'; // 모달
 import LicenseModal from '@/components/LicenseModal'; // 라이선스 모달
 import AIDraftModal from '@/components/AIDraftModal'; // 초안 생성 모달
-import EmojiPanel from '@/components/EmojiPanel'; // 이모지 보관함 패널
 import CalendarModal from '@/components/CalendarModal'; // 달력 모달
 import DateTimeInsertPicker from '@/components/DateTimeInsertPicker';
 import { supabase } from '@/lib/supabaseClient';
@@ -969,8 +968,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       document.body.style.width = '';
     };
   }, []);
-  const [isEmojiPanelOpen, setIsEmojiPanelOpen] = useState(false);
-  const emojiSavedPositionRef = useRef<{ lineNumber: number; column: number; selection?: any } | null>(null);
   const [mounted, setMounted] = useState(false);  // @mounted : mounted state 
   const [content, setContent] = useState('');   // @content : content state 
   // 💡 [React 18 동시성 렌더링] 180ms 지연 타이머 깜빡임을 제거하고 useDeferredValue로 부드러운 무깜빡임 실시간 렌더링
@@ -5140,80 +5137,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     return utilsEditorActions.insertAtCursor(editorRef, lastSelectionRef, text);
   }, []);
 
-  // ====================================================================
-  // 📊 [OMD-EDIT-MainEditorApp-0048.1] MainEditorApp.tsx ➔ insertEmojiAtCursor
-  // 🎯 @KICK  : 이모지 보관함 전용 커서 삽입 — 저장된 커서 위치 유지, 삽입 후 커서 자동 전진 및 연속 삽입 위치 동기화
-  // 🛡️ @GUARD : 에디터 포커스 유실 방어, monaco 인스턴스 없을 시 insertAtCursor 자동 폴백
-  // 🚨 @PATCH : **2026-10-02** 신규 탑재
-  // 🔗 @CALLS : editor.executeEdits, editor.setPosition, editor.focus
-  // ====================================================================
-  const insertEmojiAtCursor = (emoji: string) => {
-    if (previewRef.current?.querySelector('.visual-document-editor, .picturebook-scene-input') && visualCommandRef.current?.(`INSERT_TEXT:${emoji}`)) return;
-    if (!editorRef.current) return;
-    const editor = editorRef.current;
-    const monaco = (window as any).monaco;
-    if (!monaco) {
-      insertAtCursor(emoji);
-      return;
-    }
-
-    // 1. 현재 에디터 선택 영역 또는 백업된 커서 위치 확보
-    let selection = editor.getSelection();
-    const saved = emojiSavedPositionRef.current;
-
-    let range: any = null;
-    if (selection && !selection.isEmpty()) {
-      range = new monaco.Range(
-        selection.startLineNumber,
-        selection.startColumn,
-        selection.endLineNumber,
-        selection.endColumn
-      );
-    } else if (saved?.selection && !saved.selection.isEmpty()) {
-      range = new monaco.Range(
-        saved.selection.startLineNumber,
-        saved.selection.startColumn,
-        saved.selection.endLineNumber,
-        saved.selection.endColumn
-      );
-    } else {
-      const pos = (editor.hasTextFocus?.() ? editor.getPosition() : null) || (saved ? { lineNumber: saved.lineNumber, column: saved.column } : editor.getPosition());
-      if (pos) {
-        range = new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
-      }
-    }
-
-    if (range) {
-      editor.pushUndoStop();
-      editor.executeEdits('emoji-insert', [{
-        range,
-        text: emoji,
-        forceMoveMarkers: true,
-      }]);
-      editor.pushUndoStop();
-
-      // 삽입 직후 커서를 이모지 바로 뒤로 이동
-      const nextLine = range.startLineNumber;
-      const nextCol = range.startColumn + emoji.length;
-      editor.setPosition({ lineNumber: nextLine, column: nextCol });
-      editor.revealPositionInCenterIfOutsideViewport({ lineNumber: nextLine, column: nextCol });
-
-      // 연속 삽입을 위해 백업 위치도 새 커서 위치로 즉시 갱신
-      emojiSavedPositionRef.current = {
-        lineNumber: nextLine,
-        column: nextCol,
-        selection: new monaco.Selection(nextLine, nextCol, nextLine, nextCol),
-      };
-
-      if (lastSelectionRef) {
-        lastSelectionRef.current = null;
-      }
-      editor.focus();
-    } else {
-      insertAtCursor(emoji);
-    }
-  };
-
   // 🧠 [ONRIVI-KNOWLEDGE-ENGINE-003.2] 지식 베이스 질의응답 답변 에디터 커서 삽입 리스너
   useEffect(() => {
     const handleInsert = (e: CustomEvent) => {
@@ -8317,27 +8240,18 @@ blockquote li p {
         return;
       }
       case 'TOGGLE_EMOJI_PANEL': {
-        // 1. 에디터 포커스 확보 (VisualDocumentEditor 또는 Monaco)
-        if (previewRef.current?.querySelector('.visual-document-editor')) {
-          visualCommandRef.current?.('FOCUS');
-        } else if (editorRef.current) {
-          editorRef.current.focus();
-        }
-
-        // 2. 데스크톱(Electron) OS 네이티브 이모지 패널 직접 호출 및 미지원/웹 환경 fallback
+        const visual = previewRef.current?.querySelector('.visual-document-editor, .picturebook-scene-input');
+        if (editorRef.current?.hasTextFocus()) editorRef.current.focus();
+        else if (visual) visualCommandRef.current?.('FOCUS');
+        else editorRef.current?.focus();
+        const shortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? 'Control + Command + Space' : 'Windows 키 + . (마침표)';
+        const guide = () => showToast(`OS 이모지 입력기: 입력 위치에서 ${shortcut}를 눌러 주세요.`, 'info');
         const electron = (window as any).electronAPI;
-        if (electron && typeof electron.showEmojiPicker === 'function') {
-          Promise.resolve(electron.showEmojiPicker()).then((success: any) => {
-            if (success === false) {
-              setIsEmojiPanelOpen(prev => !prev);
-            }
-          }).catch(() => {
-            setIsEmojiPanelOpen(prev => !prev);
+        if (typeof electron?.showEmojiPicker === 'function') {
+          requestAnimationFrame(() => {
+            Promise.resolve().then(() => electron.showEmojiPicker()).then(success => { if (success !== true) guide(); }).catch(guide);
           });
-        } else {
-          // 웹 브라우저 환경: OS 네이티브 이모지 창을 웹 API로 열 수 없으므로 자체 이모지 보관함 패널 토글
-          setIsEmojiPanelOpen(prev => !prev);
-        }
+        } else guide();
         return;
       }
       case 'AI_DRAFT': {
@@ -8911,12 +8825,6 @@ blockquote li p {
 
       // Escape: 인용구 드롭다운, 이모지 패널 또는 플로팅 툴바 숨김 (에디터 포커스 무관)
       if (e.key === 'Escape') {
-        if (isEmojiPanelOpen) {
-          e.preventDefault();
-          e.stopPropagation();
-          setIsEmojiPanelOpen(false);
-          return;
-        }
         if (floatingQuoteDropdown.open) {
           e.preventDefault();
           e.stopPropagation();
@@ -8935,13 +8843,6 @@ blockquote li p {
       const isShift = e.shiftKey;
       const isAlt = e.altKey;
 
-      // 💡 [OS 이모지 입력기 단축키] Ctrl+Shift+E
-      if (isCtrl && isShift && !isAlt && e.key.toUpperCase() === 'E') {
-        e.preventDefault();
-        e.stopPropagation();
-        dispatchCommand('TOGGLE_EMOJI_PANEL');
-        return;
-      }
 
       // 제한사용자에서는 Monaco/브라우저 기본 단축키로 편집 메뉴 제한을 우회하지 못하게 한다.
       if (isRestrictedUser && isCtrl) {
@@ -9171,7 +9072,7 @@ blockquote li p {
     // 캡처(true) 모드로 등록하여 최우선순위로 가로챕니다.
     window.addEventListener('keydown', handleGlobalKeyDown, true);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
-  }, [customHotkeys, dispatchCommand, mapIdToCommandType, floatingToolbar.visible, setFloatingToolbar, floatingQuoteDropdown.open, isRestrictedUser, isEmojiPanelOpen]);
+  }, [customHotkeys, dispatchCommand, mapIdToCommandType, floatingToolbar.visible, setFloatingToolbar, floatingQuoteDropdown.open, isRestrictedUser]);
 
   // 🛡️ [데스크톱/브라우저 전역 파일 드롭 방어]
   // 에디터나 미리보기 컨테이너 외부(사이드바, 타이틀바 등)에 파일 드롭 시 Electron/브라우저가 파일 URL로 새창을 띄우거나 페이지 이동하는 것 100% 원천 차단
@@ -9197,34 +9098,6 @@ blockquote li p {
       document.removeEventListener('drop', preventDrag, true);
     };
   }, []);
-
-  // 💡 [이모지 패널 활성화 시 에디터 커서 위치 영구 유지 및 자동 포커스 복원]
-  useEffect(() => {
-    if (isEmojiPanelOpen && editorRef.current) {
-      const editor = editorRef.current;
-      const pos = editor.getPosition();
-      const sel = editor.getSelection();
-      const saved = emojiSavedPositionRef.current || (pos ? {
-        lineNumber: pos.lineNumber,
-        column: pos.column,
-        selection: sel
-      } : null);
-
-      if (saved) {
-        emojiSavedPositionRef.current = saved;
-        // 레이아웃 재배치 및 flex 폭 축소 시에도 커서가 튀지 않고 정위치에 고정되도록 스케줄링
-        requestAnimationFrame(() => {
-          if (editorRef.current) {
-            editorRef.current.setPosition({ lineNumber: saved.lineNumber, column: saved.column });
-            if (saved.selection && !saved.selection.isEmpty()) {
-              editorRef.current.setSelection(saved.selection);
-            }
-            editorRef.current.revealPositionInCenterIfOutsideViewport({ lineNumber: saved.lineNumber, column: saved.column });
-          }
-        });
-      }
-    }
-  }, [isEmojiPanelOpen]);
 
   // 💡 플로팅 툴바 인용구 Alert 드롭다운 외부 클릭 시 자동 닫힘 감지기
   useEffect(() => {
@@ -9334,7 +9207,6 @@ blockquote li p {
     isAddonEnv, editorRef, previewRef, showToast, openTabPaths, refreshFileList,
     driveLetter, profiles, activeProfileId, onSelectProfile: handleProfileChange, onOpenStyleSettings: () => setIsStyleModalOpen(true), DEFAULT_PROFILE: (window as any).DEFAULT_PROFILE || {},
     saveStatus, isToolbarOpen, setIsToolbarOpen, isSidebarOpen, setIsSidebarOpen, isActivated: (!isDuplicateInstance && effectiveLicenseStatus.isActivated), THEME_MAP,
-    isEmojiPanelOpen, setIsEmojiPanelOpen,
     isDuplicateInstance, takeOverControl, isEditorPlan,
     cursorLine,
     cursorColumn,
@@ -11212,14 +11084,6 @@ blockquote li p {
               )}
 
             </main>
-
-            {isEmojiPanelOpen && (
-              <EmojiPanel
-                onClose={() => setIsEmojiPanelOpen(false)}
-                onInsert={insertEmojiAtCursor}
-                isToolbarOpen={isToolbarOpen}
-              />
-            )}
 
             {isToolbarOpen && (
               <div className="no-print h-full w-12 flex flex-col justify-end bg-zinc-50 dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700/60 pb-3">
