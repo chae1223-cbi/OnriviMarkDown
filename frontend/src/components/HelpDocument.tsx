@@ -1,6 +1,8 @@
 'use client';
 
+import { useMemo } from 'react';
 import MarkdownViewer from './MarkdownViewer';
+import { syncMarkdownHeadingNumbers } from '@/lib/headingNumbering';
 import { HELP_PROFILE } from '@/constants/cssProfile';
 
 const root = '.onrivi-help-document';
@@ -21,8 +23,9 @@ ${root} :is(h1,h2,h3,h4,h5,h6)::before{content:none!important;}
 
 /** Shared help styling, scoped to this article so the open document is unaffected. */
 export default function HelpDocument({ content }: { content: string }) {
+  const numberedContent = useMemo(() => syncMarkdownHeadingNumbers(content, HELP_PROFILE.headingNumbering), [content]);
   return <article className="onrivi-help-document" data-help-profile={HELP_PROFILE.id}>
     <style>{css}</style>
-    <MarkdownViewer content={content} />
+    <MarkdownViewer content={numberedContent} />
   </article>;
 }

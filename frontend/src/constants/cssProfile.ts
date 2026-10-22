@@ -3024,8 +3024,8 @@ export const SYSTEM_PROFILES: CssProfile[] = [
 export const HELP_PROFILE: CssProfile = JSON.parse(JSON.stringify(SYSTEM_PROFILES[0]));
 HELP_PROFILE.id = 'onrivi-help';
 HELP_PROFILE.name = '온리비 도움말';
-HELP_PROFILE.description = '사용 설명서 전용 서식. 읽기 편한 본문, 파란 제목, 표와 코드 예제, 제목 자동 번호 없음.';
-HELP_PROFILE.headingNumbering = [];
+HELP_PROFILE.description = '사용 설명서 전용 서식. 읽기 편한 본문, 파란 제목, 표와 코드 예제, 항목별 제목 번호.';
+HELP_PROFILE.headingNumbering = ['none', 'decimal', 'hangul', 'decimal-paren', 'hangul-paren', {type:'custom',number:'bullet',prefix:'',suffix:'',bullet:'•'}];
 delete HELP_PROFILE.layout;
 HELP_PROFILE.pageStyle = { ...HELP_PROFILE.pageStyle, fontFamily: "'Noto Sans KR', 'Malgun Gothic', sans-serif", fontSize: '16px', lineHeight: '1.8', letterSpacing: '0', backgroundColor: '#ffffff', paperSize: 'a4', orientation: 'portrait', marginTop: '18mm', marginBottom: '18mm', marginLeft: '16mm', marginRight: '16mm', headingSizeOffset: '0px' };
 for (const [index, key] of Array.from((['h1','h2','h3','h4','h5','h6'] as const).entries())) {
