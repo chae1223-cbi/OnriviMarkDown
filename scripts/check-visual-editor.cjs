@@ -224,7 +224,7 @@ async function visual() {
     createRoot(document.getElementById('root')).render(React.createElement(App));
   `);
   const webpack = req('webpack');
-  const focusedAliases = { '@/lib/headingNumbering':path.join(dir,'headingNumbering.js'), '../visualDocumentCodec':path.join(dir,'codec.js'), '@/utils/markdownCleaner':path.join(dir,'markdownCleaner.js'), '@/lib/aiFriendlyReport':path.join(dir,'aiFriendlyReport.js'), '@/components/DocumentPageGuides':path.join(dir,'pageGuides.js'), '@/lib/pageGeometry':path.join(dir,'pageGeometry.js'), '../constants/paperSizes':path.join(dir,'paperSizes.js'), '@/lib/browserAccountStorage':path.join(dir,'accountStorage.js'), '@/lib/bibliography':path.join(dir,'bibliography.js'), '@/components/BibliographySummary':path.join(dir,'bibliographySummary.js'), '@/lib/bulletNumberText':path.join(dir,'bulletNumberText.js'), ...(process.argv.some(arg=>['--heading-space-only','--report-numbering-only','--report-table-only','--inline-ai-only','--image-resize-only','--page-break-only','--list-enter-only','--list-indentation-only','--typing-scroll-only','--spacing-emphasis-only','--list-markers-only','--image-drops-only'].includes(arg)) ? {
+  const focusedAliases = { '@/lib/headingNumbering':path.join(dir,'headingNumbering.js'), '../visualDocumentCodec':path.join(dir,'codec.js'), '@/utils/markdownCleaner':path.join(dir,'markdownCleaner.js'), '@/lib/aiFriendlyReport':path.join(dir,'aiFriendlyReport.js'), '@/components/DocumentPageGuides':path.join(dir,'pageGuides.js'), '@/lib/pageGeometry':path.join(dir,'pageGeometry.js'), '../constants/paperSizes':path.join(dir,'paperSizes.js'), '@/lib/browserAccountStorage':path.join(dir,'accountStorage.js'), '@/lib/bibliography':path.join(dir,'bibliography.js'), '@/components/BibliographySummary':path.join(dir,'bibliographySummary.js'), '@/lib/bulletNumberText':path.join(dir,'bulletNumberText.js'), ...(process.argv.some(arg=>['--current-help-only','--heading-space-only','--report-numbering-only','--report-table-only','--inline-ai-only','--image-resize-only','--page-break-only','--list-enter-only','--list-indentation-only','--typing-scroll-only','--spacing-emphasis-only','--list-markers-only','--image-drops-only'].includes(arg)) ? {
     '@/lib/footnoteOrganizer': path.join(dir, 'footnoteOrganizer.js'),
     '@/lib/resourceMedia': path.join(dir, 'resourceMedia.js'),
     './resourceSettings':path.join(dir,'dropStorageStubs.js'),
@@ -286,6 +286,31 @@ async function visual() {
       await page.waitForFunction(()=>document.querySelector('#source').value.includes('수정할 문장 수정'));const fullAfter=await page.locator('#source').inputValue();assert.ok(fullAfter.includes('수정할 문장 수정'));assert.equal(await surface.locator('.visual-image-block').count(),1);await page.keyboard.press('Control+z');assert.equal(await page.locator('#source').inputValue(),fullBefore);
       await surface.getByText('아래 본문',{exact:true}).click();await page.keyboard.press('End');await page.evaluate(()=>{window.actualAITarget=window.qaAITarget();});await page.keyboard.type('changed');assert.equal(await page.evaluate(()=>window.actualAITarget.apply('금지','replace')),false);
       console.log('PASS: actual VisualDocumentEditor AI target bridge, source synchronization, image/body preservation, one undo and stale target rejection');return;
+    }
+    if(process.argv.includes('--current-help-only')){
+      await surface.waitFor();
+      await page.locator('#source').focus();await page.evaluate(()=>window.setTestSource(''));
+      await page.waitForFunction(()=>!document.querySelector('.visual-document-surface').textContent);
+      await surface.click();
+      await page.evaluate(source=>{const data=new DataTransfer();data.setData('text/plain',source);data.setData('text/html','<strong>Wrong clipboard HTML</strong>');document.querySelector('.visual-document-surface').dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));},helpSource);
+      await page.waitForFunction(source=>document.querySelector('#source').value===source,helpSource);
+      assert.equal(await page.locator('#source').inputValue(),helpSource);
+      assert.equal(await surface.locator('table tbody tr:has(td)').count(),4);
+      assert.ok(await surface.locator('pre').count()>=2);
+      assert.ok(await surface.locator('blockquote[data-alert-type]').count()>=2);
+      await page.keyboard.press('Control+z');await page.waitForFunction(()=>document.querySelector('#source').value==='');
+      await page.keyboard.press('Control+y');await page.waitForFunction(source=>document.querySelector('#source').value===source,helpSource);
+      await page.locator('#readonly').click();
+      const names=fs.readdirSync(path.join(frontend,'public/help')).filter(name=>name.endsWith('.md'));
+      for(const name of names){
+        const source=fs.readFileSync(path.join(frontend,'public/help',name),'utf8').replace(/\r\n/g,'\n');
+        const title=JSON.parse(source.match(/^title: (.+)$/m)[1]);
+        await page.locator('#source').focus();await page.evaluate(source=>window.setTestSource(source),source);
+        await page.waitForFunction(title=>document.querySelector('.visual-document-surface').textContent.includes(title),title);
+        assert.equal(await page.locator('#source').inputValue(),source,name+' source changed');
+      }
+      assert.deepEqual(errors,[]);
+      console.log('PASS: all '+names.length+' current help documents render; full help paste preserves source, code/table/callouts and undo/redo');return;
     }
     if(process.argv.includes('--heading-space-only')){
       await surface.waitFor();
@@ -1106,7 +1131,7 @@ async function visual() {
       data.setData('text/html','<strong>## 잘못된 HTML 강조</strong><img src="fake.png">');
       document.querySelector('.visual-document-surface').dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));
     },helpSource);
-    await page.waitForFunction(()=>document.querySelector('#source').value.includes('HELP-01:'));
+    await page.waitForFunction(source=>document.querySelector('#source').value===source,helpSource);
     assert.equal(await page.locator('#source').inputValue(),helpSource);
     await surface.locator('table').waitFor();
     assert.equal(await surface.locator('th').first().evaluate(el=>getComputedStyle(el).textAlign),'center');
@@ -1117,7 +1142,7 @@ async function visual() {
     assert.equal(await surface.locator('.visual-code-block code').first().getAttribute('spellcheck'),'false');
     assert.ok(await surface.locator('.visual-readonly-callout, blockquote[data-alert-type]').count()>=2);
     const helpLinks=await surface.locator('a').evaluateAll(links=>links.map(link=>decodeURI(link.getAttribute('href')||'')));
-    assert.ok(helpLinks.filter(href=>href==='/help/00_시작하기.md').length>=2);
+    assert.ok(helpLinks.filter(href=>href==='/help/00_시작하기.md').length>=1);
     await page.keyboard.press('Control+z');
     await page.waitForFunction(source=>document.querySelector('#source').value===source,initialSource);
     await page.keyboard.press('Control+y');

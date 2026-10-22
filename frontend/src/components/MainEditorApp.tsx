@@ -11228,11 +11228,16 @@ blockquote li p {
             )}
           </div>
 
-          {isAiButtonVisible && <InlineAIAssistant documentId={activeTabId} disabled={!activeTabId || isRestrictedUser || currentFileName === '도움말.md' || Boolean(resolveEffectiveDocumentProfile(content).layout)}
-            disabledReason={!activeTabId ? '문서를 먼저 열거나 새 문서를 만들어 주세요.' : isRestrictedUser ? '현재 문서 편집 권한이 제한되어 있습니다. 로그인·인증 및 동시 접속 상태를 확인해 주세요.' : currentFileName === '도움말.md' ? '도움말은 수정할 수 없습니다. 작성할 문서를 열어 주세요.' : resolveEffectiveDocumentProfile(content).layout ? '현재 그림책 레이아웃은 문서 AI 편집을 지원하지 않습니다. 일반 문서에서 사용해 주세요.' : undefined}
+          {isAiButtonVisible && <InlineAIAssistant documentId={activeTabId} disabled={!activeTabId || isRestrictedUser || currentFileName === '도움말.md'}
+            disabledReason={!activeTabId ? '문서를 먼저 열거나 새 문서를 만들어 주세요.' : isRestrictedUser ? '현재 문서 편집 권한이 제한되어 있습니다. 로그인·인증 및 동시 접속 상태를 확인해 주세요.' : currentFileName === '도움말.md' ? '도움말은 수정할 수 없습니다. 작성할 문서를 열어 주세요.' : undefined}
             legacyKey={ensureDecryptedApiKey(geminiApiKey)} legacyModel={aiModelName} nickname={userNickname} resourceFolder={resourceFolder} resourceHandle={resourceFolderHandle}
             readDocument={() => editorRef.current?.hasTextFocus() ? editorRef.current.getValue() : contentRef.current}
             capture={(scope) => {
+              if (resolveEffectiveDocumentProfile(contentRef.current).layout) {
+                if (previewModeRef.current !== 'preview' && editorRef.current?.hasTextFocus()) return captureMonacoAITarget(editorRef.current, activeTabIdRef.current || '', () => activeTabIdRef.current, scope);
+                if (scope === 'reference') return null;
+                throw Error('그림책은 질문·문서 정리를 사용할 수 있습니다. 문구 수정은 마크다운 편집창에서 글을 선택한 뒤 실행해 주세요.');
+              }
               if(scope==='auto'){if(visualAITargetRef.current&&previewRef.current?.querySelector('.visual-document-editor'))return visualAITargetRef.current(scope);if(editorRef.current?.hasTextFocus()&&!editorRef.current.getSelection()?.isEmpty())return captureMonacoAITarget(editorRef.current,activeTabIdRef.current || '',()=>activeTabIdRef.current,'selection');throw Error('문서 전체 수정은 문서보기에서 편집을 켠 뒤 실행해 주세요.');}
               if(scope==='document'){if(visualAITargetRef.current&&previewRef.current?.querySelector('.visual-document-editor'))return visualAITargetRef.current(scope);throw Error('문서 전체 수정은 문서보기에서 편집을 켠 뒤 실행해 주세요.');}
               if (editorRef.current?.hasTextFocus()) return captureMonacoAITarget(editorRef.current,activeTabIdRef.current || '',()=>activeTabIdRef.current,scope);
