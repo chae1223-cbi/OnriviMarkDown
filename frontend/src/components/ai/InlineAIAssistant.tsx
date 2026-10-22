@@ -1012,7 +1012,7 @@ export default function InlineAIAssistant({
     }
 
     return list.sort(compareRecommendedModels);
-  }, [activeProviders, connections, legacyKey]);
+  }, [activeProviders, connections]);
 
   if (!mounted) return null;
 

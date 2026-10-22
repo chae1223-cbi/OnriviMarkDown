@@ -2789,10 +2789,11 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     // 🛡️ [입력 방어] view.hasFocus() 활성 시 사용자가 직접 타이핑 중이므로 외부 content prop에 의한 replaceSource를 차단하여 스페이스 및 엔터 먹힘 방지
     if (view && content !== emitted.current && !view.hasFocus()) view.replaceSource?.(content);
   }, [content]);
+  const headingNumberingKey = JSON.stringify(headingNumbering);
   useEffect(() => {
     const view = viewRef.current;
     if (view && !readOnly && !view.composing) view.dispatch(view.state.tr.setMeta('onrivi:heading-numbering', true).setMeta('addToHistory', false));
-  }, [JSON.stringify(headingNumbering), content, readOnly]);
+  }, [headingNumberingKey, content, readOnly]);
 
 
   useEffect(() => {

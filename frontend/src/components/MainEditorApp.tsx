@@ -1530,39 +1530,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     void restoreRF();
   }, [mounted, resourceFolderHandle, resourceFolder]);
 
-  // 🌟 [공통 리소스 폴더 동적 변경 실시간 감지 리스너] (구글 드라이브 ↔ 로컬 전환 등)
-  useEffect(() => {
-    const handleResourceFolderChange = async (e: any) => {
-      const newFolder = getResourceSettings()?.path || '';
-      setResourceFolder(newFolder || null);
-      setProfileStorageRevision(revision => revision + 1);
-      let handle = null;
-      if (getResourceSettings()?.kind === 'drive') {
-        setResourceFolderHandle(null);
-        (window as any).__resourceFolderHandle = null;
-      } else {
-        handle = (window as any).__resourceFolderHandle;
-        setResourceFolderHandle(handle?.name === newFolder ? handle : null);
-      }
-
-      // 🚀 [리소스 폴더 변경 즉시 해당 폴더의 AI 환경정보 실시간 재로드]
-      try {
-        const creds = await loadResourceAICredentials(newFolder || undefined, handle);
-        setGeminiApiKey(creds?.apiKey || '');
-        setAiModelName(creds?.aiModelName || 'gemini-3.8-flash');
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new Event('onrivi:ai-connections'));
-        }
-      } catch (err) {
-        console.warn('[handleResourceFolderChange reload error]:', err);
-      }
-    };
-    if (typeof window !== 'undefined') {
-      window.addEventListener('onrivi:resource_folder_changed', handleResourceFolderChange);
-      return () => window.removeEventListener('onrivi:resource_folder_changed', handleResourceFolderChange);
-    }
-  }, []);
-
   // ☁️ [구글 로그인/토큰 갱신 즉시 서식 로드 실시간 연동]
   useEffect(() => {
     const handleDriveTokenUpdate = () => {
@@ -3751,6 +3718,40 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     setAiModelName
   } = useEditorSettingsResult;
   const {editorTabSize,setEditorTabSize,spellCheck,setSpellCheck}=useEditorSettingsResult;
+  // 🌟 [공통 리소스 폴더 동적 변경 실시간 감지 리스너] (구글 드라이브 ↔ 로컬 전환 등)
+  useEffect(() => {
+    const handleResourceFolderChange = async (e: any) => {
+      const newFolder = getResourceSettings()?.path || '';
+      setResourceFolder(newFolder || null);
+      setProfileStorageRevision(revision => revision + 1);
+      let handle = null;
+      if (getResourceSettings()?.kind === 'drive') {
+        setResourceFolderHandle(null);
+        (window as any).__resourceFolderHandle = null;
+      } else {
+        handle = (window as any).__resourceFolderHandle;
+        setResourceFolderHandle(handle?.name === newFolder ? handle : null);
+      }
+
+      // 🚀 [리소스 폴더 변경 즉시 해당 폴더의 AI 환경정보 실시간 재로드]
+      try {
+        const creds = await loadResourceAICredentials(newFolder || undefined, handle);
+        setGeminiApiKey(creds?.apiKey || '');
+        setAiModelName(creds?.aiModelName || 'gemini-3.8-flash');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('onrivi:ai-connections'));
+        }
+      } catch (err) {
+        console.warn('[handleResourceFolderChange reload error]:', err);
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('onrivi:resource_folder_changed', handleResourceFolderChange);
+      return () => window.removeEventListener('onrivi:resource_folder_changed', handleResourceFolderChange);
+    }
+  }, [setGeminiApiKey, setAiModelName]);
+
+
   useEffect(()=>{
     const isInsideMarkdownPane=(target:EventTarget|null)=>target instanceof Element && Boolean(target.closest('#onrivi-markdown-pane'));
     const blockWheel=(event:WheelEvent)=>{
@@ -4546,8 +4547,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, [setActiveProfileId, editorRef, profiles, updateContent, resolveEffectiveDocumentProfile]);
 
   const headingSourceFormatsRef = useRef(new Map<string, unknown[]>());
+  const isHeadingStyleTab = Boolean(tabs.find(tab => tab.id === activeTabId)?.isStyleTab);
   useEffect(() => {
-    if (!isProfilesLoaded || !activeTabId || isRestrictedUser || currentFileName === '도움말.md' || tabs.find(tab => tab.id === activeTabId)?.isStyleTab) return;
+    if (!isProfilesLoaded || !activeTabId || isRestrictedUser || currentFileName === '도움말.md' || isHeadingStyleTab) return;
     const profile = resolveEffectiveDocumentProfile(content);
     if (profile.layout) return;
     // The visual editor updates prefixes in its own transaction, preserving caret and undo.
@@ -4570,7 +4572,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     };
     timer = setTimeout(sync, 250);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [content, profiles, activeProfileId, activeTabId, isProfilesLoaded, isRestrictedUser, currentFileName, directEditEnabled, updateContent, resolveEffectiveDocumentProfile]);
+  }, [content, profiles, activeProfileId, activeTabId, isProfilesLoaded, isRestrictedUser, currentFileName, isHeadingStyleTab, directEditEnabled, updateContent, resolveEffectiveDocumentProfile]);
 
   useEffect(() => {
     if (!isProfilesLoaded) return;
