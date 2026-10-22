@@ -4,6 +4,13 @@ import { normalizeBookLayout } from '../lib/picturebook';
 // ====================================================================
 // 📊 [OMD-CORE-cssProfile-0006] cssProfile ➔ SYSTEM_PROFILE_IDS
 // 🎯 @KICK  : 시스템 프로필 식별자 목록을 정의한다
+// 🚨 @PATCH : **2026-10-22** — [4대 문서 표준 규격 시스템 서식 프로필(CSS Profile) 신설 탑재]:
+//             1) ks-tech-standard: KS 기술표준 (1. ➔ 1.1 십진 분류, 표 상단/그림 하단 하이픈 표기, 그리드 보더)
+//             2) corp-strategy-report: 대기업 전략기획서 (삼성/현대 스타일: 15px 고밀도 개조식, 상단 요약 바, 볼드 인디케이터)
+//             3) academic-kdi-report: 학술·정책 연구보고서 (KDI 표준: 바탕/명조체, 장절 체계, <표 1>, [그림 1], 각주 여백)
+//             4) global-tech-6pager: 글로벌 테크/아마존 6-Pager (Inter/Plus Jakarta Sans, H1~H4 시맨틱 헤딩, 콜아웃)
+//             5) [전체 반영 보정] KS 제목 계층형 십진(1. ➔ 1.1 ➔ 1.1.1)·표 상단/그림 하단 '-' 캡션, 대기업 □ ➔ ○ ➔ - ➔ ㆍ 제목 기호,
+//                KDI 제1장 ➔ 제1절 ➔ 1. ➔ 가. 제목 번호·<표 1> 상단/[그림 1] 하단 캡션, 6-Pager 번호 없는 시맨틱 헤딩을 실제 서식 값으로 반영
 // 🚨 @PATCH : **2026-10-21** — [미디어 설명(캡션) 위치 및 표현 구문(mediaCaptionStructure) 서식 프로필 탑재]:
 //             1) DEFAULT_PROFILE에 mediaCaptionStructure(position: 'top', format: 'standard', customTemplate: '**{kind} {n}. {title}**') 기본 탑재
 //             2) normalizeCssProfile에서 mediaCaptionStructure 안전 병합 연동으로 모든 서식 프로필에서 미디어 캡션 환경설정 지원
@@ -47,7 +54,11 @@ export const SYSTEM_PROFILE_IDS = [
   'profile-1791514218283',
   'profile-1792072443551',
   'profile-1792073192013',
-  'profile-1792072480655'
+  'profile-1792072480655',
+  'ks-tech-standard',
+  'corp-strategy-report',
+  'academic-kdi-report',
+  'global-tech-6pager'
 ] as const;
 export type SystemProfileId = typeof SYSTEM_PROFILE_IDS[number];
 
@@ -3021,13 +3032,90 @@ for (const key of ['h1','h2','h3','h4','h5','h6','p','table','th','td','blockquo
 Object.assign(aiReportProfile.rules.th, {'background-color':'#f3f4f6','font-weight':'700'});
 Object.assign(aiReportProfile.rules.table, {'border-style':'solid','border-color':'#9ca3af'});
 aiReportProfile.tableStructure = {outerBorderWidth:'1px',rowBorderWidth:'1px',colBorderWidth:'1px'};
-aiReportProfile.rules.ol['list-style-type'] = 'onrivi-report';
+aiReportProfile.headingNumbering = ['roman', 'decimal', 'hangul', 'decimal-paren', 'hangul-paren', 'none'];
 aiReportProfile.customCss = `.custom-preview-container figure.onrivi-image-figure, .markdown-viewer-root figure.onrivi-image-figure { display:flex; flex-direction:column; }
 .custom-preview-container figure.onrivi-image-figure > figcaption, .markdown-viewer-root figure.onrivi-image-figure > figcaption { order:-1!important; text-align:left!important; align-self:flex-start!important; font-weight:700!important; color:inherit!important; margin:0 0 8px!important; }
 .custom-preview-container :is(h1,h2,h3,h4,h5,h6) { border:0!important; background:transparent!important; box-shadow:none!important; padding-left:0!important; }
 .custom-preview-container p:has(+table), .custom-preview-container p:has(+.table-wrapper-area) { break-after:avoid; }
 .custom-preview-container img { box-shadow:none!important; }`;
 SYSTEM_PROFILES.push(aiReportProfile);
+
+// 1. KS / ISO 기술표준 서식
+const ksTechProfile: CssProfile = JSON.parse(JSON.stringify(SYSTEM_PROFILES[0]));
+ksTechProfile.id = 'ks-tech-standard';
+ksTechProfile.name = 'KS 기술표준 (1. ➔ 1.1)';
+ksTechProfile.description = '국가기술표준원(KS A 0001) 및 ISO/IEC 국제 기술표준 규격: 십진 분류 번호 체계(1. ➔ 1.1 ➔ 1.1.1), 표 상단(표 1 -), 그림 하단(그림 1 -) 표기.';
+ksTechProfile.pageStyle.fontFamily = "'Pretendard', 'Noto Sans KR', Arial, sans-serif";
+ksTechProfile.pageStyle.fontSize = '15.5px';
+ksTechProfile.pageStyle.lineHeight = '1.7';
+ksTechProfile.mediaCaptionStructure = {
+  position: 'top', format: 'custom', customTemplate: '**{kind} {n} - {title}**',
+  kindOverrides: { image: { position: 'bottom' }, video: { position: 'bottom' }, map: { position: 'bottom' } }
+};
+ksTechProfile.headingNumbering = ['decimal-outline', 'decimal-outline', 'decimal-outline', 'none', 'none', 'none'];
+ksTechProfile.tableStructure = { outerBorderWidth: '1px', rowBorderWidth: '1px', colBorderWidth: '1px' };
+ksTechProfile.customCss = `.custom-preview-container figure.onrivi-image-figure > figcaption, .markdown-viewer-root figure.onrivi-image-figure > figcaption { order: 1!important; text-align: center!important; font-weight: 700!important; margin-top: 8px!important; }`;
+SYSTEM_PROFILES.push(ksTechProfile);
+
+// 2. 대기업 전략기획서 (삼성/현대 스타일)
+const corpReportProfile: CssProfile = JSON.parse(JSON.stringify(SYSTEM_PROFILES[0]));
+corpReportProfile.id = 'corp-strategy-report';
+corpReportProfile.name = '대기업 전략기획서 (삼성/현대)';
+corpReportProfile.description = '국내 주요 대기업 및 컨설팅펌 표준: 기호 체계(□ ➔ ○ ➔ - ➔ ㆍ), 상단 핵심 요약 헤드라인 박스, 콤팩트 개조식 서식.';
+corpReportProfile.pageStyle.fontFamily = "'Pretendard', 'Malgun Gothic', -apple-system, sans-serif";
+corpReportProfile.pageStyle.fontSize = '15px';
+corpReportProfile.pageStyle.lineHeight = '1.65';
+corpReportProfile.mediaCaptionStructure = { position: 'top', format: 'standard', customTemplate: '**{kind} {n}. {title}**' };
+corpReportProfile.headingNumbering = [
+  { type: 'custom', number: 'bullet', prefix: '', suffix: '', bullet: '□' },
+  { type: 'custom', number: 'bullet', prefix: '', suffix: '', bullet: '○' },
+  { type: 'custom', number: 'bullet', prefix: '', suffix: '', bullet: '-' },
+  { type: 'custom', number: 'bullet', prefix: '', suffix: '', bullet: 'ㆍ' },
+  'none', 'none'
+];
+corpReportProfile.tableStructure = { outerBorderWidth: '1px', rowBorderWidth: '1px', colBorderWidth: '0px' };
+corpReportProfile.rules.blockquote = { 'border-left': '4px solid #1d4ed8', 'background-color': '#f8fafc', 'padding': '10px 14px', 'font-weight': '600' };
+corpReportProfile.customCss = `.custom-preview-container blockquote { border-left: 4px solid #1d4ed8!important; background: #f8fafc!important; border-radius: 4px; padding: 10px 14px!important; margin: 12px 0!important; }`;
+SYSTEM_PROFILES.push(corpReportProfile);
+
+// 3. 학술·정책 연구보고서 (KDI 표준)
+const academicReportProfile: CssProfile = JSON.parse(JSON.stringify(SYSTEM_PROFILES[0]));
+academicReportProfile.id = 'academic-kdi-report';
+academicReportProfile.name = '학술·정책 연구보고서 (KDI 표준)';
+academicReportProfile.description = '국책연구기관 및 연구재단 표준 논문 규격: 장절 체계(제1장 ➔ 제1절 ➔ 1.), 표 상단(<표 1>), 그림 하단([그림 1]), 바탕/명조 활자.';
+academicReportProfile.pageStyle.fontFamily = "'KoPubWorldBatang', 'NanumMyeongjo', 'Batang', serif";
+academicReportProfile.pageStyle.fontSize = '16px';
+academicReportProfile.pageStyle.lineHeight = '1.85';
+academicReportProfile.mediaCaptionStructure = {
+  position: 'top', format: 'angle', customTemplate: '**<{kind} {n}> {title}**',
+  kindOverrides: {
+    image: { position: 'bottom', format: 'bracket' },
+    video: { position: 'bottom', format: 'bracket' },
+    map: { position: 'bottom', format: 'bracket' }
+  }
+};
+academicReportProfile.headingNumbering = [
+  { type: 'custom', number: 'decimal', prefix: '제', suffix: '장' },
+  { type: 'custom', number: 'decimal', prefix: '제', suffix: '절' },
+  'decimal', 'hangul', 'none', 'none'
+];
+academicReportProfile.tableStructure = { outerBorderWidth: '1.5px', rowBorderWidth: '1px', colBorderWidth: '0px' };
+academicReportProfile.customCss = `.custom-preview-container figure.onrivi-image-figure > figcaption, .markdown-viewer-root figure.onrivi-image-figure > figcaption { order: 1!important; text-align: center!important; font-weight: 700!important; margin-top: 8px!important; }
+.custom-preview-container p.table-title, .markdown-viewer-root p.table-title { font-weight: 700!important; text-align: center!important; margin-bottom: 6px!important; }`;
+SYSTEM_PROFILES.push(academicReportProfile);
+
+// 4. 글로벌 테크/아마존 6-Pager
+const globalTechProfile: CssProfile = JSON.parse(JSON.stringify(SYSTEM_PROFILES[0]));
+globalTechProfile.id = 'global-tech-6pager';
+globalTechProfile.name = '글로벌 테크/아마존 6-Pager';
+globalTechProfile.description = '실리콘밸리 글로벌 테크 및 아마존 표준: 6페이지 내러티브 서술식, 시맨틱 헤딩 위계, 콜아웃 안내 박스.';
+globalTechProfile.pageStyle.fontFamily = "'Inter', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif";
+globalTechProfile.pageStyle.fontSize = '15.5px';
+globalTechProfile.pageStyle.lineHeight = '1.75';
+globalTechProfile.mediaCaptionStructure = { position: 'top', format: 'standard', customTemplate: '**{kind} {n}. {title}**' };
+globalTechProfile.headingNumbering = [];
+globalTechProfile.tableStructure = { outerBorderWidth: '1px', rowBorderWidth: '1px', colBorderWidth: '1px' };
+SYSTEM_PROFILES.push(globalTechProfile);
 
 export const DEFAULT_PROFILE: CssProfile = SYSTEM_PROFILES[0]; // system-gov
 
@@ -3267,6 +3355,10 @@ export function normalizeCssProfile(
     position: (imported?.mediaCaptionStructure?.position === 'bottom') ? 'bottom' : 'top',
     format: imported?.mediaCaptionStructure?.format || 'standard',
     customTemplate: imported?.mediaCaptionStructure?.customTemplate || '**{kind} {n}. {title}**',
+    // 표·그림·지도·동영상별 개별 캡션 설정 보존 (KS/KDI 표준 서식)
+    ...(imported?.mediaCaptionStructure?.kindOverrides && typeof imported.mediaCaptionStructure.kindOverrides === 'object'
+      ? { kindOverrides: imported.mediaCaptionStructure.kindOverrides }
+      : {}),
   };
 
   // 6. 최종 서식 객체 조립

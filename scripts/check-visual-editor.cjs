@@ -157,6 +157,7 @@ async function visual() {
   fs.writeFileSync(path.join(dir, 'icons.js'), "const React=require('react');exports.Plus=exports.X=(props)=>React.createElement('svg',props);");
   fs.writeFileSync(path.join(dir, 'tableModal.js'), compile(path.join(frontend, 'src/components/TableModal.tsx')));
   fs.writeFileSync(path.join(dir, 'aiFriendlyReport.js'), compile(path.join(frontend, 'src/lib/aiFriendlyReport.ts')));
+  fs.writeFileSync(path.join(dir, 'headingNumbering.js'), compile(path.join(frontend, 'src/lib/headingNumbering.ts')));
   fs.writeFileSync(path.join(dir, 'reportNumbering.js'), compile(path.join(frontend, 'src/lib/reportNumbering.ts')));
   fs.writeFileSync(path.join(dir, 'markdownCleaner.js'), compile(path.join(frontend, 'src/utils/markdownCleaner.ts')));
   fs.writeFileSync(path.join(dir, 'tableHeader.js'), compile(path.join(frontend, 'src/components/TableHeaderCell.tsx')));
@@ -196,9 +197,11 @@ async function visual() {
       const [hotkeys,setHotkeys] = React.useState({});
       const [shared,setShared]=React.useState(false);
       const [documentId,setDocumentId]=React.useState('test-document');
+      const [headingNumbering,setHeadingNumbering]=React.useState([]);window.setTestHeadingFormats=setHeadingNumbering;
       const [floating,setFloating]=React.useState({visible:false,top:0,left:0});
       const sharedCommand=React.useRef(null);window.qaEditorCommand=command=>sharedCommand.current?.(command);const aiTarget=React.useRef(null);window.qaAITarget=scope=>aiTarget.current?.(scope);
       window.qaReportNumbering=require('./reportNumbering');
+      window.qaHeadingNumbering=require('./headingNumbering');
       window.setTestSource=setContent;
       window.setTestCommands=setCommands;
       window.setTestHotkeys=setHotkeys;
@@ -208,7 +211,7 @@ async function visual() {
         React.createElement('button',{id:'toggle',onClick:()=>setVisible(!visible)},'보기 전환'),
         React.createElement('button',{id:'readonly',onClick:()=>setReadonly(!readonly)},'읽기 전용'),
         shared && floating.visible && React.createElement(Legacy,{floatingToolbar:floating,setFloatingToolbar:setFloating,commandRef:sharedCommand}),
-        visible && React.createElement(Editor,{content,onSourceScroll:offset=>{window.qaSourceScroll=offset;},onSourceCursor:(offset,reveal=true)=>{window.qaSourceCursor=offset;window.qaCursorReveal=reveal;},onChange:setContent,readOnly:readonly,documentId,customCommands:commands,customHotkeys:hotkeys,commandRef:sharedCommand,aiTargetRef:aiTarget,
+        visible && React.createElement(Editor,{content,headingNumbering,onSourceScroll:offset=>{window.qaSourceScroll=offset;},onSourceCursor:(offset,reveal=true)=>{window.qaSourceCursor=offset;window.qaCursorReveal=reveal;},onChange:setContent,readOnly:readonly,documentId,customCommands:commands,customHotkeys:hotkeys,commandRef:sharedCommand,aiTargetRef:aiTarget,
           renderImage:source=>React.createElement('img',{alt:'test preview',style:{width:320,height:160},src:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWo4AAAAASUVORK5CYII='}),
           onMediaDialog:(kind,source,insert)=>{window.qaMediaDialog={kind,source,insert};},
           onImageDialog:(source,insert)=>{window.qaImageDialog={source,insert};},
@@ -221,7 +224,7 @@ async function visual() {
     createRoot(document.getElementById('root')).render(React.createElement(App));
   `);
   const webpack = req('webpack');
-  const focusedAliases = { '../visualDocumentCodec':path.join(dir,'codec.js'), '@/utils/markdownCleaner':path.join(dir,'markdownCleaner.js'), '@/lib/aiFriendlyReport':path.join(dir,'aiFriendlyReport.js'), '@/components/DocumentPageGuides':path.join(dir,'pageGuides.js'), '@/lib/pageGeometry':path.join(dir,'pageGeometry.js'), '../constants/paperSizes':path.join(dir,'paperSizes.js'), '@/lib/browserAccountStorage':path.join(dir,'accountStorage.js'), '@/lib/bibliography':path.join(dir,'bibliography.js'), '@/components/BibliographySummary':path.join(dir,'bibliographySummary.js'), '@/lib/bulletNumberText':path.join(dir,'bulletNumberText.js'), ...(process.argv.some(arg=>['--report-numbering-only','--report-table-only','--inline-ai-only','--image-resize-only','--page-break-only','--list-enter-only','--list-indentation-only','--typing-scroll-only','--spacing-emphasis-only','--list-markers-only','--image-drops-only'].includes(arg)) ? {
+  const focusedAliases = { '@/lib/headingNumbering':path.join(dir,'headingNumbering.js'), '../visualDocumentCodec':path.join(dir,'codec.js'), '@/utils/markdownCleaner':path.join(dir,'markdownCleaner.js'), '@/lib/aiFriendlyReport':path.join(dir,'aiFriendlyReport.js'), '@/components/DocumentPageGuides':path.join(dir,'pageGuides.js'), '@/lib/pageGeometry':path.join(dir,'pageGeometry.js'), '../constants/paperSizes':path.join(dir,'paperSizes.js'), '@/lib/browserAccountStorage':path.join(dir,'accountStorage.js'), '@/lib/bibliography':path.join(dir,'bibliography.js'), '@/components/BibliographySummary':path.join(dir,'bibliographySummary.js'), '@/lib/bulletNumberText':path.join(dir,'bulletNumberText.js'), ...(process.argv.some(arg=>['--heading-space-only','--report-numbering-only','--report-table-only','--inline-ai-only','--image-resize-only','--page-break-only','--list-enter-only','--list-indentation-only','--typing-scroll-only','--spacing-emphasis-only','--list-markers-only','--image-drops-only'].includes(arg)) ? {
     '@/lib/footnoteOrganizer': path.join(dir, 'footnoteOrganizer.js'),
     '@/lib/resourceMedia': path.join(dir, 'resourceMedia.js'),
     './resourceSettings':path.join(dir,'dropStorageStubs.js'),
@@ -284,6 +287,31 @@ async function visual() {
       await surface.getByText('아래 본문',{exact:true}).click();await page.keyboard.press('End');await page.evaluate(()=>{window.actualAITarget=window.qaAITarget();});await page.keyboard.type('changed');assert.equal(await page.evaluate(()=>window.actualAITarget.apply('금지','replace')),false);
       console.log('PASS: actual VisualDocumentEditor AI target bridge, source synchronization, image/body preservation, one undo and stale target rejection');return;
     }
+    if(process.argv.includes('--heading-space-only')){
+      await surface.waitFor();
+      for(let level=1;level<=6;level++){
+        await page.locator('#source').focus();await page.evaluate(()=>window.setTestSource(''));
+        await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='');
+        await surface.click();await page.keyboard.type('#'.repeat(level));
+        assert.equal(await surface.locator('h1,h2,h3,h4,h5,h6').count(),0,'Hash-only input must wait for Space');
+        assert.equal(await surface.locator('p').first().textContent(),'#'.repeat(level));
+        await page.keyboard.press('Space');
+        assert.equal(await surface.locator('h'+level).count(),1,'Space must immediately activate heading '+level);
+        assert.equal(await surface.locator('h'+level).textContent(),'');
+        await page.keyboard.insertText('Title '+level);
+        assert.ok((await page.locator('#source').inputValue()).includes('#'.repeat(level)+' Title '+level));
+      }
+      await page.locator('#source').focus();await page.evaluate(()=>window.setTestSource('Existing title'));
+      await surface.getByText('Existing title',{exact:true}).waitFor();await surface.locator('p').click();await page.keyboard.press('Home');await page.keyboard.type('##');
+      assert.equal(await surface.locator('h2').count(),0);
+      await page.keyboard.press('Space');assert.equal(await surface.locator('h2').textContent(),'Existing title');
+      await page.locator('#source').focus();await page.evaluate(()=>{window.setTestSource('');window.setTestHeadingFormats(['roman']);});
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='');
+      await surface.click();await page.keyboard.type('#');await page.keyboard.press('Space');
+      assert.equal(await surface.locator('h1').count(),1);
+      await page.keyboard.insertText('Numbered title');assert.ok((await page.locator('#source').inputValue()).includes('# Ⅰ. Numbered title'));
+      assert.deepEqual(errors,[]);console.log('PASS: H1-H6 activate on Space, hashes wait as text, existing title and configured numbering preserved');return;
+    }
     if(process.argv.includes('--report-numbering-only')){
       await surface.waitFor();
       await page.evaluate(()=>{
@@ -304,6 +332,61 @@ async function visual() {
       const saved=await page.locator('#source').inputValue();await page.evaluate(source=>window.setTestSource(source+'\n'),saved);
       await surface.getByText('Next fifth level',{exact:true}).waitFor();
       assert.deepEqual(await labels(),['Ⅰ.','1.','가.','1)','가)','나)']);
+      await page.locator('#source').focus();
+      await page.evaluate(()=>{
+        const style=document.createElement('style');style.textContent=window.qaHeadingNumbering.headingNumberingCss({headingNumbering:['roman','decimal','hangul','decimal-paren','hangul-paren','none']});document.head.append(style);
+        window.setTestDocument('heading-numbering','# First heading\n\n## Child heading\n\n# Ⅱ. Existing heading');
+      });
+      await surface.getByText('Ⅱ. Existing heading',{exact:true}).waitFor({timeout:5000});
+      assert.equal(await surface.locator('h1[data-onrivi-heading-numbered]').count(),1);
+      await surface.getByText('Child heading',{exact:true}).click();await page.keyboard.press('End');await page.keyboard.type(' edited');
+      assert.ok((await page.locator('#source').inputValue()).includes('## Child heading edited'));
+      assert.ok(!(await page.locator('#source').inputValue()).includes('## 1. Child'));
+      await page.keyboard.press('Control+z');assert.ok(!(await page.locator('#source').inputValue()).includes('edited'));
+      await page.evaluate(()=>window.setTestHeadingFormats(['roman',{type:'custom',number:'bullet',prefix:'',suffix:'',bullet:'◆'}]));
+      await surface.getByText('◆ Child heading',{exact:true}).waitFor();
+      const numberedSource=await page.locator('#source').inputValue();
+      assert.ok(numberedSource.includes('# Ⅰ. First heading'));
+      assert.ok(numberedSource.includes('## ◆ Child heading'));
+      assert.ok(numberedSource.includes('# Ⅱ. Existing heading'));
+      await surface.getByText('◆ Child heading',{exact:true}).click();await page.keyboard.press('End');await page.keyboard.type(' updated');
+      assert.ok((await page.locator('#source').inputValue()).includes('## ◆ Child heading updated'));
+      await page.keyboard.press('Control+z');assert.equal(await page.locator('#source').inputValue(),numberedSource);
+      await page.evaluate(()=>window.setTestHeadingFormats([{type:'custom',number:'decimal',prefix:'제',suffix:'장'},'decimal']));
+      await surface.getByText('제1장 First heading',{exact:true}).waitFor();
+      assert.ok((await page.locator('#source').inputValue()).includes('## 1. Child heading'));
+      assert.ok(!(await page.locator('#source').inputValue()).includes('◆'));
+      await page.evaluate(()=>window.setTestHeadingFormats([]));
+      await surface.getByText('First heading',{exact:true}).waitFor();
+      assert.ok(!(await page.locator('#source').inputValue()).includes('제1장'));
+      await page.locator('#source').focus();
+      await page.evaluate(()=>{window.setTestSource('# Start heading\n\nEnd body');window.setTestHeadingFormats(['roman','decimal',{type:'custom',number:'bullet',prefix:'',suffix:'',bullet:'◆'}]);});
+      await surface.getByText('Ⅰ. Start heading',{exact:true}).waitFor();
+      await surface.getByText('End body',{exact:true}).click();await page.keyboard.press('End');
+      const beforePaste=await page.locator('#source').inputValue();
+      await page.evaluate(()=>{const dt=new DataTransfer();dt.setData('text/plain','# 77. Pasted heading\n\n## Pasted child\n\n### Pasted bullet\n\n###Missing space\n\n```md\n# Code heading\n```\n\n| A | B |\n| --- | --- |\n| one | two |');document.querySelector('.visual-document-surface').dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));});
+      await surface.getByText('Ⅱ. Pasted heading',{exact:true}).waitFor();
+      const pasted=await page.locator('#source').inputValue();
+      assert.ok(pasted.includes('# Ⅱ. Pasted heading'));
+      assert.ok(pasted.includes('## 1. Pasted child'));
+      assert.ok(pasted.includes('### ◆ Pasted bullet'));
+      assert.ok(pasted.includes('# Code heading'));
+      assert.ok(!pasted.includes('77. Pasted'));
+      await page.keyboard.press('Control+z');assert.equal(await page.locator('#source').inputValue(),beforePaste);
+      await page.keyboard.press('Control+Shift+z');assert.ok((await page.locator('#source').inputValue()).includes('# Ⅱ. Pasted heading'));
+      await page.evaluate(()=>window.qaEditorCommand('CLEAN_DOC'));
+      await surface.getByText('◆ Missing space',{exact:true}).waitFor({timeout:5000});
+      const cleaned=await page.locator('#source').inputValue();
+      assert.ok(cleaned.includes('### ◆ Missing space'));
+      assert.ok(cleaned.includes('# Ⅱ. Pasted heading'));
+      assert.ok(cleaned.includes('## 1. Pasted child'));
+      assert.ok(cleaned.includes('```md\n# Code heading\n```'));
+      assert.equal(await surface.locator('table').count(),1);
+      await page.evaluate(()=>window.qaEditorCommand('CLEAN_DOC'));
+      assert.equal(await page.locator('#source').inputValue(),cleaned,'Repeated cleanup must not duplicate heading labels');
+      console.log('PASS: actual Markdown paste auto-renumbers headings and bullets, preserves code/table, undo/redo and CLEAN_DOC repair/idempotency');
+      console.log('PASS: actual visual editor writes numbering/bullets to Markdown, switches formats, removes labels, preserves typing and undo');
+      console.log('PASS: heading decorations preserve source and native edit/undo, literal heading labels do not duplicate');
       assert.deepEqual(errors,[]);console.log('PASS: 5-level report numbering, native Enter/Tab/Shift+Tab, sequential labels, standard Markdown save/reload');return;
     }
     if(process.argv.includes('--report-table-only')){
@@ -820,12 +903,12 @@ async function visual() {
     await page.evaluate(()=>window.setTestSource(''));
     await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='');
     await surface.click();await page.keyboard.type('###');
-    assert.equal(await surface.locator('h3').count(),1);
+    assert.equal(await surface.locator('h3').count(),0);
     await page.keyboard.press('Space');await page.keyboard.insertText('Hash only heading');
     assert.equal(await surface.locator('h3').textContent(),'Hash only heading');
     await page.evaluate(()=>window.setTestSource('Previous body'));
     await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent==='Previous body');
-    await surface.locator('p').click();await page.keyboard.press('End');await page.keyboard.press('Enter');await page.keyboard.type('###');await page.keyboard.insertText('New heading');
+    await surface.locator('p').click();await page.keyboard.press('End');await page.keyboard.press('Enter');await page.keyboard.type('###');await page.keyboard.press('Space');await page.keyboard.insertText('New heading');
     assert.equal(await surface.locator('p').first().textContent(),'Previous body');
     assert.equal(await surface.locator('h3').textContent(),'New heading');
     await page.evaluate(()=>window.setTestSource('1. First\n2. Second\n3. Third'));

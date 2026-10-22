@@ -1,3 +1,4 @@
+import { hasHeadingNumber, headingNodeText } from '@/lib/headingNumbering';
 import { rehypeBibliography } from '@/lib/bibliography';
 import BibliographySummary from '@/components/BibliographySummary';
 import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
@@ -3508,37 +3509,37 @@ function MarkdownViewer({
               const line = (node as any).position?.start?.line;
               const currentLineMap = dynamicPropsRef.current.lineMap || [];
               const origLine = line ? (currentLineMap[line - 1] || line) : undefined;
-              return <h1 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h1>;
+              return <h1 data-onrivi-heading-numbered={hasHeadingNumber(headingNodeText(node)) ? "true" : undefined} id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h1>;
             },
             h2: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;
               const currentLineMap = dynamicPropsRef.current.lineMap || [];
               const origLine = line ? (currentLineMap[line - 1] || line) : undefined;
-              return <h2 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h2>;
+              return <h2 data-onrivi-heading-numbered={hasHeadingNumber(headingNodeText(node)) ? "true" : undefined} id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h2>;
             },
             h3: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;
               const currentLineMap = dynamicPropsRef.current.lineMap || [];
               const origLine = line ? (currentLineMap[line - 1] || line) : undefined;
-              return <h3 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h3>;
+              return <h3 data-onrivi-heading-numbered={hasHeadingNumber(headingNodeText(node)) ? "true" : undefined} id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h3>;
             },
             h4: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;
               const currentLineMap = dynamicPropsRef.current.lineMap || [];
               const origLine = line ? (currentLineMap[line - 1] || line) : undefined;
-              return <h4 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h4>;
+              return <h4 data-onrivi-heading-numbered={hasHeadingNumber(headingNodeText(node)) ? "true" : undefined} id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h4>;
             },
             h5: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;
               const currentLineMap = dynamicPropsRef.current.lineMap || [];
               const origLine = line ? (currentLineMap[line - 1] || line) : undefined;
-              return <h5 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h5>;
+              return <h5 data-onrivi-heading-numbered={hasHeadingNumber(headingNodeText(node)) ? "true" : undefined} id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h5>;
             },
             h6: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;
               const currentLineMap = dynamicPropsRef.current.lineMap || [];
               const origLine = line ? (currentLineMap[line - 1] || line) : undefined;
-              return <h6 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h6>;
+              return <h6 data-onrivi-heading-numbered={hasHeadingNumber(headingNodeText(node)) ? "true" : undefined} id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h6>;
             },
             iframe: ({ node, style, className, ...props }: any) => {
               const line = extractDataLine(props, node);

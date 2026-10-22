@@ -375,6 +375,8 @@
 
 "use client";
 import { reportNumberingCss } from '@/lib/reportNumbering';
+import { flashPreviewHighlight } from '@/lib/previewHighlight';
+import { headingNumberingCss, createHeadingNumberer, syncMarkdownHeadingNumbers } from '@/lib/headingNumbering';
 // next.js의 규칙, 이 페이지는 client side에서 렌더링됨. 
 //지시어 종류실행 및 렌더링 위치설명 및 아키텍처적 역할"use client";
 //최종 유저의 웹 브라우저자바스크립트 Hooks(useState, useEffect)를 허용하고, 마우스 클릭·키보드 타이핑 등 실시간 UI 인터랙션을 처리할 때 선언합니다.
@@ -4534,14 +4536,41 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     
     const currentModel = isEditorMountedRef.current ? editorRef.current?.getModel() : null;
     const currentContent = currentModel?.getValue() ?? contentRef.current;
-    const newContent = writeBookProfileSnapshot(updateCssProfileInFrontmatter(currentContent, newProfileId, profileName), selectedProfile);
+    const newContent = syncMarkdownHeadingNumbers(writeBookProfileSnapshot(updateCssProfileInFrontmatter(currentContent, newProfileId, profileName), selectedProfile), selectedProfile?.headingNumbering, resolveEffectiveDocumentProfile(currentContent).headingNumbering);
     if (currentContent !== newContent) {
       // 서식 화면/미리보기에서는 Monaco 이벤트가 차단되므로 문서 상태도 직접 갱신한다.
       contentRef.current = newContent;
-      updateContent(newContent);
+      updateContent(newContent, false, true);
       setTabs(previous => previous.map(tab => tab.id === activeTabIdRef.current ? { ...tab, content: newContent, isModified: true } : tab));
     }
-  }, [setActiveProfileId, editorRef, profiles, updateContent]);
+  }, [setActiveProfileId, editorRef, profiles, updateContent, resolveEffectiveDocumentProfile]);
+
+  const headingSourceFormatsRef = useRef(new Map<string, unknown[]>());
+  useEffect(() => {
+    if (!isProfilesLoaded || !activeTabId || isRestrictedUser || currentFileName === '도움말.md' || tabs.find(tab => tab.id === activeTabId)?.isStyleTab) return;
+    const profile = resolveEffectiveDocumentProfile(content);
+    if (profile.layout) return;
+    // The visual editor updates prefixes in its own transaction, preserving caret and undo.
+    if (directEditEnabled && document.querySelector('.visual-document-surface[contenteditable="true"]')?.contains(document.activeElement)) return;
+    const formats = profile.headingNumbering || [];
+    const previous = headingSourceFormatsRef.current.get(activeTabId) || formats;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const sync = () => {
+      if (cancelled || activeTabIdRef.current !== activeTabId) return;
+      if (isComposingRef.current) { timer = setTimeout(sync, 100); return; }
+      const model = isEditorMountedRef.current ? editorRef.current?.getModel() : null;
+      const original = model && previewModeRef.current !== 'preview' ? model.getValue() : contentRef.current;
+      const next = syncMarkdownHeadingNumbers(original, formats, previous);
+      headingSourceFormatsRef.current.set(activeTabId, formats);
+      if (next === original) return;
+      contentRef.current = next;
+      updateContent(next, false, true);
+      setTabs(items => items.map(tab => tab.id === activeTabId ? { ...tab, content: next, isModified: true } : tab));
+    };
+    timer = setTimeout(sync, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [content, profiles, activeProfileId, activeTabId, isProfilesLoaded, isRestrictedUser, currentFileName, directEditEnabled, updateContent, resolveEffectiveDocumentProfile]);
 
   useEffect(() => {
     if (!isProfilesLoaded) return;
@@ -5259,7 +5288,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         if (previewRef.current) {
           const elements = Array.from(previewRef.current.querySelectorAll('[data-line]'));
           elements.forEach(element => element.classList.remove('preview-highlight-line'));
-          lineEl.classList.add('preview-highlight-line'); // 💡 사장님 지시: 마우스 클릭 시 미리보기 행 마킹 하이라이트색 복구
+          flashPreviewHighlight(lineEl as HTMLElement);
         }
       }
     }
@@ -6638,7 +6667,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
 
     if (targetEl) {
-      targetEl.classList.add('preview-highlight-line');
+      return flashPreviewHighlight(targetEl);
     }
   }, [activeLine, previewMode, processedContent]);
 
@@ -7718,7 +7747,7 @@ blockquote li p {
     const extraCss = prof.customCss?.trim()
       ? `\n@layer onrivi-extra {\n${prof.customCss}\n}`
       : '';
-    return `@layer onrivi-settings, onrivi-extra;\n@layer onrivi-settings {\n${css}\n${reportNumberingCss(prof)}\n}${extraCss}`;
+    return `@layer onrivi-settings, onrivi-extra;\n@layer onrivi-settings {\n${css}\n${reportNumberingCss(prof)}\n${headingNumberingCss(prof)}\n}${extraCss}`;
   }, [profiles, activeProfileId, previewMode, isStyleModalOpen]);
 
   // ====================================================================
@@ -9240,6 +9269,7 @@ blockquote li p {
     const lines = content.split(/\r?\n/);
     const items: { id: string, text: string, level: number, lineNumber: number }[] = [];
     const codeBlockMask = getCodeBlockLineMask(lines);
+    const headingNumber = createHeadingNumberer(activeProfileId === 'default' ? [] : (profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE).headingNumbering);
     lines.forEach((line, index) => {
       if (codeBlockMask[index]) return;
       const trimmed = line.trim();
@@ -9262,6 +9292,8 @@ blockquote li p {
                      .replace(/!\[(.*?)\]\(.*?\)/g, '$1') // 이미지 ![텍스트](URL) -> 텍스트
                      .replace(/<[^>]*>?/gm, ''); // HTML 태그 제거
                      
+          const marker = headingNumber(level, text);
+          if (marker) text = marker + ' ' + text;
           const lineNumber = index + 1;
         items.push({
           id: `toc-line-${lineNumber}`,
@@ -9272,7 +9304,7 @@ blockquote li p {
       }
     });
     return items;
-  }, [content]);
+  }, [content, profiles, activeProfileId]);
 
   const heightClass = 'h-[calc(100vh-128px)]';
   const activeTab = tabs.find(t => t.id === activeTabId);
@@ -10978,7 +11010,7 @@ blockquote li p {
                                   </button>
                                 </div>
                                 {directEditEnabled && !isRestrictedUser && activeTabId && currentFileName !== '도움말.md' && !activeProfile.layout ? (
-                                   <VisualDocumentEditor key={activeTabId} documentId={activeTabId} bibContent={bibContent} onCitation={()=>setIsCitationModalOpen(true)} onReferenceSettings={() => setIsReferenceModalOpen(true)} pageStyle={resolveEffectiveDocumentProfile(content).pageStyle} spellCheck={spellCheck} tabSize={editorTabSize} onToast={showToast} onStyleSettings={() => setIsStyleModalOpen(true)}
+                                   <VisualDocumentEditor key={activeTabId} documentId={activeTabId} headingNumbering={activeProfile.headingNumbering} bibContent={bibContent} onCitation={()=>setIsCitationModalOpen(true)} onReferenceSettings={() => setIsReferenceModalOpen(true)} pageStyle={resolveEffectiveDocumentProfile(content).pageStyle} spellCheck={spellCheck} tabSize={editorTabSize} onToast={showToast} onStyleSettings={() => setIsStyleModalOpen(true)}
                                      onSourceScroll={offset => {
                                        const editor = editorRef.current;
                                        if (previewModeRef.current !== 'both' || !editor?.getModel() || isScrollingRef.current === 'editor') return;
@@ -11197,6 +11229,7 @@ blockquote li p {
           {isAiButtonVisible && <InlineAIAssistant documentId={activeTabId} disabled={!activeTabId || isRestrictedUser || currentFileName === '도움말.md' || Boolean(resolveEffectiveDocumentProfile(content).layout)}
             disabledReason={!activeTabId ? '문서를 먼저 열거나 새 문서를 만들어 주세요.' : isRestrictedUser ? '현재 문서 편집 권한이 제한되어 있습니다. 로그인·인증 및 동시 접속 상태를 확인해 주세요.' : currentFileName === '도움말.md' ? '도움말은 수정할 수 없습니다. 작성할 문서를 열어 주세요.' : resolveEffectiveDocumentProfile(content).layout ? '현재 그림책 레이아웃은 문서 AI 편집을 지원하지 않습니다. 일반 문서에서 사용해 주세요.' : undefined}
             legacyKey={ensureDecryptedApiKey(geminiApiKey)} legacyModel={aiModelName} nickname={userNickname} resourceFolder={resourceFolder} resourceHandle={resourceFolderHandle}
+            readDocument={() => editorRef.current?.hasTextFocus() ? editorRef.current.getValue() : contentRef.current}
             capture={(scope) => {
               if(scope==='auto'){if(visualAITargetRef.current&&previewRef.current?.querySelector('.visual-document-editor'))return visualAITargetRef.current(scope);if(editorRef.current?.hasTextFocus()&&!editorRef.current.getSelection()?.isEmpty())return captureMonacoAITarget(editorRef.current,activeTabIdRef.current || '',()=>activeTabIdRef.current,'selection');throw Error('문서 전체 수정은 문서보기에서 편집을 켠 뒤 실행해 주세요.');}
               if(scope==='document'){if(visualAITargetRef.current&&previewRef.current?.querySelector('.visual-document-editor'))return visualAITargetRef.current(scope);throw Error('문서 전체 수정은 문서보기에서 편집을 켠 뒤 실행해 주세요.');}

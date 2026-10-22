@@ -77,9 +77,8 @@ export function visualMarkdownInputRules() {
       for(let depth=position.depth;depth>0;depth--)if(position.node(depth).type===nodes.list_item)return state.tr.delete(start,end).setNodeMarkup(position.before(depth),undefined,{...position.node(depth).attrs,checked:match[1].toLowerCase()==='x'});
       return null;
     }),
-    // Hash-only input activates a heading immediately on empty lines,
-    // but requires a trailing space when there is existing content after the cursor.
-    new InputRule(/(?:^|\ufffc)(#{1,6})(?:[ \t](.*))?$/, (state,match,start,end)=>{
+    // Keep hashes as text until the following space confirms the heading level.
+    new InputRule(/(?:^|\ufffc)(#{1,6})[ \t](.*)$/, (state,match,start,end)=>{
       const position=state.selection.$from,parent=position.parent;
       if(insideCell(state) || ![nodes.paragraph,nodes.heading].includes(parent.type))return null;
       const title=match[2] || '';

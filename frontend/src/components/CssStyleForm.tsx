@@ -9,6 +9,7 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-10-22 — [제목 번호 형식에 계층형 십진(1. ➔ 1.1 ➔ 1.1.1) 옵션 추가]: KS/ISO 기술표준 서식용 decimal-outline 선택지를 제목 번호 형식 드롭다운에 노출
  *   2026-10-21 — [미디어 설명(캡션) 위치 및 표현 구문(mediaCaptionStructure) 서식 제어 패널 신설]: 서식 제어판 [6] 미디어 아코디언 내에 캡션 기본 위치(상단/하단) 토글, 표현 구문(표준/대괄호/화살괄호/일반/제목만/커스텀) 선택 및 커스텀 템플릿 입력 UI 탑재
  *   2026-10-17 — [목록 기본 들여쓰기 너비 슬라이더 조작 시 triggerUpdate 연동]: '목록 기본 들여쓰기 너비' 슬라이더 변경 시 onUpdateProfile 직접 호출 대신 triggerUpdate(updated, 'ul', '목록 기본 들여쓰기 너비')를 호출하여 실시간 미리보기 펄스 하이라이트 및 상태 동기화 완벽 보장
  *   2026-10-14 — [서식관리 아코디언 [5] 타이틀에 '각주' 명시 및 각주 스타일 설정 시인성 강화]: 아코디언 [5] 타이틀을 '🏺 표, 하이퍼링크, 소스코드, 인용구, 각주'로 명시하여 사용자가 각주 글자 크기, 색상, 줄간격, 상하 여백을 한눈에 찾아 설정할 수 있도록 접근성 극대화
@@ -68,6 +69,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'; // useState : 상태 관리, useEffect : 컴포넌트 생명주기 관리, useRef : 참조 관리
 import { CssProfile, CssRuleSet } from '@/types/cssProfile'; // CssProfile : 서식 프로필 타입, CssRuleSet : 서식 규칙 타입
 import { DEFAULT_PROFILE, isSystemProfileId, sanitizeAndParseCssProfileJson, normalizeCssProfile, resolveCssProfile } from '@/constants/cssProfile'; // DEFAULT_PROFILE : 기본 프로필, isSystemProfileId : 시스템 프로필인지 확인, 정규화 엔진
+import { headingFormat, headingMarker, headingSetting, type HeadingNumberSetting } from '@/lib/headingNumbering';
 import { PAPER_SIZES } from '@/constants/paperSizes'; // PAPER_SIZES : 종이 크기
 import { DEFAULT_BOOK_LAYOUT, BOOK_SAMPLE } from '@/lib/picturebook';
 import { CSS_PROFILE_GUIDE_MD } from '@/constants/cssProfileGuide'; // CSS_PROFILE_GUIDE_MD : CSS 프로필 가이드
@@ -1432,6 +1434,7 @@ ${guideContent}
           sectionRef={(el) => { accordionRefs.current['typography'] = el; }}
         >
           <div className="space-y-4">
+
             {/* 글꼴 선택 */}
             <div className="flex gap-2.5 items-end">
               <div className="flex-1">
@@ -1818,6 +1821,53 @@ ${guideContent}
           sectionRef={(el) => { accordionRefs.current['headings'] = el; }}
         >
           <div className="space-y-4">
+            <div className="rounded-lg border p-3 space-y-2">
+              <div className="text-sm font-semibold">제목 번호 형식</div>
+              <div className="flex gap-2">
+                <button type="button" disabled={isSystemProfile} onClick={() => onUpdateProfile({ ...currentProfile, headingNumbering: ['roman', 'decimal', 'hangul', 'decimal-paren', 'hangul-paren', 'none'] })}>보고서 번호 적용</button>
+                <button type="button" disabled={isSystemProfile} onClick={() => onUpdateProfile({ ...currentProfile, headingNumbering: [] })}>번호 없음</button>
+              </div>
+              {Array.from({ length: 6 }, (_, index) => (
+                <div key={index} className="space-y-2 text-sm">
+                <label className="flex items-center gap-3">
+                  <span>제목 {index + 1}</span>
+                  <select disabled={isSystemProfile} value={headingFormat(currentProfile.headingNumbering?.[index])} onChange={event => {
+                    const formats = Array.from({ length: 6 }, (_, i) => currentProfile.headingNumbering?.[i] || 'none');
+                    formats[index] = event.target.value === 'custom' ? { type: 'custom', number: 'decimal', prefix: '', suffix: '.' } : event.target.value as HeadingNumberSetting;
+                    onUpdateProfile({ ...currentProfile, headingNumbering: formats });
+                  }} className="rounded border p-1 bg-white dark:bg-zinc-900">
+                    <option value="none">번호 없음</option>
+                    <option value="roman">Ⅰ., Ⅱ., Ⅲ.</option>
+                    <option value="decimal">1., 2., 3.</option>
+                    <option value="decimal-outline">1. ➔ 1.1 ➔ 1.1.1 (계층형)</option>
+                    <option value="hangul">가., 나., 다.</option>
+                    <option value="decimal-paren">1), 2), 3)</option>
+                    <option value="hangul-paren">가), 나), 다)</option>
+                    <option value="custom">사용자 지정</option>
+                  </select>
+                </label>
+                {headingFormat(currentProfile.headingNumbering?.[index]) === 'custom' && (() => {
+                  const raw = headingSetting(currentProfile.headingNumbering?.[index]);
+                  const custom = typeof raw === 'object' ? raw : { type: 'custom' as const, number: 'decimal' as const, prefix: '', suffix: '.', bullet: '•' };
+                  const update = (patch: Partial<typeof custom>) => {
+                    const formats = Array.from({ length: 6 }, (_, i) => currentProfile.headingNumbering?.[i] || 'none');
+                    formats[index] = { ...custom, ...patch };
+                    onUpdateProfile({ ...currentProfile, headingNumbering: formats });
+                  };
+                  return <div className="ml-12 rounded border p-2 space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      <label>앞 문구 <input aria-label={`제목 ${index + 1} 번호 앞 문구`} disabled={isSystemProfile} maxLength={40} value={custom.prefix} onChange={e => update({ prefix: e.target.value })} placeholder="예: 제, (" className="w-24 rounded border p-1 bg-white dark:bg-zinc-900" /></label>
+                      <label>번호 <select aria-label={`제목 ${index + 1} 사용자 지정 번호 종류`} disabled={isSystemProfile} value={custom.number} onChange={e => update({ number: e.target.value as typeof custom.number, ...(e.target.value === 'bullet' ? { suffix: '', bullet: custom.bullet || '•' } : {}) })} className="rounded border p-1 bg-white dark:bg-zinc-900"><option value="decimal">1, 2, 3</option><option value="roman">Ⅰ, Ⅱ, Ⅲ</option><option value="hangul">가, 나, 다</option><option value="bullet">글머리기호</option></select></label>
+                      <label>뒤 문구 <input aria-label={`제목 ${index + 1} 번호 뒤 문구`} disabled={isSystemProfile} maxLength={40} value={custom.suffix} onChange={e => update({ suffix: e.target.value })} placeholder="예: 장, )" className="w-24 rounded border p-1 bg-white dark:bg-zinc-900" /></label>
+                    </div>
+                    {custom.number === 'bullet' && <label className="block">글머리기호 <input aria-label={`제목 ${index + 1} 글머리기호`} disabled={isSystemProfile} maxLength={40} value={custom.bullet || '•'} onChange={e => update({ bullet: e.target.value })} className="w-24 rounded border p-1 bg-white dark:bg-zinc-900" /> <span className="text-xs text-zinc-500">예: • ○ □ ◆ ※</span></label>}
+                    <p className="text-xs text-zinc-500">미리보기: {[1, 2, 3].map(n => headingMarker(custom, n)).join(' / ')}</p>
+                  </div>;
+                })()}
+                </div>
+              ))}
+              <p className="text-xs text-zinc-500">상위 제목이 바뀌면 하위 번호가 다시 시작됩니다. 번호·글머리기호는 마크다운 원문에도 저장되며, 기존 제목 앞 번호는 새 형식으로 갱신합니다.</p>
+            </div>
             <div className="bg-zinc-100 dark:bg-zinc-800/40 p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3.5">
               <div className="text-sm font-bold text-blue-600 dark:text-blue-400 border-b border-zinc-200 dark:border-zinc-700 pb-1.5">
                 H1 마스터 설정

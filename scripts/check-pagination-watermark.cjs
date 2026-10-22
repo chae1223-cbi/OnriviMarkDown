@@ -15,7 +15,7 @@ assert.equal(settings.writePrintSettings(saved,settings.readPrintSettings(saved)
 fs.writeFileSync(path.join(dir,'ts-loader.cjs'),`const ts=require(${JSON.stringify(require.resolve(path.join(frontend,'node_modules/typescript')))});module.exports=function(source){return ts.transpileModule(source,{compilerOptions:{module:99,target:7,jsx:4,esModuleInterop:true}}).outputText;};`);
 fs.writeFileSync(path.join(dir,'css-loader.cjs'),'module.exports=function(){return "";};');
 fs.writeFileSync(path.join(dir,'resourceStub.js'),`exports.saveResourceMedia=async(file,name)=>{window.savedImage={name,size:file.size};return '/media/'+name;};`);
-fs.writeFileSync(path.join(dir,'entry.js'),`window.paginate=require('./lib/paginatedPrint').paginatePrintHtml;window.defaults=require('./lib/documentPrintSettings').DEFAULT_PRINT_SETTINGS;window.runExport=require(${JSON.stringify(path.join(frontend,'src/lib/exportHandlers.ts'))}).exportPDF;window.runEpub=require(${JSON.stringify(path.join(frontend,'src/lib/exportHandlers.ts'))}).exportEPUB;window.exportDocx=require(${JSON.stringify(path.join(frontend,'src/lib/exportHandlers.ts'))}).exportDOCX;window.exportHwpx=require(${JSON.stringify(path.join(frontend,'src/lib/exportHandlers.ts'))}).exportHWPX;window.numbering=require(${JSON.stringify(path.join(frontend,'src/lib/reportNumbering.ts'))});window.reportProfile=require(${JSON.stringify(path.join(frontend,'src/constants/cssProfile.ts'))}).SYSTEM_PROFILES.find(p=>p.id==='ai-friendly-report');
+fs.writeFileSync(path.join(dir,'entry.js'),`window.paginate=require('./lib/paginatedPrint').paginatePrintHtml;window.defaults=require('./lib/documentPrintSettings').DEFAULT_PRINT_SETTINGS;window.runExport=require(${JSON.stringify(path.join(frontend,'src/lib/exportHandlers.ts'))}).exportPDF;window.runEpub=require(${JSON.stringify(path.join(frontend,'src/lib/exportHandlers.ts'))}).exportEPUB;window.exportDocx=require(${JSON.stringify(path.join(frontend,'src/lib/exportHandlers.ts'))}).exportDOCX;window.exportHwpx=require(${JSON.stringify(path.join(frontend,'src/lib/exportHandlers.ts'))}).exportHWPX;window.headingNumbering=require(${JSON.stringify(path.join(frontend,'src/lib/headingNumbering.ts'))});window.numbering=require(${JSON.stringify(path.join(frontend,'src/lib/reportNumbering.ts'))});window.reportProfile=require(${JSON.stringify(path.join(frontend,'src/constants/cssProfile.ts'))}).SYSTEM_PROFILES.find(p=>p.id==='ai-friendly-report');
 const React=require('react'),{createRoot}=require('react-dom/client'),Guides=require(${JSON.stringify(path.join(frontend,'src/components/DocumentPageGuides.tsx'))}).default,Modal=require(${JSON.stringify(path.join(frontend,'src/components/ExportModal.tsx'))}).default;
 window.mountGuides=css=>{
  const style=document.createElement('style');style.textContent=css;document.head.append(style);
@@ -238,6 +238,7 @@ async function main(){
   assert.ok(reportChapters.indexOf('<figcaption')<reportChapters.indexOf('<img'),'EPUB caption must precede picture in reading order');
   await page.goto(`http://127.0.0.1:${server.address().port}`);
   const numbered=await page.evaluate(async()=>{
+    window.reportProfile={...window.reportProfile,rules:{...window.reportProfile.rules,ol:{...window.reportProfile.rules.ol,'list-style-type':'onrivi-report'}}};
     const style=document.createElement('style');style.textContent=window.numbering.reportNumberingCss(window.reportProfile);document.head.append(style);
     const root=document.createElement('div');root.innerHTML='<div class="markdown-viewer-root"><ol><li><p>Level one</p><ol><li><p>Level two</p><ol><li><p>Level three</p><ol><li><p>Level four</p><ol><li><p>Level five</p></li><li><p>Next five</p></li></ol></li></ol></li></ol></li></ol></li><li><p>Second top</p></li></ol></div>';document.body.append(root);
     const html=await window.runExport({previewEl:root,currentFileName:'numbering.md',isDarkMode:false,showToast(){},activeProfile:window.reportProfile,previewOnly:true,printSettings:{...window.defaults,enabled:false}});
@@ -261,6 +262,43 @@ async function main(){
     for(const label of ['Ⅰ.','1.','가.','1)','가)','나)','Ⅱ.'])assert.ok(body.includes(label),kind+' must include '+label);
     if(kind==='docx')assert.ok(!body.includes('<w:numPr>'),'Explicit report labels must not have duplicate Word numbering');
   }
+  await page.goto(`http://127.0.0.1:${server.address().port}`);
+  const headings=await page.evaluate(async()=>{
+    const api=window.headingNumbering,profile=JSON.parse(JSON.stringify({...window.reportProfile,headingNumbering:[...window.reportProfile.headingNumbering.slice(0,5),{type:'custom',number:'decimal',prefix:'제',suffix:'장'}]}));
+    const number=api.createHeadingNumberer(profile.headingNumbering);
+    const sequence=[[1,'Top'],[2,'Section'],[3,'Sub'],[4,'Detail'],[5,'Small'],[5,'Next'],[1,'Next top'],[2,'Reset'],[3,'가. Existing'],[3,'After existing'],[6,'Custom chapter'],[6,'Next custom chapter']];
+    const labels=sequence.map(([level,text])=>number(level,text));
+    const root=document.createElement('div');root.className='custom-preview-container';
+    const markdown=api.syncMarkdownHeadingNumbers(sequence.map(([level,text])=>'#'.repeat(level)+' '+text).join('\n\n'),profile.headingNumbering);
+    root.innerHTML='<div class="visual-document-surface">'+markdown.split('\n\n').map(line=>{const match=line.match(/^(#+) (.*)$/);return `<h${match[1].length}>${match[2]}</h${match[1].length}>`;}).join('')+'</div>';
+    const style=document.createElement('style');style.textContent=api.headingNumberingCss(profile);document.head.append(style);document.body.append(root);
+    const originals=Array.from(root.querySelectorAll('h1,h2,h3,h4,h5'));
+    if(getComputedStyle(originals[0],'::before').content!=='none')throw Error('Source heading prefix duplicated by CSS');
+    if(getComputedStyle(originals[8],'::before').content!=='none')throw Error('Existing prefix duplicated');
+    const before=root.innerHTML;
+    const options={previewEl:root,currentFileName:'headings.md',isDarkMode:false,showToast(){},activeProfile:profile,printSettings:{...window.defaults,enabled:false}};
+    const html=await window.runExport({...options,previewOnly:true});
+    let epub,docx,hwpx;
+    window.electronAPI={showSaveDialog:async()=>({canceled:false,filePath:'fixture'}),saveBinaryFile:async(path,data)=>{if(!epub)epub=Array.from(data);else hwpx=Array.from(data);},saveFileAs:async data=>{docx=data.split(',')[1];return true;}};
+    try{await window.runEpub(options);await window.exportDocx(options);await window.exportHwpx(options);}finally{delete window.electronAPI;}
+    if(root.innerHTML!==before)throw Error('Export mutated source headings');
+    return {labels,html,epub,docx,hwpx,liveHtml:style.outerHTML+root.outerHTML};
+  });
+  assert.deepEqual(headings.labels,['Ⅰ.','1.','가.','1)','가)','나)','Ⅱ.','1.','','나.','제1장','제2장']);
+  await page.setContent(headings.liveHtml);
+  const livePdf=await pdfjs.getDocument({data:new Uint8Array(await page.pdf())}).promise;
+  const liveText=(await (await livePdf.getPage(1)).getTextContent()).items.map(item=>item.str).join(' ');
+  for(const label of ['Ⅰ.','Ⅱ.','1.','가.','1)','가)','나)','제1장','제2장'])assert.ok(liveText.includes(label),'Live CSS heading prefix missing '+label);
+  await page.setContent(headings.html);
+  assert.deepEqual(await page.locator('.pagedjs_page h1').allTextContents(),['Ⅰ. Top','Ⅱ. Next top']);
+  for(const [kind,bytes,bodyPath] of [['epub',headings.epub,null],['docx',Buffer.from(headings.docx,'base64'),'word/document.xml'],['hwpx',headings.hwpx,'Contents/section0.xml']]){
+    const zip=await zipReader.loadAsync(Buffer.from(bytes));
+    const body=bodyPath?await zip.file(bodyPath).async('string'):(await Promise.all(Object.keys(zip.files).filter(n=>/section.*\.xhtml$/.test(n)).map(n=>zip.file(n).async('string')))).join('');
+    for(const label of ['Ⅰ.','Ⅱ.','1.','가.','1)','가)','나)','제1장','제2장'])assert.ok(body.includes(label),kind+' heading missing '+label);
+    assert.ok(!body.includes('가. 가.'),kind+' duplicated literal heading label');
+    if(kind==='epub'){const toc=await zip.file('OEBPS/text/toc.xhtml').async('string');assert.ok(toc.includes('Ⅱ. Next top') && toc.includes('제2장 Next custom chapter'),'EPUB TOC must match numbered headings');}
+  }
+  console.log('PASS: heading formats, hierarchy reset, literal-label preservation, PDF/EPUB/DOCX/HWPX and EPUB TOC.');
   if(process.argv.includes('--breaks-only')) {console.log('PASS: manual breaks survive actual export and PDF printing (HR, comments, inline styles).');return;}
   await page.goto(`http://127.0.0.1:${server.address().port}`);await page.evaluate(()=>window.mountModal());
   await page.getByRole('button',{name:/쪽 윤곽 미리보기/}).click();

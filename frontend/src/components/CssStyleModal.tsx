@@ -3,6 +3,9 @@
  * 파일명 : CssStyleModal.tsx
  * -----------------------------------------------------------------------
  * 변경내역
+ * 🚨 @PATCH : **2026-10-22** — [서식 관리 미리보기 제목 번호 형식(headingNumbering) 실시간 동기화]:
+ *             1) SHOWCASE_MODULES Card 2(제목 위계 스타일) 마크다운에 activeProfile.headingNumbering을 syncMarkdownHeadingNumbers로 실시간 주입하여 좌측 패널의 제목 번호(1., Ⅰ., 가. 등) 설정이 우측 카드 미리보기에 1:1 즉각 반영되도록 개선
+ *             2) 실제 문서 전체 뷰 모드에서도 documentDisplayContent에 headingNumbering을 동기화하여 서식 번호 변경 시 즉시 미리보기에 동기화
  * 🚨 @PATCH : **2026-10-17** — [서식 미리보기 MarkdownViewer에 listIndent prop 명시적 바인딩]: 서식 모아보기 쇼케이스 및 실제 문서 뷰의 MarkdownViewer에 activeProfile의 ul/ol padding-left 값을 listIndent prop으로 전달하여 목록 들여쓰기가 실시간 반영되도록 보완
  * 🚨 @PATCH : **2026-09-27** — [웹 서식 주제 펼침 시 쇼케이스 첫 태그 이동]: 카드 일부가 보이면 이동하지 않던 nearest 스크롤을 우측 패널 기준 좌표 스크롤로 교체하고 동일 주제 재선택도 처리
  * 🚨 @PATCH : **2026-09-24** — [각주(Footnote) 펄스 연동 및 Card 7 스크롤 연동 신설]: footnote 태그 조작 시 .footnotes, section[data-footnotes] 요소를 찾아 실시간 펄스 하이라이트 및 Card 7 활성화/뷰포트 추종 연동
@@ -32,6 +35,7 @@ import StyleManagerModal from './StyleManagerModal';
 import MarkdownViewer from './MarkdownViewer';
 import { getWelcomeContent } from '@/constants/welcomeContent';
 import { SHOWCASE_MODULES } from '@/constants/styleShowcaseModules';
+import { syncMarkdownHeadingNumbers } from '@/lib/headingNumbering';
 import { CssProfile } from '@/types/cssProfile';
 import { DEFAULT_PROFILE } from '@/constants/cssProfile';
 import { PAPER_SIZES } from '@/constants/paperSizes';
@@ -352,6 +356,9 @@ export default function CssStyleModal({
                 <div className="space-y-8 pb-16">
                   {SHOWCASE_MODULES.map((mod) => {
                     const isCardActive = activeModuleId === mod.id;
+                    const renderedMarkdown = mod.id === 'headings'
+                      ? syncMarkdownHeadingNumbers(mod.markdown, activeProfile.headingNumbering)
+                      : mod.markdown;
                     return (
                       <div
                         key={mod.id}
@@ -387,8 +394,8 @@ export default function CssStyleModal({
                         {/* 마크다운 렌더링 바디 */}
                         <div className={mod.id === 'headings' ? 'py-6 lg:py-8' : 'p-6 lg:p-8'}>
                           <MarkdownViewer
-                            content={mod.markdown}
-                            originalContent={mod.markdown}
+                            content={renderedMarkdown}
+                            originalContent={renderedMarkdown}
                             customCss={dynamicCssString}
                             listIndent={activeProfile.rules.ul?.['padding-left'] || activeProfile.rules.ol?.['padding-left'] || '28px'}
                           />
@@ -410,8 +417,8 @@ export default function CssStyleModal({
                   }}
                 >
                   <MarkdownViewer
-                    content={documentDisplayContent}
-                    originalContent={documentDisplayContent}
+                    content={syncMarkdownHeadingNumbers(documentDisplayContent, activeProfile.headingNumbering)}
+                    originalContent={syncMarkdownHeadingNumbers(documentDisplayContent, activeProfile.headingNumbering)}
                     customCss={dynamicCssString}
                     listIndent={activeProfile.rules.ul?.['padding-left'] || activeProfile.rules.ol?.['padding-left'] || '28px'}
                     picturebookProfile={activeProfile.layout?.type === 'picturebook' ? activeProfile : undefined}

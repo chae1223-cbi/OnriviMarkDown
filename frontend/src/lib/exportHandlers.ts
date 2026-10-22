@@ -1,3 +1,4 @@
+import { headingNumberingCss, materializeHeadingNumbers } from './headingNumbering';
 import { reportNumberingCss, materializeReportNumbers } from './reportNumbering';
 import { embedExportFonts } from './exportFonts';
 import { startExportProgress } from './exportProgress';
@@ -1173,7 +1174,7 @@ pre {
   const extraCss = profile.customCss?.trim()
     ? `\n@layer onrivi-extra {\n${profile.customCss}\n}`
     : '';
-  return `@layer onrivi-settings, onrivi-extra;\n@layer onrivi-settings {\n${css}\n${reportNumberingCss(profile)}\n}${extraCss}\n${PRINT_TABLE_FLOW_CSS}`;
+  return `@layer onrivi-settings, onrivi-extra;\n@layer onrivi-settings {\n${css}\n${reportNumberingCss(profile)}\n${headingNumberingCss(profile)}\n}${extraCss}\n${PRINT_TABLE_FLOW_CSS}`;
 }
 
 // ====================================================================
@@ -1838,6 +1839,7 @@ function clonePreview(previewEl: HTMLElement, captureWordLayout = false): HTMLEl
     if(original && Number(getComputedStyle(original).order)<0)caption.parentElement?.prepend(caption);
   });
   materializeReportNumbers(previewEl, clone);
+  materializeHeadingNumbers(previewEl, clone);
   clone.querySelectorAll('button, .copy-btn, [title*="복사"]').forEach(el => el.remove());
   restoreMapsInClone(clone);
   convertYoutubeIframeToLink(clone);

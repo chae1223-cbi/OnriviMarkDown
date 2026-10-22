@@ -1,6 +1,11 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 // ====================================================================
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
+// 🚨 @PATCH : **2026-10-22** — [제목 태그(#) + 스페이스 자동 번호 삽입]:
+//             1) 에디터에서 '## ' 형태 입력 후 스페이스를 치면 활성 CSS 프로필의 headingNumbering 설정에 따라
+//                제목 번호(예: 1., I., 가., 1.1)를 자동으로 삽입하는 custom-space-heading-number addAction 추가
+//             2) countHeadingsUpTo로 현재 줄 이전까지 제목 누적 횟수를 계산하여 정확한 번호 산출
+//             3) 자동완성/찾기 위젯/읽기전용/한글 IME 조합 중에는 일반 스페이스로 폴백하여 안전성 완벽 보장
 // 🚨 @PATCH : **2026-10-20** — [모나코 에디터 커서 컬럼(Col) 동기화 누락 및 전역 이벤트(onrivi:cursor-position) 연동 보강]:
 //             1) onDidChangeCursorPosition 및 onMouseDown에서 setCursorColumn(currentCol) 호출 누락을 복구하여 열 번호 실시간 추종 완결
 //             2) 커서 이동 시 onrivi:cursor-position 이벤트를 디스패치하여 상태바와 즉각 무부하 실시간 동기화
@@ -65,6 +70,14 @@ import { syncPreviewFromEditorScroll, syncPreviewToTargetLine } from '@/lib/sync
 import { desktopClipboardImage } from '@/lib/desktopClipboard';
 import { openAndFocusFindWidget } from '@/utils/findWidgetHelper';
 import { applySafeMarkdownMonarchTokenizer } from '@/lib/editorThemes';
+import {
+  headingFormat,
+  headingSetting,
+  headingMarker,
+  outlineMarker,
+  hasHeadingNumber,
+  countHeadingsUpTo,
+} from '@/lib/headingNumbering';
 
 export function useMonacoSetup(deps: any) {
   const depsRef = useRef(deps);
@@ -530,6 +543,106 @@ export function useMonacoSetup(deps: any) {
                         }
                       }
                     }
+                  });
+
+                  // ✨ 제목 자동 번호 삽입 — '#' + Space 입력 시 활성 서식 프로필에 따라 번호를 자동 삽입한다.
+                  // 예) '## '에서 Space 입력 → '## 1.1 ' (decimal-outline 서식 적용 시)
+                  editor.addAction({
+                    id: 'custom-space-heading-number',
+                    label: '제목 번호 자동삽입 (Space)',
+                    keybindings: [monaco.KeyCode.Space],
+                    // 자동완성 위젯·찾기 위젯·읽기전용 모드에서는 발동하지 않음
+                    precondition: 'editorTextFocus && !suggestWidgetVisible && !findWidgetVisible && !editorReadonly',
+                    run: () => {
+                      // 한글 IME 조합 중에는 스페이스 폴백 처리
+                      if (depsRef.current.isComposingRef?.current) {
+                        editor.trigger('keyboard', 'type', { text: ' ' });
+                        return;
+                      }
+
+                      const position = editor.getPosition();
+                      const model = editor.getModel();
+                      if (!position || !model) {
+                        editor.trigger('keyboard', 'type', { text: ' ' });
+                        return;
+                      }
+
+                      const lineContent = model.getLineContent(position.lineNumber);
+
+                      // '## ' 처럼 정확히 '#' 1~6개 + 스페이스 1개 형태이고
+                      // 커서가 그 줄 끝(스페이스 바로 뒤)에 있을 때만 동작한다.
+                      const headingMatch = lineContent.match(/^(#{1,6}) $/);
+                      if (!headingMatch || position.column !== lineContent.length + 1) {
+                        editor.trigger('keyboard', 'type', { text: ' ' });
+                        return;
+                      }
+
+                      const headingLevel = headingMatch[1].length;
+
+                      // 활성 CSS 프로필의 headingNumbering 설정 가져오기
+                      const profile = depsRef.current.resolveEffectiveDocumentProfile?.(
+                        depsRef.current.contentRef?.current || ''
+                      );
+                      const headingFormats = profile?.headingNumbering || [];
+
+                      // headingNumbering.ts 함수들을 직접 호출 (상단 import로 불러온 함수 사용)
+                      const fmt = headingFormat(headingFormats[headingLevel - 1]);
+
+                      // 해당 레벨의 서식이 'none'이거나 설정이 없으면 일반 스페이스로 폴백
+                      if (!headingFormats.length || fmt === 'none') {
+                        editor.trigger('keyboard', 'type', { text: ' ' });
+                        return;
+                      }
+
+                      // 현재 줄 이전까지 각 레벨의 누적 횟수 계산
+                      const allLines = Array.from(
+                        { length: model.getLineCount() },
+                        (_, i) => model.getLineContent(i + 1)
+                      );
+                      // 현재 줄(targetLineIndex = position.lineNumber - 1, 0-based)은 포함하지 않음
+                      const counts = countHeadingsUpTo(
+                        allLines,
+                        position.lineNumber - 1,
+                        headingFormats
+                      );
+                      // 현재 줄을 누적에 추가하고 하위 레벨을 초기화
+                      counts[headingLevel - 1]++;
+                      counts.fill(0, headingLevel);
+
+                      // 마커 문자열 생성
+                      const setting = headingSetting(headingFormats[headingLevel - 1]);
+                      const marker = fmt === 'decimal-outline'
+                        ? outlineMarker(headingFormats, counts, headingLevel - 1)
+                        : (headingMarker(setting, counts[headingLevel - 1]) || '');
+
+                      if (!marker) {
+                        editor.trigger('keyboard', 'type', { text: ' ' });
+                        return;
+                      }
+
+                      // 이미 번호가 있으면 스페이스만 삽입하고 종료 (이중 번호 방지)
+                      const afterHashSpace = lineContent.slice(headingLevel + 1);
+                      if (hasHeadingNumber(afterHashSpace)) {
+                        editor.trigger('keyboard', 'type', { text: ' ' });
+                        return;
+                      }
+
+                      // '## ' 뒤에 '마커 + 스페이스'를 삽입 (커서는 마커 뒤로 자동 이동)
+                      const insertCol = headingLevel + 2; // '#'.repeat(level) + ' ' 다음 컬럼
+                      editor.executeEdits('heading-auto-number', [{
+                        range: {
+                          startLineNumber: position.lineNumber,
+                          startColumn: insertCol,
+                          endLineNumber: position.lineNumber,
+                          endColumn: insertCol,
+                        },
+                        text: marker + ' ',
+                      }]);
+                      editor.setPosition({
+                        lineNumber: position.lineNumber,
+                        column: insertCol + marker.length + 1,
+                      });
+                    },
                   });
 
                   // 💡 [에디터 스크롤 및 D2Coding 타이포그래피 최적화]

@@ -1,5 +1,7 @@
 // ====================================================================
 // 📊 [OMD-STYLE-CssProfile-0001] cssProfile.ts ➔ 서식 프로필 및 타이포그래피/미디어 타입 정의
+// 🚨 @PATCH : **2026-10-22** — [미디어 종류별 캡션 개별 설정(kindOverrides) 신설]:
+//             1) 표·그림·지도·동영상별로 캡션 위치/표현 구문을 다르게 지정할 수 있도록 MediaCaptionStructure.kindOverrides 추가 (KS: 표 상단·그림 하단, KDI: <표 1> 상단·[그림 1] 하단)
 // 🚨 @PATCH : **2026-10-21** — [미디어 설명(캡션) 위치 및 표현 구문 구조체(MediaCaptionStructure) 신설]:
 //             1) 미디어(이미지·지도·동영상) 캡션 위치('top' 상단 / 'bottom' 하단) 및 표현 구문 포맷(standard, bracket, angle, plain, custom) 타입 정의
 //             2) CssProfile에 mediaCaptionStructure 속성을 추가하여 서식 프로필별 미디어 캡션 환경설정 지원
@@ -20,7 +22,12 @@ export interface MediaCaptionStructure {
   format: 'standard' | 'bracket' | 'angle' | 'plain' | 'title-only' | 'custom';
   /** 커스텀 템플릿 문자열 ({kind}, {n}, {title} 치환 플레이스홀더) */
   customTemplate?: string;
+  /** 미디어 종류별 개별 설정 (없으면 위 공통 설정을 사용) */
+  kindOverrides?: Partial<Record<MediaCaptionKind, Partial<Omit<MediaCaptionStructure, 'kindOverrides'>>>>;
 }
+
+/** 캡션 대상 미디어 종류 */
+export type MediaCaptionKind = 'table' | 'image' | 'map' | 'video';
 
 /** CSS 속성-값 쌍을 담는 규칙 집합 (예: { "text-align": "center", "font-weight": "bold" }) */
 export interface CssRuleSet {
@@ -29,6 +36,8 @@ export interface CssRuleSet {
 
 /** 서식 정의 프로필 - 전역 타이포그래피 + 태그별 CSS 룰셋 */
 export interface CssProfile {
+  /** H1〜H6 automatic numbering. Missing entries mean no number. */
+  headingNumbering?: import('@/lib/headingNumbering').HeadingNumberSetting[];
   /** 고정 페이지 그림책 배치. 없으면 기존 연속 문서로 표시한다. */
   layout?: {
     schemaVersion: 1;

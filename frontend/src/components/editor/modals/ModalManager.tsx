@@ -1,7 +1,8 @@
-import { nextReportNumber } from '@/lib/aiFriendlyReport';
+import { nextReportNumber, resolveCaptionConfig } from '@/lib/aiFriendlyReport';
 /**
  * 프로그램명 : OnriviAuthor
  * 프로그램 ID : oaar-modal-manager
+ * 🚨 @PATCH : **2026-10-22** — [미디어 종류별 캡션 설정 전달]: 그림·동영상·지도·표 모달에 resolveCaptionConfig로 종류별 캡션 위치/구문(kindOverrides)을 병합해 전달
  * 🚨 @PATCH : **2026-10-18** — [인용 모달 useEffect 의존성 보강]: citationTarget 설정 시 deps.activeTabId 및 deps.editorRef 의존성 등록 및 불필요한 cancel-citation 이벤트 방어
  * 🚨 @PATCH : **2026-10-21** — [내보내기 모달 onExport 실행 시 모달 자동 닫기]: 인쇄/PDF/Word 등 내보내기 버튼 클릭 시 모달(ExportModal)을 닫아 저장 다이얼로그 및 진행 토스트가 에디터 화면에 즉시 노출되도록 개선
  * 🚨 @PATCH : **2026-10-20** — [내보내기 모달 워터마크 설정(exportSettings) handlers.print 직결 전달]: ExportModal에서 실시간 조정한 워터마크(사용 여부, 문구, 이미지, 진하기)가 인쇄/PDF 사출 시 즉각 반영되도록 handlers.print(false, exportSettings) 연동
@@ -475,7 +476,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
           setEditingImageInfo(null);
         }}
         initialData={editingImageInfo}
-        captionConfig={activeProfile?.mediaCaptionStructure}
+        captionConfig={resolveCaptionConfig(activeProfile?.mediaCaptionStructure, 'image')}
         nextNumber={nextReportNumber(content, '그림')}
         targetFolder={(() => {
           const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
@@ -536,7 +537,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
     <YoutubeModal
       isOpen={isYoutubeModalOpen}
       onClose={() => { setIsYoutubeModalOpen(false); setYoutubeInitialUrl(null); deps.clearMediaDialog?.(); }}
-      captionConfig={activeProfile?.mediaCaptionStructure}
+      captionConfig={resolveCaptionConfig(activeProfile?.mediaCaptionStructure, 'video')}
       nextNumber={nextReportNumber(content, '영상')}
       onInsert={(code: string) => {
         if (deps.mediaDialogSource?.kind === 'video') deps.insertVisualMedia?.('video',code);
@@ -554,7 +555,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
       <MapModal
         isOpen={isMapModalOpen}
         onClose={() => {setIsMapModalOpen(false);deps.clearMediaDialog?.();}}
-        captionConfig={activeProfile?.mediaCaptionStructure}
+        captionConfig={resolveCaptionConfig(activeProfile?.mediaCaptionStructure, 'map')}
         nextNumber={nextReportNumber(content, '지도')}
         initialSource={deps.mediaDialogSource?.kind === 'map' ? deps.mediaDialogSource.source : undefined}
         onInsert={(code: string) => {
@@ -564,7 +565,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         isDarkMode={isDarkMode}
       />
       <TableModal
-        captionConfig={activeProfile?.mediaCaptionStructure}
+        captionConfig={resolveCaptionConfig(activeProfile?.mediaCaptionStructure, 'table')}
         nextNumber={nextReportNumber(content, '표')}
         isOpen={isTableModalOpen}
         onClose={() => setIsTableModalOpen(false)}

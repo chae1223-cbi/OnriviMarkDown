@@ -173,6 +173,7 @@
  *             2) 사용자가 기존 문단에서 오타나 이전 변환으로 '# #2장'처럼 해시가 본문에 박힌 경우에도 제목 2 클릭 시 정상적인 H2 제목으로 변환 보장
  */
 'use client';
+import { hasHeadingNumber, numberHeadingTransaction, type HeadingNumberSetting } from '@/lib/headingNumbering';
 import { nextReportNumber } from '@/lib/aiFriendlyReport';
 
 
@@ -816,6 +817,7 @@ function resolveDocPath(relPath: string, currentFile: string): string {
 type Codec = ReturnType<typeof createVisualDocumentCodec>;
 const sessions = new Map<string, { source: string; state: EditorState; codec: Codec; scrollTop?:number; scrollLeft?:number }>();
 type Props = { content: string; onChange: (markdown: string) => void; readOnly?: boolean;
+  headingNumbering?: HeadingNumberSetting[];
   onSourceScroll?: (offset:number)=>void;
   tabSize?:number;
   pageStyle?:any;
@@ -844,7 +846,7 @@ type Props = { content: string; onChange: (markdown: string) => void; readOnly?:
   showBibliography?: boolean;
 };
 
-export default function VisualDocumentEditor({ content, onChange, readOnly = false, tabSize=4, spellCheck=false, pageStyle, onSourceScroll, onSourceCursor, documentId, commandRef, aiTargetRef, customCommands = {}, customHotkeys = {}, onSourceAction, onFloatingToolbar, floatingToolbarVisible, renderImage, onImageFile, onImageDialog, onMediaDialog, onDocLinkDialog, onFormulaDialog, currentFilePath, onFileOpen, onToast, onStyleSettings, onReferenceSettings, onCitation, bibContent='', showBibliography=true }: Props) {
+export default function VisualDocumentEditor({ content, onChange, readOnly = false, headingNumbering = [], tabSize=4, spellCheck=false, pageStyle, onSourceScroll, onSourceCursor, documentId, commandRef, aiTargetRef, customCommands = {}, customHotkeys = {}, onSourceAction, onFloatingToolbar, floatingToolbarVisible, renderImage, onImageFile, onImageDialog, onMediaDialog, onDocLinkDialog, onFormulaDialog, currentFilePath, onFileOpen, onToast, onStyleSettings, onReferenceSettings, onCitation, bibContent='', showBibliography=true }: Props) {
   const citationEntries=React.useMemo(()=>{
     const parsed=parseBibliography(bibContent);
     return new Map(parsed.entries.filter(e=>!parsed.duplicates.some(k=>k.toLowerCase()===e.key.toLowerCase())).map(e=>[e.key.toLowerCase(),e]));
@@ -946,6 +948,9 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   const lastDispatchedPosRef = useRef<number | null>(null);
   const callback = useRef(onChange);
   callback.current = onChange;
+  const headingFormatsRef = useRef({ current: headingNumbering, previous: headingNumbering, readOnly });
+  headingFormatsRef.current.current = headingNumbering;
+  headingFormatsRef.current.readOnly = readOnly;
   const hotkeysRef = useRef(customHotkeys);
   hotkeysRef.current = customHotkeys;
   const emitted = useRef(content);
@@ -1550,7 +1555,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     const view = new EditorView(hostEl, {
       decorations(state){
         const entries=bibRef.current;const decorations:Decoration[]=[...aiTargets.decorations()];
-        state.doc.descendants((node,pos)=>{if(!node.isText || node.marks.some(m=>m.type.name==='code') || state.doc.resolve(pos).parent.type.name==='code_block')return;
+        state.doc.descendants((node,pos)=>{if(node.type.name==='heading' && hasHeadingNumber(node.textContent)) decorations.push(Decoration.node(pos,pos+node.nodeSize,{'data-onrivi-heading-numbered':'true'}));if(!node.isText || node.marks.some(m=>m.type.name==='code') || state.doc.resolve(pos).parent.type.name==='code_block')return;
           for(const match of Array.from((node.text||'').matchAll(citationPattern))){const key=match[1]||match[2],entry=entries.get(key.toLowerCase());decorations.push(Decoration.inline(pos+match.index!,pos+match.index!+match[0].length,{class:entry?'visual-citation':'visual-citation-missing',title:entry?citationLabel(entry)+': '+entry.title:'등록된 문헌 없음: '+key}));}
         });return DecorationSet.create(state.doc,decorations);
       },
@@ -2219,6 +2224,11 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         } catch { return false; }
       },
       dispatchTransaction(transaction) {
+        const formats = headingFormatsRef.current;
+        if (!formats.readOnly && !view.composing && (transaction.docChanged || transaction.getMeta('onrivi:heading-numbering'))) {
+          numberHeadingTransaction(transaction, formats.current, formats.previous);
+          formats.previous = formats.current;
+        }
         aiTargets.map(transaction);
         imageTargets.current.forEach(target => {
           const from = transaction.mapping.mapResult(target.from, 1);
@@ -2612,6 +2622,10 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           }
           return false;
         },
+        compositionend(currentView) {
+          setTimeout(() => { if (viewRef.current === currentView && !headingFormatsRef.current.readOnly && !currentView.composing) currentView.dispatch(currentView.state.tr.setMeta('onrivi:heading-numbering', true)); }, 50);
+          return false;
+        },
         compositionstart(currentView) {
           if (currentView.state.selection instanceof NodeSelection && currentView.state.selection.node.type === visualSchema.nodes.horizontal_rule) {
             placeCursorBeforeHorizontalRule(currentView, currentView.state.selection.from);
@@ -2775,6 +2789,12 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     // 🛡️ [입력 방어] view.hasFocus() 활성 시 사용자가 직접 타이핑 중이므로 외부 content prop에 의한 replaceSource를 차단하여 스페이스 및 엔터 먹힘 방지
     if (view && content !== emitted.current && !view.hasFocus()) view.replaceSource?.(content);
   }, [content]);
+  useEffect(() => {
+    const view = viewRef.current;
+    if (view && !readOnly && !view.composing) view.dispatch(view.state.tr.setMeta('onrivi:heading-numbering', true).setMeta('addToHistory', false));
+  }, [JSON.stringify(headingNumbering), content, readOnly]);
+
+
   useEffect(() => {
     if (readOnly || viewRef.current?.hasFocus()) return;
     const normalized = bulletNumbersAsText(normalizeVisualMarkdownSpacing(content));
