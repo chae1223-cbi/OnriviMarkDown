@@ -52,7 +52,7 @@ export const TOOLBAR_ITEMS = [
   // 5. 코드 및 고급 (Code & Advanced)
   { id: 'codeblock', icon: '⌨️', name: '코드 블록', group: '코드', tagFormat: '```코드```', defaultHotkey: 'Ctrl+Shift+E', defaultCommand: 'code', insertText: '```markdown\n\n```\n\n', kind: 15 },
   { id: 'table', icon: '📶', name: '표', group: '코드', tagFormat: '| 표 |', defaultHotkey: 'Ctrl+T', defaultCommand: 'table', insertText: '| 열 1 | 열 2 |\n| --- | --- |\n| 내용 | 내용 |\n\n', kind: 15 },
-  { id: 'math', icon: '🧮', name: '수식', group: '코드', tagFormat: '$$수식$$', defaultHotkey: 'Ctrl+M', defaultCommand: 'math', insertText: '$$수식$$\n\n', kind: 15 },
+  { id: 'math', icon: '🧮', name: '수식', group: '코드', tagFormat: '$$수식$$', defaultHotkey: 'Ctrl+Shift+T', defaultCommand: 'math', insertText: '$$수식$$\n\n', kind: 15 },
 
   // 6. 문서 (Document)
   { id: 'now', icon: '📅', name: '현재 날짜/시간', group: '문서', tagFormat: '날짜/시간', defaultHotkey: '', defaultCommand: 'now', insertText: '', kind: 15 },

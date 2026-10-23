@@ -2916,6 +2916,7 @@ ipcMain.handle('file:save', async (event, filePath, content) => {
       cleanPath = decodeURIComponent(cleanPath.replace(/^file:\/\/\/?/, ''));
     }
     const normalized = cleanPath.replace(/\\/g, '/');
+    if (/(?:^|\/)[^/]+\.asar(?:\/|$)/i.test(normalized)) throw new Error('앱에 포함된 문서는 덮어쓸 수 없습니다. 다른 이름으로 저장해 주세요.');
     if (path.isAbsolute(cleanPath) || /^[a-zA-Z]:\//.test(normalized) || cleanPath.startsWith('/')) {
       cleanPath = path.resolve(cleanPath);
     }
@@ -3104,11 +3105,15 @@ ipcMain.handle('file:readFromPath', async (event, filePath) => {
     }
     let cleanPath = filePath.normalize('NFC');
     if (cleanPath.startsWith('file:///')) {
-      cleanPath = decodeURIComponent(cleanPath.replace(/^file:\/\/\?/, ''));
+      cleanPath = decodeURIComponent(cleanPath.slice(8));
     }
     
     // 윈도우 슬래시 스타일 포함하여 절대 경로 정밀 판별
     const normalizedPath = cleanPath.replace(/\\/g, '/');
+    // Only explicit help URLs/names may resolve to bundled help. A missing
+    // absolute workspace file must not silently open an installed namesake.
+    const canUseBundledHelp = /^(?:\.?\/)?(?:docs\/)?help\/[^/]+\.md$/i.test(normalizedPath)
+      || /^(?:HELP-[^/]+|00_시작하기)\.md$/i.test(normalizedPath);
     const isAbsolute = path.isAbsolute(cleanPath) || /^[a-zA-Z]:\//.test(normalizedPath) || cleanPath.startsWith('/');
 
     if (isAbsolute) {
@@ -3124,7 +3129,7 @@ ipcMain.handle('file:readFromPath', async (event, filePath) => {
         const directCandidate = path.join(currentActiveWorkspacePath, cleanPath).normalize('NFC');
         if (fs.existsSync(directCandidate)) {
           foundPath = directCandidate;
-        } else {
+        } else if (!/[\\/]/.test(cleanPath)) {
           // 2) 단일 파일명인 경우 워크스페이스 하위 재귀 탐색
           const targetBase = path.basename(cleanPath);
           const recursiveCandidate = findFileRecursive(currentActiveWorkspacePath, targetBase, 0, 5);
@@ -3136,8 +3141,8 @@ ipcMain.handle('file:readFromPath', async (event, filePath) => {
 
       if (foundPath) {
         cleanPath = foundPath;
-      } else {
-        // 번들/앱 리소스 내부 탐색
+      } else if (canUseBundledHelp) {
+        // 명시적인 도움말 요청만 앱 리소스에서 탐색
         const pathsToTry = [
           path.join(app.getAppPath(), 'frontend/out', filePath),
           path.join(app.getAppPath(), filePath),
@@ -3157,12 +3162,11 @@ ipcMain.handle('file:readFromPath', async (event, filePath) => {
       }
     }
 
-    // 🛡️ [도움말 문서 및 정적 마크다운 지능형 폴백 탐색]:
-    // cleanPath가 파일 시스템에 존재하지 않고, 경로에 'help'가 포함되어 있거나 마크다운(.md) 문서인 경우 앱 내장 도움말 저장소 순회
-    if (!fs.existsSync(cleanPath)) {
+    // 명시적인 도움말 요청만 설치 리소스로 연결합니다.
+    // 없는 작업장 문서를 설치본의 동명 파일로 바꿔 열지 않습니다.
+    if (!fs.existsSync(cleanPath) && canUseBundledHelp) {
       const targetFileName = path.basename(cleanPath);
-      const isHelpOrMd = cleanPath.includes('help') || targetFileName.startsWith('HELP-') || targetFileName.endsWith('.md');
-      if (isHelpOrMd) {
+      {
         const helpPathsToTry = [
           path.join(app.getAppPath(), 'frontend/public/help', targetFileName),
           path.join(app.getAppPath(), 'frontend/out/help', targetFileName),

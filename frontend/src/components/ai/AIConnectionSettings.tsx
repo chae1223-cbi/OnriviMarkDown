@@ -153,7 +153,7 @@ function AIProviderConnection({ scope, provider }: { scope: string; provider: AI
         const prevConn = readConnections()[provider];
         const defaultModel = prevConn?.model || providerShortlist[0]?.id || '';
 
-        saveConnection(provider, { model: defaultModel, models: providerShortlist, updatedAt: Date.now() });
+        await saveConnection(provider, { model: defaultModel, models: providerShortlist, updatedAt: Date.now() });
         selectConnection(provider, defaultModel);
         setConnected(true);
         setKey('');
@@ -319,11 +319,16 @@ function AIProviderConnection({ scope, provider }: { scope: string; provider: AI
             className="block w-full p-2 text-xs rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
             disabled={busy}
             value={connections[provider]?.model || ''}
-            onChange={(e) => {
+            onChange={async (e) => {
               const model = e.target.value;
-              saveConnection(provider, { ...connections[provider]!, model });
-              selectConnection(provider, model);
-              setMessage('✅ 사용할 모델을 저장했습니다. 에디터 AI 패널에서 바로 질문하세요.');
+              setBusy(true);
+              try {
+                await saveConnection(provider, { ...connections[provider]!, model });
+                selectConnection(provider, model);
+                setMessage('✅ 사용할 모델을 저장했습니다. 에디터 AI 패널에서 바로 질문하세요.');
+              } catch (error) {
+                setMessage(`❌ 모델 저장 실패: ${error instanceof Error ? error.message : '리소스 연결을 확인해 주세요.'}`);
+              } finally { setBusy(false); }
             }}
           >
             <option value="">모델을 선택해 주세요</option>

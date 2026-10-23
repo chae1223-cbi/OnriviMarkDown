@@ -10,6 +10,7 @@ import PicturebookPreview from './PicturebookPreview';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { exportContentFingerprint } from '@/lib/exportPreparation';
 import katex from 'katex';
+// 🚨 @PATCH : **2026-10-23** — [빈 문서 링크 표시 및 경로 검증]: [] 문서 링크에 확장자 없는 파일명을 표시하고 정규화된 작업장 경계로 경로 순회를 차단
 // 🚨 @PATCH : **2026-10-20** — [PDF 인쇄 시 화면 페이지 나누기 1:1 완벽 일치 및 파싱 정밀화]:
 //             1) cleanContent에서 마크다운 주석(<!-- onrivi:page-break -->) 및 LaTeX(\\pagebreak)를 data-onrivi-page-break 블록으로 선행 표준화
 //             2) rehypeBrRaw에서 페이지 나누기 노드 생성 시 data-onrivi-page-break='true' 속성을 온전히 보존하여 PagedJS/인쇄 엔진 수집 100% 보장
@@ -178,7 +179,7 @@ interface MarkdownViewerProps {
   onCheckboxToggle?: (lineNumber: number, checked: boolean, importedId?: string) => void;
   currentFilePath?: string;
   rootFolderPath?: string;
-  onFileOpen?: (resolvedPath: string, hashPart?: string) => void;
+  onFileOpen?: (resolvedPath: string, hashPart?: string, strictLinkedDocument?: boolean) => void;
   listIndent?: string;
   marginTop?: string;
   marginBottom?: string;
@@ -802,7 +803,16 @@ export function isPathInsideWorkspace(
     clean = clean.slice(1, -1).trim();
   }
   clean = clean.replace(/^[<"']|[>"']$/g, '').trim();
-  try { clean = decodeURIComponent(clean); } catch {}
+  for (let i = 0; i < 8; i++) {
+    try {
+      const decoded = decodeURIComponent(clean);
+      if (decoded === clean) break;
+      clean = decoded;
+    } catch { break; }
+  }
+  if (/%[0-9a-f]{2}/i.test(clean)) {
+    return { isInside: false, reason: '경로 인코딩을 확인할 수 없습니다.' };
+  }
 
   // 앵커(#) 분리 (앵커만 있는 경우는 현재 문서 내부이므로 항상 허용)
   clean = clean.split('#')[0].trim();
@@ -833,8 +843,23 @@ export function isPathInsideWorkspace(
     } catch {}
   }
 
-  const normTarget = clean.replace(/\\/g, '/');
-  const normWsRoot = wsRoot ? wsRoot.replace(/\\/g, '/').replace(/\/+$/, '') : '';
+  const normalizeSegments = (value: string) => {
+    const normalized = value.replace(/\\/g, '/');
+    const drive = normalized.match(/^[a-zA-Z]:/);
+    const absolute = Boolean(drive) || normalized.startsWith('/');
+    const stack: string[] = [];
+    for (const part of normalized.replace(/^[a-zA-Z]:/, '').split('/')) {
+      if (!part || part === '.') continue;
+      if (part === '..') {
+        if (!stack.length) return null;
+        stack.pop();
+      } else stack.push(part);
+    }
+    return `${drive ? drive[0] : absolute ? '/' : ''}${drive ? '/' : ''}${stack.join('/')}`;
+  };
+  const normTarget = isWindowsAbsolute || isPosixAbsolute ? normalizeSegments(clean) : clean.replace(/\\/g, '/');
+  if (normTarget === null) return { isInside: false, reason: '작업장 실폴더 외부에 있는 경로는 연결할 수 없습니다.' };
+  const normWsRoot = wsRoot ? normalizeSegments(wsRoot)?.replace(/\/+$/, '') || '' : '';
   const normCurrentFile = (currentFilePath || '').replace(/\\/g, '/');
 
   const outsideReason = '작업장 실폴더 외부에 있는 경로는 연결할 수 없습니다. 작업장 내부의 폴더 및 문서만 연결 가능합니다.';
@@ -870,12 +895,12 @@ export function isPathInsideWorkspace(
         depth++;
       }
     }
-    return { isInside: true };
+    return { isInside: true, resolvedPath: resolveRelativeImagePath(normTarget, currentFilePath) };
   }
 
   // 🛑 Case C: 상대경로 (./, ../, folder/ 등)
   // 1) 데스크톱에서 currentFilePath와 normWsRoot가 모두 존재하는 경우: 물리적 완전 해석(resolve) 후 검증
-  if (normWsRoot && normCurrentFile && normCurrentFile.toLowerCase().startsWith(normWsRoot.toLowerCase())) {
+  if (normWsRoot && normCurrentFile && (normCurrentFile.toLowerCase() === normWsRoot.toLowerCase() || normCurrentFile.toLowerCase().startsWith(normWsRoot.toLowerCase() + '/'))) {
     const currentDir = normCurrentFile.substring(0, normCurrentFile.lastIndexOf('/'));
     const combined = currentDir ? (currentDir + '/' + normTarget) : normTarget;
 
@@ -921,7 +946,7 @@ export function isPathInsideWorkspace(
         targetDepth++;
       }
     }
-    return { isInside: true };
+    return { isInside: true, resolvedPath: resolveRelativeImagePath(normTarget, currentFilePath) };
   }
 
   // currentFilePath 정보가 없는 상태에서 ..로 시작하는 상대경로인 경우
@@ -929,7 +954,7 @@ export function isPathInsideWorkspace(
     return { isInside: false, reason: outsideReason };
   }
 
-  return { isInside: true };
+  return { isInside: true, resolvedPath: resolveRelativeImagePath(normTarget, currentFilePath) };
 }
 
 // ====================================================================
@@ -941,6 +966,23 @@ export function isPathInsideWorkspace(
 // ====================================================================
 // [ONR-MD-001] 들여쓰기 코드 블록 인식 차단: 4칸 들여쓰기/탭 입력 시 코드블록으로 인식되는 기본 마크다운 규격을 차단하는 커스텀 remark 플러그인입니다.
 // 🛡️ 들여쓰기 4칸/탭 입력 시 코드블록으로 인식되는 것을 완전히 차단하는 플러그인
+function remarkEmptyDocumentLinkLabels() {
+  return (tree: any) => {
+    const visit = (node: any) => {
+      if (node.type === 'link' && (!node.children || node.children.length === 0)) {
+        let target = String(node.url || '').split(/[?#]/)[0];
+        try { target = decodeURIComponent(target); } catch {}
+        const filename = target.replace(/\\/g, '/').split('/').pop() || '';
+        if (/\.(md|markdown)$/i.test(filename)) {
+          node.children = [{ type: 'text', value: filename.replace(/\.(md|markdown)$/i, '') }];
+        }
+      }
+      for (const child of node.children || []) visit(child);
+    };
+    visit(tree);
+  };
+}
+
 function remarkDisableIndentedCode(this: any) {
   const data = this.data();
   if (!data.micromarkExtensions) {
@@ -2080,7 +2122,7 @@ function MarkdownViewer({
       return `[${text}](<${trimmedTarget}>)`;
     });
 
-    const mdLinkRegex = /\[([^\]]+)\]\(((?:[^()]|\([^()]*\))+)\)/g;
+    const mdLinkRegex = /\[([^\]]*)\]\(((?:[^()]|\([^()]*\))+)\)/g;
     processed = processed.replace(mdLinkRegex, (match, text, url) => {
       if (url.startsWith('<') && url.endsWith('>')) {
         return match;
@@ -2681,7 +2723,7 @@ function MarkdownViewer({
             if (cleanUri.trim().toLowerCase().startsWith('javascript:')) return '';
             return cleanUri;
           }}
-          remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkExtendedTable, remarkBreaks, remarkMath, remarkDisableIndentedCode, remarkCodeBlockMetadata, remarkKoreanStrong,remarkPageBreak]}
+          remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkExtendedTable, remarkBreaks, remarkMath, remarkDisableIndentedCode, remarkCodeBlockMetadata, remarkKoreanStrong,remarkPageBreak, remarkEmptyDocumentLinkLabels]}
           rehypePlugins={[
             [rehypeKatex, { strict: false }],
             rehypeBrRaw,
@@ -3125,7 +3167,7 @@ function MarkdownViewer({
 
               const isKnowledgeLink = rawHref && rawHref.startsWith('knowledge://');
               const isFileLink = rawHref && (rawHref.startsWith('file:///') || /^[a-zA-Z]:[/\\]/.test(rawHref));
-              const isMdFile = rawHref && (rawHref.endsWith('.md') || rawHref.endsWith('.markdown') || rawHref.includes('.md#') || rawHref.includes('.markdown#'));
+              const isMdFile = rawHref && /\.(md|markdown)(?:[?#]|$)/i.test(rawHref);
               const isFolderLink = rawHref && !isWebLink && !isKnowledgeLink && !isMdFile && (
                 rawHref.startsWith('./') || rawHref.startsWith('../') || rawHref.startsWith('/') || rawHref.endsWith('/') || !rawHref.split(/[#?]/)[0].split(/[/\\]/).pop()?.includes('.')
               );
@@ -3161,6 +3203,7 @@ function MarkdownViewer({
                     );
                     return;
                   }
+                  resolved = guard.resolvedPath || resolved;
 
                   const isCmdOrCtrl = e.ctrlKey || e.metaKey;
 
@@ -3236,26 +3279,22 @@ function MarkdownViewer({
                       return;
                     }
 
-                    // file:/// URI 디코딩 또는 상대 경로 resolve
-                    let resolved = cleanHref;
+                    // 검증된 경로를 우선 사용해 중복 URL 디코딩으로 경로가 달라지지 않게 한다.
+                    let resolved = guard.resolvedPath || cleanHref;
                     if (cleanHref.startsWith('file:///')) {
-                      resolved = decodeURIComponent(cleanHref.replace(/^file:\/\/\//, ''));
-                    } else {
+                      if (!guard.resolvedPath) resolved = decodeURIComponent(cleanHref.replace(/^file:\/\/\//, ''));
+                    } else if (!guard.resolvedPath) {
                       resolved = resolveRelativeImagePath(cleanHref, dynamicPropsRef.current.currentFilePath);
                     }
                     
                     const normalizePath = (p: string | undefined) => (p || '').replace(/\\/g, '/').toLowerCase().normalize('NFC').trim();
                     const normResolved = normalizePath(resolved);
                     const normCurrent = normalizePath(dynamicPropsRef.current.currentFilePath);
-                    const baseResolved = normResolved.split('/').pop() || '';
-                    const baseCurrent = normCurrent.split('/').pop() || '';
-
                     const isSameFile = Boolean(
                       normCurrent && (
                         normResolved === normCurrent ||
                         normResolved.endsWith('/' + normCurrent) ||
-                        normCurrent.endsWith('/' + normResolved) ||
-                        (baseResolved && baseCurrent && baseResolved === baseCurrent)
+                        normCurrent.endsWith('/' + normResolved)
                       )
                     );
 
@@ -3296,10 +3335,10 @@ function MarkdownViewer({
                         }
                       }
                       // 에디터도 함께 해당 라인/영역으로 동시 이동
-                      dynamicPropsRef.current.onFileOpen(resolved, hashPart || undefined);
+                      dynamicPropsRef.current.onFileOpen(resolved, hashPart || undefined, true);
                     } else {
                       // 다른 파일인 경우 파일을 열고 라인/헤딩 해시를 함께 전달하여 탭 전환 후 스크롤
-                      dynamicPropsRef.current.onFileOpen(resolved, hashPart || undefined);
+                      dynamicPropsRef.current.onFileOpen(resolved, hashPart || undefined, true);
                     }
                   }
                 };

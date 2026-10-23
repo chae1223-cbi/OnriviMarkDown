@@ -12,6 +12,7 @@
  */
 'use client';
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState } from 'react';
 import { 
   X, 
@@ -139,6 +140,7 @@ export default function SubscriptionDetailModal({
   onRequestDeactivate,
   onRequestChangePlan,
 }: SubscriptionDetailModalProps) {
+  useModalEscape(true, onClose);
   const [copiedKey, setCopiedKey] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'devices' | 'history' | 'audits'>('info');
 

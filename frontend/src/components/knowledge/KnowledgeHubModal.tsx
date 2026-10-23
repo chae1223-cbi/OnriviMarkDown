@@ -13,6 +13,7 @@
 // 🔗 @CALLS : KUI001~KUI012, /api/knowledge/*, KnowledgeWorkerEngine
 // ====================================================================
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   X, LayoutDashboard, FileText, Search, Activity, 
@@ -76,6 +77,7 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
   initialTab = 'dashboard',
   resourceFolderHandle,
 }) => {
+  useModalEscape(isOpen, onClose);
   const [activeTab, setActiveTab] = useState<KnowledgeHubTab>(initialTab);
   const [previousTab, setPreviousTab] = useState<KnowledgeHubTab>('dashboard');
   

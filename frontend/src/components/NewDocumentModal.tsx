@@ -9,6 +9,7 @@
 // ====================================================================
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { FileNode } from '@/lib/indexedDbHelper';
 import { Icon } from '@/components/icons/Icon';
@@ -50,6 +51,7 @@ export default function NewDocumentModal({
   hideFolderSelection = false,
   confirmLabel
 }: NewDocumentModalProps) {
+  useModalEscape(isOpen, onClose);
   const [fileName, setFileName] = useState<string>('새 문서');
   const [selectedFolderId, setSelectedFolderId] = useState<string>('ROOT');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);

@@ -50,6 +50,7 @@ export interface AICredentialsContainer {
 }
 
 // 런타임 메모리 활성 캐시 (로컬 스토리지 대신 세션 메모리에만 유지)
+let credentialsLoadRevision = 0;
 let activeMemoryCredentials: {
   apiKey: string;
   aiModelName: string;
@@ -283,7 +284,7 @@ export async function resolveCurrentProfile(resourceFolder?: string): Promise<{
 
   // 2. 구글 드라이브(클라우드) 환경: 계정 이메일 기준 자동 식별
   const env = typeof window !== 'undefined' ? (localStorage.getItem('onrivi_active_resource_environment') || '') : '';
-  const isDrive = env === 'cloud' || (resourceFolder && resourceFolder.startsWith('drive:'));
+  const isDrive = getResourceSettings()?.kind === 'drive' || env === 'cloud' || (resourceFolder && resourceFolder.startsWith('drive:'));
   if (isDrive) {
     let account = '';
     try {
@@ -327,6 +328,12 @@ export async function resolveCurrentProfile(resourceFolder?: string): Promise<{
 async function readRawCredentialsFromResource(resourceFolder?: string, resourceHandle?: any): Promise<string | null> {
   const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
   const settings = getResourceSettings();
+  if (settings?.kind === 'drive') {
+    const drive = await import('../gdrive/googleDriveClient');
+    const token = drive.getSavedDriveToken();
+    if (!token || !settings.folderId) throw new Error('AI 설정을 불러오려면 Google Drive를 다시 연결해 주세요.');
+    return await drive.readDriveAICredentials(token, settings.folderId);
+  }
   const effectiveLocalPath = resourceFolder || (settings?.kind === 'local' ? settings?.path : null) || (typeof localStorage !== 'undefined' ? (localStorage.getItem('onrivi_resource_folder_path') || localStorage.getItem('resourceFolder')) : null);
 
   // 1. Electron 데스크톱 IPC
@@ -340,7 +347,7 @@ async function readRawCredentialsFromResource(resourceFolder?: string, resourceH
   }
 
   // 2. 웹 환경 (/api/ai-credentials)
-  if (!api && effectiveLocalPath && typeof fetch !== 'undefined') {
+  if (!api && effectiveLocalPath && typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname) && typeof fetch !== 'undefined') {
     try {
       const res = await fetch(`/api/ai-credentials?resourceFolder=${encodeURIComponent(effectiveLocalPath)}`);
       if (res.ok) {
@@ -349,20 +356,6 @@ async function readRawCredentialsFromResource(resourceFolder?: string, resourceH
       }
     } catch (e) {
       console.warn('[readRawCredentialsFromResource Web API Error]:', e);
-    }
-  }
-
-  // 3. 구글 드라이브 클라우드 리소스
-  if (settings?.kind === 'drive') {
-    try {
-      const drive = await import('../gdrive/googleDriveClient');
-      const token = drive.getSavedDriveToken();
-      if (token && settings.folderId) {
-        const content = await drive.readDriveAICredentials(token, settings.folderId);
-        if (content) return content;
-      }
-    } catch (e) {
-      console.warn('[readRawCredentialsFromResource GDrive Error]:', e);
     }
   }
 
@@ -388,6 +381,13 @@ async function readRawCredentialsFromResource(resourceFolder?: string, resourceH
 async function writeRawCredentialsToResource(cipherText: string, resourceFolder?: string, resourceHandle?: any): Promise<boolean> {
   const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
   const settings = getResourceSettings();
+  if (settings?.kind === 'drive') {
+    const drive = await import('../gdrive/googleDriveClient');
+    const token = drive.getSavedDriveToken();
+    if (!token || !settings.folderId) throw new Error('AI 설정을 저장하려면 Google Drive를 다시 연결해 주세요.');
+    if (!await drive.saveDriveAICredentials(token, settings.folderId, cipherText)) throw new Error('Drive에 AI 설정을 저장하지 못했습니다. 연결 및 쓰기 권한을 확인해 주세요.');
+    return true;
+  }
   const effectiveLocalPath = resourceFolder || (settings?.kind === 'local' ? settings?.path : null) || (typeof localStorage !== 'undefined' ? (localStorage.getItem('onrivi_resource_folder_path') || localStorage.getItem('resourceFolder')) : null);
 
   // 1. Electron 데스크톱 IPC
@@ -401,7 +401,7 @@ async function writeRawCredentialsToResource(cipherText: string, resourceFolder?
   }
 
   // 2. 웹 환경 (/api/ai-credentials)
-  if (!api && effectiveLocalPath && typeof fetch !== 'undefined') {
+  if (!api && effectiveLocalPath && typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname) && typeof fetch !== 'undefined') {
     try {
       const res = await fetch('/api/ai-credentials', {
         method: 'POST',
@@ -414,19 +414,6 @@ async function writeRawCredentialsToResource(cipherText: string, resourceFolder?
       }
     } catch (e) {
       console.error('[writeRawCredentialsToResource Web API Error]:', e);
-    }
-  }
-
-  // 3. 구글 드라이브 클라우드 리소스
-  if (settings?.kind === 'drive') {
-    try {
-      const drive = await import('../gdrive/googleDriveClient');
-      const token = drive.getSavedDriveToken();
-      if (token && settings.folderId) {
-        return await drive.saveDriveAICredentials(token, settings.folderId, cipherText);
-      }
-    } catch (e) {
-      console.error('[writeRawCredentialsToResource GDrive Error]:', e);
     }
   }
 
@@ -459,6 +446,7 @@ export async function loadResourceAICredentials(resourceFolder?: string, resourc
   apiKey: string;
   aiModelName: string;
 }> {
+  const loadRevision = ++credentialsLoadRevision;
   const profileInfo = await resolveCurrentProfile(resourceFolder);
   const rawCipher = await readRawCredentialsFromResource(resourceFolder, resourceHandle);
 
@@ -471,6 +459,7 @@ export async function loadResourceAICredentials(resourceFolder?: string, resourc
     try {
       const bytes = CryptoJS.AES.decrypt(rawCipher.trim(), SECRET_SALT);
       const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
+      if (!decryptedText) throw new Error('암호화된 AI 설정을 읽을 수 없습니다.');
       if (decryptedText) {
         const parsed = JSON.parse(decryptedText);
         if (parsed && typeof parsed === 'object') {
@@ -484,6 +473,7 @@ export async function loadResourceAICredentials(resourceFolder?: string, resourc
       }
     } catch (err) {
       console.warn('[loadResourceAICredentials Decrypt Error]:', err);
+      throw new Error('저장된 AI 설정을 읽지 못했습니다. 원본 파일을 확인해 주세요.');
     }
   }
 
@@ -549,7 +539,7 @@ export async function loadResourceAICredentials(resourceFolder?: string, resourc
 
       // 리소스 폴더에 암호화 저장 후 로컬스토리지 완전 소거
       const cipher = CryptoJS.AES.encrypt(JSON.stringify(container), SECRET_SALT).toString();
-      await writeRawCredentialsToResource(cipher, resourceFolder, resourceHandle);
+      if (!await writeRawCredentialsToResource(cipher, resourceFolder, resourceHandle)) throw new Error('기존 AI 키를 리소스 폴더에 옮기지 못했습니다.');
       purgeLocalStorageAICredentials();
     }
   }
@@ -572,7 +562,7 @@ export async function loadResourceAICredentials(resourceFolder?: string, resourc
   if (containerSanitized) {
     try {
       const cipher = CryptoJS.AES.encrypt(JSON.stringify(container), SECRET_SALT).toString();
-      void writeRawCredentialsToResource(cipher, resourceFolder, resourceHandle);
+      await writeRawCredentialsToResource(cipher, resourceFolder, resourceHandle);
     } catch (e) {
       console.warn('[sanitize container save error]:', e);
     }
@@ -588,7 +578,7 @@ export async function loadResourceAICredentials(resourceFolder?: string, resourc
     };
   }
 
-  activeMemoryCredentials = {
+  if (loadRevision === credentialsLoadRevision) activeMemoryCredentials = {
     apiKey: active?.apiKey || activeProviders.google?.apiKey || '',
     aiModelName: active?.aiModelName || activeProviders.google?.model || 'gemini-3.8-flash',
     profileId: profileInfo.profileId,
@@ -652,6 +642,7 @@ export async function saveResourceAICredentials(
 
   const cipher = CryptoJS.AES.encrypt(JSON.stringify(container), SECRET_SALT).toString();
   const ok = await writeRawCredentialsToResource(cipher, resourceFolder, resourceHandle);
+  if (!ok) throw new Error('AI 설정을 리소스 폴더에 저장하지 못했습니다. 연결 및 쓰기 권한을 확인해 주세요.');
 
   // 메모리 캐시 갱신
   activeMemoryCredentials = {
@@ -697,6 +688,7 @@ export async function deleteResourceAICredentials(
 
   const cipher = CryptoJS.AES.encrypt(JSON.stringify(container), SECRET_SALT).toString();
   const ok = await writeRawCredentialsToResource(cipher, resourceFolder, resourceHandle);
+  if (!ok) throw new Error('AI 설정을 리소스 폴더에 저장하지 못했습니다. 연결 및 쓰기 권한을 확인해 주세요.');
 
   activeMemoryCredentials = {
     apiKey: '',
@@ -777,6 +769,7 @@ export async function saveProviderResourceCredentials(
 
   const cipher = CryptoJS.AES.encrypt(JSON.stringify(container), SECRET_SALT).toString();
   const ok = await writeRawCredentialsToResource(cipher, resourceFolder, resourceHandle);
+  if (!ok) throw new Error('AI 설정을 리소스 폴더에 저장하지 못했습니다. 연결 및 쓰기 권한을 확인해 주세요.');
 
   activeMemoryCredentials = {
     apiKey: profile.apiKey || profile.providers.google?.apiKey || '',
@@ -829,6 +822,7 @@ export async function deleteProviderResourceCredentials(
 
     const cipher = CryptoJS.AES.encrypt(JSON.stringify(container), SECRET_SALT).toString();
     const ok = await writeRawCredentialsToResource(cipher, resourceFolder, resourceHandle);
+  if (!ok) throw new Error('AI 설정을 리소스 폴더에 저장하지 못했습니다. 연결 및 쓰기 권한을 확인해 주세요.');
 
     activeMemoryCredentials = {
       apiKey: profile.apiKey || profile.providers.google?.apiKey || '',

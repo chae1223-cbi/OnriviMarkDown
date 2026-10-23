@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { isBundledDocumentPath } from '@/lib/bundledDocument';
 import { browserAccountStorage as localStorage, browserAccountSessionStorage as sessionStorage } from '@/lib/browserAccountStorage';
 import { reportClientLog } from '@/lib/clientLogs';
 import { getResourceSettings, saveResourceSettings, activateDriveAccount } from '@/lib/resourceSettings';
@@ -7,7 +8,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { FileNode, scanDirectory, idb } from '@/lib/indexedDbHelper';
 import { getVfsFiles, vfsReadFile, vfsWriteFile } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
-import { resolveNativeDocumentPath } from '@/lib/nativeDocumentPath';
+import { resolveNativeDocumentPath, matchesLinkedDocument, resolveWorkspaceHelpLink } from '@/lib/nativeDocumentPath';
 import { stripFrontmatter } from "@/lib/editorUtils";
 import { EditorTab } from '@/components/UnifiedTabBar';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
@@ -24,6 +25,7 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
+// 🚨 @PATCH : **2026-10-23** — [문서 링크 누락 대상 처리]: 미리보기에서 연 문서 링크는 경로를 엄격히 확인하고 같은 파일명 폴백 및 미존재 임시 탭 생성을 차단
 // 🚨 @PATCH : **2026-10-19** — [작업장 파일 자동저장 복구 및 플레이스홀더 수화 강화]: FileSystemAccess 경로 매칭 시 NFC 정규화 및 상대경로 직접 분해 적용, 기존 탭의 플레이스홀더('작업장 외부 문서 안내') 자동 감지 시 rootFolder.handle에서 실제 파일 즉각 수화(Hydration), handle 누락 시 rootFolder 자동 탐색 바인딩으로 저장 대화상자 불필요 팝업 차단
 // 🚨 @PATCH : **2026-10-17** — [경로 기반 파일 열기 시 물리 FileNode 바인딩 및 세션 복원 폴백 차단 해제]:
 //             1) handleFileOpenByPath에서 createNewTab 및 setTabs 호출 시 diskNode를 100% 생성·주입하고 setCurrentFileNode/setCurrentFileName을 즉시 동기화하여 자동저장 누락 및 저장 다이얼로그 팝업 결함 해결
@@ -668,12 +670,12 @@ export const useFileExplorer = ({
   };
 
   // 4. 경로를 기반으로 한 파일 열기 핸들러
-  const handleFileOpenByPath = async (resolvedPath: string, hashPart?: string) => {
+  const handleFileOpenByPath = async (resolvedPath: string, hashPart?: string, strictLinkedDocument = false) => {
     let rawDecoded = resolvedPath || '';
     try {
       rawDecoded = decodeURIComponent(rawDecoded);
     } catch {}
-    const cleanPath = rawDecoded.replace(/^[<"']|[>"']$/g, '').trim();
+    let cleanPath = rawDecoded.replace(/^[<"']|[>"']$/g, '').trim();
     let inlineHash = '';
     let pathWithoutHash = cleanPath;
     if (cleanPath.includes('#')) {
@@ -682,6 +684,13 @@ export const useFileExplorer = ({
       inlineHash = parts[1];
     }
     const targetHash = (hashPart || inlineHash).replace(/^[<"']|[>"']$/g, '').trim();
+
+    const sourceTab = tabsRef.current.find(t => t.id === activeTabIdRef.current);
+    const localHelpPath = resolveWorkspaceHelpLink(pathWithoutHash, sourceTab?.path || currentFileNode?.path);
+    if (localHelpPath !== pathWithoutHash) {
+      pathWithoutHash = localHelpPath;
+      cleanPath = localHelpPath;
+    }
 
     const targetBaseName = pathWithoutHash.split(/[/\\]/).pop() || pathWithoutHash;
     const targetBaseNameWithoutMd = targetBaseName.replace(/\.md$/i, '');
@@ -843,15 +852,14 @@ export const useFileExplorer = ({
     }
 
     // 💡 [기존 열린 탭 우선 검사]
-    const existingOpenTab = tabsRef.current.find(t => 
-      t.path === pathWithoutHash || 
-      t.path === cleanPath ||
-      t.name === targetBaseName || 
-      t.name === targetBaseNameWithMd || 
-      t.name === targetBaseNameWithoutMd ||
-      (t.path && t.path.endsWith('/' + targetBaseName))
-    );
+    const existingOpenTab = tabsRef.current.find(t => matchesLinkedDocument(t, pathWithoutHash, rootFolderRef.current));
     if (existingOpenTab) {
+      const nativeApi = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+      const canonicalPath = nativeApi && existingOpenTab.path ? resolveNativeDocumentPath(existingOpenTab.path, rootFolderRef.current) : existingOpenTab.path;
+      if (canonicalPath) {
+        existingOpenTab.path = canonicalPath;
+        existingOpenTab.node = { ...existingOpenTab.node, name: existingOpenTab.name, kind: 'file', path: canonicalPath };
+      }
       // 💡 [빈 플레이스홀더 탭 자동 수화(Hydration) 가드]
       // 이전에 핸들을 찾지 못해 '# 제목'만 있는 빈 탭이 열려있던 경우 실제 디스크 원문 또는 지식 DB 청크로 완벽 보정
       const trimmedContent = (existingOpenTab.content || '').trim();
@@ -923,14 +931,14 @@ export const useFileExplorer = ({
               resourceFolderHandle: rfHandle
             });
 
-            if (!detail && !isDocId && targetBaseName) {
+            if (!strictLinkedDocument && !detail && !isDocId && targetBaseName) {
               detail = await knowledgeClient.getDocumentDetail({
                 filePath: targetBaseName,
                 heading: targetHash || undefined,
                 resourceFolderHandle: rfHandle
               });
             }
-            if (!detail && !isDocId && targetBaseNameWithoutMd) {
+            if (!strictLinkedDocument && !detail && !isDocId && targetBaseNameWithoutMd) {
               detail = await knowledgeClient.getDocumentDetail({
                 filePath: targetBaseNameWithoutMd,
                 heading: targetHash || undefined,
@@ -961,7 +969,7 @@ export const useFileExplorer = ({
         // 2-1) 브라우저 모드: rootFolder.handle에서 실제 파일 즉시 수화
         if (!hydratedContent && workspaceType === 'browser' && rootFolderRef.current?.handle) {
           try {
-            const deepRes = await findFileHandleInDirectoryDeep(rootFolderRef.current.handle, targetBaseName);
+            const deepRes = strictLinkedDocument ? null : await findFileHandleInDirectoryDeep(rootFolderRef.current.handle, targetBaseName);
             if (deepRes) {
               const file = await deepRes.fileHandle.getFile();
               const text = await file.text();
@@ -1015,7 +1023,10 @@ export const useFileExplorer = ({
 
         if (hydratedContent) {
           existingOpenTab.content = hydratedContent;
-          if (resolvedPathFromSource) existingOpenTab.path = resolvedPathFromSource;
+          if (resolvedPathFromSource) {
+            existingOpenTab.path = resolvedPathFromSource;
+            existingOpenTab.node = { ...existingOpenTab.node, name: existingOpenTab.name, kind: 'file', path: resolvedPathFromSource };
+          }
           if (existingOpenTab.model && !existingOpenTab.model.isDisposed()) {
             existingOpenTab.model.setValue(hydratedContent);
           }
@@ -1047,26 +1058,8 @@ export const useFileExplorer = ({
     // 🔗 @CALLS : 없음
     // ====================================================================
     const findNodeByPath = (nodes: FileNode[], targetPath: string): { node: FileNode, parent: any } | null => {
-      const normalizedTarget = targetPath.replace(/\\/g, '/').toLowerCase().normalize('NFC');
-      const baseName = (normalizedTarget.split(/[/\\]/).pop() || normalizedTarget).replace(/^\.\//, '');
-      const baseNameNoMd = baseName.replace(/\.md$/i, '');
-      const targetNoDotSlash = normalizedTarget.replace(/^\.\//, '').replace(/^\//, '');
-
       for (const node of nodes) {
-        const normalizedNodePath = (node.path || '').replace(/\\/g, '/').toLowerCase().normalize('NFC');
-        const nodePathNoDotSlash = normalizedNodePath.replace(/^\.\//, '').replace(/^\//, '');
-        const nodeName = (node.name || '').toLowerCase().normalize('NFC');
-        const nodeNameNoMd = nodeName.replace(/\.md$/i, '');
-
-        const isMatch = node.kind === 'file' && (
-          normalizedNodePath === normalizedTarget ||
-          nodePathNoDotSlash === targetNoDotSlash ||
-          nodeName === normalizedTarget ||
-          nodeName === baseName ||
-          (nodeNameNoMd && nodeNameNoMd === baseNameNoMd) ||
-          normalizedNodePath.endsWith('/' + baseName) ||
-          normalizedNodePath.endsWith('\\' + baseName)
-        );
+        const isMatch = node.kind === 'file' && matchesLinkedDocument(node, targetPath, rootFolderRef.current);
 
         if (isMatch) {
           return { node, parent: rootFolder?.handle || null };
@@ -1084,7 +1077,7 @@ export const useFileExplorer = ({
     const findResult = findNodeByPath(fileList, pathWithoutHash) ||
                        findNodeByPath(fileList, cleanPath) ||
                        findNodeByPath(fileList, cleanPathNoDotSlash) ||
-                       findNodeByPath(fileList, targetBaseName);
+                       (!/[/\\]/.test(pathWithoutHash.replace(/^\.\//, '')) ? findNodeByPath(fileList, targetBaseName) : null);
     if (findResult) {
       await handleFileClick(findResult.node, findResult.parent);
       jumpToAnchor(targetHash);
@@ -1160,7 +1153,7 @@ export const useFileExplorer = ({
         }
 
         // 폴백 1: 루트 디렉토리 직하에서 파일명(targetBaseName)으로 재시도
-        if (!foundHandle && targetBaseName) {
+        if (!strictLinkedDocument && !foundHandle && targetBaseName) {
           try {
             foundHandle = await rootFolder.handle.getFileHandle(targetBaseName, { create: false });
             currentDir = rootFolder.handle;
@@ -1179,7 +1172,7 @@ export const useFileExplorer = ({
         }
 
         // 폴백 2: 하위 폴더 심층 재귀 탐색 (예: 체험하기/추억의_과자선물세트를 기억하시나요.md)
-        if (!foundHandle && targetBaseName) {
+        if (!strictLinkedDocument && !foundHandle && targetBaseName) {
           const deepRes = await findFileHandleInDirectoryDeep(rootFolder.handle, targetBaseName);
           if (deepRes) {
             foundHandle = deepRes.fileHandle;
@@ -1273,14 +1266,13 @@ export const useFileExplorer = ({
           const resolvedDiskPath = fileObj.path || nativePath;
           const diskNode: FileNode = { name: filename, path: resolvedDiskPath, kind: 'file' };
 
-          const existingTab = tabsRef.current.find(t => 
-            t.path === resolvedDiskPath || 
-            t.path === pathWithoutHash || 
-            t.name === filename
-          );
+          const existingTab = tabsRef.current.find(t => matchesLinkedDocument(t, resolvedDiskPath, rootFolderRef.current));
 
           if (existingTab) {
             existingTab.content = fileObj.content;
+            existingTab.path = resolvedDiskPath;
+            existingTab.node = diskNode;
+            setTabs(prev => prev.map(t => t.id === existingTab.id ? { ...t, path: resolvedDiskPath, node: diskNode } : t));
             if (existingTab.model && !existingTab.model.isDisposed()) {
               existingTab.model.setValue(fileObj.content);
             }
@@ -1288,7 +1280,6 @@ export const useFileExplorer = ({
             switchTab(existingTab.id);
           } else {
             createNewTab(fileObj.content, filename, false, resolvedDiskPath, diskNode);
-            setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: resolvedDiskPath, node: diskNode } : t));
           }
           setCurrentFileNode(diskNode);
           setCurrentFileName(filename);
@@ -1309,14 +1300,13 @@ export const useFileExplorer = ({
             const resolvedDiskPath = data.path || pathWithoutHash;
             const diskNode: FileNode = { name: filename, path: resolvedDiskPath, kind: 'file' };
 
-            const existingTab = tabsRef.current.find(t => 
-              t.path === resolvedDiskPath || 
-              t.path === pathWithoutHash || 
-              t.name === filename
-            );
+            const existingTab = tabsRef.current.find(t => matchesLinkedDocument(t, resolvedDiskPath, rootFolderRef.current));
 
             if (existingTab) {
               existingTab.content = data.content;
+              existingTab.path = resolvedDiskPath;
+              existingTab.node = diskNode;
+              setTabs(prev => prev.map(t => t.id === existingTab.id ? { ...t, path: resolvedDiskPath, node: diskNode } : t));
               if (existingTab.model && !existingTab.model.isDisposed()) {
                 existingTab.model.setValue(data.content);
               }
@@ -1324,7 +1314,6 @@ export const useFileExplorer = ({
               switchTab(existingTab.id);
             } else {
               createNewTab(data.content, filename, false, resolvedDiskPath, diskNode);
-              setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: resolvedDiskPath, node: diskNode } : t));
             }
             setCurrentFileNode(diskNode);
             setCurrentFileName(filename);
@@ -1342,8 +1331,8 @@ export const useFileExplorer = ({
       vfsReadFile(pathWithoutHash) ||
       vfsReadFile(cleanPath) ||
       vfsReadFile(cleanPathNoDotSlash) ||
-      vfsReadFile(targetBaseName) ||
-      vfsReadFile(targetBaseNameWithMd)
+      (!strictLinkedDocument && vfsReadFile(targetBaseName)) ||
+      (!strictLinkedDocument && vfsReadFile(targetBaseNameWithMd))
     );
     if (isVfsExist) {
       const filename = targetBaseNameWithMd || targetBaseName || '파일.md';
@@ -1375,14 +1364,14 @@ export const useFileExplorer = ({
       });
 
       // 1차 검색 실패 시 파일명 또는 제목으로 2차/3차 재시도
-      if (!detail && !isDocId && targetBaseName) {
+      if (!strictLinkedDocument && !detail && !isDocId && targetBaseName) {
         detail = await knowledgeClient.getDocumentDetail({
           filePath: targetBaseName,
           heading: targetHash || undefined,
           resourceFolderHandle: rfHandle
         });
       }
-      if (!detail && !isDocId && targetBaseNameWithoutMd) {
+      if (!strictLinkedDocument && !detail && !isDocId && targetBaseNameWithoutMd) {
         detail = await knowledgeClient.getDocumentDetail({
           filePath: targetBaseNameWithoutMd,
           heading: targetHash || undefined,
@@ -1435,10 +1424,11 @@ export const useFileExplorer = ({
       try {
         const normalized = pathWithoutHash.replace(/\\/g, '/');
         const docsIndex = normalized.indexOf('docs/');
-        const isDocSample = docsIndex !== -1 || normalized.startsWith('docs/') || normalized === 'welcome.md' || normalized.startsWith('./docs/');
+        const isBundledHelp = /^(?:\.?\/)?help\//.test(normalized);
+        const isDocSample = isBundledHelp || docsIndex !== -1 || normalized.startsWith('docs/') || normalized === 'welcome.md' || normalized.startsWith('./docs/');
         
         if (isDocSample) {
-          const fetchPath = './' + (docsIndex !== -1 ? normalized.substring(docsIndex) : normalized);
+          const fetchPath = isBundledHelp ? '/' + normalized.replace(/^\.?\//, '') : './' + (docsIndex !== -1 ? normalized.substring(docsIndex) : normalized);
           const res = await fetch(fetchPath);
           if (res.ok) {
             const text = await res.text();
@@ -1449,8 +1439,9 @@ export const useFileExplorer = ({
               switchTab(existingTab.id);
             } else {
               createNewTab(text, filename);
-              setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: pathWithoutHash } : t));
+              setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: isBundledHelp ? undefined : pathWithoutHash, isBundledHelp } : t));
             }
+            if (isBundledHelp) { setCurrentFileNode(null); setCurrentFileName(filename); }
             jumpToAnchor(targetHash);
             return;
           }
@@ -1458,6 +1449,11 @@ export const useFileExplorer = ({
       } catch (err) {
         console.error('[Browser Open Path Fallback Error]', err);
       }
+    }
+
+    if (strictLinkedDocument) {
+      showToast(`연결된 문서를 찾을 수 없습니다: ${pathWithoutHash}`, 'error');
+      return;
     }
 
     if (workspaceType !== 'browser') {
@@ -2106,6 +2102,7 @@ export const useFileExplorer = ({
   // ====================================================================
   // 6. 물리적 스토리지 저장 로직
   const saveFile = useCallback(async (targetContent: string, targetFile: FileNode | null) => {
+    if (isBundledDocumentPath(targetFile?.path)) return false;
     if (!targetFile) return false;
     try {
       let success = false;

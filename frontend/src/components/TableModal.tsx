@@ -1,5 +1,6 @@
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, X } from 'lucide-react';
@@ -33,6 +34,7 @@ interface TableModalProps {
 // 🔗 @CALLS : handleInsert, createPortal
 // ====================================================================
 export default function TableModal({ isOpen, onClose, onInsert, isDarkMode, nextNumber = 1, captionConfig }: TableModalProps) {
+  useModalEscape(isOpen, onClose);
   const [hoverPos, setHoverPos] = useState({ r: 3, c: 2 });
   const [selectedPos, setSelectedPos] = useState({ r: 3, c: 2 });
   const [alignPreset, setAlignPreset] = useState<'default' | 'center' | 'numeric' | 'summary'>('default');

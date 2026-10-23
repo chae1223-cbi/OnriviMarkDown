@@ -8,6 +8,7 @@
 // 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 전역 미디어 실시간 연동 강화]: getEffectiveResourceFolder 연동 및 구글 드라이브(OnriviAuthor/참조파일/media) 업로드 지원
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import { pickResourceMedia } from '@/lib/resourceMediaPicker';
 import { mediaDetails, videoMarkup } from '@/lib/mediaMarkup';
 import { saveResourceMedia, importResourceMedia } from '@/lib/resourceMedia';
@@ -66,6 +67,7 @@ export default function YoutubeModal({
   captionConfig,
   nextNumber = 1,
 }: YoutubeModalProps) {
+  useModalEscape(isOpen, onClose);
   const { showToast } = useToast();
   const [mounted, setMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);

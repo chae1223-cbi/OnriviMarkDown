@@ -1,5 +1,6 @@
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Edit3 } from 'lucide-react';
@@ -31,6 +32,7 @@ export default function PromptModal({
   onConfirm, 
   onCancel 
 }: PromptModalProps) {
+  useModalEscape(isOpen, onCancel);
   const [value, setValue] = useState(defaultValue);
   const [mounted, setMounted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);

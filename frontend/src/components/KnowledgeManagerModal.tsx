@@ -10,6 +10,7 @@
 // 🔗 @CALLS : /api/knowledge/list, /api/knowledge/delete, /api/knowledge/index, KnowledgeQueue
 // ====================================================================
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Icon } from '@/components/icons/Icon';
 import { KnowledgeQueue, QueueProgress } from '@/lib/knowledge/knowledgeQueue';
@@ -47,6 +48,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
   aiModelName = 'gemini-3.8-flash',
   fileTreeNodes = [],
 }) => {
+  useModalEscape(isOpen, onClose);
   const [activeTab, setActiveTab] = useState<'docs' | 'import'>('docs');
   const [docs, setDocs] = useState<KnowledgeDocItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);

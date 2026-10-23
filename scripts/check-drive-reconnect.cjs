@@ -11,6 +11,7 @@ const window=Object.assign(new EventTarget(),{location:{origin:'http://localhost
 window.addEventListener('onrivi:drive_auth_expired',()=>expired++);
 const exportsObject={};
 Function('exports','require','window','document','localStorage','sessionStorage','fetch','setTimeout','clearTimeout','setInterval','clearInterval',output)(exportsObject,id=>
+  id==='@/lib/browserAccountStorage'?{browserAccountStorage:local,browserAccountSessionStorage:session}:
   id==='@/lib/resourceSettings'?{getResourceSettings:()=>({kind:'drive'}),saveResourceSettings:()=>{}}:
   id==='@/constants/cssProfile'?{SYSTEM_PROFILES:[],isSystemProfileId:()=>false}:
   id==='./activeTokenRenewal'?{startActiveTokenRenewal:()=>()=>{}}:req(id),

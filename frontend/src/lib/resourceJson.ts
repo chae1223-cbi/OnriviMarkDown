@@ -22,7 +22,7 @@ export async function readResourceJson(name: 'ai_prompts.json' | 'ai_presets.jso
   const effectiveLocalPath = explicitFolder || (settings?.kind === 'local' ? settings?.path : null) || (typeof localStorage !== 'undefined' ? (localStorage.getItem('onrivi_resource_folder_path') || localStorage.getItem('resourceFolder') || localStorage.getItem('onrivi_local_backup_resource_folder_path')) : null);
 
   // 1. Electron 데스크톱 네이티브 IPC 직접 읽기 (explicitFolder 또는 settings.path 최우선)
-  if (api && effectiveLocalPath) {
+  if (settings?.kind !== 'drive' && api && effectiveLocalPath) {
     try {
       const res = name === 'ai_prompts.json' ? await api.loadPrompts(effectiveLocalPath) : await api.loadPresets(effectiveLocalPath);
       if (res !== null && res !== undefined) return res;
@@ -34,7 +34,7 @@ export async function readResourceJson(name: 'ai_prompts.json' | 'ai_presets.jso
   }
 
   // 2. 웹 브라우저 환경(localhost:3100 등)에서 로컬 경로가 있는 경우: Next.js /api/prompts 로컬 API 읽기
-  if (!api && effectiveLocalPath && typeof fetch !== 'undefined') {
+  if (settings?.kind !== 'drive' && !api && effectiveLocalPath && typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname) && typeof fetch !== 'undefined') {
     try {
       const res = await fetch(`/api/prompts?name=${encodeURIComponent(name)}&resourceFolder=${encodeURIComponent(effectiveLocalPath)}`);
       if (res.ok) {
@@ -84,12 +84,12 @@ export async function writeResourceJson(name: 'ai_prompts.json' | 'ai_presets.js
     const effectiveLocalPath = explicitFolder || (settings?.kind === 'local' ? settings?.path : null) || (typeof localStorage !== 'undefined' ? (localStorage.getItem('onrivi_resource_folder_path') || localStorage.getItem('resourceFolder') || localStorage.getItem('onrivi_local_backup_resource_folder_path')) : null);
 
     // 1. Electron 데스크톱 네이티브 IPC 직접 쓰기
-    if (api && effectiveLocalPath) {
+    if (settings?.kind !== 'drive' && api && effectiveLocalPath) {
       return name === 'ai_prompts.json' ? await api.savePrompts(value, effectiveLocalPath) : await api.savePresets(value, effectiveLocalPath);
     }
 
     // 2. 웹 브라우저 환경(localhost:3100 등)에서 로컬 경로가 있는 경우: Next.js /api/prompts 로컬 API 쓰기
-    if (!api && effectiveLocalPath && typeof fetch !== 'undefined') {
+    if (settings?.kind !== 'drive' && !api && effectiveLocalPath && typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname) && typeof fetch !== 'undefined') {
       try {
         const res = await fetch('/api/prompts', {
           method: 'POST',

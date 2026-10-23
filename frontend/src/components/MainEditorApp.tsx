@@ -1,5 +1,14 @@
 /**
  * 프로그램명 : OnriviAuthor 
+// 🚨 @PATCH : **2026-10-23** — [문서 연결 표시명·목록·열기 보완]: 빈 링크명은 대상 파일명으로 표시하고 같은 이름의 다른 경로 문서를 모두 유지하며 문서보기 클릭도 작업장 경로 검증 후 연다
+// 🚨 @PATCH : **2026-10-22** — [문서연결 [링크명](문서경로) 구조 정비]:
+//             1) buildDocLinkTarget 신설로 상대경로(#헤딩) 계산을 단일화하고 목록·미리보기·삽입에서 공통 사용
+//             2) 링크명 미입력 시 문서명 대신 최종 문서경로(상대경로#헤딩)를 링크명으로 사용, 파일 클릭 시 문서명 자동 채움 제거
+//             3) 문서 목록 각 항목에 [링크명](<문서경로>) 결과 미리보기와 즉시 [연결] 버튼 제공, 헤딩 단계에도 결과 미리보기 표시
+// 🚨 @PATCH : **2026-10-22** — [문서링크(DocLinkPicker) 앞 링크명 수정 지원 및 ESC 닫기 연동]:
+//             1) useModalEscape 및 ESC 키 핸들러 연동으로 문서링크 픽커 창이 ESC 타이핑 시 즉각 닫히도록 개선
+//             2) 문서링크 픽커 상단에 [링크명(앞의 표시할 텍스트)] 입력 필드를 추가하여 기본 문서명 대신 원하는 링크명을 직접 수정·지정할 수 있도록 지원
+//             3) 선택된 텍스트 자동 반영 및 헤딩/문서 연결 시 사용자 수정 링크명 최우선 적용 
 // 🚨 @PATCH : **2026-10-21** — [문서보기(VisualDocumentEditor) 서명/발신인(SIGNATURE) 네이티브 지원 및 차단 해제]:
 //             1) dispatchCommand의 문서보기 미지원 차단 목록에서 'SIGNATURE' 제거
 //             2) case 'SIGNATURE': 에서 VisualDocumentEditor 활성 시 visualCommandRef.current('SIGNATURE')를 우선 실행하여 위지윅 문서보기에서도 단축키(Ctrl+Alt+R) 및 플로팅 툴바 버튼으로 서명/발신인 서식이 즉시 적용되도록 연동
@@ -374,6 +383,8 @@
 // @ts-nocheck
 
 "use client";
+import { isBundledDocumentPath } from '@/lib/bundledDocument';
+import { clearMarkdownFormatting } from '@/lib/clearMarkdownFormatting';
 import { reportNumberingCss } from '@/lib/reportNumbering';
 import { flashPreviewHighlight } from '@/lib/previewHighlight';
 import { headingNumberingCss, createHeadingNumberer, syncMarkdownHeadingNumbers } from '@/lib/headingNumbering';
@@ -395,7 +406,7 @@ import { getResourceSettings, saveResourceSettings, requireResourceSettings, get
 import { importedCheckboxEdit } from '@/lib/importCheckboxes';
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, useDeferredValue } from 'react';   // 리액트 훅 - 상태관리, 렌더링 제어 등
 import Editor, { loader } from '@monaco-editor/react'; // 모나코 에디터 - 코드 편집기
-import MarkdownViewer from '@/components/MarkdownViewer'; // 마크다운 뷰어 - 마크다운 뷰어
+import MarkdownViewer, { isPathInsideWorkspace } from '@/components/MarkdownViewer'; // 마크다운 뷰어 - 마크다운 뷰어
 import { createPortal } from 'react-dom';
 import VisualDocumentEditor from '@/components/VisualDocumentEditor';
 import { mediaSourceRange } from '@/lib/mediaSourceRange';
@@ -425,6 +436,7 @@ import 'katex/dist/katex.min.css'; // 카텍스 스타일 - 수학 공식 렌더
  * ==================================================================================
  */
 import { EditorProvider } from '@/context/EditorContext';
+import { useModalEscape } from '@/hooks/useModalEscape';
 import { useMonacoSetup } from '@/hooks/editor/useMonacoSetup';
 import { useUIStore } from '@/store/useUIStore';
 import { useToast } from '@/components/ToastProvider';  // 토스트 메시지
@@ -1862,8 +1874,25 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const [docHeadings, setDocHeadings] = useState<string[]>([]);
   const [isHeadingLoading, setIsHeadingLoading] = useState(false);
   const [docHeadingSearchText, setDocHeadingSearchText] = useState('');
+  const [docLinkCustomTitle, setDocLinkCustomTitle] = useState('');
+  const [isDocLinkTitleManuallyEdited, setIsDocLinkTitleManuallyEdited] = useState(false);
   const visualDocLinkInsertRef = useRef<((targetUrl: string, displayTitle: string) => boolean) | null>(null);
   const visualDocLinkPositionRef = useRef<{ top: number; left: number } | null>(null);
+
+  const closeDocLinkPicker = useCallback(() => {
+    setShowDocLinkPicker(false);
+    setDocLinkSearchText('');
+    setSelectedDocNode(null);
+    setDocHeadings([]);
+    setIsHeadingLoading(false);
+    setDocHeadingSearchText('');
+    setDocLinkCustomTitle('');
+    setIsDocLinkTitleManuallyEdited(false);
+    visualDocLinkInsertRef.current = null;
+    visualDocLinkPositionRef.current = null;
+  }, []);
+
+  useModalEscape(showDocLinkPicker, closeDocLinkPicker);
   const visualFormulaInsertRef = useRef<((formula: string) => boolean | void) | null>(null);
   const [formulaModalInitialLatex, setFormulaModalInitialLatex] = useState<string>('');
 
@@ -1876,6 +1905,23 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   useEffect(() => {
     if (showDocLinkPicker) {
+      if (!isDocLinkTitleManuallyEdited) {
+        let selText = '';
+        if (editorRef.current) {
+          const editor = editorRef.current;
+          let selection = editor.getSelection();
+          if ((!selection || selection.isEmpty()) && lastSelectionRef.current && !lastSelectionRef.current.isEmpty()) {
+            selection = lastSelectionRef.current;
+          }
+          if (selection) {
+            selText = editor.getModel()?.getValueInRange(selection)?.trim() || '';
+          }
+        }
+        if (selText) {
+          setDocLinkCustomTitle(selText);
+          setIsDocLinkTitleManuallyEdited(true);
+        }
+      }
       const loadFiles = async () => {
         setIsDocLinkLoading(true);
         try {
@@ -1907,6 +1953,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       visualDocLinkInsertRef.current = null;
       visualDocLinkPositionRef.current = null;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showDocLinkPicker, workspaceType, fileList, rootFolder, resourceFolder, resourceFolderHandle, currentFileNode]);
 
   // 📊 [[ 자동완성용 파일 목록 로드
@@ -3824,9 +3871,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔐 [AI API 키 리소스 폴더 암호화 자격증명 자동 로드 및 로컬스토리지 소거]
   useEffect(() => {
     if (!mounted) return;
+    let disposed = false;
+    let revision = 0;
     const loadCreds = async () => {
+      const request = ++revision;
       try {
         const creds = await loadResourceAICredentials(resourceFolder || undefined, resourceFolderHandle);
+        if (disposed || request !== revision) return;
         setGeminiApiKey(creds?.apiKey || '');
         setAiModelName(creds?.aiModelName || 'gemini-3.8-flash');
         if (typeof window !== 'undefined') {
@@ -3836,7 +3887,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         console.warn('[MainEditorApp loadResourceAICredentials Error]:', err);
       }
     };
-    void loadCreds();
+    const reload = () => { void loadCreds(); };
+    window.addEventListener('onrivi:drive_token_updated', reload);
+    reload();
+    return () => { disposed = true; window.removeEventListener('onrivi:drive_token_updated', reload); };
   }, [mounted, resourceFolder, resourceFolderHandle, setGeminiApiKey, setAiModelName]);
 
 
@@ -5089,7 +5143,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
 
     const activeTab = tabsRef.current?.find(t => t.id === activeTabIdRef.current);
-    const effectiveFileNode = currentFileNode || activeTab?.node || (activeTab?.path ? { name: activeTab.name || currentFileName, path: activeTab.path, kind: 'file' } : null);
+    const effectiveFileNode = activeTab ? (activeTab.node || (activeTab.path ? { name: activeTab.name, path: activeTab.path, kind: 'file' } : null)) : currentFileNode;
+
+    // Bundled help has no writable target until the user saves a copy.
+    if (activeTab?.isBundledHelp || isBundledDocumentPath(effectiveFileNode?.path)) return;
 
     // 🌟 [세이프티 가드 2]: 유저가 뷰 모드(분할/에디터/프리뷰)를 변환하는 찰나의 순간에는 
     // 컴포넌트 오염 타이밍이므로 자동 저장을 생략하고 무조건 대기시킵니다.
@@ -5097,13 +5154,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (content === lastSavedContentRef.current) return;
 
       setSaveStatus('saving');
+      const savingTabId = activeTab?.id;
       const timer = setTimeout(async () => {
+        if (savingTabId && activeTabIdRef.current !== savingTabId) return;
         const saveContent = content;
-        lastSavedContentRef.current = saveContent;
-
         const success = await saveFile(saveContent, effectiveFileNode);
         setSaveStatus(success ? 'saved' : 'unsaved');
         if (success) {
+          lastSavedContentRef.current = saveContent;
           console.log(`✏️ [Onrivi Guard] 자동 저장 완료 (${autoSave}초)`);
           // 자동 저장 후 현재 탭의 isModified 상태를 false로 복구 (불필요한 re-render 방어)
           setTabs(prev => {
@@ -5495,27 +5553,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🚨 @PATCH : **2026-09-30** — 문서 연결(DocLinkPicker)은 순수 마크다운 문서만 연결하도록 원복
   // 🔗 @CALLS : getRelativePath, editor.focus, editor.getSelection, editor.executeEdits
   // ====================================================================
-  const handleDocLinkSelect = (targetNode: FileNode, heading?: string) => {
-    setShowDocLinkPicker(false);
-    setDocLinkSearchText('');
-    setSelectedDocNode(null);
-    setDocHeadings([]);
-    setDocHeadingSearchText('');
+  // 💡 [문서연결 대상 경로 단일 계산] 현재 문서 기준 상대경로(+#헤딩)를 반환 — 목록 미리보기와 삽입에서 공통 사용
+  const getDocLinkDefaultLabel = (targetNode: FileNode): string => {
+    let filename = (targetNode.path || targetNode.name).split(/[?#]/)[0].replace(/\\/g, '/').split('/').pop() || targetNode.name;
+    try { filename = decodeURIComponent(filename); } catch {}
+    return filename.replace(/\.(md|markdown)$/i, '');
+  };
 
-    if (!targetNode || !targetNode.path) return;
-
-    let selectedText = '';
-    if (editorRef.current) {
-      const editor = editorRef.current;
-      let selection = editor.getSelection();
-      if ((!selection || selection.isEmpty()) && lastSelectionRef.current && !lastSelectionRef.current.isEmpty()) {
-        selection = lastSelectionRef.current;
-      }
-      if (selection) {
-        selectedText = editor.getModel()?.getValueInRange(selection) || '';
-      }
-    }
-
+  const buildDocLinkTarget = (targetNode: FileNode, heading?: string): string => {
     const targetPath = targetNode.path;
     let baseFromPath = currentFileNode?.path;
     if (!baseFromPath) {
@@ -5540,21 +5585,20 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (!relativePath.startsWith('.') && !relativePath.startsWith('/') && !relativePath.includes(':')) {
       relativePath = './' + relativePath;
     }
+    const headingSuffix = heading && heading.trim() ? `#${heading.trim()}` : '';
+    return `${relativePath}${headingSuffix}`;
+  };
 
-    // 💡 [웹/데스크톱 공통 표준 상대경로 링크 생성]
-    // 표시 이름: 선택된 텍스트 > 헤딩 제목 > 순수 문서명(확장자 제거)
-    let displayTitle = '';
-    if (selectedText && selectedText.trim()) {
-      displayTitle = selectedText.trim();
-    } else if (heading && heading.trim()) {
-      displayTitle = heading.trim();
-    } else {
-      const rawName = targetNode.name || targetNode.path.split(/[/\\]/).filter(Boolean).pop() || '문서';
-      displayTitle = rawName.replace(/\.(md|markdown)$/i, '');
-    }
+  const handleDocLinkSelect = (targetNode: FileNode, heading?: string, customTitle?: string) => {
+    const titleToUse = customTitle !== undefined ? customTitle : docLinkCustomTitle;
+    closeDocLinkPicker();
 
-    const headingSuffix = heading ? `#${heading.trim()}` : '';
-    const targetUrl = `${relativePath}${headingSuffix}`;
+    if (!targetNode || !targetNode.path) return;
+
+    // 💡 [웹/데스크톱 공통 표준 상대경로 링크 생성] [링크명](<문서경로>)
+    // 표시 이름: 사용자 입력 링크명 > (미입력 시) 최종 문서경로
+    const targetUrl = buildDocLinkTarget(targetNode, heading);
+    const displayTitle = (titleToUse || '').trim() || getDocLinkDefaultLabel(targetNode);
     // 일반 링크 [네이버](url) 처럼 [문서명](<./상대경로.md#헤딩>) 형식으로 안전하게 삽입
     const textToInsert = `[${displayTitle}](<${targetUrl}>)`;
 
@@ -6410,29 +6454,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
 
     const selectedText = model.getValueInRange(rangeToProcess);
-    let cleanedText = selectedText;
-
-    cleanedText = cleanedText.replace(/<\/?(u|mark|span|b|i|strong|em|ins|del)[^>]*>/gi, '');
-    cleanedText = cleanedText.replace(/(\*\*|__)(.*?)\1/g, '$2');
-    cleanedText = cleanedText.replace(/(\*|_)(.*?)\1/g, '$2');
-    cleanedText = cleanedText.replace(/~~(.*?)~~/g, '$1');
-    cleanedText = cleanedText.replace(/`(.*?)`/g, '$1');
-    cleanedText = cleanedText.replace(/!\[(.*?)\]\(.*?\)/g, '$1');
-    cleanedText = cleanedText.replace(/\[(.*?)\]\(.*?\)/g, '$1');
-
-    const lines = cleanedText.split('\n');
-    const processedLines = lines.map((line: string) => {
-      const leadingSpaces = line.match(/^(\s*)/)?.[1] || "";
-      const trimmed = line.trim();
-
-      const match = trimmed.match(/^(#{1,6}|[-*+]\s+\[[ xX]\]|[-*+]|\d+\.|>+)(?:\s+(.*))?$/);
-      if (match) {
-        return leadingSpaces + (match[2] || "");
-      }
-      return line;
-    });
-
-    cleanedText = processedLines.join('\n');
+    const cleanedText = clearMarkdownFormatting(selectedText);
 
     setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
     editor.pushUndoStop();
@@ -10284,19 +10306,62 @@ blockquote li p {
                       <>
                         <div
                           className="fixed inset-0 z-[9998]"
-                          onMouseDown={() => {
-                            setShowDocLinkPicker(false);
-                            setDocLinkSearchText('');
-                          }}
+                          onMouseDown={closeDocLinkPicker}
                         />
                         <div
-                          className="fixed z-[9999] bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-600 rounded-xl shadow-2xl p-2.5 w-[420px] max-w-[95vw] max-h-[420px] flex flex-col"
+                          className="fixed z-[9999] bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-600 rounded-xl shadow-2xl p-2.5 w-[420px] max-w-[95vw] max-h-[440px] flex flex-col"
                           style={docLinkPickerStyle}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              closeDocLinkPicker();
+                            }
+                          }}
                         >
                           {!selectedDocNode ? (
                             <>
-                              <div className="px-2 py-1 text-[11px] font-semibold text-slate-500 dark:text-zinc-400 border-b border-slate-200 dark:border-zinc-700 mb-2">
-                                다른 문서 연결
+                              <div className="px-2 py-1 text-[11px] font-semibold text-slate-500 dark:text-zinc-400 border-b border-slate-200 dark:border-zinc-700 mb-2 flex items-center justify-between">
+                                <span className="font-bold">다른 문서 연결 (Doc Link)</span>
+                                <button
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    closeDocLinkPicker();
+                                  }}
+                                  className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 text-sm font-bold px-1 rounded cursor-pointer"
+                                  title="닫기 (Esc)"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                              <div className="px-2 mb-2">
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">
+                                    링크명 (앞의 표시할 텍스트)
+                                  </label>
+                                  {docLinkCustomTitle && (
+                                    <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono truncate max-w-[200px]">
+                                      [{docLinkCustomTitle}]
+                                    </span>
+                                  )}
+                                </div>
+                                <input
+                                  type="text"
+                                  placeholder="비워두면 확장자를 뺀 문서명이 표시됩니다"
+                                  value={docLinkCustomTitle}
+                                  onChange={(e) => {
+                                    setDocLinkCustomTitle(e.target.value);
+                                    setIsDocLinkTitleManuallyEdited(true);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      closeDocLinkPicker();
+                                    }
+                                  }}
+                                  className="w-full px-2.5 py-1.5 text-[12px] border border-slate-300 dark:border-zinc-600 rounded-lg bg-slate-50 dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 focus:outline-none focus:border-blue-500"
+                                />
                               </div>
                               <div className="px-2 mb-2">
                                 <input
@@ -10304,6 +10369,13 @@ blockquote li p {
                                   placeholder="파일 검색..."
                                   value={docLinkSearchText}
                                   onChange={(e) => setDocLinkSearchText(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      closeDocLinkPicker();
+                                    }
+                                  }}
                                   className="w-full px-2.5 py-1.5 text-[12.5px] border border-slate-200 dark:border-zinc-700 rounded-lg bg-slate-50 dark:bg-zinc-900 text-slate-800 dark:text-zinc-200 focus:outline-none focus:border-blue-500"
                                   autoFocus
                                 />
@@ -10349,7 +10421,7 @@ blockquote li p {
                                         continue;
                                       }
 
-                                      const key = (f.name || '').normalize('NFC').toLowerCase();
+                                      const key = currPath.normalize('NFC');
                                       if (!map.has(key)) {
                                         map.set(key, f);
                                       } else {
@@ -10379,14 +10451,17 @@ blockquote li p {
                                     const displayTitle = (node as any).title && (node as any).title !== node.name
                                       ? `${(node as any).title} (${node.name})`
                                       : node.name;
+                                    const rowTarget = buildDocLinkTarget(node);
+                                    const rowLabel = docLinkCustomTitle.trim() || getDocLinkDefaultLabel(node);
                                     return (
-                                      <button
+                                      <div
                                         key={node.path || node.name}
+                                        role="button"
                                         onMouseDown={(e) => {
                                           e.preventDefault();
                                           handleDocFileClick(node);
                                         }}
-                                        title={node.path || node.name}
+                                        title={`${node.path || node.name}\n클릭: 헤딩 선택 · [연결]: 문서로 바로 연결`}
                                         className={`w-full text-left px-2.5 py-2 text-[12.5px] rounded-lg flex flex-col transition-colors mb-1 cursor-pointer ${
                                           isKnowledge
                                             ? 'bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 dark:border-emerald-500/30'
@@ -10397,14 +10472,30 @@ blockquote li p {
                                           <span className="font-semibold text-slate-800 dark:text-zinc-100 break-all whitespace-normal leading-snug">
                                             {displayTitle}
                                           </span>
-                                          {isKnowledge && (
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-[#1d4ed8] text-white font-bold shrink-0">
-                                              📗 지식 문서
-                                            </span>
-                                          )}
+                                          <div className="flex items-center gap-1 shrink-0">
+                                            {isKnowledge && (
+                                              <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-[#1d4ed8] text-white font-bold">
+                                                📗 지식 문서
+                                              </span>
+                                            )}
+                                            <button
+                                              onMouseDown={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                handleDocLinkSelect(node, undefined, docLinkCustomTitle);
+                                              }}
+                                              className="text-[10.5px] px-2 py-0.5 rounded-md bg-[#1d4ed8] hover:bg-blue-700 text-white font-bold cursor-pointer"
+                                              title={`[${rowLabel}](<${rowTarget}>) 삽입`}
+                                            >
+                                              연결
+                                            </button>
+                                          </div>
                                         </div>
-                                        <span className="text-[10.5px] text-slate-600 dark:text-zinc-300 font-bold font-mono break-all whitespace-normal leading-tight mt-0.5">{node.path}</span>
-                                      </button>
+                                        <span className="text-[10.5px] text-slate-700 dark:text-zinc-300 font-bold font-mono break-all whitespace-normal leading-tight mt-0.5">{node.path}</span>
+                                        <span className="text-[10.5px] text-blue-700 dark:text-blue-300 font-mono break-all whitespace-normal leading-tight mt-0.5">
+                                          [{rowLabel}](&lt;{rowTarget}&gt;)
+                                        </span>
+                                      </div>
                                     );
                                   });
                                 })()}
@@ -10413,18 +10504,80 @@ blockquote li p {
                           ) : (
                             <>
                               <div className="px-2 py-1 text-[11px] font-semibold text-slate-500 dark:text-zinc-400 border-b border-slate-200 dark:border-zinc-700 mb-2 flex items-center justify-between">
-                                <span>헤딩(제목) 연결 선택</span>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      setSelectedDocNode(null);
+                                      setDocHeadings([]);
+                                      setDocHeadingSearchText('');
+                                    }}
+                                    className="text-xs text-blue-500 hover:text-blue-600 font-semibold cursor-pointer"
+                                  >
+                                    ← 이전으로
+                                  </button>
+                                  <span className="font-bold">헤딩(제목) 연결 선택</span>
+                                </div>
                                 <button
                                   onMouseDown={(e) => {
                                     e.preventDefault();
-                                    setSelectedDocNode(null);
-                                    setDocHeadings([]);
-                                    setDocHeadingSearchText('');
+                                    closeDocLinkPicker();
                                   }}
-                                  className="text-xs text-blue-500 hover:text-blue-600 font-semibold cursor-pointer"
+                                  className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 text-sm font-bold px-1 rounded cursor-pointer"
+                                  title="닫기 (Esc)"
                                 >
-                                  ← 이전으로
+                                  ✕
                                 </button>
+                              </div>
+                              <div className="px-2 mb-2 bg-blue-50/50 dark:bg-zinc-900/60 p-2 rounded-lg border border-blue-200/60 dark:border-zinc-700">
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="text-[11px] font-bold text-blue-900 dark:text-blue-300">
+                                    링크명 (앞의 표시할 텍스트 수정)
+                                  </label>
+                                  {docLinkCustomTitle && (
+                                    <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono truncate max-w-[180px]">
+                                      [{docLinkCustomTitle}]
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex gap-1.5">
+                                  <input
+                                    type="text"
+                                    placeholder="비워두면 확장자를 뺀 문서명이 표시됩니다"
+                                    value={docLinkCustomTitle}
+                                    onChange={(e) => {
+                                      setDocLinkCustomTitle(e.target.value);
+                                      setIsDocLinkTitleManuallyEdited(true);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Escape') {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        closeDocLinkPicker();
+                                      } else if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleDocLinkSelect(selectedDocNode, undefined, docLinkCustomTitle);
+                                      }
+                                    }}
+                                    className="flex-1 px-2.5 py-1 text-[12px] border border-slate-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-slate-800 dark:text-zinc-100 focus:outline-none focus:border-blue-500 font-medium"
+                                  />
+                                  <button
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      handleDocLinkSelect(selectedDocNode, undefined, docLinkCustomTitle);
+                                    }}
+                                    className="px-2.5 py-1 text-[11.5px] font-bold bg-[#1d4ed8] hover:bg-blue-700 text-white rounded-md shrink-0 cursor-pointer shadow-xs"
+                                    title="문서 자체를 현재 링크명으로 바로 삽입"
+                                  >
+                                    문서 연결
+                                  </button>
+                                </div>
+                                <div className="mt-1.5 text-[10.5px] font-mono text-blue-700 dark:text-blue-300 break-all leading-tight">
+                                  {(() => {
+                                    const t = buildDocLinkTarget(selectedDocNode);
+                                    return `[${docLinkCustomTitle.trim() || getDocLinkDefaultLabel(selectedDocNode)}](<${t}>)`;
+                                  })()}
+                                </div>
                               </div>
                               <div className="px-2 mb-2">
                                 <input
@@ -10432,6 +10585,13 @@ blockquote li p {
                                   placeholder="헤딩 검색..."
                                   value={docHeadingSearchText}
                                   onChange={(e) => setDocHeadingSearchText(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      closeDocLinkPicker();
+                                    }
+                                  }}
                                   className="w-full px-2.5 py-1.5 text-[12.5px] border border-slate-200 dark:border-zinc-700 rounded-lg bg-slate-50 dark:bg-zinc-900 text-slate-800 dark:text-zinc-200 focus:outline-none focus:border-blue-500"
                                   autoFocus
                                 />
@@ -10446,7 +10606,7 @@ blockquote li p {
                                     <button
                                       onMouseDown={(e) => {
                                         e.preventDefault();
-                                        handleDocLinkSelect(selectedDocNode);
+                                        handleDocLinkSelect(selectedDocNode, undefined, docLinkCustomTitle);
                                       }}
                                       className="w-full text-left px-2.5 py-2 text-[12.5px] text-blue-600 dark:text-blue-400 hover:bg-slate-100 dark:hover:bg-zinc-700 rounded-lg transition-colors mb-1 font-semibold cursor-pointer"
                                     >
@@ -10469,7 +10629,7 @@ blockquote li p {
                                           key={i}
                                           onMouseDown={(e) => {
                                             e.preventDefault();
-                                            handleDocLinkSelect(selectedDocNode, h);
+                                            handleDocLinkSelect(selectedDocNode, h, docLinkCustomTitle);
                                           }}
                                           title={h}
                                           className="w-full text-left px-2.5 py-2 text-[12.5px] hover:bg-slate-100 dark:hover:bg-zinc-700 rounded-lg transition-colors text-slate-700 dark:text-zinc-200 flex items-start gap-1.5 cursor-pointer"
@@ -10929,9 +11089,13 @@ blockquote li p {
                                        }
                                      }}
                                      commandRef={visualCommandRef} aiTargetRef={visualAITargetRef} customCommands={customSlashCommands} customHotkeys={customHotkeys}
-                                    onDocLinkDialog={(pos, insert) => {
+                                    onDocLinkDialog={(pos, insert, initialSelectedText) => {
                                       visualDocLinkPositionRef.current = pos;
                                       visualDocLinkInsertRef.current = insert;
+                                      if (initialSelectedText) {
+                                        setDocLinkCustomTitle(initialSelectedText);
+                                        setIsDocLinkTitleManuallyEdited(true);
+                                      }
                                       setShowDocLinkPicker(true);
                                     }}
                                     onFormulaDialog={(apply, initialLatex) => {
@@ -10940,7 +11104,18 @@ blockquote li p {
                                       setIsFormulaModalOpen(true);
                                     }}
                                     currentFilePath={currentFileNode?.path}
-                                    onFileOpen={handleFileOpenByPath}
+                                    onFileOpen={(path, hash) => {
+                                      if (path.startsWith('knowledge://')) {
+                                        void handleFileOpenByPath(path, hash);
+                                        return;
+                                      }
+                                      const guard = isPathInsideWorkspace(path, currentFileNode?.path, rootFolder?.path || rootFolder?.name, rootFolder?.name);
+                                      if (!guard.isInside) {
+                                        showToast(`⚠️ ${guard.reason || '작업장 외부 문서는 연결할 수 없습니다.'}`, 'warning');
+                                        return;
+                                      }
+                                      void handleFileOpenByPath(guard.resolvedPath || path, hash, true);
+                                    }}
                                     onImageFile={async file => {
                                       let savedPath: string | null = null;
                                       await handlePasteImageFile(file, path => { savedPath = path; });

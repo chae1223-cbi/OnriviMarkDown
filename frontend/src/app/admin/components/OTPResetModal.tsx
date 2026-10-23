@@ -1,6 +1,7 @@
 /** 🚨 @PATCH : 2026-09-28 — OTP 초기화 모달의 취소·위험 작업 버튼을 공통 디자인 토큰으로 통일 */
 'use client';
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState } from 'react';
 import { ShieldAlert, KeyRound, AlertTriangle } from 'lucide-react';
 
@@ -11,6 +12,7 @@ interface OTPResetModalProps {
 }
 
 export default function OTPResetModal({ email, onClose, onConfirm }: OTPResetModalProps) {
+  useModalEscape(true, onClose);
   const [isResetting, setIsResetting] = useState(false);
 
   const handleConfirm = async () => {

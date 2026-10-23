@@ -2,6 +2,7 @@
 /** 🚨 @PATCH : 2026-09-28 — SUPER 관리자 수동 변경에서 플랜·무료/유료·사용기간·필수 사유를 각각 지정 */
 'use client';
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useEffect, useMemo, useState } from 'react';
 import { adminFetch } from '@/lib/adminFetch';
 import { showToast } from '@/utils/toast';
@@ -29,6 +30,7 @@ export default function UserPlanChangeModal({ user, onClose, onChanged }: {
   onClose: () => void;
   onChanged: () => void;
 }) {
+  useModalEscape(Boolean(user), onClose);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [planCode, setPlanCode] = useState('');
   const [billingCycle, setBillingCycle] = useState('NONE');

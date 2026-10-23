@@ -10,6 +10,7 @@
 // ====================================================================
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import ReactMarkdown from 'react-markdown';
 import { useEffect, useState, useCallback, MouseEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -58,6 +59,7 @@ interface Props {
 }
 
 export function HelpCenterModal({ open, onClose }: Props) {
+  useModalEscape(open, onClose);
   const [selected, setSelected] = useState(articles[0]);
   const [publishedDocs, setPublishedDocs] = useState<Array<{id:string;title:string;content:string}>>([]);
   useEffect(() => {

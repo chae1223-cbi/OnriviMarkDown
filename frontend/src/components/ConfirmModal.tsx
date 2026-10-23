@@ -1,5 +1,6 @@
 "use client"; // "use client" : 클라이언트 사이드 렌더링을 위한 지시어
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState, useEffect } from 'react'; // React : 리액트 라이브러리
 import { createPortal } from 'react-dom'; // createPortal : 포털 생성
 import { X, AlertCircle } from 'lucide-react'; // X : 닫기 아이콘, AlertCircle : 경고 아이콘
@@ -40,7 +41,8 @@ export default function ConfirmModal({ // ConfirmModal : 확인/취소 선택과
   onConfirm, // onConfirm : 확인 버튼 클릭 시 실행할 함수
   onCancel,  // onCancel : 취소 버튼 클릭 시 실행할 함수
   isDanger = false // isDanger : 위험 버튼 여부
-}: ConfirmModalProps) { // ConfirmModalProps : 컨펌 모달의 매개변수 명세
+}: ConfirmModalProps) {
+  useModalEscape(isOpen, onCancel); // ConfirmModalProps : 컨펌 모달의 매개변수 명세
   const [mounted, setMounted] = useState(false); // mounted : 모달이 마운트되었는지 여부
 
   useEffect(() => {  // useEffect : 컴포넌트가 마운트되었을 때 실행할 함수

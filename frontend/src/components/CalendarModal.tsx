@@ -15,6 +15,7 @@
  */
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Check } from 'lucide-react';
@@ -42,6 +43,7 @@ export default function CalendarModal({
   onInsert,
   isDarkMode = false
 }: CalendarModalProps) {
+  useModalEscape(isOpen, onClose);
   const [mounted, setMounted] = useState(false);
   const today = useMemo(() => new Date(), []);
 

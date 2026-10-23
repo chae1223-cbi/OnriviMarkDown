@@ -41,6 +41,7 @@
 // ====================================================================
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import {RECOMMENDED_MODELS,compareRecommendedModels} from '@/lib/ai/recommendedModels';
 import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import { getEffectiveResourceFolder } from '@/lib/profileStorage';
@@ -151,6 +152,7 @@ export default function AIDraftModal({
   resourceFolderHandle,
   rootFolder
 }: AIDraftModalProps) {
+  useModalEscape(true, onClose);
   const { showToast } = useToast();
 
   const effectiveResourceFolder = getEffectiveResourceFolder();

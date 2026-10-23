@@ -8,6 +8,7 @@
 // ====================================================================
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, CheckCircle2, ArrowRight, Gift } from "lucide-react";
@@ -25,6 +26,7 @@ export function BetaModal() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
+  useModalEscape(open, () => handleClose());
 
   useEffect(() => {
     // 오늘 이미 닫은 경우 다시 보여주지 않음 (하루 1번)

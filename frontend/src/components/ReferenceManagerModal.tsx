@@ -9,6 +9,7 @@
 // ====================================================================
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import {parseBibliography,citedKeys} from '@/lib/bibliography';
 import {loadBibliographyFiles} from '@/lib/bibliographyStorage';
 import React, { useState, useEffect, useCallback } from 'react';
@@ -60,6 +61,7 @@ export default function ReferenceManagerModal({
   resourceFolder,
   currentDocument='',
 }: ReferenceManagerModalProps) {
+  useModalEscape(isOpen, onClose);
   const { showToast } = useToast();
   const [mounted, setMounted] = useState(false);
 

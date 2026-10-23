@@ -1,4 +1,5 @@
 /** 🚨 @PATCH : 2026-09-28 — 사용자 상세 모달에 SUPER 관리자 요금제 변경과 관리자 수동 무료/유료 표시 적용 */
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React from 'react';
 import { X, User, Calendar, CreditCard, Laptop, MonitorSmartphone } from 'lucide-react';
 
@@ -17,6 +18,7 @@ interface UserDetailProps {
 }
 
 export default function UserDetailModal({ user, onClose, onKillSession, onKillSingleSession, onChangePlan }: UserDetailProps) {
+  useModalEscape(Boolean(user), onClose);
   if (!user) return null;
 
   return (

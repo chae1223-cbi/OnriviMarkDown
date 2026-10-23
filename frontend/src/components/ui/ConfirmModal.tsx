@@ -7,6 +7,7 @@
 // ====================================================================
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React from "react";
 
 interface ConfirmModalProps {
@@ -24,6 +25,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  useModalEscape(isOpen, onCancel);
   if (!isOpen) return null;
 
   return (

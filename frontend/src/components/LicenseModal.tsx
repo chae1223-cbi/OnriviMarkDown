@@ -1,5 +1,6 @@
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -58,6 +59,7 @@ export default function LicenseModal({
   onSuccessActivation,
   isDarkMode
 }: LicenseModalProps) {
+  useModalEscape(isOpen, onClose);
   const [inputUserId, setInputUserId] = useState(licenseStatus.userId || '');
   const [inputPassword, setInputPassword] = useState('');
   const [sessionData, setSessionData] = useState<{ accessToken: string, refreshToken: string } | null>(null);

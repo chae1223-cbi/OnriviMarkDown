@@ -39,6 +39,7 @@
 // ====================================================================
 'use client';
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { AITemplate } from '@/lib/ai/templates';
 import { templateVariables, fillTemplate } from '@/lib/ai/templates';
@@ -67,6 +68,7 @@ export default function PromptStudioModal({
   onDeleteTemplate,
   initialPrompt = '',
 }: PromptStudioModalProps) {
+  useModalEscape(isOpen, () => { if (isCategoryManagerOpen) setIsCategoryManagerOpen(false); else onClose(); });
   // 모달 활성화 및 선택 상태
   const [selectedId, setSelectedId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');

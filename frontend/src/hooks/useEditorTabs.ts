@@ -269,7 +269,7 @@ export const useEditorTabs = (
       const normNew = path.replace(/\\/g, '/').toLowerCase().normalize('NFC');
       const existing = tabsRef.current?.find(t => (t.path || '').replace(/\\/g, '/').toLowerCase().normalize('NFC') === normNew);
       if (existing) {
-        const mergedNode = existing.node || effectiveNode;
+        const mergedNode = effectiveNode || existing.node;
         setTabs(prev => prev.map(t => t.id === existing.id ? { ...t, content: contentVal, model: model || t.model, node: mergedNode, path: path } : t));
         setActiveTabId(existing.id);
         setContent(contentVal);

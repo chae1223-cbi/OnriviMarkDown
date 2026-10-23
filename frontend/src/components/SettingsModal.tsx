@@ -33,6 +33,7 @@
 // ====================================================================
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import AIConnectionSettings from '@/components/ai/AIConnectionSettings';
 import { resolveCurrentProfile, loadResourceAICredentials, saveResourceAICredentials, deleteResourceAICredentials, purgeLocalStorageAICredentials } from '@/lib/ai/resourceAICredentials';
@@ -125,6 +126,7 @@ export default function SettingsModal({
   userNickname, setUserNickname, userId,
   initialTab
 }: SettingsModalProps) {
+  useModalEscape(isOpen, onClose);
   const { showToast } = useToast();
   const [mounted, setMounted] = useState(false);
   const [closing, setClosing] = useState(false);

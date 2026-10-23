@@ -34,8 +34,8 @@ for (const name of documents) {
     }
     for (const child of token.children || []) {
       const target = child.type === 'link_open' ? child.attrGet('href') : child.type === 'image' ? child.attrGet('src') : null;
-      if (!target?.startsWith('/help/')) continue;
-      const relative = decodeURIComponent(target.slice(6).split(/[?#]/)[0]);
+      if (!target || (!target.startsWith('/help/') && !target.startsWith('./'))) continue;
+      const relative = decodeURIComponent(target.replace(/^(?:\/help\/|\.\/)/, '').split(/[?#]/)[0]);
       const resolved = path.resolve(folder, relative);
       assert.ok(resolved.startsWith(folder + path.sep) && fs.existsSync(resolved), `Missing help reference: ${name} -> ${target}`);
       references++;

@@ -8,6 +8,7 @@
 // ====================================================================
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FolderKanban, Sparkles, Image as ImageIcon, FileCode, CheckCircle2, X } from 'lucide-react';
@@ -27,6 +28,7 @@ export default function ResourceFolderGuideModal({
   onOpenSettings,
   isDarkMode
 }: ResourceFolderGuideModalProps) {
+  useModalEscape(isOpen, onClose);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {

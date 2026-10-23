@@ -1,5 +1,6 @@
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Sigma, Plus, History, Info, ChevronRight, Calculator, AlignCenter, AlignLeft } from 'lucide-react';
@@ -30,6 +31,7 @@ interface FormulaModalProps {
 }
 
 export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode, initialLatex }: FormulaModalProps) {
+  useModalEscape(isOpen, onClose);
   const [latex, setLatex] = useState(initialLatex || "");
   const [displayMode, setDisplayMode] = useState<boolean>(true); // true: $$, false: $
   const [activeTab, setActiveTab] = useState<'symbols' | 'templates' | 'history'>('templates');

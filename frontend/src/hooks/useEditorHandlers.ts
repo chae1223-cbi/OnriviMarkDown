@@ -7,6 +7,7 @@
 // 🚨 @PATCH : **2026-10-20** — [문서 메타영역(Frontmatter) 사용자 수동 삭제 시 재주입 방어]: 기본 서식(system-1) 상태에서 사용자가 에디터 상단의 Frontmatter를 삭제한 경우 저장 시 강제 재생성(persistDefault)을 배제하여 순수 마크다운 상태 영구 보존
 // 🚨 @PATCH : **2026-10-19** — [페이지 나누기(pageBreak) 핸들러 신설]: Monaco 에디터 커서 위치에 <!-- onrivi:page-break --> 페이지 구분 마커 삽입 핸들러 연동
 // ====================================================================
+import { isBundledDocumentPath } from '@/lib/bundledDocument';
 import { reportClientLog } from '@/lib/clientLogs';
 import { browserPickerStartIn } from '@/lib/browserPickerStartIn';
 import { useCallback } from 'react';
@@ -536,8 +537,9 @@ export const useEditorHandlers = ({
       setSaveStatus('saving');
 
       const activeTab = tabsRef?.current?.find((t: any) => t.id === activeTabIdRef?.current);
-      let fileNode = currentFileNodeRef.current || activeTab?.node || (activeTab?.path ? { name: activeTab.name || currentFileNameRef.current, path: activeTab.path, kind: 'file' } : null);
-      let fileName = (fileNode && fileNode.name) || currentFileNameRef.current || activeTab?.name || '새 파일.md';
+      let fileNode = activeTab ? (activeTab.node || (activeTab.path ? { name: activeTab.name, path: activeTab.path, kind: 'file' } : null)) : currentFileNodeRef.current;
+      if (activeTab?.isBundledHelp || isBundledDocumentPath(fileNode?.path)) fileNode = null;
+      let fileName = (fileNode && fileNode.name) || activeTab?.name || currentFileNameRef.current || '새 파일.md';
 
       if (fileNode) {
         if (!currentFileNodeRef.current) {
@@ -797,7 +799,7 @@ export const useEditorHandlers = ({
             setTabs(prev => {
               const hasActive = prev.some(t => t.id === activeTabIdRef.current);
               if (hasActive) {
-                return prev.map(t => t.id === activeTabIdRef.current ? { ...t, name: file.name, path: file.path, node: newNode, isModified: false, content: currentVal } : t);
+                return prev.map(t => t.id === activeTabIdRef.current ? { ...t, name: file.name, path: file.path, node: newNode, isBundledHelp: false, isModified: false, content: currentVal } : t);
               }
               const newTabId = file.path || ('tab-' + Date.now());
               setActiveTabId(newTabId);
@@ -964,7 +966,7 @@ export const useEditorHandlers = ({
             setTabs(prev => {
               const hasActive = prev.some(t => t.id === activeTabIdRef.current);
               if (hasActive) {
-                return prev.map(t => t.id === activeTabIdRef.current ? { ...t, name: file.name, path: file.path, node: newNode, isModified: false, content: currentVal } : t);
+                return prev.map(t => t.id === activeTabIdRef.current ? { ...t, name: file.name, path: file.path, node: newNode, isBundledHelp: false, isModified: false, content: currentVal } : t);
               }
               const newTabId = file.path || ('tab-' + Date.now());
               setActiveTabId(newTabId);

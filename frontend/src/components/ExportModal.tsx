@@ -1,5 +1,6 @@
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState, useEffect, useRef } from 'react';
 import { readEffectivePrintSettings, DocumentPrintSettings, DEFAULT_PRINT_SETTINGS, normalizePrintSettings, saveDefaultWatermarkSettings, hasDocumentPrintSettings } from '@/lib/documentPrintSettings';
 import { createPortal } from 'react-dom';
@@ -58,6 +59,7 @@ export default function ExportModal({
   isPicturebook = false,
   documentId,documentContent='',onPrintSettingsChange,onPagePreview,onOpenWatermarkSettings,
 }: ExportModalProps) {
+  useModalEscape(isOpen, onClose);
   const [selectedFormat, setSelectedFormat] = useState<'print' | 'docx' | 'hwpx' | 'html' | 'png' | 'epub'>('print');
   const [mounted, setMounted] = useState(false);
   const [settings,setSettings]=useState<DocumentPrintSettings>(DEFAULT_PRINT_SETTINGS);

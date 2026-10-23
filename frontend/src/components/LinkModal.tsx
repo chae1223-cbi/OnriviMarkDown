@@ -9,6 +9,7 @@
 // ====================================================================
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@/components/icons/Icon';
@@ -30,6 +31,7 @@ export default function LinkModal({
   initialHref = 'https://',
   isDarkMode = false
 }: LinkModalProps) {
+  useModalEscape(isOpen, onClose);
   const [text, setText] = useState(initialText);
   const [href, setHref] = useState(initialHref);
   const [error, setError] = useState('');

@@ -40,6 +40,7 @@
  * -----------------------------------------------------------------------
  */
 'use client';
+import { useModalEscape } from '@/hooks/useModalEscape';
 import { pickResourceTextFile } from '@/lib/gdrive/ResourceFilePicker';
 import { getResourceSettings, saveResourceSettings } from '@/lib/resourceSettings';
 import { getProfileReadStatus, subscribeProfileReadStatus } from '@/lib/profileReadStatus';
@@ -95,6 +96,7 @@ export default function StyleManagerModal({
   geminiApiKey,
   aiModelName,
 }: StyleManagerModalProps) {
+  useModalEscape(true, onClose);
   const [selectedId, setSelectedId] = useState(activeProfileId);
   const [profileReadStatus, setProfileReadStatus] = useState(getProfileReadStatus);
   useEffect(() => subscribeProfileReadStatus(() => setProfileReadStatus(getProfileReadStatus())), []);

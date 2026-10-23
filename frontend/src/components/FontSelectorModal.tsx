@@ -1,3 +1,4 @@
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState, useEffect } from 'react';
 import { rememberLocalFontSources } from '@/lib/localFontSources';
 
@@ -191,6 +192,7 @@ async function collectFonts(): Promise<FontEntry[]> {
 export default function FontSelectorModal({
   isOpen, onClose, currentFont, onSelectFont, isDarkMode,
 }: FontSelectorModalProps) {
+  useModalEscape(isOpen, onClose);
   const [fonts, setFonts] = useState<FontEntry[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);

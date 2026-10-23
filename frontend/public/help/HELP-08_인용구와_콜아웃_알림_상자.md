@@ -41,4 +41,4 @@ NOTE·TIP·IMPORTANT·WARNING·CAUTION에 대응하는 인용 도구가 있습�
 
 ---
 
-[도움말 전체 목차](/help/00_시작하기.md)
+[도움말 전체 목차](./00_시작하기.md)

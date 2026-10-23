@@ -335,6 +335,8 @@ export const useEditorSettings = (
       }
       setPreviewMode('preview');
       setQuoteStyle(baseSettings.quoteStyle);
+      // Migrate the former default while preserving deliberately customized shortcuts.
+      if (baseSettings.customHotkeys.math === 'Ctrl+M') baseSettings.customHotkeys.math = 'Ctrl+Shift+T';
       setCustomHotkeys(baseSettings.customHotkeys);
       setCustomSlashCommands(baseSettings.customSlashCommands);
       setThemePalette(baseSettings.themePalette);

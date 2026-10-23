@@ -15,6 +15,7 @@
 // 🚨 @PATCH : **2026-10-07** — [환경설정 리소스 폴더(참조파일 등) media 하위폴더 직결 바인딩]: 구글 드라이브 업로드 시 cloudSettings.mediaFolderId 우선 참조 및 부모 리소스 폴더 하위 탐색으로 환경설정에 지정된 리소스 폴더에 안전 저장
 // 🚨 @PATCH : **2026-10-03** — [리소스 폴더 변경에 따른 전역 미디어 실시간 연동 강화]: getEffectiveResourceFolder 연동 및 구글 드라이브(OnriviAuthor/참조파일/media) 업로드 지원
 "use client";
+import { useModalEscape } from '@/hooks/useModalEscape';
 import { pickResourceMedia } from '@/lib/resourceMediaPicker';
 import { saveResourceMedia, importResourceMedia } from '@/lib/resourceMedia';
 import { imageResourceName } from '@/lib/imageResourceName';
@@ -87,6 +88,7 @@ export default function ImageModal({
   captionConfig,
   nextNumber = 1,
 }: ImageModalProps) {
+  useModalEscape(isOpen, onClose);
   const [saving, setSaving] = useState(false);
   const [imagePath, setImagePath] = useState("");
   const [clipboardMessage, setClipboardMessage] = useState('');

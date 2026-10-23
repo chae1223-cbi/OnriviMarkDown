@@ -10,6 +10,7 @@
 // 🔗 @CALLS : knowledgeClient.indexDocument, ensureClientAbsolutePath, knowledge:show-detail, knowledge:updated
 // ====================================================================
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import { requireResourceSettings } from '@/lib/resourceSettings';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -51,6 +52,7 @@ export const KnowledgeIndexProgressModal: React.FC<KnowledgeIndexProgressModalPr
   params,
   showToast,
 }) => {
+  useModalEscape(isOpen, onClose);
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [stepStatuses, setStepStatuses] = useState<Record<number, StepStatus>>({
     1: 'WAITING',

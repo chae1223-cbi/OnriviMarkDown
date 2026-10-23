@@ -8,6 +8,7 @@
 // ====================================================================
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useEffect, useState, MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { X, BookOpen, ChevronRight } from 'lucide-react';
@@ -70,11 +71,14 @@ interface HelpModalProps {
 }
 
 export default function HelpModal({ isOpen, onClose, title = "도움말 센터", isDarkMode }: HelpModalProps) {
+  useModalEscape(isOpen, onClose);
   const [mounted, setMounted] = useState(false);
   const [publishedDocs, setPublishedDocs] = useState<Array<{id:string;title:string;content:string}>>([]);
   useEffect(() => { if (!isOpen) return; let active=true; void fetch((window as any).electronAPI ? 'https://onrivi.com/api/help' : '/api/help').then(r=>{if(!r.ok)throw Error();return r.json();}).then(data=>{if(active && data.documents?.length){setPublishedDocs(data.documents);}}).catch(()=>{}); return ()=>{active=false;}; }, [isOpen]);
   const [currentDoc, setCurrentDoc] = useState<string>(HELP_DOCS_LIST[0]);
   const [docContent, setDocContent] = useState<string>('');
+  const [rawContent, setRawContent] = useState('');
+  const [saveMessage, setSaveMessage] = useState('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   useEffect(() => {
@@ -97,6 +101,7 @@ export default function HelpModal({ isOpen, onClose, title = "도움말 센터",
     let isMounted = true;
     const fetchDoc = async () => {
       setIsLoading(true);
+      setSaveMessage('');
       const api = (window as any).electronAPI;
       let rawMd = '';
       
@@ -115,6 +120,7 @@ export default function HelpModal({ isOpen, onClose, title = "도움말 센터",
       }
 
       if (isMounted) {
+        setRawContent(rawMd);
         setDocContent(stripFrontmatter(rawMd));
         setIsLoading(false);
       }
@@ -137,7 +143,7 @@ export default function HelpModal({ isOpen, onClose, title = "도움말 센터",
     if (href.endsWith('.md') && !href.startsWith('http')) {
       e.preventDefault();
       // 파일명만 추출
-      const filename = href.split('/').pop();
+      const filename = decodeURIComponent(href.split('/').pop() || '');
       if (filename && HELP_DOCS_LIST.includes(filename)) {
         setCurrentDoc(filename);
       }
@@ -148,6 +154,31 @@ export default function HelpModal({ isOpen, onClose, title = "도움말 센터",
         e.preventDefault();
         api.openExternal(href);
       }
+    }
+  };
+
+  const saveDocumentCopy = async () => {
+    try {
+      const filename = currentDoc.endsWith('.md') ? currentDoc : `${currentDoc}.md`;
+      const api = (window as any).electronAPI;
+      if (api?.saveFileAs) {
+        const saved = await api.saveFileAs(rawContent, filename);
+        if (!saved) return;
+      } else if ((window as any).showSaveFilePicker) {
+        const handle = await (window as any).showSaveFilePicker({ suggestedName: filename, types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }] });
+        const writer = await handle.createWritable();
+        try { await writer.write(rawContent); await writer.close(); }
+        catch (error) { await writer.abort().catch(() => {}); throw error; }
+      } else {
+        const url = URL.createObjectURL(new Blob([rawContent], { type: 'text/markdown;charset=utf-8' }));
+        const link = document.createElement('a');
+        link.href = url; link.download = filename;
+        document.body.appendChild(link); link.click(); link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+      setSaveMessage('도움말 사본을 저장했습니다.');
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') setSaveMessage('저장하지 못했습니다. 저장 위치와 권한을 확인해 주세요.');
     }
   };
 
@@ -170,6 +201,10 @@ export default function HelpModal({ isOpen, onClose, title = "도움말 센터",
               {title}
             </h2>
           </div>
+          <div className="flex items-center gap-3">
+          <span role="status" className="text-xs text-zinc-500">{saveMessage}</span>
+          <button onClick={() => void saveDocumentCopy()} disabled={isLoading || !rawContent}
+            className="rounded border px-3 py-1.5 text-sm disabled:opacity-40">문서 저장</button>
           <button 
             onClick={onClose}
             className="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 transition-colors"
@@ -177,6 +212,7 @@ export default function HelpModal({ isOpen, onClose, title = "도움말 센터",
           >
             <X size={18} />
           </button>
+          </div>
         </div>
 
         {/* 2-Pane 레이아웃 */}

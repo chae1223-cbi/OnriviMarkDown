@@ -1,3 +1,4 @@
+import { useModalEscape } from '@/hooks/useModalEscape';
 import {parseBibliography} from '@/lib/bibliography';
 import {loadBibliographyFiles} from '@/lib/bibliographyStorage';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -37,6 +38,7 @@ export default function CitationSelectionModal({
   rootFolder,
   resourceFolder
 }: CitationSelectionModalProps) {
+  useModalEscape(isOpen, onClose);
   const [mounted, setMounted] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [localBibContent, setLocalBibContent] = useState('');

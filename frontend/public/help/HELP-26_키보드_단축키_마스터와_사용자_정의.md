@@ -17,9 +17,10 @@ css_profile_name: "온리비 도움말"
 | Ctrl+Z / Ctrl+Y | 실행 취소 / 다시 실행 |
 | Ctrl+B / Ctrl+I | 굵게 / 기울임 |
 | Ctrl+1~6 | 제목 1~6 |
+| `# ` + Space | 서식 프로필 기반 제목 번호 자동 삽입 |
 | Ctrl+Shift+7 / Ctrl+Shift+8 | 숫자 목록 / 글머리 목록 |
 | Ctrl+Shift+C | 체크리스트 |
-| Ctrl+K / Ctrl+T / Ctrl+M | 링크 / 표 / 수식 |
+| Ctrl+K / Ctrl+T / Ctrl+Shift+T | 링크 / 표 / 수식 |
 | Ctrl+Shift+E | 코드 블록 |
 | Ctrl+Shift+L | 문서 서식 일괄 정리 |
 | Ctrl+Alt+R | 서명/발신인 |
@@ -39,4 +40,4 @@ css_profile_name: "온리비 도움말"
 
 ---
 
-[도움말 전체 목차](/help/00_시작하기.md)
+[도움말 전체 목차](./00_시작하기.md)

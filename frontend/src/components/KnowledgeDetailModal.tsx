@@ -10,6 +10,7 @@
 // 🔗 @CALLS : /api/knowledge/detail, app:open-file-at-line, app:open-knowledge-manager, knowledgeClient.indexDocument, knowledge:open-index-progress
 // ====================================================================
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icon } from '@/components/icons/Icon';
 import type { KnowledgeDocumentDetail } from '@/types/knowledge';
@@ -34,6 +35,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
   onOpenKnowledgeManager,
   showToast,
 }) => {
+  useModalEscape(isOpen, onClose);
   const [activeTab, setActiveTab] = useState<'summary' | 'chunks' | 'tags'>('summary');
   const [expandedChunkId, setExpandedChunkId] = useState<string | null>(null);
   const [currentDetail, setCurrentDetail] = useState<KnowledgeDocumentDetail | null>(detail);

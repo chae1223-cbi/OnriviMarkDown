@@ -29,6 +29,7 @@
  */
 'use client';
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useEffect, useState, useRef } from 'react';
 import CssStyleForm from './CssStyleForm';
 import StyleManagerModal from './StyleManagerModal';
@@ -74,6 +75,7 @@ export default function CssStyleModal({
   aiModelName,
   currentDocContent
 }: CssStyleModalProps) {
+  useModalEscape(isOpen, onClose);
   const [isStyleManagerOpen, setIsStyleManagerOpen] = useState(false);
   
   /* ─── 뷰 모드: 'modules' (서식별 뭉침 모아보기) vs 'document' (실제 내 문서 전체보기) ─── */

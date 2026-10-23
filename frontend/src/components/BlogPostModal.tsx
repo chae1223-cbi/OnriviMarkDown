@@ -9,6 +9,7 @@
 // ====================================================================
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -50,6 +51,7 @@ export default function BlogPostModal({
   currentFileName = "document.md",
   isDarkMode = false,
 }: BlogPostModalProps) {
+  useModalEscape(isOpen, onClose);
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<"settings" | "preview">("preview");
 

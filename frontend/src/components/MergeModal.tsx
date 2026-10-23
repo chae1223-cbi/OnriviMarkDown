@@ -1,3 +1,4 @@
+import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowUp, ArrowDown, X, Layers, Trash2, ArrowUpDown } from 'lucide-react';
@@ -28,6 +29,7 @@ interface MergeModalProps {
 const MergeModal: React.FC<MergeModalProps> = ({
   isOpen, onClose, selectedNodes, workspaceType, rootFolder, refreshParent, openFile
 }) => {
+  useModalEscape(isOpen, onClose);
   const { showToast } = useToast();
   
 

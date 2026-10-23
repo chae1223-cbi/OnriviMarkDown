@@ -1080,7 +1080,7 @@ export default function InlineAIAssistant({
                       setModel(item.id);
                       selectConnection(item.provider, item.id);
                       const currentConn = connections[item.provider] || { model: item.id, models: [] };
-                      saveConnection(item.provider, { ...currentConn, model: item.id });
+                      void saveConnection(item.provider, { ...currentConn, model: item.id }).catch(error => setMessage(`모델 저장 실패: ${error instanceof Error ? error.message : '리소스 연결을 확인해 주세요.'}`));
                       setModelMenu(false);
                       modelButtonRef.current?.focus();
                     }}
@@ -1233,7 +1233,7 @@ export default function InlineAIAssistant({
                             setModel(item.id);
                             selectConnection(item.provider, item.id);
                             const currentConn = connections[item.provider] || { model: item.id, models: [] };
-                            saveConnection(item.provider, { ...currentConn, model: item.id });
+                            void saveConnection(item.provider, { ...currentConn, model: item.id }).catch(error => setMessage(`모델 저장 실패: ${error instanceof Error ? error.message : '리소스 연결을 확인해 주세요.'}`));
                             setSidebarModelOpen(false);
                           }}
                         >

@@ -1,6 +1,8 @@
 ﻿// @ts-nocheck
 // ====================================================================
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
+// 🚨 @PATCH : **2026-10-22** — [구분선(HR) 줄에서 Enter 시 새 문단 생성]:
+//             1) 리스트 자동완성 Enter 액션에 구분선(---, ***, ___) 판별 가드를 리스트 판단보다 먼저 배치하여 구분선 줄에서 Enter 시 아래 빈 줄로 커서 이동(빈 줄 없으면 삽입)
 // 🚨 @PATCH : **2026-10-22** — [제목 태그(#) + 스페이스 자동 번호 삽입]:
 //             1) 에디터에서 '## ' 형태 입력 후 스페이스를 치면 활성 CSS 프로필의 headingNumbering 설정에 따라
 //                제목 번호(예: 1., I., 가., 1.1)를 자동으로 삽입하는 custom-space-heading-number addAction 추가
@@ -65,6 +67,7 @@
 //             2026-08-31 - 4대 요건(실시간 싱크 일치, 타이핑/엔터 안정성, 휠/방향키 1:1 연동, 대형 미디어 높이 보정) 전면 개편
 // 🔗 @CALLS : model.getLineContent, editor.executeEdits, syncPreviewFromEditorScroll, syncPreviewToTargetLine
 // ====================================================================
+import { registerSignatureCleanup } from '@/lib/signatureCleanup';
 import { useRef } from 'react';
 import { syncPreviewFromEditorScroll, syncPreviewToTargetLine } from '@/lib/syncEngine';
 import { desktopClipboardImage } from '@/lib/desktopClipboard';
@@ -99,6 +102,7 @@ export function useMonacoSetup(deps: any) {
     } = deps;
 
                   editorRef.current = editor;
+                  registerSignatureCleanup(editor, monaco);
                   if (typeof window !== 'undefined') {
                     (window as any).monaco = monaco;
                   }
@@ -1557,6 +1561,37 @@ export function useMonacoSetup(deps: any) {
                       const quoteRegex = /^([ \t]*)(>+)(?:[ \t]+(.*)|)$/;
 
                       let match: RegExpMatchArray | null = null;
+
+                      // 0. 구분선 판단 가드 (예: ---) — 구분선 줄에서 Enter 시 다음 빈 줄로 커서 이동하여 새 문단 타이핑 지원
+                      const isCurrentLineDivider = /^[ \t]*(?:---|\*\*\*|___)[ \t]*$/.test(lineContent);
+                      if (isCurrentLineDivider) {
+                        const lineCount = model.getLineCount();
+                        const nextLineNumber = lineNumber + 1;
+                        if (nextLineNumber <= lineCount) {
+                          const nextLineContent = model.getLineContent(nextLineNumber);
+                          if (nextLineContent.trim() === '') {
+                            // 다음 줄이 이미 빈 줄이면 그 줄로 커서 이동
+                            editor.setPosition({ lineNumber: nextLineNumber, column: 1 });
+                          } else {
+                            // 다음 줄에 내용이 있으면 빈 줄 삽입 후 커서 이동
+                            editor.executeEdits('insertNewlineAfterHR', [{
+                              range: new monaco.Range(lineNumber, model.getLineMaxColumn(lineNumber), lineNumber, model.getLineMaxColumn(lineNumber)),
+                              text: '\n',
+                              forceMoveMarkers: true
+                            }]);
+                            editor.setPosition({ lineNumber: nextLineNumber, column: 1 });
+                          }
+                        } else {
+                          // 구분선이 마지막 줄이면 새 줄 삽입 후 커서 이동
+                          editor.executeEdits('insertNewlineAfterHR', [{
+                            range: new monaco.Range(lineNumber, model.getLineMaxColumn(lineNumber), lineNumber, model.getLineMaxColumn(lineNumber)),
+                            text: '\n',
+                            forceMoveMarkers: true
+                          }]);
+                          editor.setPosition({ lineNumber: lineNumber + 1, column: 1 });
+                        }
+                        return;
+                      }
 
                       // 1. 태스크 리스트 판단 가드 (예: - [ ] 작업)
                       if ((match = beforeCursor.match(taskRegex))) {

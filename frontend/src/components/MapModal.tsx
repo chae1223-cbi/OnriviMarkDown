@@ -1,5 +1,6 @@
 "use client";
 
+import { useModalEscape } from '@/hooks/useModalEscape';
 import { mediaDetails } from '@/lib/mediaMarkup';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -160,6 +161,7 @@ function parseMapInput(input: string): ParsedMapInput | null {
 }
 
 export default function MapModal({ isOpen, onClose, onInsert, isDarkMode, initialSource, captionConfig, nextNumber = 1 }: MapModalProps) {
+  useModalEscape(isOpen, onClose);
   const { showToast } = useToast();
   const [address, setAddress] = useState("서울시청");
   const [coords, setCoords] = useState("37.5665, 126.9780");

@@ -1747,7 +1747,7 @@ export async function readDriveAICredentials(token?: string, resourceFolderId?: 
     return await readDriveFileContent(authToken, fileId);
   } catch (err) {
     console.warn('[readDriveAICredentials failed]:', err);
-    return null;
+    throw err;
   }
 }
 

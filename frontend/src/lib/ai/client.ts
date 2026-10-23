@@ -65,37 +65,35 @@ export function getProviderApiKey(scope:string,provider:AIProvider):string{
 export function readConnections():Partial<Record<AIProvider,Connection>>{
   try{
     const result:Partial<Record<AIProvider,Connection>>={};
-    const googleKey = getActiveResourceApiKey();
-    if (googleKey && googleKey.trim()) {
-      result.google = {
-        model: 'gemini-3.8-flash',
-        models: ONRIVI_AI_MODELS.map(m => ({
-          id: m.id,
-          name: m.name,
-          family: m.id.startsWith('gemma-') ? 'Gemma' : 'Gemini'
-        }))
+    for (const provider of ['google', 'openai', 'anthropic'] as AIProvider[]) {
+      if (!getProviderApiKey(aiAccountScope(), provider)) continue;
+      const models = getProviderResourceModels(provider);
+      result[provider] = {
+        model: getProviderResourceModel(provider) || models[0]?.id || '',
+        models,
       };
     }
     return result;
   }catch{return {};}
 }
-export function saveConnection(provider:AIProvider,connection:Connection){void saveProviderResourceCredentials(provider, { model: connection.model, models: connection.models });window.dispatchEvent(new Event('onrivi:ai-connections'));}
+export async function saveConnection(provider:AIProvider,connection:Connection){await saveProviderResourceCredentials(provider, { model: connection.model, models: connection.models });window.dispatchEvent(new Event('onrivi:ai-connections'));}
 export function removeConnection(provider:AIProvider){void deleteProviderResourceCredentials(provider);window.dispatchEvent(new Event('onrivi:ai-connections'));}
 export function selectedConnection():{provider:AIProvider;model:string}{try{const v=JSON.parse(storage.getItem(selectedKey())||'{}');return {provider:['google','openai','anthropic'].includes(v?.provider)?v.provider:'google',model:typeof v?.model==='string'?v.model:''};}catch{return {provider:'google',model:''};}}
 export function selectConnection(provider:AIProvider,model:string){storage.setItem(selectedKey(),JSON.stringify({provider,model}));window.dispatchEvent(new Event('onrivi:ai-connections'));}
 export async function configureAI(scope:string,provider:AIProvider,key:string,remember=true,remove=false){
   const cleanKey=key.trim();
-  if(api()?.inlineAIKey){
-    await api().inlineAIKey({scope,provider,key:cleanKey,remember:true,remove});
-  }
   if(remove){
     memoryKeys.delete(scope+':'+provider);
     await deleteProviderResourceCredentials(provider);
     purgeLocalStorageAICredentials();
   }else if(cleanKey){
+    const saved = await saveProviderResourceCredentials(provider, { apiKey: cleanKey });
+    if (!saved.success) throw new Error('AI 키를 저장하지 못했습니다. 리소스 폴더 연결을 확인해 주세요.');
     memoryKeys.set(scope+':'+provider,cleanKey);
-    await saveProviderResourceCredentials(provider, { apiKey: cleanKey });
     purgeLocalStorageAICredentials();
+  }
+  if(api()?.inlineAIKey){
+    await api().inlineAIKey({scope,provider,key:cleanKey,remember:true,remove});
   }
   window.dispatchEvent(new Event('onrivi:ai-connections'));
 }

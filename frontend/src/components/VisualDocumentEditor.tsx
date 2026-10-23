@@ -1,6 +1,10 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
+ * 🚨 @PATCH : **2026-10-22** — [구분선(HR) 선택 상태에서 Enter 시 구분선 아래 새 문단 생성]:
+ *             1) openParagraphAfterHorizontalRule 신설: 구분선 NodeSelection에서 Enter 입력 시 구분선 앞이 아닌 바로 아래에 빈 문단을 생성(기존 빈 문단은 재사용)하고 커서를 이동하여 즉시 새 문단 타이핑 지원
+ * 🚨 @PATCH : **2026-10-22** — [문서링크(DocLinkPicker) 선택 텍스트 연동 및 링크명 수정 지원]:
+ *             1) onDocLinkDialog 호출 시 선택 텍스트(initialSelectedText)를 전달하여 문서링크 팝업에서 앞의 링크명을 즉시 수정/적용할 수 있도록 연동
  * 🚨 @PATCH : **2026-10-21** — [문서보기(VisualDocumentEditor) 서명/발신인(SIGNATURE) 네이티브 지원 및 양방향 연동]:
  *             1) 문서보기 위지윅 에디터에서 플로팅 툴바 '서명/발신인' 버튼(Signature 아이콘), 단축키(Ctrl+Alt+R), 슬래시 커맨드(/sign, /서명, /사인) 실행 시 마크다운 전환 없이 즉시 실행
  *             2) 선택 텍스트가 있을 시 줄바꿈(공백 2개) 보존 <div align="left">...</div> 감싸기 및 기존 서명 블록 토글 해제(Unwrap) 지원
@@ -173,6 +177,8 @@
  *             2) 사용자가 기존 문단에서 오타나 이전 변환으로 '# #2장'처럼 해시가 본문에 박힌 경우에도 제목 2 클릭 시 정상적인 H2 제목으로 변환 보장
  */
 'use client';
+import { removeEmptySignatureBlocks } from '@/lib/signatureCleanup';
+import { clearMarkdownFormatting } from '@/lib/clearMarkdownFormatting';
 import { hasHeadingNumber, numberHeadingTransaction, type HeadingNumberSetting } from '@/lib/headingNumbering';
 import { nextReportNumber } from '@/lib/aiFriendlyReport';
 
@@ -419,7 +425,7 @@ const exitQuote=(emptyOnly=false):Command=>(state,dispatch)=>{
   }
   return true;
 };
-const ATOM_BLOCK_TYPES = new Set(['visual_image', 'visual_media', 'visual_math', 'source_block', 'horizontal_rule','page_break']);
+const ATOM_BLOCK_TYPES = new Set(['visual_image', 'visual_media', 'visual_math', 'source_block', 'page_break']);
 const insertPageBreak:Command=(state,dispatch,view)=>{
   const {$from,$to}=state.selection;
   if(!state.selection.empty || $from.depth>1 || $to.depth>1 || view?.dom.closest('[data-book-text]'))return false;
@@ -472,26 +478,29 @@ const exitMediaBlock = (requireSelected = false): Command => (state, dispatch, c
   }
   return true;
 };
+// Navigating to a rule must never insert paragraphs or create an undo entry.
 function placeCursorBeforeHorizontalRule(currentView: EditorView, hrPos: number): boolean {
   if (!currentView.editable) return false;
   const { state } = currentView;
+  if (state.doc.nodeAt(hrPos)?.type !== visualSchema.nodes.horizontal_rule) return false;
+  const selection = Selection.near(state.doc.resolve(hrPos), -1);
+  currentView.dispatch(state.tr.setSelection(selection).scrollIntoView());
+  currentView.focus();
+  return true;
+}
+// Enter on a selected rule opens a new paragraph below it (reuses an existing empty one).
+function openParagraphAfterHorizontalRule(currentView: EditorView, hrPos: number): boolean {
+  if (!currentView.editable) return false;
+  const { state } = currentView;
   const hrNode = state.doc.nodeAt(hrPos);
-  if (!hrNode || hrNode.type !== visualSchema.nodes.horizontal_rule) return false;
-  const $hr = state.doc.resolve(hrPos);
-  const nodeBefore = $hr.nodeBefore;
+  if (hrNode?.type !== visualSchema.nodes.horizontal_rule) return false;
+  const end = hrPos + hrNode.nodeSize;
   let tr = state.tr;
-  let targetPos: number;
-  if (nodeBefore && nodeBefore.type === visualSchema.nodes.paragraph && nodeBefore.content.size === 0) {
-    targetPos = hrPos - 1;
-  } else {
-    tr = tr.insert(hrPos, visualSchema.nodes.paragraph.create());
-    targetPos = hrPos + 1;
+  const next = tr.doc.nodeAt(end);
+  if (!(next?.type === visualSchema.nodes.paragraph && next.content.size === 0)) {
+    tr = tr.insert(end, visualSchema.nodes.paragraph.create());
   }
-  const mappedHrAfter = tr.mapping.map(hrPos + hrNode.nodeSize);
-  if (mappedHrAfter === tr.doc.content.size) {
-    tr = tr.insert(mappedHrAfter, visualSchema.nodes.paragraph.create());
-  }
-  tr = tr.setSelection(TextSelection.create(tr.doc, targetPos));
+  tr = tr.setSelection(TextSelection.create(tr.doc, end + 1));
   currentView.dispatch(closeHistory(tr).scrollIntoView());
   currentView.focus();
   return true;
@@ -833,7 +842,7 @@ type Props = { content: string; onChange: (markdown: string) => void; readOnly?:
   onImageFile?: (file: Blob) => Promise<string | null>;
   onMediaDialog?: (kind: MediaKind, source: string | null, insert: (code: string) => boolean) => void;
   onImageDialog?: (source: string | null, insert: (path: string, alt: string) => boolean) => void;
-  onDocLinkDialog?: (position: { top: number; left: number }, insert: (targetUrl: string, displayTitle: string) => boolean) => void;
+  onDocLinkDialog?: (position: { top: number; left: number }, insert: (targetUrl: string, displayTitle: string) => boolean, initialSelectedText?: string) => void;
   onFormulaDialog?: (apply: (formula: string) => boolean | void, initialLatex?: string) => void;
   currentFilePath?: string;
   onFileOpen?: (filePath: string, heading?: string) => void;
@@ -2224,6 +2233,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         } catch { return false; }
       },
       dispatchTransaction(transaction) {
+        removeEmptySignatureBlocks(transaction);
         const formats = headingFormatsRef.current;
         if (!formats.readOnly && !view.composing && (transaction.docChanged || transaction.getMeta('onrivi:heading-numbering'))) {
           numberHeadingTransaction(transaction, formats.current, formats.previous);
@@ -2299,7 +2309,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         if (currentView.state.selection instanceof NodeSelection && currentView.state.selection.node.type === visualSchema.nodes.horizontal_rule) {
           if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey) {
             event.preventDefault();
-            placeCursorBeforeHorizontalRule(currentView, currentView.state.selection.from);
+            openParagraphAfterHorizontalRule(currentView, currentView.state.selection.from);
             caretRef.current?.schedule();
             return true;
           }
@@ -3001,6 +3011,27 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     dateTargetRef.current = null;
   };
   const clear: Command = (state, dispatch, view) => {
+    // Raw HTML containers are retained as source blocks by the visual codec.
+    // Unwrap them before clearing marks, so <div> does not survive in Markdown.
+    const sourceBlocks: Array<{pos: number; size: number; source: string}> = [];
+    state.doc.nodesBetween(state.selection.from, state.selection.to, (node, pos) => {
+      if (node.type === visualSchema.nodes.source_block) {
+        sourceBlocks.push({pos, size: node.nodeSize, source: node.attrs.source || ''});
+        return false;
+      }
+    });
+    if (sourceBlocks.length) {
+      const tr = state.tr;
+      for (const block of sourceBlocks.reverse()) {
+        tr.replaceWith(block.pos, block.pos + block.size, createVisualDocumentCodec(clearMarkdownFormatting(block.source)).doc.content);
+      }
+      const from = tr.mapping.map(state.selection.from);
+      const to = tr.mapping.map(state.selection.to);
+      tr.removeMark(from, to).setStoredMarks([]);
+      tr.setBlockType(from, to, visualSchema.nodes.paragraph);
+      dispatch?.(closeHistory(tr));
+      return true;
+    }
     if(selectedList('clear')(state,dispatch,view))return true;
     const { from, to, $from } = state.selection;
     const transaction = state.tr.removeMark(state.selection.empty ? $from.start() : from,
@@ -3273,6 +3304,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         slashRange.current = null;
         setSlash(false);
       }
+      const initialSelectedText = from < to ? view.state.doc.textBetween(from, to, ' ').trim() : '';
       images.current.onDocLinkDialog(
         { top: Math.max(8, Math.min(window.innerHeight - 150, rect.bottom + 6)), left: Math.max(8, Math.min(window.innerWidth - 440, rect.left)) },
         (targetUrl: string, displayTitle: string) => {
@@ -3285,7 +3317,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           view.dispatch(closeHistory(tr).scrollIntoView());
           view.focus();
           return true;
-        }
+        },
+        initialSelectedText
       );
       return;
     }

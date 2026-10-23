@@ -90,7 +90,7 @@ assert.ok(changed.endsWith('[ref]: https://example.com\n'));
 assert.equal(visualSchema.nodes.source_block.spec.atom, true);
 console.log('PASS: exact source preservation, metadata, opaque blocks, targeted paragraph edits');
 const helpPath=path.join(frontend,'public/help/HELP-01_온리비_어서_소개와_시작하기.md');
-const helpSource=fs.readFileSync(helpPath,'utf8').replace(/\r\n/g,'\n')+'\n\n'+[
+const helpSource=fs.readFileSync(helpPath,'utf8').replace(/\r\n/g,'\n').trimEnd()+'\n\n'+[
   '## Regression examples',
   '| Name | Value |', '| :--- | ---: |', '| a | 1 |', '| b | 2 |', '| c | 3 |', '| d | 4 |', '',
   '```text', 'a long code line', '```', '', '```javascript', 'const value = 1;', '```', '',
@@ -224,7 +224,10 @@ async function visual() {
     createRoot(document.getElementById('root')).render(React.createElement(App));
   `);
   const webpack = req('webpack');
-  const focusedAliases = { '@/lib/headingNumbering':path.join(dir,'headingNumbering.js'), '../visualDocumentCodec':path.join(dir,'codec.js'), '@/utils/markdownCleaner':path.join(dir,'markdownCleaner.js'), '@/lib/aiFriendlyReport':path.join(dir,'aiFriendlyReport.js'), '@/components/DocumentPageGuides':path.join(dir,'pageGuides.js'), '@/lib/pageGeometry':path.join(dir,'pageGeometry.js'), '../constants/paperSizes':path.join(dir,'paperSizes.js'), '@/lib/browserAccountStorage':path.join(dir,'accountStorage.js'), '@/lib/bibliography':path.join(dir,'bibliography.js'), '@/components/BibliographySummary':path.join(dir,'bibliographySummary.js'), '@/lib/bulletNumberText':path.join(dir,'bulletNumberText.js'), ...(process.argv.some(arg=>['--current-help-only','--heading-space-only','--report-numbering-only','--report-table-only','--inline-ai-only','--image-resize-only','--page-break-only','--list-enter-only','--list-indentation-only','--typing-scroll-only','--spacing-emphasis-only','--list-markers-only','--image-drops-only'].includes(arg)) ? {
+  fs.writeFileSync(path.join(dir,'clearFormatting.js'),compile(path.join(frontend,'src/lib/clearMarkdownFormatting.ts')));
+  fs.writeFileSync(path.join(dir,'modalEscape.js'),compile(path.join(frontend,'src/hooks/useModalEscape.ts')));
+  fs.writeFileSync(path.join(dir,'signatureCleanup.js'),compile(path.join(frontend,'src/lib/signatureCleanup.ts')));
+  const focusedAliases = { '@/lib/signatureCleanup':path.join(dir,'signatureCleanup.js'), '@/lib/clearMarkdownFormatting':path.join(dir,'clearFormatting.js'), '@/hooks/useModalEscape':path.join(dir,'modalEscape.js'), '@/lib/headingNumbering':path.join(dir,'headingNumbering.js'), '../visualDocumentCodec':path.join(dir,'codec.js'), '@/utils/markdownCleaner':path.join(dir,'markdownCleaner.js'), '@/lib/aiFriendlyReport':path.join(dir,'aiFriendlyReport.js'), '@/components/DocumentPageGuides':path.join(dir,'pageGuides.js'), '@/lib/pageGeometry':path.join(dir,'pageGeometry.js'), '../constants/paperSizes':path.join(dir,'paperSizes.js'), '@/lib/browserAccountStorage':path.join(dir,'accountStorage.js'), '@/lib/bibliography':path.join(dir,'bibliography.js'), '@/components/BibliographySummary':path.join(dir,'bibliographySummary.js'), '@/lib/bulletNumberText':path.join(dir,'bulletNumberText.js'), ...(process.argv.some(arg=>['--editor-fixes-only','--current-help-only','--heading-space-only','--report-numbering-only','--report-table-only','--inline-ai-only','--image-resize-only','--page-break-only','--list-enter-only','--list-indentation-only','--typing-scroll-only','--spacing-emphasis-only','--list-markers-only','--image-drops-only'].includes(arg)) ? {
     '@/lib/footnoteOrganizer': path.join(dir, 'footnoteOrganizer.js'),
     '@/lib/resourceMedia': path.join(dir, 'resourceMedia.js'),
     './resourceSettings':path.join(dir,'dropStorageStubs.js'),
@@ -253,6 +256,56 @@ async function visual() {
     page.on('pageerror', error => { errors.push(error.message); console.error('Browser error:',error.message); });
     await page.goto('file:///' + path.join(dir, 'index.html').replace(/\\/g, '/'));
     const surface = page.locator('.visual-document-surface');
+    if(process.argv.includes('--editor-fixes-only')) {
+      await surface.waitFor();
+      const source = '앞 문단\n\n---\n\n뒤 문단\n';
+      await page.evaluate(value=>window.setTestSource(value),source);
+      await surface.locator('hr').waitFor();
+      for(let n=0;n<3;n++) {
+        await surface.locator('hr').click();
+        await page.keyboard.press('ArrowDown');
+        await page.keyboard.press('ArrowUp');
+      }
+      assert.equal(await page.locator('#source').inputValue(),source,'rule navigation must not insert blank paragraphs');
+      await page.evaluate(()=>window.qaEditorCommand('TABLE'));
+      await page.getByRole('button',{name:/표 삽입하기/}).waitFor();
+      await page.locator('input').first().focus();
+      await page.keyboard.press('Escape');
+      assert.equal(await page.getByRole('button',{name:/표 삽입하기/}).count(),0,'Escape closes the visual editor table dialog from its input');
+      assert.equal(await page.locator('#source').inputValue(),source);
+      const html='<div align="right">\n\n**서식 본문**\n\n</div>\n';
+      await page.evaluate(value=>window.setTestSource(value),html);
+      await surface.locator('.visual-source-block').first().waitFor();
+      await page.evaluate(()=>window.qaView.focus());
+      await page.keyboard.press('Control+a');
+      await page.evaluate(()=>{
+        const v=window.qaView;
+        window.qaEditorCommand('REMOVE_PREFIX');
+      });
+      await page.waitForFunction(()=>!/<\/?div\b/i.test(document.querySelector('#source').value),null,{timeout:3000}).catch(async error=>{console.error(await page.evaluate(()=>({doc:window.qaView.state.doc.toString(),selection:window.qaView.state.selection.toJSON()})));throw error;});
+      const cleared=await page.locator('#source').inputValue();
+      assert.ok(!/<\/?div\b/i.test(cleared),cleared);
+      assert.ok(cleared.includes('서식 본문'),cleared);
+      await page.locator('#source').focus();
+      await page.evaluate(value=>window.setTestSource(value), '앞 문단\n\n<div align="left">\n\n2026년 10월 22일  \n**작성자: 홍길동** 인\n\n</div>\n\n뒤 문단\n');
+      await page.waitForFunction(()=>document.querySelector('#source').value.includes('홍길동'));
+      await surface.locator('.visual-source-block').first().waitFor({timeout:3000}).catch(async error=>{console.error(await page.evaluate(()=>({doc:window.qaView.state.doc.toString(),source:document.querySelector('#source').value})));throw error;});
+      await page.evaluate(()=>{
+        const v=window.qaView;let first,last;
+        v.state.doc.forEach((node,pos)=>{if(node.type.name==='paragraph' && node.textContent.includes('2026'))first=pos;if(node.type.name==='paragraph' && node.textContent.includes('작성자'))last=pos+node.nodeSize;});
+        if(first===undefined || last===undefined)throw Error(v.state.doc.toString());
+        v.dispatch(v.state.tr.delete(first,last));
+      });
+      await page.waitForFunction(()=>!document.querySelector('#source').value.includes('<div'));
+      const deleted=await page.locator('#source').inputValue();
+      assert.ok(deleted.includes('앞 문단') && deleted.includes('뒤 문단'));
+      await page.evaluate(()=>window.qaEditorCommand('UNDO'));
+      await page.waitForFunction(()=>document.querySelector('#source').value.includes('홍길동') && document.querySelector('#source').value.includes('<div'));
+      assert.deepEqual(errors,[]);
+      console.log('PASS: signature deletion removes both div tags in one undoable edit');
+      console.log('PASS: horizontal rule navigation preserves source, table Escape works from input, visual clear removes div wrappers');
+      return;
+    }
     if(process.argv.includes('--image-resize-only')){
       await surface.waitFor();
       await page.evaluate(()=>window.setTestSource('앞 제목\n\n![](/media/picture.png)\n\n아래 본문 유지\n\n### 다음 제목\n\n다음 설명\n\n![](/media/second.png)\n\n마지막 본문'));
@@ -678,7 +731,8 @@ async function visual() {
         await surface.locator('li p').first().click();await page.keyboard.press('Control+a');await page.keyboard.press('Control+Shift+0');
         await page.waitForFunction(()=>document.querySelectorAll('.visual-document-surface > p').length===4);
         assert.equal(await surface.locator('ol,ul,input[type="checkbox"]').count(),0);
-        const cleared=await page.locator('#source').inputValue();
+        await page.waitForFunction(()=>!/<\/?div\b/i.test(document.querySelector('#source').value),null,{timeout:3000}).catch(async error=>{console.error(await page.evaluate(()=>({doc:window.qaView.state.doc.toString(),selection:window.qaView.state.selection.toJSON()})));throw error;});
+      const cleared=await page.locator('#source').inputValue();
         for(let number=1;number<=4;number++)assert.ok(cleared.includes(number+'\\. '),cleared);
         await page.evaluate(value=>window.setTestSource(value+'\n'),cleared);
         await page.waitForFunction(()=>document.querySelectorAll('.visual-document-surface > p').length===4);
@@ -1142,7 +1196,7 @@ async function visual() {
     assert.equal(await surface.locator('.visual-code-block code').first().getAttribute('spellcheck'),'false');
     assert.ok(await surface.locator('.visual-readonly-callout, blockquote[data-alert-type]').count()>=2);
     const helpLinks=await surface.locator('a').evaluateAll(links=>links.map(link=>decodeURI(link.getAttribute('href')||'')));
-    assert.ok(helpLinks.filter(href=>href==='/help/00_시작하기.md').length>=1);
+    assert.ok(helpLinks.filter(href=>href==='./00_시작하기.md').length>=1);
     await page.keyboard.press('Control+z');
     await page.waitForFunction(source=>document.querySelector('#source').value===source,initialSource);
     await page.keyboard.press('Control+y');
