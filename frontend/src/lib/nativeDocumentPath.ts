@@ -1,4 +1,29 @@
 // Relative document names are meaningful only inside a connected native workspace.
+export function resolveDocumentLink(target: string, currentFile?: string): string {
+  let link = target.replace(/\\/g, '/');
+  try { link = decodeURIComponent(link); } catch {}
+  if (link.startsWith('file:///')) return link.slice(8);
+  if (/^(?:[a-z]:\/|\/|https?:|knowledge:)/i.test(link) || !currentFile) return link;
+  const base = currentFile.replace(/\\/g, '/').split('/').slice(0, -1);
+  const relative = link.replace(/^\.\//, '').split('/');
+  // Some older document links contain their workspace folder prefix already.
+  // Do not append that prefix to the same folder a second time.
+  let overlap = 0;
+  if (!link.startsWith('../')) {
+    for (let count = 2; count <= Math.min(base.length, relative.length - 1); count++) {
+      if (base.slice(-count).join('/').toLowerCase() === relative.slice(0, count).join('/').toLowerCase()) overlap = count;
+    }
+  }
+  const parts = [...base, ...relative.slice(overlap)];
+  const result: string[] = [];
+  for (const part of parts) {
+    if (part === '.') continue;
+    if (part === '..' && result.length && result[result.length - 1] !== '..') result.pop();
+    else result.push(part);
+  }
+  return result.join('/');
+}
+
 export function resolveNativeDocumentPath(filePath: string, root?: { name?: string; path?: string; type?: string } | null): string | null {
   if (root?.type === 'GDRIVE') return null;
   let value = filePath.normalize('NFC');

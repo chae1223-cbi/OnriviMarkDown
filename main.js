@@ -3807,10 +3807,13 @@ ipcMain.handle('dialog:openFontPicker', async () => {
 });
 
 // 15. Windows/macOS 네이티브 시스템 이모지 피커 호출 핸들러
-ipcMain.handle('system:showEmojiPicker', () => {
+ipcMain.handle('system:showEmojiPicker', async () => {
   try {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.focus();
+    }
+    if (process.platform === 'win32') {
+      return await require('./desktopEmojiPicker.cjs').showWindowsEmojiPicker();
     }
     if (typeof app.showEmojiPanel === 'function') {
       app.showEmojiPanel();

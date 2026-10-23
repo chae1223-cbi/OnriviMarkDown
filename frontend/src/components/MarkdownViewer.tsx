@@ -1,3 +1,4 @@
+import { resolveDocumentLink } from '@/lib/nativeDocumentPath';
 import { hasHeadingNumber, headingNodeText } from '@/lib/headingNumbering';
 import { rehypeBibliography } from '@/lib/bibliography';
 import BibliographySummary from '@/components/BibliographySummary';
@@ -3179,7 +3180,7 @@ function MarkdownViewer({
                 if (cleanHref.startsWith('file:///')) {
                   resolved = decodeURIComponent(cleanHref.replace(/^file:\/\/\//, ''));
                 } else {
-                  resolved = resolveRelativeImagePath(cleanHref, dynamicPropsRef.current.currentFilePath);
+                  resolved = resolveDocumentLink(cleanHref, dynamicPropsRef.current.currentFilePath);
                 }
 
                 const folderName = cleanHref.replace(/\/+$/, '').split(/[/\\]/).filter(Boolean).pop() || '폴더';
@@ -3284,7 +3285,7 @@ function MarkdownViewer({
                     if (cleanHref.startsWith('file:///')) {
                       if (!guard.resolvedPath) resolved = decodeURIComponent(cleanHref.replace(/^file:\/\/\//, ''));
                     } else if (!guard.resolvedPath) {
-                      resolved = resolveRelativeImagePath(cleanHref, dynamicPropsRef.current.currentFilePath);
+                      resolved = resolveDocumentLink(cleanHref, dynamicPropsRef.current.currentFilePath);
                     }
                     
                     const normalizePath = (p: string | undefined) => (p || '').replace(/\\/g, '/').toLowerCase().normalize('NFC').trim();

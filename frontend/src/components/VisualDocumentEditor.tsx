@@ -177,6 +177,7 @@
  *             2) 사용자가 기존 문단에서 오타나 이전 변환으로 '# #2장'처럼 해시가 본문에 박힌 경우에도 제목 2 클릭 시 정상적인 H2 제목으로 변환 보장
  */
 'use client';
+import { resolveDocumentLink } from '@/lib/nativeDocumentPath';
 import { removeEmptySignatureBlocks } from '@/lib/signatureCleanup';
 import { clearMarkdownFormatting } from '@/lib/clearMarkdownFormatting';
 import { hasHeadingNumber, numberHeadingTransaction, type HeadingNumberSetting } from '@/lib/headingNumbering';
@@ -802,25 +803,7 @@ function resolveDropInsertPos(currentView: EditorView, clientX: number, clientY:
 }
 
 function resolveDocPath(relPath: string, currentFile: string): string {
-  if (!relPath || relPath.startsWith('http://') || relPath.startsWith('https://')) return relPath;
-  let normRel = relPath.replace(/\\/g, '/');
-  if (normRel.startsWith('file:///')) normRel = normRel.replace(/^file:\/\/\//, '');
-  if (/^[a-zA-Z]:\//.test(normRel) || normRel.startsWith('/')) return normRel;
-  const normCurrent = currentFile.replace(/\\/g, '/');
-  const lastSlash = normCurrent.lastIndexOf('/');
-  const baseFolder = lastSlash !== -1 ? normCurrent.substring(0, lastSlash) : '';
-  if (normRel.startsWith('./')) normRel = normRel.substring(2);
-  const segments = (baseFolder ? baseFolder.split('/') : []).concat(normRel.split('/'));
-  const resolvedSegments: string[] = [];
-  for (const seg of segments) {
-    if (seg === '.' || seg === '') continue;
-    if (seg === '..') {
-      if (resolvedSegments.length) resolvedSegments.pop();
-    } else {
-      resolvedSegments.push(seg);
-    }
-  }
-  return resolvedSegments.join('/');
+  return resolveDocumentLink(relPath, currentFile);
 }
 
 type Codec = ReturnType<typeof createVisualDocumentCodec>;

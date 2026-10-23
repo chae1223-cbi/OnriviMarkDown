@@ -2,8 +2,8 @@ const fs = require('node:fs'), path = require('node:path'), assert = require('no
 const req = require('node:module').createRequire(path.resolve('frontend/package.json'));
 const ts = req('typescript');
 const compile = source => ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
-const load = source => { const exports = {}; Function('exports', compile(source))(exports); return exports; };
-const native = load(fs.readFileSync('frontend/src/lib/nativeDocumentPath.ts', 'utf8'));
+const load = source => { const exports = {}; Function('exports', 'resolveDocumentLink', compile(source))(exports, typeof native !== 'undefined' ? native.resolveDocumentLink : undefined); return exports; };
+const native = {}; Function('exports', compile(fs.readFileSync('frontend/src/lib/nativeDocumentPath.ts', 'utf8')))(native);
 const workspace = 'D:/Developer/OnriviMarkDown/OnriviMarkDown';
 const current = `${workspace}/frontend/public/help/HELP-01_온리비_어서_소개와_시작하기.md`;
 const expected = `${workspace}/frontend/public/help/00_시작하기.md`;
@@ -24,6 +24,13 @@ const visualSource = extract('frontend/src/components/VisualDocumentEditor.tsx',
 const visual = load(visualSource + '\nexports.resolve=resolveDocPath;');
 assert.equal(markdown.resolve('./00_시작하기.md', current), expected);
 assert.equal(visual.resolve('./00_시작하기.md', current), expected);
+for (const from of ['frontend/public/help/00_시작하기.md',current]) {
+  const target='frontend/public/help/HELP-01_온리비_어서_소개와_시작하기.md';
+  const resolved=native.resolveDocumentLink(target,from);
+  assert.equal((resolved.match(/frontend\/public\/help/g)||[]).length,1,resolved);
+  assert.equal(native.resolveDocumentLink('./'+target,from),resolved);
+}
+
 
 const main = fs.readFileSync('main.js', 'utf8'), tree = ts.createSourceFile('main.js', main, 99, true);
 function handler(name) {
