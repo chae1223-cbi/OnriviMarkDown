@@ -49,7 +49,8 @@ export default function Toolbar({ documentEditing = false }: { documentEditing?:
           <button
             onMouseDown={(e) => { e.preventDefault(); dispatch('TOGGLE_EMOJI_PANEL'); }}
             className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-zinc-500 dark:text-zinc-400 transition-all"
-            title="OS 이모지 입력기 (Windows: Win + . / macOS: Control + Command + Space)"
+            title="이모지"
+            aria-label="이모지 패널 열기"
           >
             <Icon name="Smile" size={20} className="text-zinc-500 dark:text-zinc-400" />
           </button>

@@ -17,6 +17,14 @@ const bulletExports = {};
 vm.runInNewContext(compile(path.join(frontend,'src/lib/bulletNumberText.ts')), {exports:bulletExports,require:req});
 vm.runInNewContext(compile(path.join(frontend, 'src/lib/visualDocumentCodec.ts')), { exports: exportsObject, require: name => name === './bulletNumberText' ? bulletExports : name === './mediaMarkup' ? mediaExports : req(name) });
 const { createVisualDocumentCodec, visualSchema } = exportsObject;
+for (const href of ['./00_시작하기.md','./폴더 이름/문서 (초안).md#제목','./00_%EC%8B%9C%EC%9E%91%ED%95%98%EA%B8%B0.md']) {
+  const linkDoc=visualSchema.nodes.doc.create(null,visualSchema.nodes.paragraph.create(null,visualSchema.text('도움말 전체 목차',[visualSchema.marks.link.create({href})])));
+  const markdown=exportsObject.visualSerializer.serialize(linkDoc);
+  assert.ok(!markdown.includes('%EC'),'Korean document paths should remain readable');
+  assert.match(markdown,/\]\(<\.\//);
+  const parsed=createVisualDocumentCodec(markdown).doc.firstChild.firstChild;
+  assert.equal(decodeURI(parsed.marks.find(mark=>mark.type.name==='link').attrs.href),decodeURI(href));
+}
 const multilineTable = createVisualDocumentCodec('| A |\n|---|\n| first<br>second |\n');
 assert.equal(multilineTable.doc.firstChild.type.name, 'table');
 assert.equal(multilineTable.doc.firstChild.child(1).firstChild.firstChild.child(1).type.name, 'hard_break');
@@ -24,6 +32,21 @@ const serializedTable = exportsObject.visualSerializer.serialize(multilineTable.
 assert.match(serializedTable, /first<br>second/);
 assert.equal(createVisualDocumentCodec(serializedTable).doc.firstChild.child(1).firstChild.firstChild.child(1).type.name, 'hard_break');
 const mainSource=fs.readFileSync(path.join(frontend,'src/components/MainEditorApp.tsx'),'utf8');
+const mainTree=ts.createSourceFile('main.tsx',mainSource,99,true,ts.ScriptKind.TSX);
+let docLinkSelect;
+function findDocLinkSelect(node){if(ts.isVariableDeclaration(node)&&node.name.getText(mainTree)==='handleDocLinkSelect')docLinkSelect=node.initializer.getText(mainTree);ts.forEachChild(node,findDocLinkSelect);}
+findDocLinkSelect(mainTree);assert.ok(docLinkSelect);
+let insertedLink;
+const linkRef={current:(href,title)=>{insertedLink={href,title};return true;}};
+const selectExports={};
+vm.runInNewContext(ts.transpileModule('exports.select='+docLinkSelect,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{
+  exports:selectExports,visualDocLinkInsertRef:linkRef,docLinkCustomTitle:'도움말 전체 목차',
+  closeDocLinkPicker:()=>{linkRef.current=null;},buildDocLinkTarget:()=>'./00_시작하기.md',getDocLinkDefaultLabel:()=>'',
+  editorRef:{get current(){throw Error('Visual document links must not fall through to the hidden source editor');}},
+});
+selectExports.select({path:'frontend/public/help/00_시작하기.md'});
+assert.deepEqual(insertedLink,{href:'./00_시작하기.md',title:'도움말 전체 목차'});
+console.log('PASS: doclink selection survives picker cleanup and Korean document URLs round-trip readably');
 const wheelStart=mainSource.indexOf('const handlePreviewWheel = useCallback');
 const wheelEnd=mainSource.indexOf('  }, []);',wheelStart)+'  }, []);'.length;
 const wheelExports={};

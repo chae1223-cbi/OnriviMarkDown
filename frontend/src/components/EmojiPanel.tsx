@@ -404,7 +404,7 @@ interface EmojiPanelProps {
 }
 
 export default function EmojiPanel({ onClose, onInsert, isToolbarOpen: propIsToolbarOpen }: EmojiPanelProps) {
-  const { showToast, isToolbarOpen: contextIsToolbarOpen } = useEditorContext();
+  const { isToolbarOpen: contextIsToolbarOpen } = useEditorContext();
   const isToolbarOpen = propIsToolbarOpen ?? contextIsToolbarOpen ?? true;
   const [activeCategory, setActiveCategory] = useState<string>('work');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -444,11 +444,6 @@ export default function EmojiPanel({ onClose, onInsert, isToolbarOpen: propIsToo
       window.dispatchEvent(new CustomEvent('app:insert-at-cursor', { detail: char }));
     }
 
-    // B. 클립보드 복사 백업
-    if (navigator?.clipboard?.writeText) {
-      navigator.clipboard.writeText(char).catch(() => {});
-    }
-
     // C. 최근 사용 목록 맨 앞 추가
     setRecentEmojis(prev => {
       const next = [char, ...prev.filter(e => e !== char)].slice(0, 24);
@@ -461,8 +456,7 @@ export default function EmojiPanel({ onClose, onInsert, isToolbarOpen: propIsToo
     // D. 시각적 클릭 피드백
     setCopiedEmoji(char);
     setTimeout(() => setCopiedEmoji(null), 1000);
-    showToast?.(`'${char}' 이모지가 본문에 삽입되었습니다.`, 'success');
-  }, [onInsert, showToast]);
+  }, [onInsert]);
 
   // 3. 실시간 검색 필터링
   const searchResults = useMemo(() => {

@@ -23,6 +23,8 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 require('./build-preflight')();
 const path = require('path');
+// Blog snapshot generation runs before Next.js loads the local build environment.
+require('dotenv').config({ path: path.join(__dirname, '.env.local'), override: false, quiet: true });
 
 const APP_DIR = path.join(__dirname, 'src', 'app');
 const API_DIR = path.join(APP_DIR, 'api');
@@ -102,6 +104,10 @@ try {
   }
   if (fs.existsSync(outputDir)) fs.rmSync(outputDir, { recursive: true, force: true });
   fs.cpSync(exportedDir, outputDir, { recursive: true });
+  fs.writeFileSync(path.join(outputDir, 'build-info.json'), JSON.stringify({
+    version: require('../package.json').version, target: 'web', builtAt: new Date().toISOString(),
+    fixes: ['document-link-path-resolution-v2', 'os-emoji-shortcut-guide'],
+  }, null, 2));
   buildSuccess = true;
 } catch (err) {
   console.error('[web-build] 빌드 실패:', err.message);

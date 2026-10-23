@@ -468,6 +468,7 @@ import { ONRIVI_AI_MODELS, DEFAULT_AI_MODEL, getCachedAIModels, normalizeAIModel
 // 분리된 컴포넌트들 임포트
 import MenuBar from '@/components/MenuBar'; // 메뉴바
 import Toolbar from '@/components/Toolbar'; // 툴바
+import EmojiPanel from '@/components/EmojiPanel';
 import { Icon } from '@/components/icons/Icon';
 
 import StatusBar from '@/components/StatusBar'; // 상태바
@@ -981,6 +982,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     };
   }, []);
   const [mounted, setMounted] = useState(false);  // @mounted : mounted state 
+  const [isEmojiPanelOpen, setIsEmojiPanelOpen] = useState(false);
+  const emojiTargetRef = useRef<{ tabId: string | null; visual: boolean; selection: any } | null>(null);
   const [content, setContent] = useState('');   // @content : content state 
   // 💡 [React 18 동시성 렌더링] 180ms 지연 타이머 깜빡임을 제거하고 useDeferredValue로 부드러운 무깜빡임 실시간 렌더링
   const previewContent = useDeferredValue(content);
@@ -5591,6 +5594,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const handleDocLinkSelect = (targetNode: FileNode, heading?: string, customTitle?: string) => {
     const titleToUse = customTitle !== undefined ? customTitle : docLinkCustomTitle;
+    // Closing the picker clears its refs. Capture the visual insertion callback first.
+    const insertVisualLink = visualDocLinkInsertRef.current;
     closeDocLinkPicker();
 
     if (!targetNode || !targetNode.path) return;
@@ -5603,11 +5608,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const textToInsert = `[${displayTitle}](<${targetUrl}>)`;
 
     // 💡 [VisualDocumentEditor 위지윅 모드 문서 링크 삽입 지원]
-    if (visualDocLinkInsertRef.current) {
-      const inserted = visualDocLinkInsertRef.current(targetUrl, displayTitle);
-      visualDocLinkInsertRef.current = null;
-      visualDocLinkPositionRef.current = null;
-      if (inserted) return;
+    if (insertVisualLink) {
+      insertVisualLink(targetUrl, displayTitle);
+      return;
     }
 
     if (!editorRef.current) return;
@@ -8263,17 +8266,12 @@ blockquote li p {
       }
       case 'TOGGLE_EMOJI_PANEL': {
         const visual = previewRef.current?.querySelector('.visual-document-editor, .picturebook-scene-input');
-        if (editorRef.current?.hasTextFocus()) editorRef.current.focus();
-        else if (visual) visualCommandRef.current?.('FOCUS');
-        else editorRef.current?.focus();
-        const shortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? 'Control + Command + Space' : 'Windows 키 + . (마침표)';
-        const guide = () => showToast(`OS 이모지 입력기: 입력 위치에서 ${shortcut}를 눌러 주세요.`, 'info');
-        const electron = (window as any).electronAPI;
-        if (typeof electron?.showEmojiPicker === 'function') {
-          requestAnimationFrame(() => {
-            Promise.resolve().then(() => electron.showEmojiPicker()).then(success => { if (success !== true) guide(); }).catch(guide);
-          });
-        } else guide();
+        emojiTargetRef.current = {
+          tabId: activeTabIdRef.current,
+          visual: !!visual && !editorRef.current?.hasTextFocus(),
+          selection: editorRef.current?.getSelection(),
+        };
+        setIsEmojiPanelOpen(open => !open);
         return;
       }
       case 'AI_DRAFT': {
@@ -11260,6 +11258,29 @@ blockquote li p {
 
             </main>
 
+            {isEmojiPanelOpen && (
+              <EmojiPanel
+                onClose={() => setIsEmojiPanelOpen(false)}
+                isToolbarOpen={isToolbarOpen}
+                onInsert={emoji => {
+                  const target = emojiTargetRef.current;
+                  if (!target || target.tabId !== activeTabIdRef.current) {
+                    setIsEmojiPanelOpen(false);
+                    return;
+                  }
+                  if (target.visual) {
+                    visualCommandRef.current?.('INSERT_TEXT:' + emoji);
+                  } else {
+                    const editor = editorRef.current;
+                    if (!editor) return;
+                    if (target.selection) editor.setSelection(target.selection);
+                    editor.focus();
+                    editor.executeEdits('emoji-panel', [{ range: editor.getSelection(), text: emoji, forceMoveMarkers: true }]);
+                    target.selection = editor.getSelection();
+                  }
+                }}
+              />
+            )}
             {isToolbarOpen && (
               <div className="no-print h-full w-12 flex flex-col justify-end bg-zinc-50 dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700/60 pb-3">
                 <Toolbar documentEditing={directEditEnabled && !!activeTabId && !isRestrictedUser && currentFileName !== '도움말.md'} />

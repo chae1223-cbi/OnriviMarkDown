@@ -896,14 +896,13 @@ export function isPathInsideWorkspace(
         depth++;
       }
     }
-    return { isInside: true, resolvedPath: resolveRelativeImagePath(normTarget, currentFilePath) };
+    return { isInside: true, resolvedPath: resolveDocumentLink(normTarget, currentFilePath) };
   }
 
   // 🛑 Case C: 상대경로 (./, ../, folder/ 등)
   // 1) 데스크톱에서 currentFilePath와 normWsRoot가 모두 존재하는 경우: 물리적 완전 해석(resolve) 후 검증
   if (normWsRoot && normCurrentFile && (normCurrentFile.toLowerCase() === normWsRoot.toLowerCase() || normCurrentFile.toLowerCase().startsWith(normWsRoot.toLowerCase() + '/'))) {
-    const currentDir = normCurrentFile.substring(0, normCurrentFile.lastIndexOf('/'));
-    const combined = currentDir ? (currentDir + '/' + normTarget) : normTarget;
+    const combined = resolveDocumentLink(normTarget, currentFilePath);
 
     const segments = combined.split('/');
     const stack: string[] = [];
@@ -947,7 +946,7 @@ export function isPathInsideWorkspace(
         targetDepth++;
       }
     }
-    return { isInside: true, resolvedPath: resolveRelativeImagePath(normTarget, currentFilePath) };
+    return { isInside: true, resolvedPath: resolveDocumentLink(normTarget, currentFilePath) };
   }
 
   // currentFilePath 정보가 없는 상태에서 ..로 시작하는 상대경로인 경우
@@ -955,7 +954,7 @@ export function isPathInsideWorkspace(
     return { isInside: false, reason: outsideReason };
   }
 
-  return { isInside: true, resolvedPath: resolveRelativeImagePath(normTarget, currentFilePath) };
+  return { isInside: true, resolvedPath: resolveDocumentLink(normTarget, currentFilePath) };
 }
 
 // ====================================================================

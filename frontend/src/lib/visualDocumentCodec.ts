@@ -283,7 +283,23 @@ export const visualSerializer = new MarkdownSerializer({
   visual_inline_math(state,node){state.write(`$${(node.attrs.latex || '').trim()}$`);},
   visual_footnote_ref(state,node){state.write(`[^${node.attrs.label}]`);},
   visual_footnote_def(state,node){state.write(`[^${node.attrs.label}]: ${node.attrs.content}\n`);state.closeBlock(node);},
-},{...defaultMarkdownSerializer.marks,strike:{open:'~~',close:'~~',mixable:true,expelEnclosingWhitespace:true},underline:{open:'<u>',close:'</u>',mixable:true,expelEnclosingWhitespace:true}});
+},{...defaultMarkdownSerializer.marks,
+  link: {
+    ...defaultMarkdownSerializer.marks.link,
+    close(state, mark, parent, index) {
+      const href = String(mark.attrs.href || '');
+      if (/^(?:https?:|mailto:|tel:)/i.test(href) || !/\.(?:md|markdown)(?:[?#]|$)/i.test(href)) {
+        const close = defaultMarkdownSerializer.marks.link.close;
+        return typeof close === 'function' ? close(state,mark,parent,index) : close;
+      }
+      let readable = href;
+      try { readable = decodeURI(href); } catch {}
+      readable = readable.replace(/</g,'%3C').replace(/>/g,'%3E').replace(/\r/g,'%0D').replace(/\n/g,'%0A');
+      const title = mark.attrs.title ? ` "${String(mark.attrs.title).replace(/\\/g,'\\\\').replace(/"/g,'\\"')}"` : '';
+      return `](<${readable}>${title})`;
+    },
+  },
+  strike:{open:'~~',close:'~~',mixable:true,expelEnclosingWhitespace:true},underline:{open:'<u>',close:'</u>',mixable:true,expelEnclosingWhitespace:true}});
 
 function normalizeQuotes(node: DocumentNode): DocumentNode {
   if(node.isLeaf)return node;
