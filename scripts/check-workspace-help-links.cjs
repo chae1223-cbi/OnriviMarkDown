@@ -71,5 +71,48 @@ function ipc(name) {
   await assert.rejects(read(null, 'missing/help/00_시작하기.md'), /파일을 찾을 수 없습니다/);
   const helpCenter = await read(null, 'help/00_시작하기.md');
   assert.equal(helpCenter.content, 'installed source', 'explicit built-in Help remains available');
+  // Follow the desktop UI path through workspace validation, the actual hook,
+  // and the actual Electron read handler (with a virtual filesystem).
+  const guardCode=extract('frontend/src/components/MarkdownViewer.tsx',n=>ts.isFunctionDeclaration(n)&&n.name?.text==='isPathInsideWorkspace');
+  const guard=load(guardCode).isPathInsideWorkspace;
+  const hook=extract('frontend/src/hooks/useFileExplorer.ts',n=>ts.isVariableDeclaration(n)&&n.name.getText()==='handleFileOpenByPath');
+  let desktopOpened, currentNode;
+  const root={name:workspace,path:workspace};
+  const context={...native,window:{electronAPI:{readFromPath:target=>read(null,target)},location:{hostname:''}},
+    rootFolder:root,rootFolderRef:{current:root},workspaceType:'local',fileList:[],
+    tabsRef:{current:[{id:'source',name:path.win32.basename(current),path:current,content:'chapter'}]},activeTabIdRef:{current:'source'},currentFileNode:{path:current},helpContentRef:{current:null},
+    getExternalFileHandle:async()=>null,
+    createNewTab:(content,name,modified,target,node)=>{desktopOpened={content,path:target,node};},
+    setCurrentFileNode:node=>{currentNode=node;},setCurrentFileName:()=>{},showToast:message=>{throw Error(message);},
+  };
+  const hookExports={};
+  Function('exports',...Object.keys(context),compile(hook+'\nexports.open=handleFileOpenByPath;'))(hookExports,...Object.values(context));
+  for(const href of ['./00_시작하기.md','frontend/public/help/00_시작하기.md']){
+    const target=visual.resolve(href,current);
+    const checked=guard(target,current,workspace,path.win32.basename(workspace));
+    assert.equal(checked.isInside,true);
+    assert.equal(norm(checked.resolvedPath),norm(expected));
+    await hookExports.open(checked.resolvedPath,undefined,true);
+    assert.equal(norm(desktopOpened.path),norm(expected));
+    assert.equal(norm(currentNode.path),norm(expected));
+    assert.equal(desktopOpened.content,'edited workspace source');
+    await save(null,currentNode.path,'edited workspace source');
+  }
+  console.log('PASS: desktop visual link -> workspace guard -> file explorer -> Electron read/save uses the workspace original');
+  const outside='E:/외부 문서/00_시작하기.md';
+  files.set(norm(outside),'explicit external document');
+  const desktopGuard={};
+  Function('exports','resolveDocumentLink','window',compile(guardCode))(desktopGuard,native.resolveDocumentLink,context.window);
+  assert.equal(guard(outside,current,workspace,'OnriviMarkDown').isInside,false,'web workspace boundary remains enforced');
+  assert.equal(desktopGuard.isPathInsideWorkspace(outside,current,workspace,'OnriviMarkDown').isInside,true);
+  await hookExports.open(outside,undefined,true);
+  assert.equal(norm(desktopOpened.path),norm(outside));
+  assert.equal(desktopOpened.content,'explicit external document');
+  const buildTarget=extract('frontend/src/components/MainEditorApp.tsx',n=>ts.isVariableDeclaration(n)&&n.name.getText()==='buildDocLinkTarget');
+  const targetExports={};
+  Function('exports','window','workspaceType','rootFolder','resolveNativeDocumentPath',compile(buildTarget+'\nexports.target=buildDocLinkTarget;'))(targetExports,context.window,'local',root,native.resolveNativeDocumentPath);
+  assert.equal(targetExports.target({path:outside}),outside);
+  assert.equal(targetExports.target({path:'frontend/public/help/00_시작하기.md'},'제목'),expected+'#제목');
+  console.log('PASS: desktop creates absolute links and opens explicit files on another drive outside the workspace');
   console.log('PASS: both document views resolve workspace sibling links; legacy /help URLs stay in the source folder; actual Electron read/save handlers write workspace originals; missing files never switch to installed namesakes');
 })().catch(error => { console.error(error); process.exitCode = 1; });

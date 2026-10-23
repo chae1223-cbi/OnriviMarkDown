@@ -828,6 +828,12 @@ export function isPathInsideWorkspace(
 
   const isWindowsAbsolute = /^[a-zA-Z]:[/\\]/.test(clean);
   const isPosixAbsolute = clean.startsWith('/') && !clean.startsWith('//');
+  // Desktop document links may intentionally point outside the current workspace.
+  // Electron reads the explicitly selected absolute file, never a same-name fallback.
+  const nativeApi = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+  if (nativeApi?.readFromPath && (isWindowsAbsolute || isPosixAbsolute || clean.startsWith('\\\\')) && /\.(md|markdown)$/i.test(clean)) {
+    return { isInside: true, resolvedPath: clean.replace(/\\/g, '/') };
+  }
 
   // 작업장 루트 경로 추출
   let wsRoot = (rootFolderPath || '').trim();
@@ -1343,8 +1349,8 @@ function TableWrapper({ children, ...restProps }: { children: React.ReactElement
 // 🛡️ [한글 주석 완벽 탑재] 비동기 글로벌 Mermaid 스크립트 로더
 // Next.js app directory hydration + AMD define 충돌 + file:// 상대경로 3대 문제 대응:
 // 1) 동적 <script src="./mermaid.min.js"> 생성 (CSP 'self' 허용, 상대경로로 file:// 대응)
-// 2) define 일시 제거 → mermaid UMD global 할당(window.mermaid) 강제 (AMD 충돌 회피)
-// 3) CSP 차단 시 fetch + eval 폴백 (CSP 'unsafe-eval' 허용)
+// 2) 번들 UMD는 window.mermaid에 내보내며 Monaco의 AMD define은 유지
+// 3) script 태그로 로드하여 eval 없이 실행
 let mermaidPromise: Promise<any> | null = null;
 const mermaidSvgCache = new Map<string, string>();
 const loadMermaidScript = (): Promise<any> => {
@@ -1372,58 +1378,16 @@ const loadMermaidScript = (): Promise<any> => {
       }
     };
 
-    const loadViaScriptTag = (savedDefine: any, callback: () => void) => {
-      if ((window as any).mermaid) {
-        callback();
-        return;
-      }
-      (window as any).define = undefined;
-      const script = document.createElement('script');
-      // Bundled ELK diagnostic fix: avoid stale cached copies that stringify React DOM.
-      script.src = './mermaid.min.js?v=elk-log-fix-1';
-      const done = () => {
-        if ((window as any).define === undefined) {
-          (window as any).define = savedDefine;
-        }
-      };
-      script.onload = () => { done(); callback(); };
-      script.onerror = () => {
-        done();
-        mermaidPromise = null;
-        resolve(null);
-      };
-      document.head.appendChild(script);
+    // The bundled Mermaid UMD wrapper always exports to window.mermaid.
+    // Never disable Monaco's AMD loader while asynchronous scripts are loading.
+    const script = document.createElement('script');
+    script.src = './mermaid.min.js?v=amd-isolation-2';
+    script.onload = loaded;
+    script.onerror = () => {
+      mermaidPromise = null;
+      resolve(null);
     };
-
-    // 1) 레이스 컨디션 완벽 차단: <script> 비동기 태그 대신 fetch + eval 동기 실행으로만 로드합니다.
-    //    이를 통해 define이 undefined로 유지되는 시간차(비동기 갭)를 소거하여 Monaco 에디터 로더와의 충돌을 원천 차단합니다.
-    fetch('./mermaid.min.js?v=elk-log-fix-1')
-      .then(r => r.text())
-      .then(code => {
-        const savedDefine = (window as any).define;
-        (window as any).define = undefined;
-        let evalSuccess = false;
-        try {
-          (0, eval)(code);
-          evalSuccess = true;
-        } catch (_) {
-          // CSP 차단 등으로 eval 실패 (확장프로그램 환경 등)
-        }
-        if ((window as any).define === undefined) {
-          (window as any).define = savedDefine;
-        }
-        
-        if (evalSuccess && (window as any).mermaid) {
-          loaded();
-        } else {
-          // eval 실패 시 script 태그를 통한 로딩으로 우회
-          loadViaScriptTag(savedDefine, loaded);
-        }
-      })
-      .catch(() => {
-        // 2) 최후의 수단으로 fetch 실패 시에만 <script> 태그 비동기 로드 fallback 시도
-        loadViaScriptTag((window as any).define, loaded);
-      });
+    document.head.appendChild(script);
   });
   return mermaidPromise;
 };

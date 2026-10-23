@@ -146,7 +146,7 @@ export const visualSchema = new Schema({
     parseDOM: [{ tag: 'a[href]', getAttrs: dom => {
       const element = dom as HTMLElement;
       const href = element.getAttribute('href') || '';
-      if (/^[a-z][a-z0-9+.-]*:/i.test(href) && !/^(https?:|mailto:|tel:)/i.test(href)) return false;
+      if (/^[a-z][a-z0-9+.-]*:/i.test(href) && !/^(https?:|mailto:|tel:|file:\/\/\/|[a-z]:[\/\\])/i.test(href)) return false;
       return { href, title: element.getAttribute('title') };
     } }],
     toDOM(node) {
@@ -162,6 +162,8 @@ export const visualSchema = new Schema({
 });
 
 const tokenizer = defaultMarkdownParser.tokenizer.enable(['table','strikethrough']);
+const validateOriginalLink = tokenizer.validateLink.bind(tokenizer);
+tokenizer.validateLink = href => /^file:\/\/\/[^\r\n]*\.(?:md|markdown)(?:[?#]|$)/i.test(href) || validateOriginalLink(href);
 const strongClosingPunctuation = new RegExp('[\\p{Pe}\\p{Pf}:;.!?%…]', 'u');
 const strongFollowingLetter = new RegExp('[\\p{L}\\p{N}]', 'u');
 // Korean particles may immediately follow punctuation at the end of bold text.

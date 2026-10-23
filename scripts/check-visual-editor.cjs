@@ -17,11 +17,11 @@ const bulletExports = {};
 vm.runInNewContext(compile(path.join(frontend,'src/lib/bulletNumberText.ts')), {exports:bulletExports,require:req});
 vm.runInNewContext(compile(path.join(frontend, 'src/lib/visualDocumentCodec.ts')), { exports: exportsObject, require: name => name === './bulletNumberText' ? bulletExports : name === './mediaMarkup' ? mediaExports : req(name) });
 const { createVisualDocumentCodec, visualSchema } = exportsObject;
-for (const href of ['./00_시작하기.md','./폴더 이름/문서 (초안).md#제목','./00_%EC%8B%9C%EC%9E%91%ED%95%98%EA%B8%B0.md']) {
+for (const href of ['./00_시작하기.md','./폴더 이름/문서 (초안).md#제목','./00_%EC%8B%9C%EC%9E%91%ED%95%98%EA%B8%B0.md','D:/다른 작업장/00_시작하기.md','file:///D:/문서/00_시작하기.md']) {
   const linkDoc=visualSchema.nodes.doc.create(null,visualSchema.nodes.paragraph.create(null,visualSchema.text('도움말 전체 목차',[visualSchema.marks.link.create({href})])));
   const markdown=exportsObject.visualSerializer.serialize(linkDoc);
   assert.ok(!markdown.includes('%EC'),'Korean document paths should remain readable');
-  assert.match(markdown,/\]\(<\.\//);
+  assert.match(markdown,/\]\(</);
   const parsed=createVisualDocumentCodec(markdown).doc.firstChild.firstChild;
   assert.equal(decodeURI(parsed.marks.find(mark=>mark.type.name==='link').attrs.href),decodeURI(href));
 }

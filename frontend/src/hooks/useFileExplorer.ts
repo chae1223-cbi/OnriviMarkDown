@@ -1198,9 +1198,10 @@ export const useFileExplorer = ({
 
     // 💡 [캐시된 외부 파일 핸들 우선 조회 (IndexedDB 영구 보관소)]
     try {
-      const cachedHandle = await getExternalFileHandle(pathWithoutHash) ||
+      const nativeReader = typeof window !== 'undefined' && (window as any).electronAPI?.readFromPath;
+      const cachedHandle = nativeReader ? null : (await getExternalFileHandle(pathWithoutHash) ||
                             await getExternalFileHandle(cleanPath) ||
-                            await getExternalFileHandle(targetBaseName);
+                            (!strictLinkedDocument ? await getExternalFileHandle(targetBaseName) : null));
       if (cachedHandle) {
         const hasPermission = await verifyHandlePermission(cachedHandle, false);
         if (hasPermission) {

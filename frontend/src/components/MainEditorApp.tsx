@@ -468,6 +468,7 @@ import { ONRIVI_AI_MODELS, DEFAULT_AI_MODEL, getCachedAIModels, normalizeAIModel
 // 분리된 컴포넌트들 임포트
 import MenuBar from '@/components/MenuBar'; // 메뉴바
 import Toolbar from '@/components/Toolbar'; // 툴바
+import { resolveNativeDocumentPath } from '@/lib/nativeDocumentPath';
 import EmojiPanel from '@/components/EmojiPanel';
 import { Icon } from '@/components/icons/Icon';
 
@@ -5565,6 +5566,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const buildDocLinkTarget = (targetNode: FileNode, heading?: string): string => {
     const targetPath = targetNode.path;
+    const nativeApi = (window as any).electronAPI;
+    if (nativeApi?.readFromPath && workspaceType !== 'cloud' && !targetPath.startsWith('knowledge://')) {
+      const absolutePath = resolveNativeDocumentPath(targetPath, rootFolder);
+      if (absolutePath) return absolutePath.replace(/\\/g, '/') + (heading?.trim() ? `#${heading.trim()}` : '');
+    }
     let baseFromPath = currentFileNode?.path;
     if (!baseFromPath) {
       if (workspaceType === 'local' && rootFolder?.name) {
