@@ -18,6 +18,15 @@ import katex from 'katex';
 // 🚨 @PATCH : **2026-10-17** — [목록 항목 간 줄 여백(margin-bottom) 및 들여쓰기 너비(var(--list-indent)) 서식 프로필 1:1 반영]:
 //             1) .onrivi-content-root ul/ol의 hardcoded padding-left: 1.5em !important를 var(--list-indent, 1.5em)으로 변경하여 서식 프로필의 들여쓰기 설정이 즉각 적용되도록 개선
 //             2) .onrivi-content-root li의 hardcoded margin: 0 !important를 해제하고 margin-bottom: var(--li-margin-bottom, 6px) 및 dynamicCssString 연동을 허용하여 목록 및 체크박스 줄 여백이 정상 작동하도록 조치
+// 🚨 @PATCH : **2026-10-24** — [이미지 URL 쿼리(caption=top|bottom) 기반 캡션 위치 개별 지정 및 CSS 강제 순서 보정]:
+//             1) 이미지 src 쿼리스트링에서 caption=top|bottom을 파싱하여 개별 이미지 단위로 상단/하단 캡션 배치 지원
+//             2) 서식 프로필의 order: -1!important / order: 1!important 강제 순서를 [data-caption-position="top|bottom"] 고특이도 선택자로 제어하여 하단 선택 시 문서보기에 100% 하단 렌더링 보장
+// 🚨 @PATCH : **2026-10-24** — [이미지 설명(alt/figcaption) 상단/하단 서식 반영 및 상단 배치 지원]:
+//             1) 서식 프로필의 mediaCaptionStructure.position 설정에 따라 figcaption을 이미지 상단(기본/AI 표준) 또는 하단으로 배치
+//             2) 별도 중복 구문 문단 없이 이미지의 alt 설명을 그대로 이미지 상단에 깔끔하고 선명한 설명(캡션)으로 렌더링
+// 🚨 @PATCH : **2026-10-24** — [이미지 및 캡션 분리 여백 최적화]:
+//             1) figureStyle에 상하 마진(marginTop: 0.75rem, marginBottom: 1.25rem)을 기본 부여하여 이미지와 하단 본문 문단이 뭉치지 않고 시원하게 분리되도록 조판 개선
+//             2) figcaption 상단 여백을 mt-2.5로 정돈하여 이미지와 캡션 사이의 답답한 밀착 현상 완전 해소
 // 🚨 @PATCH : **2026-10-16** — [그림책 및 문서 열기 시 이미지 스켈레톤(h-32 animate-pulse) 1프레임 깜빡임 제거]: AsyncImage 초기 렌더링 시 동기적으로 결정 가능한 이미지 경로(데스크톱 media://local/serve, 웹/정적 URL, data:, blob:)를 useState 초기값에서 즉시 산출하여 불필요한 스켈레톤 교체 및 레이아웃 흔들림 원천 차단
 // 🚨 @PATCH : **2026-10-14** — [미리보기 이미지 클립보드 실제 비트맵 복사(copyImageToClipboard) 연동]: 이미지 호버 액션 '복사' 및 AsyncImage 복사 버튼 클릭 시 마크다운 텍스트 주소가 아닌 실제 이미지 비트맵을 OS 클립보드에 기록하여 다른 앱 및 ImageModal/에디터 붙여넣기 완벽 지원
 // 🚨 @PATCH : **2026-10-14** — [이미지 캡션 [그림 N] 자동 접두사 제거]: 마크다운 이미지 렌더링 시 figcaption::before의 [그림 1] 카운터 자동 표기를 제거하여 사용자가 입력한 순수 캡션만 노출되도록 개선
@@ -3000,13 +3009,19 @@ function MarkdownViewer({
               let width: string | undefined;
               let height: string | undefined;
               let align: string | undefined;
+              let urlCaptionPos: 'top' | 'bottom' | undefined;
               try {
                 const wMatch = src.match(/[?&](?:width|w)=([^&#]+)/);
                 const hMatch = src.match(/[?&](?:height|h)=([^&#]+)/);
                 const aMatch = src.match(/[?&](?:align|a)=([^&#]+)/);
+                const cMatch = src.match(/[?&](?:caption|captionPos|captionPosition)=([^&#]+)/);
                 if (wMatch) width = decodeURIComponent(wMatch[1]);
                 if (hMatch) height = decodeURIComponent(hMatch[1]);
                 if (aMatch) align = decodeURIComponent(aMatch[1]);
+                if (cMatch) {
+                  const cVal = decodeURIComponent(cMatch[1]).toLowerCase();
+                  if (cVal === 'top' || cVal === 'bottom') urlCaptionPos = cVal;
+                }
               } catch (e) {}
 
               // 💡 [단위 자동 보완 가드]
@@ -3024,6 +3039,8 @@ function MarkdownViewer({
                 flexDirection: 'column',
                 width: '100%',
                 clear: 'both',
+                marginTop: '0.75rem',
+                marginBottom: '1.25rem',
               };
 
               let forceAlignClass = '';
@@ -3070,13 +3087,24 @@ function MarkdownViewer({
               ));
               
               const line = extractDataLine(props, node);
+              const profileCaptionPos = picturebookProfile?.mediaCaptionStructure?.kindOverrides?.image?.position
+                || picturebookProfile?.mediaCaptionStructure?.position
+                || 'top';
+              const captionPos = urlCaptionPos || profileCaptionPos;
               if (alt && alt.trim() !== '') {
                 return (
-                  <figure data-line={line} className="onrivi-image-figure" style={figureStyle}>
+                  <figure data-line={line} data-caption-position={captionPos} className={`onrivi-image-figure caption-${captionPos}`} style={figureStyle}>
+                    {captionPos === 'top' && (
+                      <figcaption data-position="top" className="text-[0.88em] tracking-tight text-zinc-600 dark:text-zinc-300 mb-2 mt-0 font-medium" style={{ order: -1, ...(align ? { textAlign: align as any, alignSelf: figureStyle.alignItems } : {}) }}>
+                        {alt}
+                      </figcaption>
+                    )}
                     {imgElement}
-                    <figcaption className="text-[0.9em] text-zinc-500 mt-1 font-medium" style={align ? { textAlign: align as any, alignSelf: figureStyle.alignItems } : undefined}>
-                      {alt}
-                    </figcaption>
+                    {captionPos === 'bottom' && (
+                      <figcaption data-position="bottom" className="text-[0.88em] tracking-tight text-zinc-500 dark:text-zinc-400 mt-2.5 mb-1 font-medium" style={{ order: 1, ...(align ? { textAlign: align as any, alignSelf: figureStyle.alignItems } : {}) }}>
+                        {alt}
+                      </figcaption>
+                    )}
                   </figure>
                 );
               }
@@ -3552,6 +3580,8 @@ function MarkdownViewer({
                 flexDirection: 'column',
                 width: '100%',
                 clear: 'both',
+                marginTop: '0.75rem',
+                marginBottom: '1.25rem',
               };
               if (align === 'left') {
                 alignStyle.alignItems = 'flex-start';
@@ -3858,7 +3888,7 @@ function MarkdownViewer({
                 </blockquote>
               );
             }
-          }), [getIndentStyle, onImageLoaded, attachMediaActions])}
+          }), [getIndentStyle, onImageLoaded, attachMediaActions, picturebookProfile?.mediaCaptionStructure?.position, picturebookProfile?.mediaCaptionStructure?.kindOverrides?.image?.position])}
         >
           {processedContent}
         </ReactMarkdown>

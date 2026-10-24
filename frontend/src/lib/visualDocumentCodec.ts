@@ -515,6 +515,7 @@ export function createVisualDocumentCodec(markdown: string) {
           // is split into paragraphs, its old single newline must not merge
           // the first two newly created paragraphs on the next parse.
           const sep = (previousNode?.type.name === 'paragraph' && node.type.name === 'paragraph')
+            || previousNode?.type.name === 'page_break' || node.type.name === 'page_break'
             || (node.type.name==='paragraph' && !node.content.size)
             || (previousNode?.type.name==='paragraph' && !previousNode.content.size)
             ? '\n\n' : prevSuffix !== undefined ? prevSuffix : (previousNode?.type.name === 'heading' ? '\n' : '\n\n');

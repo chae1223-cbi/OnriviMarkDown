@@ -27,6 +27,9 @@ import {
  */
 // 🚨 @PATCH : **2026-10-23** — [문서 링크 누락 대상 처리]: 미리보기에서 연 문서 링크는 경로를 엄격히 확인하고 같은 파일명 폴백 및 미존재 임시 탭 생성을 차단
 // 🚨 @PATCH : **2026-10-19** — [작업장 파일 자동저장 복구 및 플레이스홀더 수화 강화]: FileSystemAccess 경로 매칭 시 NFC 정규화 및 상대경로 직접 분해 적용, 기존 탭의 플레이스홀더('작업장 외부 문서 안내') 자동 감지 시 rootFolder.handle에서 실제 파일 즉각 수화(Hydration), handle 누락 시 rootFolder 자동 탐색 바인딩으로 저장 대화상자 불필요 팝업 차단
+// 🚨 @PATCH : **2026-10-24** — [구글 드라이브 연결 실패 시 불량 토큰 자동 소거 및 즉각 재인증 보장]:
+//             1) connectGoogleDrive 실패 시 기존 불량 토큰/만료 시간 키를 즉각 소거하여 다음 클릭 시 즉시 새 인증 팝업이 뜨도록 개선
+//             2) about?fields=user 응답이 401 외 오류(400, 403 등)일 때도 토큰을 무효화하여 무한 에러 루프 차단
 // 🚨 @PATCH : **2026-10-17** — [경로 기반 파일 열기 시 물리 FileNode 바인딩 및 세션 복원 폴백 차단 해제]:
 //             1) handleFileOpenByPath에서 createNewTab 및 setTabs 호출 시 diskNode를 100% 생성·주입하고 setCurrentFileNode/setCurrentFileName을 즉시 동기화하여 자동저장 누락 및 저장 다이얼로그 팝업 결함 해결
 //             2) handleFileOpenByPath 하단 sessionRestoringRef 가드를 제거하여 세션 복원 시에도 handleFileClick으로 안전하게 폴백 연결되도록 개선
@@ -1856,7 +1859,7 @@ export const useFileExplorer = ({
         const testRes = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
           headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000)
         });
-        if (testRes.status === 401) {
+        if (!testRes.ok) {
           const refreshed = getSavedDriveToken();
           if (refreshed && refreshed !== token) token = refreshed;
           else {
@@ -1865,8 +1868,6 @@ export const useFileExplorer = ({
             sessionStorage.removeItem('onrivi_gdrive_access_token');
             token = null;
           }
-        } else if (!testRes.ok) {
-          throw new Error(`Google Drive 응답 오류(HTTP ${testRes.status}). 인증을 해제하지 말고 잠시 후 다시 시도해 주세요.`);
         }
       } else token = null;
 
@@ -1965,6 +1966,10 @@ export const useFileExplorer = ({
       }
       window.dispatchEvent(new CustomEvent('onrivi:reload_profiles'));
     } catch (err: any) {
+      // 🛡️ [연결 실패 시 불량 토큰/만료 시간 즉시 클린업] 다음 클릭 시 백지상태에서 즉각 재인증 보장
+      localStorage.removeItem('onrivi_gdrive_access_token');
+      localStorage.removeItem('onrivi_gdrive_token_expires_at');
+      sessionStorage.removeItem('onrivi_gdrive_access_token');
       reportClientLog(err.message || '구글 드라이브 연결 실패', 'ERROR', 'DRIVE_CONNECT');
       console.error('[connectGoogleDrive Error]', err);
       showToast(`구글 드라이브 ${stage} 실패: ${err.message || '잠시 후 다시 시도해 주세요.'}`, "error");

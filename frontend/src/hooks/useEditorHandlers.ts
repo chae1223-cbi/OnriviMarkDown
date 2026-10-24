@@ -5,7 +5,6 @@
 //             1) 나란히 보기(both) 등 readOnly 상태에서 editor.executeEdits가 무시되던 결함을 model.pushEditOperations 및 setValue 강제 동기화로 해결
 //             2) 서식 정리 후 contentRef, updateContent, setTabs를 즉시 호출하여 React 상태 및 우측 뷰어까지 완벽 동기화
 // 🚨 @PATCH : **2026-10-20** — [문서 메타영역(Frontmatter) 사용자 수동 삭제 시 재주입 방어]: 기본 서식(system-1) 상태에서 사용자가 에디터 상단의 Frontmatter를 삭제한 경우 저장 시 강제 재생성(persistDefault)을 배제하여 순수 마크다운 상태 영구 보존
-// 🚨 @PATCH : **2026-10-19** — [페이지 나누기(pageBreak) 핸들러 신설]: Monaco 에디터 커서 위치에 <!-- onrivi:page-break --> 페이지 구분 마커 삽입 핸들러 연동
 // ====================================================================
 import { isBundledDocumentPath } from '@/lib/bundledDocument';
 import { reportClientLog } from '@/lib/clientLogs';
@@ -15,6 +14,7 @@ import { waitForExportContent } from '@/lib/exportPreparation';
 import { exportPDF, exportHTML, exportEPUB, exportPNG, exportDOCX, exportHWPX } from '@/lib/exportHandlers';
 import { DEFAULT_PROFILE } from "@/constants/cssProfile";
 import { readPrintSettings, writePrintSettings, readEffectivePrintSettings, compactLegacyPrintMetadata, DocumentPrintSettings } from '@/lib/documentPrintSettings';
+import { writePaginationSettings, type DocumentPaginationSettings } from '@/lib/documentPaginationSettings';
 import { vfsWriteFile } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { stripFrontmatter } from "@/lib/editorUtils";
@@ -1075,13 +1075,19 @@ export const useEditorHandlers = ({
       contentRef.current=next;updateContent(next,false,true);
       setTabs(previous=>previous.map(t=>t.id===activeTabIdRef.current?{...t,content:next,isModified:true}:t));
     },
-    print: async (previewOnly=false,settings?:DocumentPrintSettings,signal?:AbortSignal) => {
+    setPaginationSettings:(settings:DocumentPaginationSettings)=>{
+      const source=contentRef.current,next=writePaginationSettings(source,settings);
+      if(next===source)return;
+      contentRef.current=next;updateContent(next,false,true);
+      setTabs(previous=>previous.map(t=>t.id===activeTabIdRef.current?{...t,content:next,isModified:true}:t));
+    },
+    print: async (previewOnly=false,settings?:DocumentPrintSettings,signal?:AbortSignal,paginationSettings?:DocumentPaginationSettings) => {
       if (!previewOnly && !await prepareEditorForExport()) return;
       if (!previewRef.current) return;
       const activeProfile = documentBookProfile(contentRef.current, profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE, preferLiveProfile);
       const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
       const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor, paperSize } = activeProfile.pageStyle;
-      return await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile,previewOnly,printSettings:settings || readEffectivePrintSettings(contentRef.current),signal,markdownContent:contentRef.current });
+      return await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile,previewOnly,printSettings:settings || readEffectivePrintSettings(contentRef.current),signal,markdownContent:contentRef.current,paginationSettings });
     },
     exportPDF: async () => {
       if (!await prepareEditorForExport()) return;
@@ -1190,7 +1196,6 @@ export const useEditorHandlers = ({
     h5: () => wrapSelection('##### ', '', '제목'),
     h6: () => wrapSelection('###### ', '', '제목'),
     hr: () => insertAtCursor('\n---\n'),
-    pageBreak: () => insertAtCursor('\n\n<!-- onrivi:page-break -->\n\n'),
     orderedList: () => applyLinePrefix('orderedList'),
     list: () => applyLinePrefix('list'),
     quote: (alertType?: string) => applyLinePrefix('quote', alertType),

@@ -17,7 +17,7 @@ assert.equal(new Set(assets.map(asset => asset.id)).size, assets.length);
 for (const name of documents) {
   const source = fs.readFileSync(path.join(folder, name), 'utf8');
   assert.equal(source, fs.readFileSync(path.join(root, 'docs/help', name), 'utf8'), `Mirror differs: ${name}`);
-  assert.ok(source.includes('lastUpdated: 2026-10-22'), name);
+  assert.ok(source.includes('lastUpdated: 2026-10-24'), name);
   assert.ok(/^---\r?\ntitle: "/.test(source), `Invalid metadata opening: ${name}`);
   assert.ok(!source.includes('\ufffd'), `Broken text encoding: ${name}`);
   assert.ok(source.includes('css_profile: onrivi-help'), `Missing help style: ${name}`);

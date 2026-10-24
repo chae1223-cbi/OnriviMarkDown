@@ -2,6 +2,10 @@
 // 📊 [OMD-LIB-googleDriveClient-0001] src/lib/gdrive/googleDriveClient.ts
 // 🎯 @KICK  : 누구나 쉽게 사용하는 구글 드라이브 무설정(Zero-Config) 자동 연동 및 클라우드 작업장 클라이언트 모듈
 // 🛡️ @GUARD : Rule 1, Rule 2(대문자 코드값 GDRIVE), 최소 권한 원칙(drive.file 스코프 한정)
+// 🚨 @PATCH : **2026-10-24** — [구글 드라이브 실패 후 즉시 재접속 보장 & 무활동 시 무중단 자동 갱신(Auto-Keep-Alive) 지원]:
+//             1) requestGoogleDriveAuth 내 브라우저 팝업 창 닫힘(popup.closed) 즉시 감지하여 5분 잠금 없이 재연결 허용
+//             2) refreshDriveTokenSilently 및 startActiveTokenRenewal에서 1분 무활동 체크 제약을 해제하여 사용자가 자리를 비워도 24시간 끊김 없는 무중단 토큰 자동 갱신 보장
+//             3) 연결 실패 시 불량 토큰/만료 시간 자동 소거 및 대기 시간 단축(120초)
 // 🚨 @PATCH : **2026-10-15** — [웹드라이브 작업장 유지 상태에서 다른 웹드라이브로의 독립 저장 완벽 지원]:
 //             1) 다중 구글 드라이브 계정 관리 레지스트리(DriveAccountEntry / getSavedDriveAccounts / saveDriveAccount) 신설
 //             2) requestGoogleDriveAuth에 isStandalone 옵션을 추가하여 다른 웹드라이브 계정 로그인/저장 시 현재 활성 작업장 토큰(STORAGE_KEY_TOKEN) 및 상태를 절대 덮어쓰지 않고 100% 무간섭 격리
@@ -350,7 +354,8 @@ export function scheduleDriveTokenRefresh(expiresIn: number): void {
   const expiresAt = Date.now() + expiresIn * 1000;
   stopActiveRenewal = startActiveTokenRenewal({
     expiresAt, now: Date.now,
-    isActive: () => document.visibilityState === 'visible' && lastDriveActivity > 0 && Date.now() - lastDriveActivity <= 60000,
+    // 🛡️ [무중단 갱신 가드] 사용자가 자리를 비우더라도 앱/브라우저가 열려있으면 토큰 만료 전 갱신 보장
+    isActive: () => typeof document === 'undefined' || document.visibilityState === 'visible' || !!(window as any).electronAPI,
     save: saveBeforeDriveRenewal,
     renew: refreshDriveTokenSilently,
     // Browser timer methods must keep Window as their receiver.
@@ -373,8 +378,8 @@ export function scheduleDriveTokenRefresh(expiresIn: number): void {
 export async function refreshDriveTokenSilently(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
   const remaining = getDriveTokenRemainingSeconds();
-  if (remaining <= 1 || remaining > 180 || document.visibilityState !== 'visible' ||
-      !lastDriveActivity || Date.now() - lastDriveActivity > 60000) return null;
+  if (remaining <= 1 || remaining > 180 || (typeof document !== 'undefined' && document.visibilityState !== 'visible' && !(window as any).electronAPI)) return null;
+
   if (isRefreshingToken) return null;
   const originalToken = getSavedDriveToken();
   isRefreshingToken = true;
@@ -642,7 +647,16 @@ export async function requestGoogleDriveAuth(
       // Google may sever window.opener through COOP. Poll the server cookie
       // with a per-attempt nonce; an older connection cannot finish this login.
       const closed = setInterval(async () => {
-        if (finished || polling) return;
+        if (finished) return;
+        try {
+          if (popup && popup.closed) {
+            finished = true;
+            cleanup();
+            reject(new Error('Google Drive 인증 창이 닫혔습니다.'));
+            return;
+          }
+        } catch {}
+        if (polling) return;
         polling = true;
         try {
           const response = await fetch('/api/gdrive/oauth/status', {
@@ -675,7 +689,7 @@ export async function requestGoogleDriveAuth(
       const timeout = setTimeout(() => {
         if (finished) return;
         finished = true; cleanup(); popup.close(); reject(new Error('Google Drive 인증 시간이 초과되었습니다.'));
-      }, 300000);
+      }, 120000);
     });
   };
 

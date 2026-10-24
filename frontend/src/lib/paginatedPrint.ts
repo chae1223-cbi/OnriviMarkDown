@@ -21,6 +21,8 @@
 // ====================================================================
 import { resolvePageGeometry, PAGE_BREAK_CSS } from './pageGeometry';
 import { DocumentPrintSettings, DEFAULT_WATERMARK_IMAGE, DEFAULT_WATERMARK_TEXT } from './documentPrintSettings';
+import { type DocumentPaginationSettings, emptyPagination, normalizePagination } from './documentPaginationSettings';
+import { applyPrintBreaks } from './printBreaks';
 
 let engineSource:Promise<string>|undefined;
 async function engine(){
@@ -45,14 +47,15 @@ function timeout<T>(promise:Promise<T>,ms:number,label:string):Promise<T>{
  return new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error(`${label} 시간이 초과되었습니다.`)),ms);promise.then(value=>{clearTimeout(timer);resolve(value);},error=>{clearTimeout(timer);reject(error);});});
 }
 let lastPrint:{input:string;output:string}|undefined;
-export async function paginatePrintHtml(html:string,style:any,watermark:DocumentPrintSettings,signal?:AbortSignal):Promise<string>{
+export async function paginatePrintHtml(html:string,style:any,watermark:DocumentPrintSettings,signal?:AbortSignal,pagination:DocumentPaginationSettings=emptyPagination()):Promise<string>{
  signal?.throwIfAborted();
- const input=JSON.stringify([html,style,watermark]);
+ pagination=normalizePagination(pagination);
+ const input=JSON.stringify([html,style,watermark,pagination]);
  if(lastPrint?.input===input)return lastPrint.output;
- const output=await renderPrintPages(html,style,watermark,signal);
+ const output=await renderPrintPages(html,style,watermark,signal,pagination);
  signal?.throwIfAborted();lastPrint={input,output};return output;
 }
-async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSettings,signal?:AbortSignal):Promise<string>{
+async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSettings,signal:AbortSignal|undefined,pagination:DocumentPaginationSettings):Promise<string>{
  signal?.throwIfAborted();
  const geometry=resolvePageGeometry(style),source=await engine();
  const frame=document.createElement('iframe');
@@ -119,6 +122,9 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
     const reset=doc.createElement('div');reset.style.cssText=printRootStyle;
     for(const property of Array.from(reset.style))node.style.setProperty(property,reset.style.getPropertyValue(property),'important');
   });
+  // Use the innermost document content as the split root, not screen wrappers.
+  const splitRoot=content.querySelector<HTMLElement>('.visual-document-surface') || content.querySelector<HTMLElement>('.prose') || content.querySelector<HTMLElement>('.markdown-viewer-root') || content;
+  const {unresolved}=applyPrintBreaks(splitRoot,pagination);
 
   // Repeated/end breaks must not create accidental blank pages.
   const isBreakEl = (el: Element | null | undefined): el is HTMLElement =>
@@ -158,6 +164,7 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
   const preloadStyle=doc.createElement('style');preloadStyle.textContent=css;doc.head.append(preloadStyle);
   await work(timeout(Promise.all(Array.from(content.querySelectorAll('img')).map(img=>img.decode().catch(()=>{/* 개별 이미지 디코딩 실패 시 전체 중단 방지 */}))),5000,'이미지 준비')).catch(()=>{});
   await work(timeout(doc.fonts.ready,5000,'글꼴 준비')).catch(()=>{});
+  const oversized=Array.from(content.querySelectorAll<HTMLElement>('tr,figure,.visual-math-node')).filter(el=>el.getBoundingClientRect().height>geometry.contentHeight*96/25.4+2);
   const output=doc.createElement('div');doc.body.append(output);
   win.PagedConfig={auto:false};
   const script=doc.createElement('script');script.textContent=source;doc.head.append(script);
@@ -179,7 +186,7 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
   .prose code::after { content: none !important; }
   `;
   const markup=content.innerHTML;staging.remove();preloadStyle.remove();
-  await work(timeout(win.PagedPolyfill.preview(markup,[{[new URL('/onrivi-print.css',location.href).href]:pageCss}],output),5000,'페이지 계산'));
+  await work(timeout(win.PagedPolyfill.preview(markup,[{[new URL('/onrivi-print.css',location.href).href]:pageCss}],output),20000,'페이지 계산'));
   // PagedJS has already consumed these breaks. Native PDF printing must not
   // apply the inline !important rules a second time inside the generated pages.
   output.querySelectorAll<HTMLElement>('[data-onrivi-forced-break]').forEach(node => {
@@ -218,6 +225,6 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
     }
     .pagedjs_page,.pagedjs_sheet{border:0!important;border-radius:0!important;filter:none!important}
   }
-  </style></head><body class="${parsed.body.className.replace(/[^\w\s-]/g,'')}" data-onrivi-pages="${pages.length}" style="${printRootStyle}">${output.innerHTML}</body></html>`;
+  </style></head><body class="${parsed.body.className.replace(/[^\w\s-]/g,'')}" data-onrivi-pages="${pages.length}" data-onrivi-unresolved-count="${unresolved.length}" data-onrivi-unresolved-ids="${unresolved.map(a=>a.id).join(',')}" data-onrivi-oversized-count="${oversized.length}" style="${printRootStyle}">${output.innerHTML}</body></html>`;
  }finally{signal?.removeEventListener('abort',stopped);frame.remove();}
 }

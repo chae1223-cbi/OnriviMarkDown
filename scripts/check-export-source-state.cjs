@@ -13,7 +13,7 @@ const adjusted='before\n\n<!-- onrivi:page-break -->\n\nafter\n';
 // Execute the actual export routing case: opening/closing the PDF modal must
 // not unmount the visual editor or reset its undo/spacing state.
 const routeStart=main.indexOf("        // Export uses the existing read-only renderer");
-const routeEnd=main.indexOf("      case 'PAGEBREAK':",routeStart);
+const routeEnd=main.indexOf('      // 보기/제어 관련',routeStart);
 const route=main.slice(routeStart,routeEnd).replace(/\n\s*}\s*$/, '');
 for(const type of ['OPEN_EXPORT','PRINT']) {
  let switches=0,opened=0,printed=0;

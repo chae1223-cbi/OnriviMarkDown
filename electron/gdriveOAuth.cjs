@@ -1,3 +1,12 @@
+// ====================================================================
+// 📊 [OMD-ELECTRON-gdriveOAuth-0001] electron/gdriveOAuth.cjs
+// 🎯 @KICK  : Electron 데스크톱 앱 구글 드라이브 무음 갱신 및 루프백 PKCE 인증 모듈
+// 🛡️ @GUARD : Rule 1(소스 상단 주석 기록), Rule 2(대문자 코드값)
+// 🚨 @PATCH : **2026-10-24** — [구글 드라이브 연결 실패 후 재접속 불가 버그 완전 해결 및 이전 인증 자동 정리]:
+//             1) 이전 인증 진행 중(authenticating) 새 인증 요청 인입 시 기존 루프백 서버 및 타이머를 즉시 강제 종료(cancelCurrentAuth)하고 즉각 새 인증을 수용하도록 개편 (5분 대기 잠금 결함 완전 해소)
+//             2) 타임아웃을 120초로 현실화하고 실패/취소 시 서버 자원 즉시 반환
+// ====================================================================
+
 const crypto = require('node:crypto');
 const http = require('node:http');
 const fs = require('node:fs/promises');
@@ -5,6 +14,7 @@ const path = require('node:path');
 
 function registerDriveOAuth({ ipcMain, app, shell, safeStorage, getWindow }) {
   let authenticating = null, renewing = null;
+  let cancelCurrentAuth = null;
   const filename = () => path.join(app.getPath('userData'), 'gdrive-oauth-session.enc');
   const origin = () => !app.isPackaged && process.env.NO_SERVER !== 'true' ? 'http://localhost:3100' : 'https://onrivi.com';
   const trusted = event => event.sender === getWindow()?.webContents;
@@ -23,7 +33,14 @@ function registerDriveOAuth({ ipcMain, app, shell, safeStorage, getWindow }) {
   ipcMain.handle('gdrive:request-auth', async (event, options) => {
     if (!trusted(event)) throw new Error('허용되지 않은 인증 요청입니다.');
     const standalone = options?.isStandalone === true;
-    if (authenticating) throw new Error('Google Drive 인증이 진행 중입니다. 완료 후 다시 시도해 주세요.');
+
+    // 이전 인증이 남아있다면 5분 동안 튕기지 않고 즉시 안전하게 취소 후 새 인증 개시
+    if (cancelCurrentAuth) {
+      try { cancelCurrentAuth(); } catch {}
+      cancelCurrentAuth = null;
+      authenticating = null;
+    }
+
     if (!safeStorage.isEncryptionAvailable()) throw new Error('운영체제의 인증 정보 암호화 저장소를 사용할 수 없습니다.');
     authenticating = new Promise((resolve, reject) => {
       const base = origin(), state = crypto.randomBytes(32).toString('base64url'), verifier = crypto.randomBytes(32).toString('base64url');
@@ -31,9 +48,18 @@ function registerDriveOAuth({ ipcMain, app, shell, safeStorage, getWindow }) {
       let finished = false, exchanging = false, timer;
       const finish = (error, result) => {
         if (finished) return;
-        finished = true; clearTimeout(timer); server.close();
+        finished = true;
+        clearTimeout(timer);
+        cancelCurrentAuth = null;
+        try { server.close(); } catch {}
         if (error) reject(error); else { resolve(result); const win = getWindow(); if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.focus(); } }
       };
+
+      cancelCurrentAuth = () => {
+        if (finished) return;
+        finish(new Error('새로운 인증 요청으로 인해 이전 요청이 취소되었습니다.'));
+      };
+
       const server = http.createServer(async (request, response) => {
         response.setHeader('Cache-Control', 'no-store');
         response.setHeader('Referrer-Policy', 'no-referrer');
@@ -55,7 +81,6 @@ function registerDriveOAuth({ ipcMain, app, shell, safeStorage, getWindow }) {
 <p>온리비 어서에서 작업을 계속하세요. 이 탭은 닫아도 됩니다.</p><button id="close" type="button">탭 닫기</button>
 <p>닫히지 않으면 Ctrl+W를 누르거나 탭의 ×를 눌러 주세요.</p></main>
 <script>
-// Remove the one-use callback parameters from the visible address/history.
 try { history.replaceState(null, '', '/callback'); } catch {}
 function closeTab() { try { window.close(); } catch {} }
 document.getElementById('close').addEventListener('click', closeTab);
@@ -68,9 +93,8 @@ setTimeout(function () { document.getElementById('complete').hidden = false; }, 
         }
       });
       server.on('error', error => finish(error));
-      timer = setTimeout(() => finish(new Error('Google Drive 인증 시간이 초과되었습니다. 다시 연결해 주세요.')), 300000);
-      // Google is redirected to the fixed server callback; only its short-lived
-      // PKCE-protected handoff ticket is delivered to this loopback listener.
+      timer = setTimeout(() => finish(new Error('Google Drive 인증 시간이 초과되었습니다. 다시 연결해 주세요.')), 120000);
+      
       const listen = port => {
         server.once('listening', () => {
           const address = server.address();
@@ -81,10 +105,12 @@ setTimeout(function () { document.getElementById('complete').hidden = false; }, 
         });
         server.listen(port, '127.0.0.1');
       };
-      // Reserve a high dynamic port without the old probe/listen race.
       const attempt = () => 49152 + crypto.randomInt(16384);
       listen(attempt());
-    }).finally(() => { authenticating = null; });
+    }).finally(() => {
+      authenticating = null;
+      cancelCurrentAuth = null;
+    });
     return authenticating;
   });
   ipcMain.handle('gdrive:refresh-auth', async event => {

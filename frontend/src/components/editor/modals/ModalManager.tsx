@@ -2,6 +2,7 @@ import { nextReportNumber, resolveCaptionConfig } from '@/lib/aiFriendlyReport';
 /**
  * 프로그램명 : OnriviAuthor
  * 프로그램 ID : oaar-modal-manager
+ * 🚨 @PATCH : **2026-10-24** — [문서보기 위지윅 이미지 캡션(fullMarkdown) 양방향 전달]: deps.replaceVisualImage 호출 시 fullMarkdown 파라미터를 함께 전달하여 캡션 문단과 이미지가 동시 삽입되도록 연동
  * 🚨 @PATCH : **2026-10-22** — [미디어 종류별 캡션 설정 전달]: 그림·동영상·지도·표 모달에 resolveCaptionConfig로 종류별 캡션 위치/구문(kindOverrides)을 병합해 전달
  * 🚨 @PATCH : **2026-10-18** — [인용 모달 useEffect 의존성 보강]: citationTarget 설정 시 deps.activeTabId 및 deps.editorRef 의존성 등록 및 불필요한 cancel-citation 이벤트 방어
  * 🚨 @PATCH : **2026-10-21** — [내보내기 모달 onExport 실행 시 모달 자동 닫기]: 인쇄/PDF/Word 등 내보내기 버튼 클릭 시 모달(ExportModal)을 닫아 저장 다이얼로그 및 진행 토스트가 에디터 화면에 즉시 노출되도록 개선
@@ -217,15 +218,16 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         isDarkMode={isDarkMode}
         documentId={deps.activeTabId} documentContent={content}
         onPrintSettingsChange={handlers.setPrintSettings}
+        onPaginationSettingsChange={handlers.setPaginationSettings}
         onOpenWatermarkSettings={()=>{setIsExportModalOpen(false);modals.setSettingsModalInitialTab?.('editor');modals.setIsSettingsModalOpen(true);}}
-        onPagePreview={(settings:any,signal:AbortSignal)=>handlers.print(true,settings,signal)}
-        onExport={(format: any, exportSettings?: any) => {
+        onPagePreview={(settings:any,signal:AbortSignal,pagination:any)=>handlers.print(true,settings,signal,pagination)}
+        onExport={(format: any, exportSettings?: any, pagination?:any) => {
           if (!isActivated) {
             showToast("정품 라이선스 키 등록이 필요합니다. (설정 -> 애플리케이션 탭에서 등록)", 'error');
             return;
           }
           setIsExportModalOpen(false);
-          if (format === 'print') handlers.print(false, exportSettings);
+          if (format === 'print') handlers.print(false, exportSettings,undefined,pagination);
           else if (format === 'docx') handlers.exportDOCX();
           else if (format === 'hwpx') handlers.exportHWPX();
           else if (format === 'html') handlers.exportHTML();
@@ -472,7 +474,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         if (range?.documentMedia) {
           deps.replaceDocumentMedia?.(range,path,alt);
         } else if (range?.visualImage) {
-          deps.replaceVisualImage?.(range,path,alt);
+          deps.replaceVisualImage?.(range,path,alt,fullMarkdown);
         } else if (range?.bookSceneIndex !== undefined) {
           deps.replacePicturebookImage?.(range,path,alt);
         } else if (range) {

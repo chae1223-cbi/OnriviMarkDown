@@ -1,5 +1,7 @@
 // ====================================================================
 // 📊 [OMD-UI-MediaLayoutFields-0001] MediaLayoutFields.tsx ➔ 미디어 레이아웃/크기/정렬 및 캡션 설정 위젯
+// 🚨 @PATCH : **2026-10-24** — [이미지 URL 쿼리에 캡션 위치(caption=top|bottom) 인코딩 지원]:
+//             1) imagePathWithDimensions에 captionPos 인자를 추가하여 이미지 쿼리스트링에 캡션 위치를 안전하게 보존
 // 🚨 @PATCH : **2026-10-21** — [미디어 설명(캡션) 위치 및 표현 구문 제어 위젯(MediaCaptionControl) 신설]:
 //             1) 그림/지도/영상 공용 캡션 제목, 순번, 상단/하단 배치 토글, 표현 구문(표준/대괄호/화살괄호/일반/제목만/커스텀) 선택 UI 탑재
 //             2) 실시간 포맷 미리보기 칩 제공으로 사용자가 문서 삽입 전 결과를 직관적으로 확인하도록 지원
@@ -11,15 +13,16 @@ import { formatMediaCaption } from '@/lib/aiFriendlyReport';
 export type MediaAlign = 'left' | 'center' | 'right';
 export type MediaCaptionFormat = 'standard' | 'bracket' | 'angle' | 'plain' | 'title-only' | 'custom' | 'none';
 
-export function imagePathWithDimensions(path:string,width:string,height:string,align:string):string {
+export function imagePathWithDimensions(path:string,width:string,height:string,align:string,captionPos?:string):string {
   const hashIndex=path.indexOf('#'),hash=hashIndex<0?'':path.slice(hashIndex);
   const main=hashIndex<0?path:path.slice(0,hashIndex),queryIndex=main.indexOf('?');
   const base=queryIndex<0?main:main.slice(0,queryIndex);
   const params=new URLSearchParams(queryIndex<0?'':main.slice(queryIndex+1));
-  for(const key of ['width','w','height','h','align','a'])params.delete(key);
+  for(const key of ['width','w','height','h','align','a','caption','captionPos','captionPosition'])params.delete(key);
   if(width.trim())params.set('width',width.trim());
   if(height.trim())params.set('height',height.trim());
   if(align)params.set('align',align);
+  if(captionPos)params.set('caption',captionPos);
   const query=params.toString();return base+(query?'?'+query:'')+hash;
 }
 

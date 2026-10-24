@@ -2,12 +2,10 @@ import { headingNumberingCss, materializeHeadingNumbers } from './headingNumberi
 import { reportNumberingCss, materializeReportNumbers } from './reportNumbering';
 import { embedExportFonts } from './exportFonts';
 import { startExportProgress } from './exportProgress';
-// 🚨 @PATCH : **2026-10-21** — [웹 브라우저 인쇄 시 PagedJS 연산 완전 우회 및 0.5초 초고속 window.print 직결]:
-//             1) 브라우저 환경(!isElectron && !previewOnly)에서는 무거운 PagedJS 페이지 계산(paginatePrintHtml)을 완전히 우회하여 4~5초 멈춤 현상을 100% 원천 차단
-//             2) Chromium 네이티브 @page 규격 finalHtml을 기반으로 0.5초 이내에 브라우저 인쇄 대화상자(window.print)를 즉각 팝업
-// 🚨 @PATCH : **2026-10-21** — [PagedJS 3초 안전 타임아웃 및 네이티브 CSS 인쇄 무조건 폴백 보장]:
-//             1) PagedJS paginatePrintHtml 연산이 헤딩-이미지-페이지나눔 결합 충돌 등으로 지연되거나 무한 루프에 빠지는 것을 방지하기 위해 3초 안전 타임아웃(withExportTimeout) 장착
-//             2) 3초 초과 또는 계산 실패 시 대기 없이 원본 finalHtml(Chromium 네이티브 @page 규격)로 즉각 폴백하여 멈춤 없이 1초 안에 인쇄/PDF 사출 완수 보장
+// PDF and print share the preview pagination engine on web and desktop.
+// A failed calculation must not silently discard the user's output boundaries.
+// 🚨 @PATCH : **2026-10-24** — [PDF 및 인쇄 출력 시 문서보기 제목 태그 뱃지 완전 비표시 보장]:
+//             1) @media print에 :is(h1,h2,h3,h4,h5,h6)::after의 display: none !important, content: none !important, visibility: hidden !important를 주입하여 출력물에 편집용 제목 식별 뱃지가 인쇄되는 결함 원천 차단
 // 🚨 @PATCH : **2026-10-21** — [웹 브라우저 인쇄 시 불필요한 window.confirm 차단 팝업 제거 및 직접 print() 연동]:
 //             1) 브라우저 모드에서 [인쇄/PDF 저장] 클릭 후 불필요하게 사용자를 가로막던 window.confirm 확인창을 제거하고 즉시 브라우저 인쇄 대화상자(printWindow.print)가 열리도록 원클릭 직결
 //             2) 인쇄 설정 안내를 토스트(showToast)로 깔끔하게 전환하여 모달/브라우저 프리즈 현상 완전 차단
@@ -119,6 +117,7 @@ interface ExportOptions {
   activeProfile?: any; // 서식 프로필 객체 추가
   markdownContent?: string; // 💡 원본 마크다운 텍스트 직접 조판용
   previewOnly?:boolean;
+  paginationSettings?:import('./documentPaginationSettings').DocumentPaginationSettings;
   printSettings?:DocumentPrintSettings;
   signal?:AbortSignal;
 }
@@ -547,6 +546,18 @@ blockquote li p {
 .onrivi-content-root .onrivi-image-figure figcaption {
   text-align: ${textAlign} !important;
   align-self: ${alignSelf} !important;
+}
+.custom-preview-container .onrivi-image-figure[data-caption-position="top"] figcaption,
+.onrivi-content-root .onrivi-image-figure[data-caption-position="top"] figcaption {
+  order: -1 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0.5rem !important;
+}
+.custom-preview-container .onrivi-image-figure[data-caption-position="bottom"] figcaption,
+.onrivi-content-root .onrivi-image-figure[data-caption-position="bottom"] figcaption {
+  order: 1 !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0 !important;
 }
 `;
     } else if (tag === 'video') {
@@ -2169,7 +2180,7 @@ async function saveToDownloads(filename: string, content: string, type: 'base64'
 export async function exportPDF({ 
   previewEl, currentFileName, isDarkMode, showToast, orientation, paperSize, 
   dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, 
-  activeProfile, previewOnly=false, printSettings, signal, markdownContent
+  activeProfile, previewOnly=false, printSettings, signal, markdownContent, paginationSettings
 }: ExportOptions) {
   let progress: ReturnType<typeof startExportProgress> | undefined;
   try {
@@ -2463,6 +2474,12 @@ export async function exportPDF({
       h1, h2, h3, h4, h5, h6 {
         page-break-after: avoid !important;
         break-after: avoid !important;
+      }
+      /* 편집용 제목 식별 뱃지 인쇄 완전 차단 */
+      :is(h1, h2, h3, h4, h5, h6)::after {
+        display: none !important;
+        content: none !important;
+        visibility: hidden !important;
       }
 
       /* [P0] 일반 본문/문단/리스트 자연스러운 행 단위 분할 허용 (하단 대형 빈 공간 소거) */
@@ -2788,7 +2805,7 @@ export async function exportPDF({
       finalHtml = finalHtml.replace('</head>', bookPrintCss + '</head>');
     }
 
-    if(!isPicturebook && (previewOnly || isElectron)){
+    if(!isPicturebook){
       const effectiveSettings = printSettings ?? (markdownContent ? readEffectivePrintSettings(markdownContent) : readEffectivePrintSettings(''));
       let resolved = { ...effectiveSettings };
       if(resolved.enabled){
@@ -2833,15 +2850,20 @@ export async function exportPDF({
       progress.update('용지에 맞춰 페이지 계산 중');
       try {
         const {paginatePrintHtml}=await import('./paginatedPrint');
+        const {readPaginationSettings}=await import('./documentPaginationSettings');
         const paginatedResult = await withExportTimeout(
-          paginatePrintHtml(finalHtml, activeProfile?.pageStyle || {paperSize,orientation,marginTop,marginBottom,marginLeft,marginRight}, resolved, signal),
+          paginatePrintHtml(finalHtml, activeProfile?.pageStyle || {paperSize,orientation,marginTop,marginBottom,marginLeft,marginRight}, resolved, signal,paginationSettings || readPaginationSettings(markdownContent || '')),
           '페이지 계산',
-          previewOnly ? 5000 : 3000
+          30000
         );
-        if (paginatedResult) finalHtml = paginatedResult;
+        if (paginatedResult) {
+          finalHtml = paginatedResult;
+          if(!previewOnly && Number(finalHtml.match(/data-onrivi-unresolved-count="(\d+)"/)?.[1] || 0)>0)throw new Error('위치를 찾을 수 없는 출력 경계가 있습니다. 인쇄 미리보기에서 확인하거나 해제해 주세요.');
+          if(!previewOnly && Number(finalHtml.match(/data-onrivi-oversized-count="(\d+)"/)?.[1] || 0)>0)throw new Error('용지 높이를 넘는 표 행·그림·수식이 있습니다. 인쇄 미리보기와 서식을 확인해 주세요.');
+        }
       } catch (paginateErr) {
-        console.warn('[exportPDF] PagedJS 페이지 계산 실패 또는 타임아웃, 네이티브 CSS 인쇄로 즉시 사출 진행:', paginateErr);
-        if (previewOnly) throw paginateErr;
+        console.warn('[exportPDF] 페이지 계산 또는 출력 경계 확인 실패:', paginateErr);
+        throw paginateErr;
       }
     }
     if(previewOnly)return finalHtml;

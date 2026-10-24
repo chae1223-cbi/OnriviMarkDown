@@ -1,3 +1,18 @@
+// 🚨 @PATCH : **2026-10-24** — [대체 텍스트 UI 입력란 제거 및 그림 제목+표현 구문 포맷 기반 자동 캡션 일원화]:
+//             1) 사용자 혼선을 유발하던 별도의 '대체 텍스트(Alt)' 입력란을 제거하고, [그림 제목]과 선택된 [표현 구문 포맷(화살괄호/대괄호/표준 등)]으로 이미지 캡션(alt) 자동 생성
+//             2) 제목 미입력 시 캡션 없는 순수 이미지(![]())로 단정하게 삽입
+//             3) 기존 이미지 수정(initialData) 시 alt 텍스트로부터 순번(n), 제목(title), 포맷(format)을 스마트 역추출하여 모달 설정 완벽 복원
+// 🚨 @PATCH : **2026-10-24** — [캡션 위치(상단/하단) URL 쿼리(caption=top|bottom) 저장 및 대체 텍스트 초기화/비우기 완전 지원]:
+//             1) imagePathWithDimensions에 captionPosition을 연동하여 서식 위치가 문서보기 및 미리보기에 영구 보존되도록 개선
+//             2) 대체 텍스트(Alt) 초기화 버튼(인라인 × 버튼 및 헤더 초기화 텍스트) 신설 및 비웠을 때 captionTitle로 강제 폴백되던 현상 제거
+//             3) altTouched 상태를 도입하여 사용자가 명시적으로 대체 텍스트를 비운 후 제목 입력 시 강제 재동기화 방어 및 제목과 동기화 버튼 제공
+// 🚨 @PATCH : **2026-10-24** — [별도 상단 중복 구문 생성 배제 및 순수 이미지 alt 설명 단일화]:
+//             1) 이미지 설명 설정 시 별도의 텍스트 문단(**그림 N. ...**)을 생성하지 않고 순수 이미지 태그(![설명](경로))의 alt로 단일화하여 상단 중복 구문 완전 제거
+//             2) 서식 프로필의 상단/하단 위치 설정에 따라 미리보기/문서보기에서 alt 설명이 이미지 상단(또는 하단)에 깔끔하게 렌더링되도록 연동
+// 🚨 @PATCH : **2026-10-24** — [시스템 도움말 에셋(./assets/) 실시간 미리보기 및 캡션 마크다운 정돈]:
+//             1) ./assets/, /help/assets/ 등 시스템 도움말 에셋 경로 자동 감지 및 웹(/help/assets/) 정적 경로 직결로 미리보기 실패(404) 완전 해결
+//             2) 미리보기 패널 캡션 텍스트의 이스케이프 문자(\\[, \\]) 및 마크다운(**) 기호를 깔끔하게 정돈하여 렌더링
+//             3) 상단뿐만 아니라 하단(captionPosition === 'bottom') 캡션 실시간 미리보기 표시기 추가 탑재
 // 🚨 @PATCH : **2026-10-21** — [이미지 설명(캡션) 위치(상단/하단) 및 표현 구문(표준/대괄호/화살괄호/일반/제목만/커스텀) 설정 연동]:
 //             1) MediaCaptionControl 위젯을 탑재하여 그림 제목, 순번, 상단/하단 위치, 표현 구문 선택 및 실시간 미리보기 제공
 //             2) 서식 프로필의 mediaCaptionStructure 및 nextReportNumber(content, '그림') 기본값 자동 반영
@@ -45,6 +60,7 @@ interface ImageModalProps {
     width: string;
     height: string;
     align: string;
+    captionPos?: 'top' | 'bottom';
     range: any;
   } | null;
   targetFolder?: string;
@@ -93,7 +109,6 @@ export default function ImageModal({
   const [imagePath, setImagePath] = useState("");
   const [clipboardMessage, setClipboardMessage] = useState('');
   const [appliedPath, setAppliedPath] = useState("");
-  const [imageAlt, setImageAlt] = useState("");
   const [captionTitle, setCaptionTitle] = useState("");
   const [captionNumber, setCaptionNumber] = useState(1);
   const [captionPosition, setCaptionPosition] = useState<'top' | 'bottom'>('top');
@@ -106,6 +121,10 @@ export default function ImageModal({
   const [tempPreviewUrl, setTempPreviewUrl] = useState("");
   const [desktopPreviewUrl, setDesktopPreviewUrl] = useState("");
   const [imageLoadError, setImageLoadError] = useState(false);
+  const formatCleanCaptionPreview = (text: string) => {
+    return text.replace(/\*\*/g, '').replace(/\\\[/g, '[').replace(/\\\]/g, ']');
+  };
+
   const [mounted, setMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sourceInputRef = useRef<HTMLInputElement>(null);
@@ -148,15 +167,54 @@ export default function ImageModal({
       setCustomTemplate(captionConfig?.customTemplate || '**{kind} {n}. {title}**');
       if (initialData) {
         setImagePath(initialData.path);
-        setImageAlt(initialData.alt ?? "");
-        setCaptionTitle(initialData.alt ?? "");
         setImageWidth(initialData.width);
         setImageHeight(initialData.height || "");
         setImageAlign((['left', 'center', 'right'].includes(initialData.align) ? initialData.align : 'center') as MediaAlign);
+        const urlParams = new URLSearchParams(initialData.path.includes('?') ? initialData.path.slice(initialData.path.indexOf('?') + 1) : '');
+        const urlCap = urlParams.get('caption');
+        if (urlCap === 'top' || urlCap === 'bottom') {
+          setCaptionPosition(urlCap);
+        } else if (initialData.captionPos) {
+          setCaptionPosition(initialData.captionPos);
+        }
+
+        // 기존 alt 속성으로부터 순번, 제목, 포맷 역추출 복원
+        const rawAlt = (initialData.alt ?? '').replace(/\*\*/g, '').trim();
+        if (rawAlt) {
+          const angleMatch = rawAlt.match(/^<그림\s+(\d+)>\s*(.*)$/);
+          const bracketMatch = rawAlt.match(/^\[그림\s+(\d+)\]\s*(.*)$/);
+          const standardMatch = rawAlt.match(/^그림\s+(\d+)\.\s*(.*)$/);
+          const plainMatch = rawAlt.match(/^그림\s+(\d+)\s+(.*)$/);
+
+          if (angleMatch) {
+            setCaptionNumber(Number(angleMatch[1]) || 1);
+            setCaptionTitle(angleMatch[2] || '');
+            setCaptionFormat('angle');
+          } else if (bracketMatch) {
+            setCaptionNumber(Number(bracketMatch[1]) || 1);
+            setCaptionTitle(bracketMatch[2] || '');
+            setCaptionFormat('bracket');
+          } else if (standardMatch) {
+            setCaptionNumber(Number(standardMatch[1]) || 1);
+            setCaptionTitle(standardMatch[2] || '');
+            setCaptionFormat('standard');
+          } else if (plainMatch) {
+            setCaptionNumber(Number(plainMatch[1]) || 1);
+            setCaptionTitle(plainMatch[2] || '');
+            setCaptionFormat('plain');
+          } else {
+            setCaptionTitle(rawAlt);
+            setCaptionFormat('title-only');
+            setCaptionNumber(nextNumber || 1);
+          }
+        } else {
+          setCaptionTitle("");
+          setCaptionNumber(nextNumber || 1);
+        }
       } else {
         setImagePath("");
-        setImageAlt("");
         setCaptionTitle("");
+        setCaptionNumber(nextNumber || 1);
         setImageWidth("");
         setImageHeight("");
         setImageAlign("center");
@@ -384,7 +442,7 @@ export default function ImageModal({
     if (question >= 0) {
       const hash = url.indexOf('#', question);
       const params = new URLSearchParams(url.slice(question + 1, hash >= 0 ? hash : undefined));
-      ['width', 'height', 'w', 'h', 'align'].forEach(key => params.delete(key));
+      ['width', 'height', 'w', 'h', 'align', 'caption', 'captionPos', 'captionPosition'].forEach(key => params.delete(key));
       const query = params.toString();
       url = url.slice(0, question) + (query ? '?' + query : '') + (hash >= 0 ? url.slice(hash) : '');
     }
@@ -411,6 +469,15 @@ export default function ImageModal({
     setImageLoadError(false);
 
     if (!cleanImagePath || /^(https?:|data:|blob:)/.test(cleanImagePath)) return;
+
+    const pureSrc = cleanImagePath.split("?")[0];
+    const isHelpAsset = pureSrc.includes("help/assets") || pureSrc.startsWith("/help/assets/") || pureSrc.startsWith("./assets/") || pureSrc.startsWith("assets/");
+    if (isHelpAsset) {
+      const fileName = pureSrc.split("/").pop()?.split("\\").pop() || "";
+      setDesktopPreviewUrl("/help/assets/" + fileName);
+      setImageLoadError(false);
+      return;
+    }
 
     const load = async () => {
       try {
@@ -482,6 +549,12 @@ export default function ImageModal({
     if (tempPreviewUrl) return tempPreviewUrl;
     if (desktopPreviewUrl) return desktopPreviewUrl;
     if (!cleanImagePath) return '';
+    const pureSrc = cleanImagePath.split("?")[0];
+    const isHelpAsset = pureSrc.includes("help/assets") || pureSrc.startsWith("/help/assets/") || pureSrc.startsWith("./assets/") || pureSrc.startsWith("assets/");
+    if (isHelpAsset) {
+      const fileName = pureSrc.split("/").pop()?.split("\\").pop() || "";
+      return "/help/assets/" + fileName;
+    }
     if (/^(https?:|data:|blob:|media:|media-local:)/.test(cleanImagePath)) return cleanImagePath;
     const settings = getResourceSettings();
     if (settings?.kind === 'drive') return localBlobUrl;
@@ -511,23 +584,19 @@ export default function ImageModal({
       setSaving(true);
       try {
       let finalPath = await importResourceMedia(insertPath,resourceFolderHandle);
-      finalPath = imagePathWithDimensions(finalPath,imageWidth,imageHeight,imageAlign);
+      finalPath = imagePathWithDimensions(finalPath,imageWidth,imageHeight,imageAlign,captionPosition);
 
-      const altText = imageAlt || captionTitle || '';
-      let fullMarkdown = undefined;
-      if (captionFormat !== 'none' && captionTitle.trim()) {
-        const caption = formatMediaCaption('그림', captionNumber, captionTitle.trim(), captionFormat, customTemplate);
-        if (captionPosition === 'top') {
-          fullMarkdown = `\n${caption}\n\n![${altText}](${finalPath})\n`;
-        } else {
-          fullMarkdown = `\n![${altText}](${finalPath})\n\n${caption}\n`;
-        }
-      }
+      // 별도 텍스트 문단 구문을 본문에 끼워넣지 않고, 선택한 표현 구문 포맷(화살괄호/대괄호/표준 등)을 이미지 설명(alt)에 자동 반영
+      // 그림 제목이 비어있으면 캡션 없는 순수 이미지(![]())로 삽입
+      const rawCaption = captionTitle.trim()
+        ? formatMediaCaption('그림', captionNumber, captionTitle.trim(), captionFormat, customTemplate)
+        : '';
+      const altText = rawCaption ? rawCaption.replace(/\*\*/g, '').trim() : '';
+      const fullMarkdown = undefined;
 
       onInsert(finalPath, altText, initialData?.range, fullMarkdown);
       setImagePath("");
       setAppliedPath("");
-      setImageAlt("");
       setCaptionTitle("");
       setImageWidth("");
       setImageHeight("");
@@ -697,10 +766,7 @@ export default function ImageModal({
             <MediaCaptionControl
               kind="그림"
               title={captionTitle}
-              onTitleChange={(val) => {
-                setCaptionTitle(val);
-                if (!imageAlt || imageAlt === captionTitle) setImageAlt(val);
-              }}
+              onTitleChange={setCaptionTitle}
               number={captionNumber}
               onNumberChange={setCaptionNumber}
               position={captionPosition}
@@ -717,25 +783,9 @@ export default function ImageModal({
               isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'
             }`}>
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 mb-3 block">
-                이미지 크기 및 대체 텍스트 (Alt)
+                이미지 크기
               </label>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 mb-1 block">대체 텍스트 (Alt)</label>
-                  <input
-                    type="text"
-                    value={imageAlt}
-                    onChange={(e) => setImageAlt(e.target.value)}
-                    placeholder="이미지 대체 텍스트 (기본: 그림 제목 연동)"
-                    className={`w-full text-xs border rounded px-3 py-2.5 outline-none focus:ring-1 transition-all ${
-                      isDarkMode
-                        ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-600 focus:border-indigo-500 focus:ring-indigo-500/30'
-                        : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:ring-indigo-500/20'
-                    }`}
-                  />
-                </div>
-                <MediaSizeInputs imageSizing width={imageWidth} height={imageHeight} onWidthChange={setImageWidth} onHeightChange={setImageHeight} isDarkMode={isDarkMode} />
-              </div>
+              <MediaSizeInputs imageSizing width={imageWidth} height={imageHeight} onWidthChange={setImageWidth} onHeightChange={setImageHeight} isDarkMode={isDarkMode} />
             </div>
 
             {/* 정렬 */}
@@ -763,8 +813,8 @@ export default function ImageModal({
             <div className="flex-grow flex flex-col p-5 gap-3">
               {/* 이미지 캡션 상단 표시 */}
               {captionPosition === 'top' && captionFormat !== 'none' && captionTitle.trim() && (
-                <div className="text-center font-bold text-xs text-zinc-800 dark:text-zinc-200 py-1 px-2 rounded bg-zinc-100 dark:bg-zinc-800/80">
-                  {formatMediaCaption('그림', captionNumber, captionTitle.trim(), captionFormat, customTemplate)}
+                <div className="text-center font-bold text-xs text-zinc-800 dark:text-zinc-200 py-1.5 px-3 rounded-md bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 shadow-xs">
+                  {formatCleanCaptionPreview(formatMediaCaption('그림', captionNumber, captionTitle.trim(), captionFormat, customTemplate))}
                 </div>
               )}
               {/* 이미지 표시 영역 */}
@@ -849,6 +899,13 @@ export default function ImageModal({
                   </div>
                 )}
               </div>
+
+              {/* 이미지 캡션 하단 표시 */}
+              {captionPosition === 'bottom' && captionFormat !== 'none' && captionTitle.trim() && (
+                <div className="text-center font-bold text-xs text-zinc-800 dark:text-zinc-200 py-1.5 px-3 rounded-md bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 shadow-xs">
+                  {formatCleanCaptionPreview(formatMediaCaption('그림', captionNumber, captionTitle.trim(), captionFormat, customTemplate))}
+                </div>
+              )}
 
               {/* 정렬 미리보기 표시기 */}
               <div className={`rounded-lg px-4 py-3 border ${

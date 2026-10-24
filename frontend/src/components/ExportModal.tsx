@@ -1,7 +1,9 @@
 "use client";
 
 import { useModalEscape } from '@/hooks/useModalEscape';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import PrintPaginationPreview from '@/components/PrintPaginationPreview';
+import { readPaginationSettings, emptyPagination, type DocumentPaginationSettings, type PrintBreakAnchor } from '@/lib/documentPaginationSettings';
 import { readEffectivePrintSettings, DocumentPrintSettings, DEFAULT_PRINT_SETTINGS, normalizePrintSettings, saveDefaultWatermarkSettings, hasDocumentPrintSettings } from '@/lib/documentPrintSettings';
 import { createPortal } from 'react-dom';
 import { Download, Printer, Globe, Image as ImageIcon, X, Check, BookOpen, FileText } from 'lucide-react';
@@ -13,14 +15,15 @@ import { Download, Printer, Globe, Image as ImageIcon, X, Check, BookOpen, FileT
 interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: (format: 'print' | 'docx' | 'hwpx' | 'html' | 'png' | 'epub', currentSettings?: DocumentPrintSettings) => void;
+  onExport: (format: 'print' | 'docx' | 'hwpx' | 'html' | 'png' | 'epub', currentSettings?: DocumentPrintSettings, pagination?:DocumentPaginationSettings) => void;
   isDarkMode: boolean;
   isPicturebook?: boolean;
   documentId?:string;
   documentContent?:string;
   onPrintSettingsChange?:(settings:DocumentPrintSettings)=>void;
   onOpenWatermarkSettings?:()=>void;
-  onPagePreview?:(settings:DocumentPrintSettings,signal:AbortSignal)=>Promise<string|void>;
+  onPagePreview?:(settings:DocumentPrintSettings,signal:AbortSignal,pagination:DocumentPaginationSettings)=>Promise<string|void>;
+  onPaginationSettingsChange?:(settings:DocumentPaginationSettings)=>void;
 }
 
 /**
@@ -57,12 +60,25 @@ export default function ExportModal({
   onExport, 
   isDarkMode,
   isPicturebook = false,
-  documentId,documentContent='',onPrintSettingsChange,onPagePreview,onOpenWatermarkSettings,
+  documentId,documentContent='',onPrintSettingsChange,onPagePreview,onOpenWatermarkSettings,onPaginationSettingsChange,
 }: ExportModalProps) {
   useModalEscape(isOpen, onClose);
   const [selectedFormat, setSelectedFormat] = useState<'print' | 'docx' | 'hwpx' | 'html' | 'png' | 'epub'>('print');
   const [mounted, setMounted] = useState(false);
   const [settings,setSettings]=useState<DocumentPrintSettings>(DEFAULT_PRINT_SETTINGS);
+  const [pagination,setPagination]=useState<DocumentPaginationSettings>(emptyPagination);
+  const [appliedPagination,setAppliedPagination]=useState('');
+  const [adjusting,setAdjusting]=useState(false);
+  const [largePreview,setLargePreview]=useState(false),[showOutputSettings,setShowOutputSettings]=useState(false);
+  const [past,setPast]=useState<DocumentPaginationSettings[]>([]),[future,setFuture]=useState<DocumentPaginationSettings[]>([]);
+  const changePagination=useCallback((next:DocumentPaginationSettings)=>{
+    setPast(previous=>[...previous,pagination]);setFuture([]);setPagination(next);
+  },[pagination]);
+  const toggleBreak=useCallback((anchor:PrintBreakAnchor,existingId?:string)=>{
+    const id=existingId || anchor.id;
+    const exists=pagination.breaks.some(a=>a.id===id);
+    changePagination({version:1,breaks:exists?pagination.breaks.filter(a=>a.id!==id):[...pagination.breaks,anchor]});
+  },[pagination,changePagination]);
   const [pageHtml,setPageHtml]=useState(''),[previewOpen,setPreviewOpen]=useState(false),[busy,setBusy]=useState(false),[printError,setPrintError]=useState(''),[isExporting,setIsExporting]=useState(false);
   const generation=useRef(0),currentDocument=useRef(documentId),previewCallback=useRef(onPagePreview);
   const settingsRef=useRef(settings);settingsRef.current=settings;
@@ -70,6 +86,11 @@ export default function ExportModal({
   const isPicturebookRef=useRef(isPicturebook);isPicturebookRef.current=isPicturebook;
   currentDocument.current=documentId;previewCallback.current=onPagePreview;
   useEffect(()=>{generation.current++;const value=normalizePrintSettings(readEffectivePrintSettings(contentRef.current));settingsRef.current=value;setSettings(value);setSelectedFormat('print');setPageHtml('');setPreviewOpen(false);setPrintError('');setBusy(false);setIsExporting(false);},[isOpen,documentId]);
+  useEffect(()=>{
+    const value=readPaginationSettings(contentRef.current);
+    setPagination(value);setAppliedPagination(JSON.stringify(value));setAdjusting(false);setPast([]);setFuture([]);
+    setLargePreview(false);setShowOutputSettings(false);
+  },[isOpen,documentId]);
   useEffect(()=>{
     if(!isOpen)return;
     const refresh=()=>setSettings(normalizePrintSettings(readEffectivePrintSettings(documentContent)));
@@ -80,14 +101,14 @@ export default function ExportModal({
     if(!isOpen || !previewOpen || selectedFormat!=='print' || isPicturebook || !previewCallback.current)return;
     const request=++generation.current;setBusy(true);setPrintError('');
     const controller=new AbortController();
-    const timer=setTimeout(()=>{void previewCallback.current?.(settings,controller.signal).then(html=>{
+    const timer=setTimeout(()=>{void previewCallback.current?.(settings,controller.signal,pagination).then(html=>{
       if(generation.current!==request)return;
       if(!html)throw new Error('미리보기를 준비하지 못했습니다.');
       setPageHtml(html);setBusy(false);
     }).catch(error=>{if(generation.current===request){setPrintError(error.message);setBusy(false);}});},500);
     const gen = generation;
     return ()=>{clearTimeout(timer);controller.abort();if(gen.current===request)gen.current++;};
-  },[isOpen,previewOpen,selectedFormat,settings,documentContent,isPicturebook]);
+  },[isOpen,previewOpen,selectedFormat,settings,documentContent,isPicturebook,pagination]);
 
   const updateWatermarkSettings = (updater: (prev: DocumentPrintSettings) => DocumentPrintSettings) => {
     setSettings(prev => {
@@ -111,6 +132,7 @@ export default function ExportModal({
 
   if (!isOpen) return null;
   if (!mounted) return null;
+  const pageView=previewOpen && selectedFormat==='print' && !isPicturebook;
 
   const formats = [
     { id: 'print', label: "인쇄 / PDF 출력", desc: "OS 인쇄 미리보기 후 프린터 출력 또는 PDF 저장", icon: <Printer size={20} className="text-red-500" /> },
@@ -134,14 +156,14 @@ export default function ExportModal({
         className={`w-full ${previewOpen?'max-w-6xl':'max-w-lg'} rounded-2xl shadow-2xl border flex flex-col ${
           isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-black/5 text-zinc-900'
         } animate-in zoom-in-95 duration-200`}
-        style={{ maxHeight: "90dvh", overflow: "hidden" }}
+        style={{ display:'flex',flexDirection:'column',maxHeight: pageView && largePreview?'96dvh':'90dvh', height:pageView?(largePreview?'96dvh':'90dvh'):undefined, maxWidth:pageView && largePreview?'none':undefined, overflow: "hidden" }}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#EFEFEF] dark:border-white/10 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#1d4ed8]/15 text-[#1d4ed8]">
               <Download size={18} />
             </div>
-            <h2 className="text-base font-bold tracking-tight text-[#1d4ed8]">내보내기</h2>
+            <h2 className="text-base font-bold tracking-tight text-[#1d4ed8]">{pageView?'인쇄 미리보기':'내보내기'}</h2>
           </div>
           <button 
             onClick={onClose}
@@ -151,7 +173,9 @@ export default function ExportModal({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-2" style={{ fontFamily: "Pretendard, sans-serif" }}>
+        <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-2" style={{ fontFamily: "Pretendard, sans-serif",flex:1,minHeight:0, display:pageView && !showOutputSettings?'flex':undefined,flexDirection:'column',overflow:pageView && !showOutputSettings?'hidden':undefined }}>
+          {pageView && <div style={{flexShrink:0}}><button type="button" onClick={()=>setShowOutputSettings(v=>!v)} className="text-xs border rounded px-2 py-1">{showOutputSettings?'출력 설정 접기':'출력 설정 펼치기'}</button></div>}
+          {(!pageView || showOutputSettings) && <>
           <p className="text-[13px] opacity-60 px-1 mb-3">저장할 파일 형식을 선택해주세요.</p>
           
           <div className="grid grid-cols-1 gap-2">
@@ -178,7 +202,9 @@ export default function ExportModal({
               </button>
             ))}
           </div>
-          {(selectedFormat==='print' || selectedFormat==='epub') && !isPicturebook && <section className="mt-4 space-y-3 border-t border-slate-200 dark:border-white/10 pt-4" aria-label="페이지 및 워터마크 설정">
+          </>}
+          {(selectedFormat==='print' || selectedFormat==='epub') && !isPicturebook && <section className="mt-4 space-y-3 border-t border-slate-200 dark:border-white/10 pt-4" style={pageView?{display:'flex',flexDirection:'column',flex:1,minHeight:showOutputSettings?undefined:0,marginTop:0,paddingTop:8}:undefined} aria-label="페이지 및 워터마크 설정">
+            {(!pageView || showOutputSettings) && <>
             <p className="text-xs opacity-75">{selectedFormat==='print' ? '아래 쪽 윤곽이 실제 인쇄/PDF 기준입니다. 용지·방향·여백은 서식관리 설정을 사용합니다.' : 'EPUB의 워터마크는 아래 설정을 적용하여 사출합니다.'}</p>
 
             {/* 🛡️ 워터마크 인터랙티브 설정 컨트롤 카드 */}
@@ -292,12 +318,13 @@ export default function ExportModal({
                 </button>
               </div>
             </div>
+            </>}
             {selectedFormat==='print' && (
-              <div className="mt-3 flex flex-col gap-2">
+              <div className="mt-3 flex flex-col gap-2" style={pageView?{display:'flex',flexDirection:'column',flex:1,minHeight:showOutputSettings?540:0}:undefined}>
                 <div className="flex items-center justify-between">
                   <button
                     type="button"
-                    onClick={()=>setPreviewOpen(v=>!v)}
+                    onClick={()=>{setPreviewOpen(v=>!v);setLargePreview(false);setShowOutputSettings(false);}}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-slate-700 dark:text-zinc-300"
                   >
                     <span>{previewOpen ? '쪽 윤곽 미리보기 접기 ▲' : '쪽 윤곽 미리보기 펼치기 ▼'}</span>
@@ -317,16 +344,25 @@ export default function ExportModal({
                 )}
                 {previewOpen && printError && (
                   <div className="text-xs text-rose-500 bg-rose-50 dark:bg-rose-950/30 p-2 rounded-lg border border-rose-200 dark:border-rose-900">
-                    쪽 윤곽 미리보기를 불러올 수 없습니다 ({printError}). OS 인쇄/PDF 저장은 정상적으로 이용하실 수 있습니다.
+                    쪽 윤곽 미리보기를 불러올 수 없습니다 ({printError}). 설정을 확인한 뒤 다시 시도해 주세요.
                   </div>
                 )}
                 {previewOpen && pageHtml && !printError && (
-                  <iframe
-                    title="쪽 윤곽 미리보기"
-                    sandbox="allow-same-origin"
-                    srcDoc={pageHtml}
-                    className={`h-[45vh] w-full border border-slate-200 dark:border-zinc-700 rounded-lg bg-slate-100 dark:bg-zinc-900 transition-opacity ${busy ? 'opacity-40' : 'opacity-100'}`}
-                  />
+                  <>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <button type="button" aria-pressed={adjusting} onClick={()=>setAdjusting(v=>!v)} className="border rounded-lg px-3 py-2">{adjusting?'조정 마치기':'페이지 나누기 조정'}</button>
+                      <button type="button" disabled={!past.length||busy} onClick={()=>{setFuture(next=>[pagination,...next]);setPagination(past[past.length-1]);setPast(p=>p.slice(0,-1));}} className="border rounded px-2 py-1 disabled:opacity-40">실행취소</button>
+                      <button type="button" disabled={!future.length||busy} onClick={()=>{setPast(p=>[...p,pagination]);setPagination(future[0]);setFuture(f=>f.slice(1));}} className="border rounded px-2 py-1 disabled:opacity-40">다시실행</button>
+                      <button type="button" disabled={!pagination.breaks.length||busy} onClick={()=>changePagination(emptyPagination())} className="border rounded px-2 py-1 disabled:opacity-40">출력용 나누기 전체 해제</button>
+                      <button type="button" disabled={JSON.stringify(pagination)===appliedPagination||!onPaginationSettingsChange||busy} onClick={()=>{onPaginationSettingsChange?.(pagination);setAppliedPagination(JSON.stringify(pagination));}} className="bg-blue-600 text-white rounded px-3 py-2 disabled:opacity-40">문서에 적용</button>
+                    </div>
+                    {adjusting && <p className="text-xs text-slate-500">+ 위치부터 다음 페이지로 보냅니다. ×는 나누기를 해제합니다. Tab으로 이동하고 Enter로 선택할 수 있습니다.</p>}
+                    <p className="text-xs text-slate-500">원본 본문은 분리하지 않습니다. 적용한 설정은 문서를 저장하면 함께 보관됩니다. 미적용 조정은 이번 출력에만 사용됩니다.</p>
+                    {Number(pageHtml.match(/data-onrivi-unresolved-count="(\d+)"/)?.[1] || 0)>0 && <p role="status" className="text-xs text-amber-700">위치 확인이 필요한 나누기가 있습니다. 목록에서 해제하거나 위치를 다시 지정한 뒤 출력해 주세요.</p>}
+                    {Number(pageHtml.match(/data-onrivi-oversized-count="(\d+)"/)?.[1] || 0)>0 && <p role="status" className="text-xs text-amber-700">용지 높이를 넘는 표 행·그림·수식이 있습니다. 내용이나 용지 설정을 조정해 주세요.</p>}
+                    {!!pagination.breaks.length && <details className="text-xs" style={{maxHeight:100,overflowY:'auto',flexShrink:0}}><summary>지정한 나누기 {pagination.breaks.length}개</summary><ul>{pagination.breaks.map(anchor=><li key={anchor.id} className="flex gap-2 py-1"><span>{(pageHtml.match(/data-onrivi-unresolved-ids="([^"]*)"/)?.[1]||'').split(',').includes(anchor.id)?'위치 확인 필요 · ':''}{anchor.text.slice(0,70)||'빈 코드 줄'}</span><button type="button" onClick={()=>toggleBreak(anchor,anchor.id)}>해제</button></li>)}</ul></details>}
+                    <PrintPaginationPreview html={pageHtml} editing={adjusting} busy={busy} onToggle={toggleBreak} onEscape={onClose} expanded={largePreview} onExpand={()=>{setLargePreview(v=>!v);setShowOutputSettings(false);}} />
+                  </>
                 )}
               </div>
             )
@@ -348,7 +384,7 @@ export default function ExportModal({
               if (isExporting) return;
               setIsExporting(true);
               try {
-                await onExport(selectedFormat as any, settings);
+                await onExport(selectedFormat as any, settings,pagination);
               } finally {
                 setIsExporting(false);
               }

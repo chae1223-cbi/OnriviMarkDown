@@ -1,3 +1,8 @@
+// ====================================================================
+// 📊 [OMD-HOOK-useEditorModals-0001] useEditorModals.ts ➔ 에디터 모달 상태 관리 훅
+// 🚨 @PATCH : **2026-10-24** — [editingImageInfo에 captionPos(top|bottom) 속성 추가]:
+//             1) 이미지 수정 모달 열림 시 기존 URL에 인코딩된 캡션 위치를 모달 UI에 정확히 복원하도록 타입 확장
+// ====================================================================
 import { useState } from 'react';
 
 export interface PromptConfig {
@@ -37,6 +42,7 @@ export const useEditorModals = () => {
     width: string;
     height: string;
     align: string;
+    captionPos?: 'top' | 'bottom';
   } | null>(null);
 
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);   // 지도 모달 열림/닫힘 상태

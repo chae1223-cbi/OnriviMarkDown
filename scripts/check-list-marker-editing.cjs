@@ -255,6 +255,29 @@ for(const contents of ['', ' \u00a0\u200b', '\n']){
 }
 console.log('PASS: Enter exits visually empty items with sublists while retaining all following content');
 
+for(const following of [false,true])for(const nested of [false,true]){
+ const n=api.visualSchema.nodes, p=text=>n.paragraph.create(null,text?api.visualSchema.text(text):null);
+ const blank=p('');
+ const item=n.list_item.create(null,[p('편안한 본문 입력'),n.bullet_list.create(null,n.list_item.create(null,p('하위 설명'))),blank]);
+ const list=n.ordered_list.create({order:3},following?[item,n.list_item.create(null,p('다음 항목'))]:[item]);
+ const doc=n.doc.create(null,nested?n.bullet_list.create(null,n.list_item.create(null,[p('상위'),list])):list);
+ let s=EditorState.create({doc,plugins:[history()]});let pos;
+ doc.descendants((node,offset)=>{if(node===blank)pos=offset+1;});
+ s=s.apply(s.tr.setSelection(TextSelection.create(doc,pos)));const before=s;
+ assert.equal(lists.exitEmptyListItem(s,tr=>s=s.apply(tr)),true);s.doc.check();
+ let retained;s.doc.descendants(node=>{if(node.type.name==='ordered_list'&&node.attrs.order===3)retained=node;});
+ assert.equal(retained.firstChild.childCount,2);assert.equal(retained.firstChild.child(0).textContent,'편안한 본문 입력');
+ assert.equal(retained.firstChild.child(1).textContent,'하위 설명');
+ assert.equal(s.selection.$from.depth,nested?3:1);
+ const codec=api.createVisualDocumentCodec('');const saved=codec.serialize(s.doc);
+ assert.ok(saved.includes('3. 편안한 본문 입력'),saved);
+ if(following)assert.ok(saved.includes('4. 다음 항목'),saved);
+ api.createVisualDocumentCodec(saved).doc.check();
+ undo(s,tr=>s=s.apply(tr));assert.ok(s.doc.eq(before.doc));assert.equal(s.selection.from,pos);
+ redo(s,tr=>s=s.apply(tr));assert.ok(s.doc.textContent.includes('하위 설명'));
+}
+console.log('PASS: Enter after nested bullets preserves numbered parent, following numbers, nesting and undo/redo');
+
 for(const order of [1,5]){
  const source=`${order}. **앞 항목**\n${order+1}. 위 마지막\n\n<p></p>\n\n<p></p>\n\n1. [아래 항목](https://example.com)\n2. 끝\n`;
  const c=api.createVisualDocumentCodec(source);let s=EditorState.create({doc:c.doc,plugins:[history()]});let blank;

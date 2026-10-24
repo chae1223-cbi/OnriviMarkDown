@@ -1,5 +1,10 @@
 /**
  * 프로그램명 : OnriviAuthor 
+// 🚨 @PATCH : **2026-10-24** — [이미지 수정 시 captionPos(top|bottom) URL 쿼리 연동 및 스타일 주입]:
+//             1) editDocumentMedia 및 onImageDialog에서 이미지 URL 쿼리의 caption 파라미터를 읽어 editingImageInfo.captionPos에 바인딩
+//             2) 동적 CSS 규칙에 [data-caption-position="top|bottom"]에 대한 order 및 margin 스타일을 추가하여 어떤 서식 프로필에서도 캡션 위치 100% 보장
+// 🚨 @PATCH : **2026-10-24** — [문서보기(VisualDocumentEditor) renderImage에 activeProfile 주입]: 위지윅 문서보기 내 이미지도 서식 프로필의 캡션 위치(상단/하단)를 1:1로 정확히 동기화하도록 picturebookProfile={activeProfile} 연동
+// 🚨 @PATCH : **2026-10-24** — [문서보기 이미지 캡션(fullMarkdown) 양방향 전달 연동]: visualImageInsertRef 및 replaceVisualImage에 fullMarkdown 파라미터를 연결하여 캡션 포함 이미지 정상 렌더링
 // 🚨 @PATCH : **2026-10-23** — [문서 연결 표시명·목록·열기 보완]: 빈 링크명은 대상 파일명으로 표시하고 같은 이름의 다른 경로 문서를 모두 유지하며 문서보기 클릭도 작업장 경로 검증 후 연다
 // 🚨 @PATCH : **2026-10-22** — [문서연결 [링크명](문서경로) 구조 정비]:
 //             1) buildDocLinkTarget 신설로 상대경로(#헤딩) 계산을 단일화하고 목록·미리보기·삽입에서 공통 사용
@@ -49,9 +54,8 @@
 //             2) Electron 데스크톱에서는 app.showEmojiPanel()을 직결 호출하고, 웹 브라우저 및 미지원 환경에서는 OS 단축키를 안내하며 자체 패널은 열지 않음
 // 🚨 @PATCH : **2026-10-19** — [onrivi:open-print 리스너 TDZ(ReferenceError) 결함 즉시 해결]:
 //             dispatchCommand 선언부 이후로 onrivi:open-print useEffect의 배치 위치를 조정하여 런타임 초기화 순서 에러 완전 해소
-// 🚨 @PATCH : **2026-10-19** — [상태바 인쇄/쪽 윤곽 모달 호출(onrivi:open-print) 연동 및 PAGEBREAK 페이지 나누기 마커 삽입 명령 지원]:
+// 상태바 인쇄/쪽 윤곽 모달 호출(onrivi:open-print) 연동
 //             1) onrivi:open-print 이벤트 수신 시 dispatchCommand('OPEN_EXPORT')를 직결 실행하여 ExportModal 팝업
-//             2) dispatchCommand에 'PAGEBREAK' 분기를 신설하여 위지윅 문서보기(insertPageBreak) 및 모나코 편집기(<!-- onrivi:page-break -->) 양방향 지원
 // 🚨 @PATCH : **2026-10-19** — [세션 복원 시 플레이스홀더 경고(작업장 외부 문서 안내) draft 주입 차단 및 orange dot(isModified) 버그 해결]: 시스템 안내문은 사용자 수정본(draft)으로 복원하지 않고 무시하여 정상 파일 바인딩을 보장
 // 🚨 @PATCH : **2026-10-19** — [5초 자동저장 무한 루프 척결 및 나란히 보기(both) 마크다운 진동·흔들림 해결]:
 //             1) autoSave 실행 중 불필요한 Frontmatter 강제 주입(updateCssProfileInFrontmatter) 및 setContent/model.pushEditOperations 전면 배제 (백그라운드 물리 디스크 저장 전담)
@@ -1006,7 +1010,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const visualFloatingOriginRef = useRef(false);
   const [mediaDialogSource,setMediaDialogSource] = useState<{kind:'video'|'map';source:string}|null>(null);
   const visualMediaInsertRef = useRef<{kind:string;documentId:string;insert:(code:string)=>boolean}|null>(null);
-  const visualImageInsertRef = useRef<((path: string, alt: string) => boolean) | null>(null);
+  const visualImageInsertRef = useRef<((path: string, alt: string, fullMarkdown?: string) => boolean) | null>(null);
   const visualCommandRef = useRef<((command: string) => boolean) | null>(null);
   const visualAITargetRef = useRef<any>(null);
   const visualSourceActionRef = useRef<{ id: string; source: string; from: number; to: number; tabId: string } | null>(null);
@@ -6198,7 +6202,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (kind==='image') {
       const details = visualImageDetails(found.source);
       const params = new URLSearchParams(details.path.split('?')[1] || '');
-      setEditingImageInfo({path:details.path,alt:details.alt,width:params.get('width')||'',height:params.get('height')||'',align:params.get('align')||'center',range});
+      const captionPos = params.get('caption');
+      setEditingImageInfo({
+        path: details.path,
+        alt: details.alt,
+        width: params.get('width') || '',
+        height: params.get('height') || '',
+        align: params.get('align') || 'center',
+        captionPos: (captionPos === 'top' || captionPos === 'bottom') ? captionPos : undefined,
+        range
+      });
       setIsImageModalOpen(true);
     } else {
       visualMediaInsertRef.current = {kind,documentId:range.documentId,insert:code=>replaceDocumentMedia(range,code)};
@@ -7092,6 +7105,18 @@ blockquote li p {
 .onrivi-content-root .onrivi-image-figure figcaption {
   text-align: ${textAlign} !important;
   align-self: ${alignSelf} !important;
+}
+.custom-preview-container .onrivi-image-figure[data-caption-position="top"] figcaption,
+.onrivi-content-root .onrivi-image-figure[data-caption-position="top"] figcaption {
+  order: -1 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0.5rem !important;
+}
+.custom-preview-container .onrivi-image-figure[data-caption-position="bottom"] figcaption,
+.onrivi-content-root .onrivi-image-figure[data-caption-position="bottom"] figcaption {
+  order: 1 !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0 !important;
 }
 `;
       } else if (tag === 'video') {
@@ -8211,14 +8236,6 @@ blockquote li p {
         else if (type === 'OPEN_EXPORT') handlers.openExport();
         return;
       }
-      case 'PAGEBREAK': {
-        if (previewRef.current?.querySelector('.visual-document-editor') && visualCommandRef.current?.('PAGEBREAK')) {
-          return;
-        }
-        insertAtCursor('\n\n<!-- onrivi:page-break -->\n\n');
-        return;
-      }
-
       // 보기/제어 관련 (문서보기 확대/축소로 일원화)
       case 'ZOOM_IN':
         setPreviewZoomScale(prev => Math.min(2.0, Math.round((prev + 0.1) * 10) / 10));
@@ -8233,6 +8250,13 @@ blockquote li p {
       case 'REDO': handlers.redo(); return;
       case 'FIND': handlers.find(); return;
       case 'REPLACE': handlers.replace(); return;
+      case 'PAGEBREAK': {
+        if (previewRef.current?.querySelector('.visual-document-editor') && visualCommandRef.current?.('PAGEBREAK')) {
+          return;
+        }
+        insertAtCursor('\n\n<!-- onrivi:page-break -->\n\n');
+        return;
+      }
       case 'GLOBAL_SEARCH':
         setIsSidebarOpen(true);
         setSidebarTab('search');
@@ -11134,12 +11158,20 @@ blockquote li p {
                                       const details = source ? visualImageDetails(source) : {path:'',alt:''};
                                       const path = details.path;
                                       const params = new URLSearchParams(path.includes('?') ? path.slice(path.indexOf('?') + 1) : '');
+                                      const captionPos = params.get('caption');
                                       visualImageInsertRef.current = insert;
-                                      setEditingImageInfo({ path, alt:details.alt, width:params.get('width') || '', height:params.get('height') || '', align:params.get('align') || 'center',
-                                        range:{ visualImage:true, documentId:activeTabIdRef.current } });
+                                      setEditingImageInfo({
+                                        path,
+                                        alt: details.alt,
+                                        width: params.get('width') || '',
+                                        height: params.get('height') || '',
+                                        align: params.get('align') || 'center',
+                                        captionPos: (captionPos === 'top' || captionPos === 'bottom') ? captionPos : undefined,
+                                        range: { visualImage: true, documentId: activeTabIdRef.current }
+                                      });
                                       setIsImageModalOpen(true);
                                     }}
-                                    renderImage={source => <MarkdownViewer mediaControlsManaged content={source} currentFilePath={currentFileNode?.path} rootFolderPath={rootFolder?.name}
+                                    renderImage={source => <MarkdownViewer mediaControlsManaged picturebookProfile={activeProfile} content={source} currentFilePath={currentFileNode?.path} rootFolderPath={rootFolder?.name}
                                       rootFolder={rootFolder} resourceFolderHandle={resourceFolderHandle} resourceFolder={resourceFolder} workspaceType={workspaceType} />}
                                     floatingToolbarVisible={floatingToolbar.visible}
                                     onFloatingToolbar={(visible, position) => {
@@ -11399,8 +11431,8 @@ blockquote li p {
                 }
                 setMediaDialogSource(null); visualMediaInsertRef.current=null;
               },
-              replaceVisualImage: (range, path, alt) => {
-                if (range.documentId !== activeTabIdRef.current || !visualImageInsertRef.current?.(path, alt)) {
+              replaceVisualImage: (range, path, alt, fullMarkdown) => {
+                if (range.documentId !== activeTabIdRef.current || !visualImageInsertRef.current?.(path, alt, fullMarkdown)) {
                   showToast('문서나 이미지 위치가 변경되었습니다. 사진을 다시 선택해 주세요.', 'warning');
                 }
                 visualImageInsertRef.current = null;

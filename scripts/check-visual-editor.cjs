@@ -61,6 +61,17 @@ console.log('PASS: actual preview wheel handler keeps native document scroll and
 const pasteExports={};
 vm.runInNewContext(compile(path.join(frontend,'src/lib/visualMarkdownPaste.ts')),{exports:pasteExports,require:name=>name==='./bulletNumberText'?bulletExports:name==='@/lib/visualDocumentCodec'?exportsObject:req(name)});
 const { EditorState } = req('prosemirror-state');
+{
+  const source=fs.readFileSync(path.join(frontend,'src/components/VisualDocumentEditor.tsx'),'utf8');
+  assert.ok(!source.includes('insertPageBreak'));
+  const catalog={};vm.runInNewContext(compile(path.join(frontend,'src/lib/toolbarConfig.ts')),{exports:catalog});
+  assert.ok(!catalog.TOOLBAR_ITEMS.some(item=>item.id==='pagebreak'));
+  const commands=catalog.getSlashCommands({languages:{CompletionItemKind:{Keyword:17,Snippet:15}}},{pagebreak:'old-user-command'});
+  assert.ok(!commands.some(item=>item.id==='pagebreak'),'saved custom command cannot restore removed slash action');
+  const legacy='앞\n\n<!-- onrivi:page-break -->\n\n뒤';
+  const codec=createVisualDocumentCodec(legacy);assert.equal(codec.doc.child(1).type.name,'page_break');assert.equal(codec.serialize(codec.doc),legacy);
+  console.log('PASS: duplicate page-break action removed; stored legacy page markers still round-trip');
+}
 const trailingCodec=createVisualDocumentCodec('tail');
 let trailingState=EditorState.create({doc:trailingCodec.doc});
 trailingState=trailingState.apply(trailingState.tr.insertText('    ',5));
@@ -508,23 +519,40 @@ async function visual() {
       assert.deepEqual(errors,[]);console.log('PASS: report table title and next number, insertion before table, editable first header, body preservation and reload');return;
     }
     if(process.argv.includes('--page-break-only')){
-      await surface.waitFor();await page.evaluate(()=>window.setTestSource('앞 문단\n\n뒤 문단'));
-      await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent.includes('뒤 문단'));
-      await surface.locator('p').first().click();await page.keyboard.press('End');
-      await page.evaluate(()=>window.qaView && window.document.querySelector('.visual-document-surface').focus());
-      await page.keyboard.press('Enter');await page.keyboard.type('/pagebreak');await page.keyboard.press('Enter');
-      assert.equal(await surface.locator('[data-onrivi-page-break]').count(),1);
-      await page.keyboard.type('새 페이지 본문');
-      assert.ok((await page.locator('#source').inputValue()).includes('<!-- onrivi:page-break -->'));
-      assert.ok((await surface.textContent()).includes('새 페이지 본문'));
-      const saved=await page.locator('#source').inputValue();await page.evaluate(s=>window.setTestSource(s+'\n'),saved);await page.waitForTimeout(80);
-      await surface.locator('[data-onrivi-page-break]').click();await page.keyboard.press('Delete');
-      assert.equal(await surface.locator('[data-onrivi-page-break]').count(),0);assert.ok((await surface.textContent()).includes('뒤 문단'));
-      await page.keyboard.press('Control+z');assert.equal(await surface.locator('[data-onrivi-page-break]').count(),1);
-      console.log('PASS: actual slash page-break insert, next-paragraph typing, save/reload, delete and one-step undo');return;
+      await surface.waitFor();
+      await page.evaluate(()=>{window.qaPrintRequests=0;window.addEventListener('onrivi:open-print',()=>window.qaPrintRequests++);});
+      for(const source of ['- 첫째\n- 둘째','| A |\n|---|\n| B |','> 인용문','```js\n코드\n```']){
+        await page.locator('#source').focus();await page.evaluate(s=>window.setTestDocument('print-'+s.slice(0,6),s),source);
+        await page.waitForFunction(s=>document.querySelector('#source').value===s,source);
+        assert.equal(await page.evaluate(()=>window.qaEditorCommand('PAGEBREAK')),false);
+        assert.equal(await page.locator('#source').inputValue(),source);
+      }
+      assert.equal(await page.evaluate(()=>window.qaPrintRequests),0);
+      console.log('PASS: removed editor page-break action does not change source or open duplicate UI');return;
     }
     if(process.argv.includes('--list-enter-only')){
       await surface.waitFor();
+      await page.locator('#source').focus();
+      await page.evaluate(()=>window.setTestDocument('numbered-parent-enter','3. **편안한 본문 입력**\n   - 첫 설명\n   - 둘째 설명'));
+      await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent.includes('둘째 설명'));
+      await page.evaluate(()=>{
+        const v=window.qaView;let end;
+        v.state.doc.descendants((n,p)=>{if(n.type.name==='list_item'&&n.firstChild.textContent==='편안한 본문 입력')end=p+n.nodeSize-1;});
+        const tr=v.state.tr.insert(end,v.state.schema.nodes.paragraph.create());
+        tr.setSelection(v.state.selection.constructor.create(tr.doc,end+1));v.dispatch(tr);v.focus();
+      });
+      await page.keyboard.press('Enter');
+      assert.equal(await surface.locator(':scope > ol > li p').first().textContent(),'편안한 본문 입력');
+      assert.equal(await surface.locator(':scope > ol').getAttribute('start'),'3');
+      assert.equal(await surface.locator(':scope > ol > li ul > li').count(),2);
+      assert.equal(await page.evaluate(()=>window.qaView.state.selection.$from.depth),1);
+      await page.keyboard.press('Control+z');
+      assert.equal(await page.evaluate(()=>window.qaView.state.selection.$from.depth),3);
+      if(process.argv.includes('--continuation-only')){
+        assert.deepEqual(errors,[]);
+        console.log('PASS: actual Enter preserves numbered parent and nested bullets, exits only blank paragraph, and undoes in one step');return;
+      }
+      await page.locator('#source').focus();
       await page.evaluate(()=>window.setTestSource('- 1\\. 일번\n- 2\\. 이번\n- 3\\. 삼번\n- 4\\. 사번\n\n<p></p>'));
       await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent.includes('사번'));
       await surface.locator('li p').first().click();await page.keyboard.press('End');await page.keyboard.press('Delete');

@@ -280,6 +280,36 @@ export const exitEmptyListItem: Command = (state, dispatch, view) => {
   if (depth < 1 || $from.node(depth).type !== visualSchema.nodes.list_item) return false;
 
   const itemNode = $from.node(depth);
+  // A blank continuation paragraph is not an empty list item. Never lift its
+  // preceding title and nested lists together with the caret's paragraph.
+  const paragraphIndex = $from.index(depth);
+  if (paragraphIndex > 0) {
+    if (paragraphIndex !== itemNode.childCount - 1) return false;
+    if (dispatch) {
+      const listDepth = depth - 1;
+      const listNode = $from.node(listDepth);
+      const itemIndex = $from.index(listDepth);
+      const retainedItem = itemNode.copy(itemNode.content.cut(0, itemNode.content.size - $from.parent.nodeSize));
+      const beforeItems: DocumentNode[] = [];
+      const afterItems: DocumentNode[] = [];
+      listNode.forEach((item, _offset, index) => {
+        if (index < itemIndex) beforeItems.push(item);
+        else if (index === itemIndex) beforeItems.push(retainedItem);
+        else afterItems.push(item);
+      });
+      const firstList = listNode.copy(Fragment.fromArray(beforeItems));
+      const blocks = [firstList, visualSchema.nodes.paragraph.create()];
+      if (afterItems.length) blocks.push(listNode.type.create({
+        ...listNode.attrs,
+        ...(listNode.type.name === 'ordered_list' ? { order: (listNode.attrs.order || 1) + itemIndex + 1 } : {})
+      }, Fragment.fromArray(afterItems)));
+      const listPos = $from.before(listDepth);
+      const tr = state.tr.replaceWith(listPos, $from.after(listDepth), blocks);
+      tr.setSelection(TextSelection.create(tr.doc, listPos + firstList.nodeSize + 1));
+      dispatch(closeHistory(tr).scrollIntoView());
+    }
+    return true;
+  }
   // 만약 itemNode가 paragraph 외에 하위 리스트를 가지고 있다면 unwrap/lift 처리
   if (itemNode.childCount > 1) {
     const tr = state.tr;

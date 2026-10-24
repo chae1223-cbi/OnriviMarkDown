@@ -437,18 +437,6 @@ function StatusBar() {
           <Icon name="Book" size={15} />
         </button>
 
-        {/* ✂️ 페이지 나누기 */}
-        <button
-          type="button"
-          disabled={Boolean(isRestrictedUser || isExpired)}
-          onClick={() => dispatchCommand?.('PAGEBREAK')}
-          className="p-1.5 rounded-md transition-colors flex items-center justify-center text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
-          title="페이지 나누기"
-          aria-label="페이지 나누기"
-        >
-          <Icon name="Cut" size={15} />
-        </button>
-
         {/* 🖨️ 인쇄 / 쪽 윤곽 */}
         <button
           type="button"
