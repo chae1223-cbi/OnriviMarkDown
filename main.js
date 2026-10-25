@@ -13,6 +13,8 @@
 // 🚨 @PATCH : **2026-10-19** — [Windows/macOS OS 네이티브 이모지 창(system:showEmojiPicker) Electron 내장 app.showEmojiPanel 직결]:
 //             1) 외부 PowerShell 스크립트 실행으로 인한 포커스 상실 및 실행 지연을 전면 폐기하고, Electron 네이티브 app.showEmojiPanel()을 직결 호출하여 Windows 10/11 및 macOS에서 즉각 시스템 이모지 창 팝업 보장
 //             2) mainWindow.focus()를 선행 호출하여 입력 커서 포커스를 유지하고 이모지 선택 시 즉각 본문에 입력되도록 연동
+// 🚨 @PATCH : **2026-10-26** — [findLocalImageFile 활성 워크스페이스(currentActiveWorkspacePath) 이미지 탐색 연동]:
+//             1) media://local/serve 및 이미지 읽기 시 리소스 폴더뿐만 아니라 현재 활성 워크스페이스(images/ 등) 경로도 함께 교차 탐색하여 문서 로컬 이미지 404 Not Found 결함 방어
 // 🚨 @PATCH : **2026-10-18** — [이미지 저장(file:saveImage) 시 동일 파일명 덮어쓰기 방어 및 무결성 보존]:
 //             1) file:saveImage에서 대상 경로에 동일 이름의 파일이 이미 존재할 경우 바이너리 바이트(Buffer.equals)를 대조
 //             2) 파일 내용이 다르면 기존 파일을 절대 덮어쓰지 않고 고유 접미사(_1, _2...)를 부여하여 안전하게 보존하고 새 파일명 및 mediaPath 반환
@@ -500,7 +502,37 @@ function findLocalImageFile(rawPath) {
     }
   } catch {}
 
-  // 3) frontend/out 및 frontend/public 정적 에셋 폴백
+  // 3) 활성 워크스페이스(Workspace) 기준 탐색
+  try {
+    let settings = {};
+    const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+    if (fs.existsSync(settingsPath)) {
+      settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    }
+    const wsPath = currentActiveWorkspacePath || settings.workspacePath || settings.workspaceFolder || settings.localWorkspaceFolder || process.cwd();
+    if (wsPath && fs.existsSync(wsPath)) {
+      const stripped = normalized.replace(/^[A-Za-z]:[\\/]/, '').replace(/^\.?[/\\]+/, '');
+      const safeRes = resolveSafeResourceFolder();
+      const relFromRes = (safeRes && normalized.toLowerCase().startsWith(safeRes.toLowerCase()))
+        ? path.relative(safeRes, normalized)
+        : '';
+      const wsCandidates = [
+        relFromRes ? path.join(wsPath, relFromRes) : null,
+        relFromRes ? path.join(wsPath, 'images', relFromRes) : null,
+        path.join(wsPath, stripped),
+        path.join(wsPath, 'images', stripped),
+        path.join(wsPath, 'media', stripped),
+        path.join(wsPath, base),
+        path.join(wsPath, 'images', base),
+        path.join(wsPath, 'media', base),
+      ];
+      for (const cand of wsCandidates) {
+        if (fs.existsSync(cand) && !fs.statSync(cand).isDirectory()) return cand;
+      }
+    }
+  } catch {}
+
+  // 4) frontend/out 및 frontend/public 정적 에셋 폴백
   try {
     const fallbackOut = path.join(__dirname, 'frontend/out', base);
     if (fs.existsSync(fallbackOut) && !fs.statSync(fallbackOut).isDirectory()) return fallbackOut;

@@ -23,6 +23,9 @@ import katex from 'katex';
 // 🚨 @PATCH : **2026-10-17** — [목록 항목 간 줄 여백(margin-bottom) 및 들여쓰기 너비(var(--list-indent)) 서식 프로필 1:1 반영]:
 //             1) .onrivi-content-root ul/ol의 hardcoded padding-left: 1.5em !important를 var(--list-indent, 1.5em)으로 변경하여 서식 프로필의 들여쓰기 설정이 즉각 적용되도록 개선
 //             2) .onrivi-content-root li의 hardcoded margin: 0 !important를 해제하고 margin-bottom: var(--li-margin-bottom, 6px) 및 dynamicCssString 연동을 허용하여 목록 및 체크박스 줄 여백이 정상 작동하도록 조치
+// 🚨 @PATCH : **2026-10-26** — [문서 하위 폴더 이미지(images/... 등) 상대경로 정상 해석 및 리소스 폴더 오탐 404 방어]:
+//             1) isLocalMedia 판별 시 서브디렉토리가 포함된 경로(images/... 등)는 리소스 폴더(media/)로 강제 납치하지 않고 현재 문서(currentFilePath) 기준 상대경로로 정밀 풀이되도록 보정
+//             2) 문서 로컬 이미지들이 D:\Onrivi_Asset\images\... 로 오탐되어 404 Not Found가 발생하던 결함 완벽 해결
 // 🚨 @PATCH : **2026-10-25** — [이미지와 캡션 간격 초밀착(4px) 정돈]:
 //             1) 상단 캡션(mb-1, 4px) 및 하단 캡션(mt-1, 4px) 여백을 축소하여 이미지와 설명 텍스트가 시원하고 정갈하게 밀착되도록 개선
 // 🚨 @PATCH : **2026-10-25** — [이미지 상단 stray bracket/backslash("\[") 유령 캡션 노출 방어 및 캡션 서식 자연화]:
@@ -2896,13 +2899,19 @@ function MarkdownViewer({
                                     pureSrc.startsWith('assets/') ||
                                     pureSrc.includes('help/assets/');
 
+                const isMediaPrefix = pureSrc.startsWith('/media/') || pureSrc.startsWith('media/') || pureSrc.startsWith('./media/') || pureSrc.includes('/media/') || pureSrc.includes('\\media\\');
+                const hasSubdir = pureSrc.includes('/') || pureSrc.includes('\\');
+
                 const isLocalMedia = !isExternal && !isWelcomeAsset && !isHelpAsset && (
-                  pureSrc.includes('media/') || 
-                  pureSrc.endsWith('.png') || 
-                  pureSrc.endsWith('.jpg') || 
-                  pureSrc.endsWith('.jpeg') || 
-                  pureSrc.endsWith('.gif') || 
-                  pureSrc.endsWith('.webp')
+                  isMediaPrefix || 
+                  (!hasSubdir && (
+                    pureSrc.endsWith('.png') || 
+                    pureSrc.endsWith('.jpg') || 
+                    pureSrc.endsWith('.jpeg') || 
+                    pureSrc.endsWith('.gif') || 
+                    pureSrc.endsWith('.webp') ||
+                    pureSrc.endsWith('.svg')
+                  ))
                 );
 
                 if (isHelpAsset) {

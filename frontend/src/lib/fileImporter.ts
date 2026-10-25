@@ -18,7 +18,10 @@ import { readDocxImageSizes } from './docxImageSizes';
 import { pdfImageBoxes, serializePdfBlocks } from './pdfImportLayout';
 import { pdfRuledTableBlocks } from './pdfImportTables';
 import { readHwpCompression, decodeHwpBody, decodeHwpParagraph, isRawHwpImage } from './hwpStreams';
+import { importHwpx } from './hwpxImporter';
+import { importDoc } from './docImporter';
 import { convertFormCheckboxes } from './importCheckboxes';
+import { cleanHwpText } from './hwpTextCleanup';
 
 // Next.js 14 (Webpack 5) 환경에서 mammoth.js가 내부적으로 Buffer를 참조할 때 발생하는 오류 방지용 폴리필
 if (typeof globalThis !== 'undefined' && !(globalThis as any).Buffer) {
@@ -94,12 +97,16 @@ export async function convertFileToMarkdown(
   const arrayBuffer = await file.arrayBuffer();
 
   switch (extension) {
+    case 'doc':
+      return await importDoc(arrayBuffer);
     case 'docx':
       return await importDocx(arrayBuffer, imageSaveCallback);
     case 'pdf':
       return await importPdf(arrayBuffer, imageSaveCallback);
     case 'hwp':
       return await importHwp(arrayBuffer, imageSaveCallback);
+    case 'hwpx':
+      return await importHwpx(arrayBuffer, imageSaveCallback);
     case 'txt':
     case 'md':
     case 'markdown':
@@ -263,41 +270,84 @@ async function importHwp(
         }
       }
       const hwpDoc = hwpLib.parse(cfbModule.write(parserContainer, { type: 'array' }), { type: 'array' });
-      const extractTextNode = (obj: any): string => {
+      const escapeHtmlText = (value: string): string => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const isHwpTable = (value: any): boolean => !!value && (value.id === 1952607264 || value.id === 543974004) && Array.isArray(value.content);
+      const containsNestedTable = (value: any): boolean => {
+        if (!value || typeof value !== 'object') return false;
+        if (isHwpTable(value)) return true;
+        if (Array.isArray(value)) return value.some(containsNestedTable);
+        return Object.values(value).some(containsNestedTable);
+      };
+      const extractTextNode = (obj: any, htmlContext = false): string => {
           let result = '';
           if (typeof obj === 'string') {
-            return obj;
+            const value = cleanHwpText(obj);
+            return htmlContext ? escapeHtmlText(value) : value;
           } else if (Array.isArray(obj)) {
-            return obj.map(item => extractTextNode(item)).join('');
+            return obj.map(item => extractTextNode(item, htmlContext)).join('');
           } else if (obj !== null && typeof obj === 'object') {
             // hwp.js stores individual WCHARs; spaces must come from the
             // original controls, never from joining the character array.
             if (obj.constructor?.name === 'HWPChar') {
-              if (typeof obj.value === 'string') return obj.value;
+              if (typeof obj.value === 'string') {
+                const value = cleanHwpText(obj.value);
+                return htmlContext ? escapeHtmlText(value) : value;
+              }
               if (obj.value === 30 || obj.value === 31) return ' ';
               if (obj.value === 9) return '\t';
               if (obj.value === 10 || obj.value === 13) return '\n';
               return '';
             }
             // Table (id = 543974004)
-            if ((obj.id === 1952607264 || obj.id === 543974004) && Array.isArray(obj.content)) {
-              if (obj.rowCount === 1 && obj.columnCount === 1) return extractTextNode(obj.content) + '\n\n';
-              // HWP omits cells covered by row/column spans. Place each cell
-              // at its recorded coordinate instead of packing rows to the left.
-              const rowCount = Math.max(obj.rowCount || 0, obj.content.length);
-              const columnCount = Math.max(obj.columnCount || 0, ...obj.content.map((row: any) => Array.isArray(row) ? row.length : 0));
-              const grid = Array.from({ length: rowCount }, () => Array(columnCount).fill(''));
+            if (isHwpTable(obj)) {
+              type HwpCell = { row: number; column: number; rowSpan: number; colSpan: number; value: any };
+              const cells: HwpCell[] = [];
               obj.content.forEach((row: any, rowIndex: number) => {
                 if (!Array.isArray(row)) return;
                 row.forEach((cell: any, cellIndex: number) => {
                   const attr = cell.attribute || {};
                   const r = Number.isInteger(attr.row) ? attr.row : rowIndex;
                   const c = Number.isInteger(attr.column) ? attr.column : cellIndex;
-                  if (r >= 0 && r < rowCount && c >= 0 && c < columnCount) {
-                    grid[r][c] = extractTextNode(cell).trim().replace(/\|/g, '\\|').replace(/\r?\n+/g, '<br>');
-                  }
+                  if (r < 0 || c < 0) return;
+                  cells.push({ row: r, column: c, rowSpan: Math.max(1, attr.rowSpan || 1), colSpan: Math.max(1, attr.colSpan || 1), value: cell });
                 });
               });
+              const rowCount = Math.max(obj.rowCount || 0, obj.content.length, ...cells.map(cell => cell.row + cell.rowSpan));
+              const columnCount = Math.max(obj.columnCount || 0, ...cells.map(cell => cell.column + cell.colSpan));
+              const hasNestedTable = cells.some(cell => containsNestedTable(cell.value.items));
+              if (!htmlContext && rowCount === 1 && columnCount === 1 && !hasNestedTable) return extractTextNode(cells[0]?.value) + '\n\n';
+              const needsHtml = htmlContext || hasNestedTable || cells.some(cell => cell.rowSpan > 1 || cell.colSpan > 1);
+              if (needsHtml) {
+                const at = new Map(cells.map(cell => [`${cell.row}:${cell.column}`, cell]));
+                const covered = new Set<string>();
+                const rows: string[] = [];
+                for (let r = 0; r < rowCount; r++) {
+                  const parts: string[] = [];
+                  for (let c = 0; c < columnCount; c++) {
+                    const key = `${r}:${c}`;
+                    if (covered.has(key)) continue;
+                    const cell = at.get(key);
+                    if (!cell) { parts.push('<td></td>'); continue; }
+                    for (let rr = r; rr < Math.min(rowCount, r + cell.rowSpan); rr++) {
+                      for (let cc = c; cc < Math.min(columnCount, c + cell.colSpan); cc++) {
+                        if (rr !== r || cc !== c) covered.add(`${rr}:${cc}`);
+                      }
+                    }
+                    const span = `${cell.colSpan > 1 ? ` colspan="${cell.colSpan}"` : ''}${cell.rowSpan > 1 ? ` rowspan="${cell.rowSpan}"` : ''}`;
+                    const value = extractTextNode(cell.value, true).trim().replace(/\r?\n+/g, '<br>');
+                    parts.push(`<td${span}>${value}</td>`);
+                  }
+                  rows.push(`<tr>${parts.join('')}</tr>`);
+                }
+                // Nested tables must stay valid HTML; adding <br> around their
+                // <tr> elements would make the cells render incorrectly.
+                const table = htmlContext ? `<table>${rows.join('')}</table>` : `<table>\n${rows.join('\n')}\n</table>`;
+                return htmlContext ? table : `\n\n${table}\n\n`;
+              }
+              const grid = Array.from({ length: rowCount }, () => Array(columnCount).fill(''));
+              for (const cell of cells) {
+                grid[cell.row][cell.column] = extractTextNode(cell.value).trim().replace(/\|/g, '\\|').replace(/\r?\n+/g, '<br>');
+              }
               let mdTable = '\n\n';
               grid.forEach((row: any, rIdx: number) => {
                 let rowText = '| ';
@@ -328,12 +378,12 @@ async function importHwp(
               return '\n\n' + placeholder + '\n\n';
             }
 
-            if (obj.text) result += extractTextNode(obj.text);
-            else if (obj.chars) result += extractTextNode(obj.chars);
+            if (obj.text) result += extractTextNode(obj.text, htmlContext);
+            else if (obj.chars) result += extractTextNode(obj.chars, htmlContext);
             else {
               Object.values(obj).forEach(v => {
                 if (typeof v === 'string' || typeof v === 'number' || (typeof v === 'object' && v !== null)) {
-                   result += extractTextNode(v);
+                   result += extractTextNode(v, htmlContext);
                 }
               });
             }
@@ -564,7 +614,7 @@ async function importHwp(
       replacedText += '\n\n---\n### 📎 첨부 이미지 목록\n\n';
       replacedText += remainingImages.join('\n\n');
     }
-    replacedText = replacedText.replace(/\n{3,}/g, '\n\n');
+    replacedText = cleanHwpText(replacedText).replace(/\n{3,}/g, '\n\n');
 
     const lines = replacedText.split('\n');
     let isInTable = false;

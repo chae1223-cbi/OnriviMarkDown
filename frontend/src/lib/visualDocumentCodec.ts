@@ -2,6 +2,11 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-visual-codec
+ * 🚨 @PATCH : **2026-10-26** — [HWP/문서 가져오기 체크박스(<input type="checkbox">) 위지윅 네이티브 렌더링 및 무손실 직렬화 연동]:
+ *             1) visualSchema.nodes에 visual_checkbox 인라인 원자(atom) 노드 신설 (id, label, checked 속성 지원)
+ *             2) visualTokenizer에서 마크다운 표 및 일반 문단 내부의 <input type="checkbox" ... /> 태그를 checkbox_inline 토큰으로 분할 파싱
+ *             3) visualParser 및 visualSerializer에 visual_checkbox 양방향 매핑을 등록하여 100% 무손실 라운드트립 보장
+ *             4) safeRaw 전처리에서 <input> 태그를 안전하게 통과시켜 체크박스 포함 문단이 source_block(HTML 편집창)으로 오분기되는 결함 원천 차단
  * 🚨 @PATCH : **2026-10-25** — [인라인 서식(굵게, 기울임, 밑줄, 취소선, 인라인코드) 끝 연속 타이핑 서식 유지 보장 (inclusive: true)]:
  *             1) visualSchema.marks에서 strong, em, strike, underline, code의 inclusive: false 제약을 제거하여 기본 inclusive: true로 복원
  *             2) 서식 텍스트 끝에 커서를 두고 연속 타이핑 시 서식이 끊기며 일반 텍스트로 분기되던 결함 원천 해결
@@ -203,7 +208,34 @@ export const visualSchema = new Schema({
   }).addToEnd('table', {group:'block',content:'table_row+',isolating:true,toDOM:()=>['table',{class:'visual-editable-table'},['tbody',0]],parseDOM:[{tag:'table'}]})
     .addToEnd('table_row',{content:'(table_header | table_cell)+',toDOM:()=>['tr',0],parseDOM:[{tag:'tr'}]})
     .addToEnd('table_header',{content:'paragraph',isolating:true,attrs:{align:{default:'left'}},toDOM:()=>['th',{style:'text-align:center!important'},0],parseDOM:[{tag:'th'}]})
-    .addToEnd('table_cell',{content:'paragraph',isolating:true,attrs:{align:{default:'left'}},toDOM:node=>['td',{style:`text-align:${node.attrs.align}`},0],parseDOM:[{tag:'td',getAttrs:dom=>({align:(dom as HTMLElement).style.textAlign || 'left'})}]}),
+    .addToEnd('table_cell',{content:'paragraph',isolating:true,attrs:{align:{default:'left'}},toDOM:node=>['td',{style:`text-align:${node.attrs.align}`},0],parseDOM:[{tag:'td',getAttrs:dom=>({align:(dom as HTMLElement).style.textAlign || 'left'})}]})
+    .addToEnd('visual_checkbox', {
+      group: 'inline',
+      inline: true,
+      atom: true,
+      selectable: true,
+      attrs: { id: { default: '' }, checked: { default: false }, label: { default: '' } },
+      toDOM: node => ['input', {
+        type: 'checkbox',
+        class: 'onrivi-inline-checkbox align-middle cursor-pointer',
+        ...(node.attrs.id ? { 'data-import-checkbox': node.attrs.id } : {}),
+        ...(node.attrs.label ? { 'aria-label': node.attrs.label } : {}),
+        ...(node.attrs.checked ? { checked: 'checked' } : {}),
+        style: 'vertical-align: middle; margin: 0 4px 0 0; cursor: pointer;',
+        contenteditable: 'false',
+      }],
+      parseDOM: [{
+        tag: 'input[type="checkbox"]',
+        getAttrs: dom => {
+          const el = dom as HTMLInputElement;
+          return {
+            id: el.getAttribute('data-import-checkbox') || el.id || '',
+            checked: el.checked || el.hasAttribute('checked'),
+            label: el.getAttribute('aria-label') || '',
+          };
+        },
+      }],
+    }),
   marks: markdownSchema.spec.marks.addToEnd('strike', {
     parseDOM:[{tag:'s'},{tag:'del'},{style:'text-decoration=line-through'}], toDOM:()=>['s',0],
   }).addToEnd('underline', {
@@ -274,8 +306,13 @@ visualTokenizer.parse = (source,environment) => {
     if(token.type==='th_close'||token.type==='td_close')result.push(new constructor('paragraph_close','p',-1));
     if (token.type === 'inline' && token.children) {
       token.children = token.children.flatMap(child => {
-        if (child.type !== 'text' || !/(<br\s*\/?\s*>|<\/?u[^>]*>|\$(?!\$)[^\n$]+(?<!\$)\$|\[\^[^\]]+\])/i.test(child.content)) return [child];
-        const parts = child.content.split(/(<br\s*\/?\s*>|<\/?u[^>]*>|\$(?!\$)[^\n$]+(?<!\$)\$|\[\^[^\]]+\])/i);
+        if (child.type === 'html_inline' && /^<input\b[^>]*\/?>/i.test(child.content)) {
+          const cbTok = new constructor('checkbox_inline', '', 0);
+          cbTok.content = child.content;
+          return [cbTok];
+        }
+        if (child.type !== 'text' || !/(<br\s*\/?\s*>|<\/?u[^>]*>|\$(?!\$)[^\n$]+(?<!\$)\$|\[\^[^\]]+\]|<input\b[^>]*\/?>)/i.test(child.content)) return [child];
+        const parts = child.content.split(/(<br\s*\/?\s*>|<\/?u[^>]*>|\$(?!\$)[^\n$]+(?<!\$)\$|\[\^[^\]]+\]|<input\b[^>]*\/?>)/i);
         const tokens = [];
         for (const part of parts) {
           if (!part) continue;
@@ -291,6 +328,10 @@ visualTokenizer.parse = (source,environment) => {
             const fnTok = new constructor('footnote_ref', '', 0);
             fnTok.content = match ? match[1] : '';
             tokens.push(fnTok);
+          } else if (/^<input\b/i.test(part)) {
+            const cbTok = new constructor('checkbox_inline', '', 0);
+            cbTok.content = part;
+            tokens.push(cbTok);
           } else {
             const next = new constructor('text', '', 0);
             next.content = part;
@@ -316,6 +357,13 @@ const visualParser = new MarkdownParser(visualSchema,visualTokenizer,{
   softbreak:{node:'hard_break'},s:{mark:'strike'},u:{mark:'underline'},
   math_inline:{node:'visual_inline_math',getAttrs:(token: any)=>({latex: token.content})},
   footnote_ref:{node:'visual_footnote_ref',getAttrs:(token: any)=>({label: token.content})},
+  checkbox_inline:{node:'visual_checkbox',getAttrs:(token: any)=>{
+    const raw = token.content || '';
+    const id = raw.match(/data-import-checkbox=["']([^"']+)["']/i)?.[1] || raw.match(/id=["']([^"']+)["']/i)?.[1] || '';
+    const label = raw.match(/aria-label=["']([^"']+)["']/i)?.[1] || '';
+    const checked = /\bchecked\b/i.test(raw);
+    return { id, label, checked };
+  }},
   table:{block:'table'},tr:{block:'table_row'},
   th:{block:'table_header',getAttrs:token=>({align:token.attrGet('style')?.match(/text-align:\s*(\w+)/)?.[1] || 'left'})},
   td:{block:'table_cell',getAttrs:token=>({align:token.attrGet('style')?.match(/text-align:\s*(\w+)/)?.[1] || 'left'})},
@@ -374,6 +422,12 @@ export const visualSerializer = new MarkdownSerializer({
   visual_inline_math(state,node){state.write(`$${(node.attrs.latex || '').trim()}$`);},
   visual_footnote_ref(state,node){state.write(`[^${node.attrs.label}]`);},
   visual_footnote_def(state,node){state.write(`[^${node.attrs.label}]: ${node.attrs.content}\n`);state.closeBlock(node);},
+  visual_checkbox(state,node){
+    const idAttr = node.attrs.id ? ` data-import-checkbox="${node.attrs.id}"` : '';
+    const labelAttr = node.attrs.label ? ` aria-label="${node.attrs.label}"` : '';
+    const checkedAttr = node.attrs.checked ? ' checked' : '';
+    state.write(`<input type="checkbox"${idAttr}${labelAttr}${checkedAttr} />`);
+  },
 },{...defaultMarkdownSerializer.marks,
   link: {
     ...defaultMarkdownSerializer.marks.link,
@@ -512,6 +566,7 @@ export function createVisualDocumentCodec(markdown: string) {
       const safeRaw = raw
         .replace(/<br\s*\/?\s*>/gi, '')
         .replace(/<\/?u[^>]*>/gi, '')
+        .replace(/<input\b[^>]*\/?>/gi, '')
         .replace(/<[a-zA-Z][a-zA-Z0-9+.-]*:[^<>\s]+>/g, '')
         .replace(/<[^<>\s]+@[^<>\s]+>/g, '');
       const rawReferenceEnvironment: { references?: Record<string, unknown> } = {};

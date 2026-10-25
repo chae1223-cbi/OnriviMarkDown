@@ -1,6 +1,10 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
+ * 🚨 @PATCH : **2026-10-26** — [HWP/문서 가져오기 체크박스(<input type="checkbox">) 위지윅 nodeView 및 인터랙티브 토글 연동]:
+ *             1) visual_checkbox nodeView 신설: 표 내부 및 본문 인라인 체크박스를 네이티브 체크박스 UI로 렌더링하고 stopEvent를 통해 캐럿 드래그 충돌 차단
+ *             2) 체크박스 change 이벤트 시 ProseMirror setNodeMarkup 트랜잭션을 디스패치하여 체크 상태 실시간 동기화 및 마크다운 무손실 반영
+ *             3) getActiveTagInfo에 visual_checkbox(innermostTag: 'input', innermostLabel: '체크박스') 매핑 추가
  * 🚨 @PATCH : **2026-10-25** — [서식·태그 지우기(clear) 단축키 Ctrl+\\ 연동 및 영문/한글(₩) 키보드 완전 지원]:
  *             1) keymap에 Mod-\\ (clear)를 등록하고 handleKeyDown 및 bridge(CLEAR/REMOVE_PREFIX)에 Ctrl+\\ / Ctrl+₩ / Backslash를 1:1 매핑
  *             2) 블록 또는 텍스트 서식(굵게, 밑줄, 인라인코드 등) 및 블록 태그(목록, 제목 등) 적용 상태에서 Ctrl+\\ 입력 시 일반 본문 문단(paragraph) 및 서식 없는 텍스트로 즉각 초기화
@@ -322,6 +326,9 @@ export function getActiveTagInfo(state: EditorState): ActiveTagInfo {
       const lang = selNode.attrs.params || '';
       return { innermostTag: 'pre', innermostLabel: lang ? `코드(${lang})` : '코드 블록', path: [{ tag: 'pre', label: lang ? `코드(${lang})` : '코드 블록' }], pathString: 'pre', labelPathString: lang ? `코드(${lang})` : '코드 블록' };
     }
+    if (name === 'visual_checkbox') {
+      return { innermostTag: 'input', innermostLabel: '체크박스', path: [{ tag: 'input', label: '체크박스' }], pathString: 'input', labelPathString: '체크박스' };
+    }
   }
 
   // 2. 루트부터 커서 위치($from)까지의 블록 노드 계층 탐색
@@ -366,6 +373,8 @@ export function getActiveTagInfo(state: EditorState): ActiveTagInfo {
       path.push({ tag: 'html', label: 'HTML 블록' });
     } else if (name === 'visual_footnote_def') {
       path.push({ tag: 'footnote', label: '각주' });
+    } else if (name === 'visual_checkbox') {
+      path.push({ tag: 'input', label: '체크박스' });
     }
   }
 
@@ -2217,6 +2226,51 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
               if (document.activeElement !== input && input.textContent !== node.attrs.content) {
                 input.textContent = node.attrs.content;
               }
+              return true;
+            }
+          };
+        },
+        visual_checkbox(node, currentView, getPos) {
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.className = 'onrivi-inline-checkbox align-middle cursor-pointer';
+          checkbox.style.cssText = 'vertical-align: middle; margin: 0 4px 0 0; cursor: pointer; width: 14px; height: 14px;';
+          checkbox.contentEditable = 'false';
+          if (node.attrs.id) checkbox.setAttribute('data-import-checkbox', node.attrs.id);
+          if (node.attrs.label) checkbox.setAttribute('aria-label', node.attrs.label);
+          checkbox.checked = Boolean(node.attrs.checked);
+          checkbox.disabled = !currentView.editable;
+
+          checkbox.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+          });
+          checkbox.addEventListener('click', (e) => {
+            e.stopPropagation();
+          });
+          checkbox.addEventListener('change', (e) => {
+            const pos = getPos();
+            if (typeof pos === 'number' && currentView.editable) {
+              const target = e.target as HTMLInputElement;
+              currentView.dispatch(
+                currentView.state.tr.setNodeMarkup(pos, undefined, {
+                  ...node.attrs,
+                  checked: target.checked
+                })
+              );
+            }
+          });
+
+          return {
+            dom: checkbox,
+            stopEvent: (event) => event.target === checkbox,
+            ignoreMutation: () => true,
+            update(next) {
+              if (next.type !== node.type) return false;
+              node = next;
+              checkbox.checked = Boolean(node.attrs.checked);
+              checkbox.disabled = !currentView.editable;
+              if (node.attrs.id) checkbox.setAttribute('data-import-checkbox', node.attrs.id);
+              if (node.attrs.label) checkbox.setAttribute('aria-label', node.attrs.label);
               return true;
             }
           };
