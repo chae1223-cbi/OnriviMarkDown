@@ -1055,6 +1055,37 @@ async function visual() {
       await page.waitForFunction(() => document.querySelector('#source').value.includes('**활동명(별명)**을') && !/\n{4,}/.test(document.querySelector('#source').value));
       assert.equal(await surface.locator('strong').textContent(), '활동명(별명)');
       assert.deepEqual(errors, []);
+      const quoted="마크다운은 일반 문서 작성 프로그램과 달리 **'문단(Paragraph)'**과 **'강제 줄바꿈(Soft Break)'**을 명확히 구분하여 처리합니다:";
+      await page.locator('#source').focus();
+      await page.evaluate(source=>window.setTestDocument('quoted-strong-open',source),quoted);
+      await page.waitForFunction(()=>document.querySelectorAll('.visual-document-surface strong').length===2);
+      assert.deepEqual(await surface.locator('strong').allTextContents(),["'문단(Paragraph)'","'강제 줄바꿈(Soft Break)'"]);
+      await page.locator('#source').focus();await page.evaluate(()=>window.setTestDocument('quoted-strong-paste',''));
+      await page.waitForFunction(()=>window.qaView.state.doc.textContent==='');
+      await surface.click();
+      await page.evaluate(text=>{const data=new DataTransfer();data.setData('text/plain',text);window.qaView.dom.dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));},quoted);
+      await page.waitForFunction(()=>document.querySelectorAll('.visual-document-surface strong').length===2);
+      const saved=await page.locator('#source').inputValue();
+      await page.locator('#source').focus();await page.evaluate(source=>window.setTestDocument('quoted-strong-reopen',source),saved);
+      await page.waitForFunction(()=>document.querySelectorAll('.visual-document-surface strong').length===2);
+      assert.deepEqual(await surface.locator('strong').allTextContents(),["'문단(Paragraph)'","'강제 줄바꿈(Soft Break)'"]);
+      console.log('PASS: quoted bold before Korean particles renders on open, clipboard paste and saved-source reopen');
+      const codeStrong='문단을 분리하지 않고 **`Shift + Enter`**를 누릅니다.\n\n마크다운 표준 방식인 **줄 끝에 공백 2칸을 입력하고 `Enter`**를 눌러도 동일하게 작동합니다.';
+      for(const paste of [false,true]) {
+        await page.locator('#source').focus();
+        await page.evaluate(s=>window.setTestDocument('code-strong-'+Math.random(),s),paste?'':codeStrong);
+        if(paste) {
+          await page.waitForFunction(()=>window.qaView.state.doc.textContent==='');await surface.click();
+          await page.evaluate(text=>{const data=new DataTransfer();data.setData('text/plain',text);window.qaView.dom.dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));},codeStrong);
+        }
+        await page.waitForFunction(()=>document.querySelectorAll('.visual-document-surface strong code').length===2);
+        assert.deepEqual(await surface.locator('strong code').allTextContents(),['Shift + Enter','Enter']);
+        const saved=await page.locator('#source').inputValue();
+        await page.locator('#source').focus();await page.evaluate(source=>window.setTestDocument('code-strong-reopen-'+Math.random(),source),saved);
+        await page.waitForFunction(()=>document.querySelectorAll('.visual-document-surface strong code').length===2);
+        assert.deepEqual(await surface.locator('strong').allTextContents(),['Shift + Enter','줄 끝에 공백 2칸을 입력하고 Enter']);
+      }
+      console.log('PASS: both reported Korean code+bold sentences render on open/paste and saved-source reopen');
       console.log('PASS: actual editor normalizes existing source and Markdown paste, renders parenthesized bold before Korean particles');
       return;
     }

@@ -238,7 +238,7 @@ export const visualSchema = new Schema({
 const tokenizer = defaultMarkdownParser.tokenizer.enable(['table','strikethrough']);
 const validateOriginalLink = tokenizer.validateLink.bind(tokenizer);
 tokenizer.validateLink = href => /^file:\/\/\/[^\r\n]*\.(?:md|markdown)(?:[?#]|$)/i.test(href) || validateOriginalLink(href);
-const strongClosingPunctuation = new RegExp('[\\p{Pe}\\p{Pf}:;.!?%…]', 'u');
+const strongClosingPunctuation = new RegExp('[\\p{Pe}\\p{Pf}\x27"`:;.!?%…]', 'u');
 const strongFollowingLetter = new RegExp('[\\p{L}\\p{N}]', 'u');
 // Korean particles may immediately follow punctuation at the end of bold text.
 tokenizer.inline.ruler.before('emphasis', 'onrivi_strong_particle', (state: any, silent: boolean) => {
