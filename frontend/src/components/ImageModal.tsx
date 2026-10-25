@@ -1,3 +1,10 @@
+// 🚨 @PATCH : **2026-10-25** — [이미지 수정 시 alt 내 stray bracket 방어 및 이스케이프 대괄호(\[그림 1\]) 역추출 복원]:
+//             1) initialData.alt 역추출 시 불필요한 역슬래시 이스케이프(\[, \])를 선행 제거하여 대괄호([그림 1]) 포맷이 정확히 복원되도록 개선
+//             2) alt가 stray bracket/backslash 단독 찌꺼기(/^[\\\[\]\s]+$/)인 경우 제목을 빈칸으로 리셋하여 상단 유령 기호("\\[") 노출 원천 차단
+// 🚨 @PATCH : **2026-10-24** — [이미지 모달 탭 오더(Tab Order) 체계적 재선언 및 포커스 트랩 루프 보장]:
+//             1) 소스 경로(1) -> 찾아보기(2) -> 클립보드 붙여넣기(3) -> 캡션 제목(4) -> 순번(5) -> 상단/하단(6,7) -> 포맷(8) -> 커스텀(9) -> 크기(10,11,12) -> 정렬(13,14,15) -> 취소(16) -> 삽입(17) -> 닫기(18) 순서로 명시적 tabIndex 부여
+//             2) 모달 내 키보드 탭(Tab/Shift+Tab) 포커스 트랩을 적용하여 모달 외부(에디터/배경)로의 포커스 이탈 방지
+//             3) 소스 파일 경로 입력창에서 Enter 키 입력 시 즉시 이미지 삽입(handleInsert) 연동
 // 🚨 @PATCH : **2026-10-24** — [대체 텍스트 UI 입력란 제거 및 그림 제목+표현 구문 포맷 기반 자동 캡션 일원화]:
 //             1) 사용자 혼선을 유발하던 별도의 '대체 텍스트(Alt)' 입력란을 제거하고, [그림 제목]과 선택된 [표현 구문 포맷(화살괄호/대괄호/표준 등)]으로 이미지 캡션(alt) 자동 생성
 //             2) 제목 미입력 시 캡션 없는 순수 이미지(![]())로 단정하게 삽입
@@ -89,6 +96,17 @@ interface ImageModalProps {
 // 🚨 @PATCH : 2026-07-15 — 2단 분할 레이아웃(좌:입력, 우:미리보기), 슬림 붙여넣기 바, 인코딩 정상화
 // 🔗 @CALLS : handleInsert, handlePasteEvent, handleFileChange, cleanImagePath, previewSrc, createPortal
 // ====================================================================
+
+function cleanHumanReadablePath(raw: string): string {
+  if (!raw) return '';
+  try {
+    const [base, query] = raw.split('?');
+    return decodeURI(base) + (query ? '?' + query : '');
+  } catch {
+    return raw;
+  }
+}
+
 export default function ImageModal({
   isOpen,
   onClose,
@@ -126,8 +144,44 @@ export default function ImageModal({
   };
 
   const [mounted, setMounted] = useState(false);
+  const modalContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sourceInputRef = useRef<HTMLInputElement>(null);
+
+  const handleTabKey = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Tab') return;
+    if (!modalContainerRef.current) return;
+
+    const focusable = Array.from(
+      modalContainerRef.current.querySelectorAll<HTMLElement>(
+        'input:not([disabled]):not([type="hidden"]), select:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter(el => el.offsetParent !== null && !el.hasAttribute('disabled'));
+
+    if (focusable.length === 0) return;
+
+    focusable.sort((a, b) => {
+      const aIdx = a.tabIndex > 0 ? a.tabIndex : 9999;
+      const bIdx = b.tabIndex > 0 ? b.tabIndex : 9999;
+      return aIdx - bIdx;
+    });
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  };
+
   const [browsingDrive,setBrowsingDrive]=useState(false);
   const guardResource=()=>{try {requireResourceSettings();return true;}catch(e:any){onClose();showToast?.(e.message,'error');return false;}};
   const browseSource=async()=>{
@@ -137,7 +191,8 @@ export default function ImageModal({
       const file = await pickResourceMedia('image',workspaceType,resourceFolderHandle);
       if(!file)return;
       const path = await saveResourceMedia(file,file.name,resourceFolderHandle);
-      setImagePath(path);setAppliedPath(path);setTempPreviewUrl('');setDesktopPreviewUrl('');setImageLoadError(false);
+      const displayPath = cleanHumanReadablePath(path);
+      setImagePath(displayPath);setAppliedPath(displayPath);setTempPreviewUrl('');setDesktopPreviewUrl('');setImageLoadError(false);
       showToast?.('선택한 사진을 현재 리소스 폴더에 복사했습니다.','success');
     }catch(e){showToast?.(e instanceof Error?e.message:'파일 선택 실패','error');}
     finally{setBrowsingDrive(false);}
@@ -166,7 +221,7 @@ export default function ImageModal({
       setCaptionFormat((captionConfig?.format as MediaCaptionFormat) || 'standard');
       setCustomTemplate(captionConfig?.customTemplate || '**{kind} {n}. {title}**');
       if (initialData) {
-        setImagePath(initialData.path);
+        setImagePath(cleanHumanReadablePath(initialData.path));
         setImageWidth(initialData.width);
         setImageHeight(initialData.height || "");
         setImageAlign((['left', 'center', 'right'].includes(initialData.align) ? initialData.align : 'center') as MediaAlign);
@@ -178,13 +233,14 @@ export default function ImageModal({
           setCaptionPosition(initialData.captionPos);
         }
 
-        // 기존 alt 속성으로부터 순번, 제목, 포맷 역추출 복원
+        // 기존 alt 속성으로부터 순번, 제목, 포맷 역추출 복원 (이스케이프 역슬래시 선행 정규화)
         const rawAlt = (initialData.alt ?? '').replace(/\*\*/g, '').trim();
-        if (rawAlt) {
-          const angleMatch = rawAlt.match(/^<그림\s+(\d+)>\s*(.*)$/);
-          const bracketMatch = rawAlt.match(/^\[그림\s+(\d+)\]\s*(.*)$/);
-          const standardMatch = rawAlt.match(/^그림\s+(\d+)\.\s*(.*)$/);
-          const plainMatch = rawAlt.match(/^그림\s+(\d+)\s+(.*)$/);
+        const unescapedAlt = rawAlt.replace(/\\([\\\[\]<>])/g, '$1').trim();
+        if (unescapedAlt && !/^[\\\[\]\s]+$/.test(unescapedAlt)) {
+          const angleMatch = unescapedAlt.match(/^<그림\s+(\d+)>\s*(.*)$/);
+          const bracketMatch = unescapedAlt.match(/^\[그림\s+(\d+)\]\s*(.*)$/);
+          const standardMatch = unescapedAlt.match(/^그림\s+(\d+)\.\s*(.*)$/);
+          const plainMatch = unescapedAlt.match(/^그림\s+(\d+)\s+(.*)$/);
 
           if (angleMatch) {
             setCaptionNumber(Number(angleMatch[1]) || 1);
@@ -203,7 +259,7 @@ export default function ImageModal({
             setCaptionTitle(plainMatch[2] || '');
             setCaptionFormat('plain');
           } else {
-            setCaptionTitle(rawAlt);
+            setCaptionTitle(unescapedAlt);
             setCaptionFormat('title-only');
             setCaptionNumber(nextNumber || 1);
           }
@@ -231,7 +287,8 @@ export default function ImageModal({
   const handleLocalImageSave = async (_base64Data: string, fileName: string, imageFile: File) => {
     try {
       const finalPath = await saveResourceMedia(imageFile,fileName,resourceFolderHandle);
-      setImagePath(finalPath); setAppliedPath(finalPath);
+      const displayPath = cleanHumanReadablePath(finalPath);
+      setImagePath(displayPath); setAppliedPath(displayPath);
       showToast?.('현재 리소스 폴더에 안전하게 복사했습니다.', 'success');
       return finalPath;
     } catch(error) {
@@ -591,9 +648,11 @@ export default function ImageModal({
       const rawCaption = captionTitle.trim()
         ? formatMediaCaption('그림', captionNumber, captionTitle.trim(), captionFormat, customTemplate)
         : '';
-      const altText = rawCaption ? rawCaption.replace(/\*\*/g, '').trim() : '';
+      const rawAlt = rawCaption ? rawCaption.replace(/\*\*/g, '').trim() : '';
+      const altText = /^[\\\[\]\s]+$/.test(rawAlt) ? '' : rawAlt;
       const fullMarkdown = undefined;
 
+      finalPath = cleanHumanReadablePath(finalPath);
       onInsert(finalPath, altText, initialData?.range, fullMarkdown);
       setImagePath("");
       setAppliedPath("");
@@ -643,25 +702,34 @@ export default function ImageModal({
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 md:p-6" style={{ overflowY: "auto" }} onPaste={event => { void handlePasteEvent(event); }} onKeyDownCapture={event => {
-      const file = desktopClipboardImage(event);
-      if (!file) return;
-      event.preventDefault();
-      event.stopPropagation();
-      void handlePasteEvent({ clipboardData:{ items:[], files:[file], getData:()=>'' }, preventDefault(){}, stopPropagation(){} } as any);
-    }}>
+    <div
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 md:p-6"
+      style={{ overflowY: "auto" }}
+      onPaste={event => { void handlePasteEvent(event); }}
+      onKeyDownCapture={event => {
+        const file = desktopClipboardImage(event);
+        if (file) {
+          event.preventDefault();
+          event.stopPropagation();
+          void handlePasteEvent({ clipboardData:{ items:[], files:[file], getData:()=>'' }, preventDefault(){}, stopPropagation(){} } as any);
+          return;
+        }
+        handleTabKey(event);
+      }}
+    >
       <div className="absolute inset-0 bg-black/65" onClick={onClose} />
 
       {/* PREMIUM WIDE MODAL (SCR-014) */}
       <div
-        className={`relative w-full max-w-5xl rounded-lg shadow-2xl overflow-hidden flex flex-col border animate-in zoom-in-95 duration-200 ${
+        ref={modalContainerRef}
+        className={`relative w-full max-w-5xl max-h-[92vh] rounded-lg shadow-2xl overflow-hidden flex flex-col border animate-in zoom-in-95 duration-200 ${
           isDarkMode
             ? 'bg-zinc-950 border-zinc-800 text-zinc-100'
             : 'bg-slate-50 border-slate-200 text-slate-800'
         }`}
       >
         {/* Header */}
-        <div className={`flex justify-between items-center px-6 py-4 border-b shrink-0 ${
+        <div className={`flex justify-between items-center px-5 py-3 border-b shrink-0 ${
           isDarkMode ? 'border-zinc-800 bg-zinc-900' : 'border-[#EFEFEF] bg-white'
         }`}>
           <div className="flex items-center gap-3">
@@ -672,6 +740,8 @@ export default function ImageModal({
           </div>
           <button
             onClick={onClose}
+            tabIndex={18}
+            aria-label="닫기"
             className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-1.5 transition-colors rounded-md active:scale-95"
           >
             <X size={18} />
@@ -679,15 +749,15 @@ export default function ImageModal({
         </div>
 
         {/* Body: 2-column split */}
-        <div className="flex flex-col md:flex-row min-h-0">
+        <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-hidden">
 
           {/* ─── LEFT PANEL ─── */}
-          <div className={`flex flex-col gap-3 p-5 md:w-[52%] border-r ${
+          <div className={`flex flex-col gap-2.5 p-4 md:w-[50%] overflow-y-auto border-r ${
             isDarkMode ? 'border-zinc-800' : 'border-slate-200'
           }`}>
 
             {/* 소스 파일 */}
-            <div className={`rounded-lg p-4 border ${
+            <div className={`rounded-lg p-3 border ${
               isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'
             }`}>
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 mb-2 block">
@@ -697,10 +767,19 @@ export default function ImageModal({
                 <input
                   ref={sourceInputRef}
                   type="text"
+                  tabIndex={1}
                   value={imagePath}
                   onChange={(e) => {
                     setImagePath(e.target.value);
                     setAppliedPath("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (cleanImagePath && !saving) {
+                        void handleInsert();
+                      }
+                    }
                   }}
                   onPaste={(e) => {
                     const hasImage = Array.from(e.clipboardData?.items || []).some(item => item.type.startsWith('image/'))
@@ -725,6 +804,7 @@ export default function ImageModal({
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
                 <button
                   onClick={browseSource}
+                  tabIndex={2}
                   className={`px-4 py-2.5 border rounded font-bold text-xs transition-colors shrink-0 ${
                     isDarkMode
                       ? 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white'
@@ -747,6 +827,7 @@ export default function ImageModal({
             {/* 슬림 붙여넣기 바 */}
             <button
               type="button"
+              tabIndex={3}
               onPaste={event => { void handlePasteEvent(event as any); }}
               onClick={() => { void handlePasteEvent({clipboardData:{items:[],files:[],getData:()=>''},preventDefault(){},stopPropagation(){}} as any, true); }}
               className={`group flex items-center gap-3 px-4 py-2.5 rounded-lg border border-dashed cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${
@@ -765,6 +846,7 @@ export default function ImageModal({
             {/* 🏷️ 그림 설명(캡션) 설정 */}
             <MediaCaptionControl
               kind="그림"
+              tabIndexStart={4}
               title={captionTitle}
               onTitleChange={setCaptionTitle}
               number={captionNumber}
@@ -779,21 +861,21 @@ export default function ImageModal({
             />
 
             {/* 이미지 속성 */}
-            <div className={`rounded-lg p-4 border ${
+            <div className={`rounded-lg p-3 border ${
               isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'
             }`}>
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 mb-3 block">
                 이미지 크기
               </label>
-              <MediaSizeInputs imageSizing width={imageWidth} height={imageHeight} onWidthChange={setImageWidth} onHeightChange={setImageHeight} isDarkMode={isDarkMode} />
+              <MediaSizeInputs imageSizing tabIndexStart={10} width={imageWidth} height={imageHeight} onWidthChange={setImageWidth} onHeightChange={setImageHeight} isDarkMode={isDarkMode} />
             </div>
 
             {/* 정렬 */}
-            <MediaAlignmentControl align={imageAlign} onChange={setImageAlign} isDarkMode={isDarkMode} />
+            <MediaAlignmentControl tabIndexStart={13} align={imageAlign} onChange={setImageAlign} isDarkMode={isDarkMode} />
           </div>
 
           {/* ─── RIGHT PANEL: Preview ─── */}
-          <div className={`flex flex-col md:w-[48%] ${
+          <div className={`flex flex-col md:w-[50%] overflow-y-auto ${
             isDarkMode ? 'bg-zinc-900' : 'bg-white'
           }`}>
             <div className={`px-5 py-3 border-b flex items-center gap-2 ${
@@ -810,7 +892,7 @@ export default function ImageModal({
               )}
             </div>
 
-            <div className="flex-grow flex flex-col p-5 gap-3">
+            <div className="flex-grow flex flex-col p-4 gap-2.5">
               {/* 이미지 캡션 상단 표시 */}
               {captionPosition === 'top' && captionFormat !== 'none' && captionTitle.trim() && (
                 <div className="text-center font-bold text-xs text-zinc-800 dark:text-zinc-200 py-1.5 px-3 rounded-md bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 shadow-xs">
@@ -822,7 +904,7 @@ export default function ImageModal({
                 className={`relative flex-grow rounded-lg overflow-hidden border flex items-center justify-center ${
                   isDarkMode ? 'bg-zinc-800 border-zinc-700' : 'bg-slate-100 border-slate-200'
                 }`}
-                style={{ minHeight: '280px' }}
+                style={{ minHeight: '200px' }}
                 onWheel={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
@@ -907,31 +989,25 @@ export default function ImageModal({
                 </div>
               )}
 
-              {/* 정렬 미리보기 표시기 */}
-              <div className={`rounded-lg px-4 py-3 border ${
-                isDarkMode ? 'bg-zinc-800 border-zinc-700 text-zinc-400' : 'bg-slate-50 border-slate-200 text-slate-500'
-              }`}>
-                <span className="font-black uppercase text-[9px] tracking-widest">정렬 적용 미리보기</span>
-                <div className={`mt-2 flex ${imageAlign === 'right' ? 'justify-end' : imageAlign === 'center' ? 'justify-center' : 'justify-start'}`}>
-                  <div className="h-2 rounded-full bg-indigo-400/40 transition-all" style={{ width: previewSrc ? '60%' : '40%' }} />
-                </div>
-              </div>
+              
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className={`px-6 py-4 border-t flex items-center justify-end gap-3 shrink-0 ${
+        <div className={`px-5 py-3 border-t flex items-center justify-end gap-3 shrink-0 sticky bottom-0 z-10 ${
           isDarkMode ? 'border-zinc-800 bg-zinc-900' : 'border-slate-200 bg-slate-50'
         }`}>
           <button
             onClick={onClose}
+            tabIndex={16}
             className="font-bold text-xs text-slate-400 hover:text-[#1d4ed8] dark:hover:text-[#1d4ed8] transition-colors py-2 px-3"
           >
             취소
           </button>
           <button
             onClick={handleInsert}
+            tabIndex={17}
             disabled={!cleanImagePath || saving}
             className={`px-6 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all active:scale-[0.98] ${
               cleanImagePath

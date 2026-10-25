@@ -2,6 +2,9 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-vm-inputrules
+ * 🚨 @PATCH : **2026-10-25** — [코드블록(`) 생성 시 하단 빈 행(문단) 자동 보장 및 CODE 입력란 연동]:
+ *             1) ` 뒤 언어 식별자 없이 공백 입력 시 onrivi:focus-code-block 트랜잭션 메타를 전달하여 상단 CODE 언어 입력란에 자동 포커스
+ *             2) 코드블록 변환 즉시 하단에 빈 문단(paragraph)을 확실히 보장하여 코드블록 밖에서 곧바로 타이핑을 이어갈 수 있도록 개선
  * 🚨 @PATCH : **2026-10-17** — [콜아웃 인용문(> [!태그]), 코드블록(```), 구분선(--- / ***) 입력 규칙 실행 시 하단 빈 행(paragraph) 자동 추가]:
  *             1) > [!태그] 및 인용문 내 [!태그] 변환 시 인용문 바로 아래에 빈 문단(paragraph)을 자동 추가하여 마우스 클릭으로 다음 작업 진행 지원
  *             2) ```언어명 공백 타이핑으로 코드 블록 변환 시 코드 블록 바로 아래에 빈 문단(paragraph)을 자동 추가하고 커서는 코드 블록 내부에 유지
@@ -61,7 +64,7 @@ function markRule(expression: RegExp, type: MarkType) {
   }, { inCodeMark: false });
 }
 
-export function visualMarkdownInputRules() {
+export function buildVisualMarkdownRules(): InputRule[] {
   const { nodes, marks } = visualSchema;
   const insideCell = (state: EditorState) => state.selection.$from.depth > 1 && ['table_cell','table_header'].includes(state.selection.$from.node(state.selection.$from.depth-1).type.name);
   const paragraphOnly = (rule: InputRule) => {
@@ -71,7 +74,7 @@ export function visualMarkdownInputRules() {
     return guarded.handler(state, match, start, end);
     });
   };
-  return inputRules({ rules: [
+  return [
     new InputRule(/^\[([ xX])\]\s$/, (state,match,start,end)=>{
       const position=state.selection.$from;
       for(let depth=position.depth;depth>0;depth--)if(position.node(depth).type===nodes.list_item)return state.tr.delete(start,end).setNodeMarkup(position.before(depth),undefined,{...position.node(depth).attrs,checked:match[1].toLowerCase()==='x'});
@@ -268,8 +271,15 @@ export function visualMarkdownInputRules() {
       if ($from.parent.type === nodes.code_block) {
         const afterPos = $from.after();
         const savedPos = tr.selection.from;
-        tr = tr.insert(afterPos, nodes.paragraph.create());
+        if (afterPos >= tr.doc.content.size || tr.doc.nodeAt(afterPos)?.type !== nodes.paragraph) {
+          tr = tr.insert(afterPos, nodes.paragraph.create());
+        } else if (tr.doc.nodeAt(afterPos)?.content.size !== 0) {
+          tr = tr.insert(afterPos, nodes.paragraph.create());
+        }
         tr = tr.setSelection(TextSelection.create(tr.doc, savedPos));
+      }
+      if (!match[1]) {
+        tr = tr.setMeta('onrivi:focus-code-block', true);
       }
       return tr;
     })),
@@ -326,5 +336,9 @@ export function visualMarkdownInputRules() {
       const tr = state.tr.replaceWith(from, end, [mathNode, spaceNode]);
       return tr.setSelection(TextSelection.create(tr.doc, from + mathNode.nodeSize + spaceNode.nodeSize));
     }),
-  ] });
+  ];
+}
+
+export function visualMarkdownInputRules() {
+  return inputRules({ rules: buildVisualMarkdownRules() });
 }

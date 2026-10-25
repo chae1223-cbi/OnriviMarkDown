@@ -177,7 +177,10 @@ async function visual() {
   fs.writeFileSync(path.join(dir,'pageGeometry.js'),compile(path.join(frontend,'src/lib/pageGeometry.ts')));
   fs.writeFileSync(path.join(dir,'paperSizes.js'),compile(path.join(frontend,'src/constants/paperSizes.ts')));
   fs.writeFileSync(path.join(dir,'accountStorage.js'),compile(path.join(frontend,'src/lib/browserAccountStorage.ts')));
+  fs.writeFileSync(path.join(dir, 'quoteCommands.js'), compile(path.join(frontend,'src/lib/visualQuoteCommands.ts')));
   fs.writeFileSync(path.join(dir, 'editor.js'), compile(path.join(frontend, 'src/components/VisualDocumentEditor.tsx')));
+  fs.writeFileSync(path.join(dir, 'importHtml.js'), compile(path.join(frontend,'src/lib/importHtmlMarkdown.ts')));
+  fs.writeFileSync(path.join(dir, 'pasteHandlers.js'), compile(path.join(frontend,'src/utils/pasteHandlers.ts')));
   fs.writeFileSync(path.join(dir,'aiVisualTarget.js'),compile(path.join(frontend,'src/lib/ai/visualTarget.ts')));
   fs.writeFileSync(path.join(dir, 'inputRules.js'), compile(path.join(frontend, 'src/lib/visualMarkdownInputRules.ts')));
   fs.writeFileSync(path.join(dir, 'paste.js'), compile(path.join(frontend, 'src/lib/visualMarkdownPaste.ts')));
@@ -269,6 +272,8 @@ async function visual() {
     './indexedDbHelper':path.join(dir,'dropStorageStubs.js'),
     './gdrive/googleDriveClient':path.join(dir,'dropStorageStubs.js'),
   } : {}) };
+  focusedAliases['@/lib/importHtmlMarkdown']=path.join(dir,'importHtml.js');
+  focusedAliases['@/utils/pasteHandlers']=path.join(dir,'pasteHandlers.js');
   // The read-only renderer includes KaTeX styles. Load its real CSS in the
   // browser fixture instead of relying on the production Next.js CSS loader.
   fs.writeFileSync(path.join(dir, 'css-loader.cjs'), `module.exports = function(source) {
@@ -277,7 +282,7 @@ async function visual() {
   await new Promise((resolve, reject) => webpack({ mode: 'development', entry: path.join(dir, 'entry.js'),
     module: { rules: [{ test: /\.css$/, use: [path.join(dir, 'css-loader.cjs')] }] },
     output: { path: dir, filename: 'bundle.js' }, resolve: { modules: [path.join(frontend, 'node_modules')],
-      alias: { ...focusedAliases, '@/lib/ai/visualTarget':path.join(dir,'aiVisualTarget.js'), '@/components/LinkModal':path.join(dir,'unrelatedModals.js'), '@/components/CalendarModal':path.join(dir,'unrelatedModals.js'), '@/components/DateTimeInsertPicker':path.join(dir,'unrelatedModals.js'), '@/lib/visualListCommands':path.join(dir,'listCommands.js'), 'lucide-react':path.join(dir,'icons.js'), './visualDocumentCodec':path.join(dir,'codec.js'), '@/lib/visualTableCommands':path.join(dir,'tableCommands.js'), '@/components/TableModal':path.join(dir,'tableModal.js'), '@/components/TableHeaderCell':path.join(dir,'tableHeader.js'), './mediaMarkup':path.join(dir,'mediaMarkup.js'), '@/lib/mediaMarkup':path.join(dir,'mediaMarkup.js'), '@/lib/desktopClipboard':path.join(dir,'clipboard.js'), '@/lib/visualCaret': path.join(dir, 'caret.js'), '@/lib/visualDocumentCodec': path.join(dir, 'codec.js'), '@/lib/visualMarkdownInputRules': path.join(dir, 'inputRules.js'), '@/lib/visualCommandCatalog': path.join(dir,'catalog.js'), '@/lib/toolbarConfig': path.join(dir,'toolbar.js'), '@/lib/visualMarkdownPaste':path.join(dir,'paste.js'), '@/components/VisualReadOnlyMarkdownBlock':path.join(dir,'readonly.js') } }, devtool: false,
+      alias: { ...focusedAliases, '@/lib/ai/visualTarget':path.join(dir,'aiVisualTarget.js'), '@/components/LinkModal':path.join(dir,'unrelatedModals.js'), '@/components/CalendarModal':path.join(dir,'unrelatedModals.js'), '@/components/DateTimeInsertPicker':path.join(dir,'unrelatedModals.js'), '@/lib/visualListCommands':path.join(dir,'listCommands.js'), '@/lib/visualQuoteCommands':path.join(dir,'quoteCommands.js'), 'lucide-react':path.join(dir,'icons.js'), './visualDocumentCodec':path.join(dir,'codec.js'), '@/lib/visualTableCommands':path.join(dir,'tableCommands.js'), '@/components/TableModal':path.join(dir,'tableModal.js'), '@/components/TableHeaderCell':path.join(dir,'tableHeader.js'), './mediaMarkup':path.join(dir,'mediaMarkup.js'), '@/lib/mediaMarkup':path.join(dir,'mediaMarkup.js'), '@/lib/desktopClipboard':path.join(dir,'clipboard.js'), '@/lib/visualCaret': path.join(dir, 'caret.js'), '@/lib/visualDocumentCodec': path.join(dir, 'codec.js'), '@/lib/visualMarkdownInputRules': path.join(dir, 'inputRules.js'), '@/lib/visualCommandCatalog': path.join(dir,'catalog.js'), '@/lib/toolbarConfig': path.join(dir,'toolbar.js'), '@/lib/visualMarkdownPaste':path.join(dir,'paste.js'), '@/components/VisualReadOnlyMarkdownBlock':path.join(dir,'readonly.js') } }, devtool: false,
   }, (error, stats) => error || stats.hasErrors() ? reject(error || new Error(stats.toString({ all: false, errors: true }))) : resolve()));
   const cssDir=path.join(frontend,'out/_next/static/css');
   const css=fs.existsSync(cssDir)?fs.readdirSync(cssDir).filter(file=>file.endsWith('.css')).map(file=>`<link rel="stylesheet" href="file:///${path.join(cssDir,file).replace(/\\/g,'/')}">`).join(''):'';
@@ -291,6 +296,115 @@ async function visual() {
     page.on('pageerror', error => { errors.push(error.message); console.error('Browser error:',error.message); });
     await page.goto('file:///' + path.join(dir, 'index.html').replace(/\\/g, '/'));
     const surface = page.locator('.visual-document-surface');
+    if(process.argv.includes('--smart-inline-only')) {
+      await surface.waitFor();
+      const emphasisCss=fs.readFileSync(path.join(frontend,'src/app/globals.css'),'utf8').split('\n').filter(line=>line.includes(':is(.visual-document-surface,.onrivi-content-root)')).join('\n');
+      await page.addStyleTag({content:'.visual-document-surface code{font-weight:400!important;font-style:normal!important;}'+emphasisCss});
+      for (const [name,shortcut,tag] of [['strong','Control+b','strong'],['em','Control+i','em'],['strike','Control+Shift+x','s'],['underline','Control+u','u']]) {
+        const sample='sample-'+name;
+        await page.locator('#source').focus();
+        await page.evaluate(s=>window.setTestDocument('code-marks-'+Math.random(),s),sample);
+        await page.waitForFunction(s=>window.qaView.state.doc.textContent===s && window.qaView.state.doc.firstChild.firstChild.marks.length===0,sample);
+        await page.evaluate(()=>{const v=window.qaView;v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc,1,v.state.doc.content.size-1)));v.focus();});
+        await page.keyboard.press(shortcut);await page.keyboard.press('Control+e');
+        assert.equal(await surface.locator(tag+' code').textContent(),sample);
+        if(name==='strong')assert.ok(Number(await surface.locator(tag+' code').evaluate(node=>getComputedStyle(node).fontWeight))>=600);
+        if(name==='em')assert.equal(await surface.locator(tag+' code').evaluate(node=>getComputedStyle(node).fontStyle),'italic');
+        const source=await page.locator('#source').inputValue();
+        const reparsed=createVisualDocumentCodec(source).doc;
+        assert.deepEqual(Array.from(reparsed.firstChild.firstChild.marks,m=>m.type.name).sort(),[name,'code'].sort(),source);
+        assert.equal(reparsed.textContent,sample);
+        await page.locator('#source').focus();
+        await page.evaluate(s=>window.setTestDocument('reopen-code-'+Math.random(),s),source);
+        await surface.locator(tag+' code').waitFor();
+      }
+      const allMarks=['strong','em','strike','underline','code'].map(name=>visualSchema.marks[name].create());
+      const allDoc=visualSchema.nodes.doc.create(null,visualSchema.nodes.paragraph.create(null,visualSchema.text('가나다라',allMarks)));
+      const allSource=exportsObject.visualSerializer.serialize(allDoc);
+      const allReloaded=createVisualDocumentCodec(allSource).doc;
+      assert.deepEqual(Array.from(allReloaded.firstChild.firstChild.marks,m=>m.type.name).sort(),allMarks.map(m=>m.type.name).sort(),allSource);
+      assert.equal(createVisualDocumentCodec('`<u>literal</u>`').doc.firstChild.firstChild.marks.length,1,'Literal code must not become HTML emphasis');
+      console.log('PASS: bold/italic/strike/underline plus inline code retain marks after save/reload; code CSS preserves explicit weight/style; five combined marks round-trip');
+      for (const [shortcut,tag] of [['Control+b','strong'],['Control+i','em'],['Control+e','code'],['Control+u','u'],['Control+Shift+x','s']]) {
+        await page.locator('#source').focus();
+        await page.evaluate(()=>window.setTestDocument('smart-'+Math.random(),''));
+        await page.waitForFunction(()=>window.qaView.state.doc.textContent==='');
+        await surface.click();await page.keyboard.press(shortcut);
+        assert.equal(await page.evaluate(()=>window.qaView.state.selection.empty),false);
+        await page.keyboard.type('abc');
+        assert.equal(await surface.locator(tag).textContent(),'abc');
+        const closing=await surface.locator('.onrivi-inline-syntax-tag').last().elementHandle();
+        await page.evaluate(()=>{const data=new DataTransfer();data.setData('text/plain','붙임');window.qaView.dom.dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));});
+        assert.equal(await surface.locator(tag).textContent(),'abc붙임');
+        assert.equal(await closing.evaluate(node=>node===document.querySelector('.visual-document-surface .onrivi-inline-syntax-tag:last-of-type')),true);
+        await page.keyboard.press('Enter');
+        assert.equal(await page.evaluate(()=>window.qaView.state.doc.childCount),2,'Enter must insert a paragraph, not only fold syntax');
+        assert.ok(await surface.locator('.onrivi-inline-syntax-tag').count()>0,'Enter retains formatting');
+        await page.keyboard.type('continued');
+        assert.equal(await surface.locator(tag).last().textContent(),'continued');
+        const beforeExit=await page.evaluate(()=>window.qaView.state.doc.textContent);
+        await page.keyboard.press('ArrowRight');
+        assert.equal(await page.evaluate(()=>window.qaView.state.doc.textContent),beforeExit,'Exit must not insert a space');
+        assert.equal(await surface.locator('.onrivi-inline-syntax-tag').count(),0);
+        await page.keyboard.type('plain');
+        assert.equal(await surface.locator(tag).last().textContent(),'continued');
+        assert.ok((await page.locator('#source').inputValue()).includes('plain'));
+        // Chromium's IME protocol produces real composition DOM updates rather
+        // than substituting insertText for a Korean keyboard composition.
+        await page.keyboard.press('Enter');await page.keyboard.press(shortcut);
+        await page.evaluate(()=>{window.qaSyntaxNodes=Array.from(window.qaView.dom.querySelectorAll('.onrivi-inline-syntax-tag'));});
+        const session=await page.context().newCDPSession(page);
+        for(const text of ['ㅎ','하','한','한ㄱ','한그','한글'])
+          await session.send('Input.imeSetComposition',{text,selectionStart:text.length,selectionEnd:text.length});
+        await session.send('Input.insertText',{text:'한글'});
+        await page.waitForFunction(()=>window.qaView.state.doc.lastChild.lastChild?.marks.length>0);
+        assert.equal(await page.evaluate(()=>window.qaSyntaxNodes.every(node=>window.qaView.dom.contains(node))),true,'IME completion must reuse syntax widgets');
+        await page.keyboard.type('ab');
+        assert.equal(await surface.locator(tag).last().textContent(),'한글ab');
+        await page.keyboard.press('ArrowRight');await page.keyboard.press('Enter');await page.keyboard.type('outside');
+        assert.equal(await surface.locator(tag).last().textContent(),'한글ab');
+        await session.detach();
+        await page.keyboard.press('Enter');await page.keyboard.press(shortcut);
+        await page.keyboard.press('Backspace');
+        assert.ok((await page.evaluate(()=>window.qaView.state.storedMarks?.length))>0);
+        assert.ok(await surface.locator('.onrivi-inline-syntax-tag').count()>0);
+        await page.keyboard.type('다시');
+        assert.equal(await surface.locator(tag).last().textContent(),'다시');
+        await page.evaluate(()=>{const data=new DataTransfer();data.setData('text/plain','HTML');data.setData('text/html','<p><em>HTML</em></p>');window.qaView.dom.dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));});
+        assert.ok((await surface.locator(tag).last().textContent()).includes('HTML'));
+        await page.keyboard.press('ArrowRight');
+      }
+      await page.locator('#source').focus();
+      await page.evaluate(()=>window.setTestDocument('smart-combined','**_both_** tail'));
+      const combined=surface.locator('strong em, em strong');
+      await combined.waitFor();
+      await page.evaluate(()=>{const v=window.qaView;v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc,1,5)));v.focus();});
+      await page.keyboard.type('mixed');
+      assert.equal(await combined.textContent(),'mixed');
+      await page.evaluate(()=>{const v=window.qaView;v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc,1)));v.focus();});
+      await page.keyboard.press('ArrowLeft');
+      assert.equal(await surface.locator('.onrivi-inline-syntax-tag').count(),0);
+      await page.keyboard.type('outside');
+      assert.equal(await combined.textContent(),'mixed');
+      await page.keyboard.press('ArrowLeft');
+      await page.keyboard.press('Home');await page.keyboard.press('ArrowRight');
+      await page.waitForFunction(()=>document.querySelectorAll('.onrivi-inline-syntax-tag').length>0);
+      const saved=await page.locator('#source').inputValue();
+      assert.ok(!saved.includes('onrivi-inline-syntax-tag'));
+      assert.ok(!saved.includes('텍스트'));
+      await page.locator('#source').focus();
+      await page.evaluate(()=>window.setTestDocument('smart-nesting','**<u>열심히</u>**'));
+      await surface.locator('u').waitFor();
+      await page.evaluate(()=>{const v=window.qaView;v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc,2)));v.focus();});
+      await page.waitForFunction(()=>document.querySelectorAll('.onrivi-inline-syntax-tag').length===4);
+      assert.deepEqual(await surface.locator('.onrivi-inline-syntax-tag').allTextContents(),['**','<u>','</u>','**']);
+      await page.keyboard.press('End');
+      await page.keyboard.press('Tab');
+      assert.ok(await surface.locator('.onrivi-inline-syntax-tag').count()>0,'Tab must no longer fold/exit the active marks');
+      assert.deepEqual(errors,[]);
+      console.log('PASS: five inline marks retain Latin/Korean input and marks across Enter; arrows exit without inserting spaces; Tab no longer exits; paste, empty templates and nested delimiters retain marks');
+      return;
+    }
     if(process.argv.includes('--editor-fixes-only')) {
       await surface.waitFor();
       const source = '앞 문단\n\n---\n\n뒤 문단\n';
@@ -532,6 +646,29 @@ async function visual() {
     }
     if(process.argv.includes('--list-enter-only')){
       await surface.waitFor();
+      if(process.argv.includes('--mixed-clipboard-only')){
+        await page.context().grantPermissions(['clipboard-read','clipboard-write']);
+        await page.locator('#source').focus();
+        await page.evaluate(()=>window.setTestDocument('mixed-clipboard-test','시작 문단'));
+        await page.waitForFunction(()=>window.qaView.state.doc.textContent==='시작 문단');
+        await page.evaluate(async()=>{
+          const canvas=document.createElement('canvas');canvas.width=20;canvas.height=20;canvas.getContext('2d').fillRect(0,0,20,20);
+          const image=await new Promise(resolve=>canvas.toBlob(resolve));
+          const html='<p>혼합 본문</p><table><tr><th>열 제목</th></tr><tr><td>표 내용</td></tr></table><ul><li>목록 항목</li></ul><blockquote><p>인용 내용</p></blockquote><pre><code>const mixed = 1;</code></pre><img src="'+canvas.toDataURL()+'">';
+          await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob(['혼합 본문 표 내용 목록 항목 인용 내용 const mixed = 1;'],{type:'text/plain'}),'image/png':image})]);
+          // The native handler was independently tested against the same mixed
+          // formats; it returns null so Ctrl+V reaches the real DOM paste event.
+          window.electronAPI={readClipboardImageSync:()=>null};
+        });
+        await surface.locator('p').first().click();await page.keyboard.press('Control+End');await page.keyboard.press('Enter');await page.keyboard.press('Control+v');
+        await page.waitForFunction(()=>window.qaView.state.doc.textContent.includes('혼합 본문'));
+        const saved=await page.locator('#source').inputValue();
+        for(const text of ['혼합 본문','표 내용','목록 항목','인용 내용','const mixed = 1;'])assert.ok(saved.includes(text),text);
+        for(const type of ['table','bullet_list','blockquote','code_block'])assert.ok(await page.evaluate(type=>{let found=false;window.qaView.state.doc.descendants(node=>{if(node.type.name===type)found=true;});return found;},type),type);
+        assert.ok(await page.evaluate(()=>{let found=false;window.qaView.state.doc.descendants(node=>{if(['image','visual_image'].includes(node.type.name))found=true;});return found;}),'image');
+        assert.ok(saved.includes('data:image/png;base64,'),'image source preserved');
+        console.log('PASS: actual Ctrl+V of HTML+text+bitmap preserves paragraph/table/list/quote/code/image in VisualDocumentEditor');return;
+      }
       await page.locator('#source').focus();
       await page.evaluate(()=>window.setTestDocument('numbered-parent-enter','3. **편안한 본문 입력**\n   - 첫 설명\n   - 둘째 설명'));
       await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent.includes('둘째 설명'));
@@ -549,6 +686,25 @@ async function visual() {
       await page.keyboard.press('Control+z');
       assert.equal(await page.evaluate(()=>window.qaView.state.selection.$from.depth),3);
       if(process.argv.includes('--continuation-only')){
+        await page.locator('#source').focus();
+        await page.evaluate(()=>window.setTestDocument('nested-two-enter','5. **저장 및 최종 내보내기**\n   - Ctrl + S로 저장합니다.\n   - 필요한 형식으로 내보냅니다.'));
+        await page.waitForFunction(()=>window.qaView.state.doc.textContent.includes('필요한 형식'));
+        await surface.locator('li p').last().click();
+        await page.keyboard.press('End');await page.keyboard.press('Enter');
+        assert.equal(await surface.locator('ul > li').count(),3);
+        for(const depth of [3,1]){
+          await page.keyboard.press('Enter');
+          assert.equal(await page.evaluate(()=>window.qaView.state.selection.$from.depth),depth);
+          assert.equal(await surface.locator(':scope > ol').getAttribute('start'),'5');
+          assert.equal(await surface.locator('ul > li').count(),2);
+        }
+        await page.keyboard.type('목록 밖 본문');
+        const saved=await page.locator('#source').inputValue();
+        await page.locator('#source').focus();
+        await page.evaluate(s=>window.setTestDocument('nested-two-enter-reload',s),saved);
+        await page.waitForFunction(()=>window.qaView.state.doc.lastChild.textContent==='목록 밖 본문');
+        assert.equal(await surface.locator(':scope > ol').getAttribute('start'),'5');
+        assert.equal(await surface.locator('ul > li').count(),2);
         assert.deepEqual(errors,[]);
         console.log('PASS: actual Enter preserves numbered parent and nested bullets, exits only blank paragraph, and undoes in one step');return;
       }
@@ -603,8 +759,96 @@ async function visual() {
     }
     if(process.argv.includes('--list-indentation-only')){
       await surface.waitFor();
+      if(process.argv.includes('--independent-quote-controls')){
+        const help=fs.readFileSync('frontend/public/help/HELP-03_문서_저장과_세션_자동_복구의_차이.md','utf8');
+        const source=help.slice(help.indexOf('- 온리비 어서는'),help.indexOf('> [!WARNING]'));
+        const select=async(text,end=false)=>{await page.evaluate(({text,end})=>{const v=window.qaView;let pos;v.state.doc.descendants((n,p)=>{if(n.type.name==='paragraph'&&n.textContent.startsWith(text))pos=p+1+(end?n.content.size:0);});v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc,pos)));v.focus();},{text,end});};
+        const quoteX=()=>surface.locator('blockquote').first().evaluate(el=>el.getBoundingClientRect().left);
+        const listLocations=()=>page.evaluate(()=>{const result=[];window.qaView.state.doc.descendants((n,p)=>{if(n.type.name!=='paragraph')return;const r=window.qaView.state.doc.resolve(p);let inQuote=false,depth=0;for(let i=1;i<=r.depth;i++){inQuote ||= r.node(i).type.name==='blockquote';if(['bullet_list','ordered_list'].includes(r.node(i).type.name))depth++;}if(!inQuote)result.push([n.textContent,depth,window.qaView.nodeDOM(p).getBoundingClientRect().left]);});return result;});
+        await page.locator('#source').focus();await page.evaluate(s=>window.setTestDocument('independent-quote-controls',s),source);
+        await page.waitForFunction(()=>window.qaView.state.doc.textContent.includes('만약 캐시에'));
+        const initialText=await surface.textContent();
+        await select('만약 캐시에',true);
+        const initialDoc=await page.evaluate(()=>JSON.stringify(window.qaView.state.doc.toJSON()));
+        await page.keyboard.press('Delete');assert.equal(await page.evaluate(()=>JSON.stringify(window.qaView.state.doc.toJSON())),initialDoc,'Delete at original list/quote boundary must be blocked');
+        const initialLocations=await listLocations(),initialQuoteX=await quoteX();
+        for(const key of ['Tab','Shift+Tab']){
+          await select('"저장되지 않은 세션');await page.keyboard.press(key);
+          assert.deepEqual(await listLocations(),initialLocations,'quote key must not move original enclosing list');
+          assert.ok(key==='Tab'?await quoteX()>initialQuoteX:await quoteX()<initialQuoteX);
+          await page.keyboard.press('Control+z');assert.equal(await page.evaluate(()=>JSON.stringify(window.qaView.state.doc.toJSON())),initialDoc);
+        }
+        for(const key of ['Shift+Tab','Tab','Tab','Shift+Tab']){
+          await select('만약 캐시에');
+          if(!await surface.locator('blockquote').count())throw Error('Quote missing before '+key+': '+await page.evaluate(()=>window.qaView.state.doc.toString())+' SOURCE '+await page.locator('#source').inputValue());
+          const beforeX=await quoteX();
+          const before=await page.evaluate(()=>JSON.stringify(window.qaView.state.doc.toJSON()));
+          await page.keyboard.press(key);
+          assert.ok(Math.abs(await quoteX()-beforeX)<1.1,key+' must not move quote horizontally');
+          assert.equal(await surface.textContent(),initialText);
+          assert.equal(await page.evaluate(()=>{let inside=false;window.qaView.state.doc.descendants((n,p)=>{if(n.type.name==='blockquote'){const r=window.qaView.state.doc.resolve(p);for(let i=1;i<=r.depth;i++)inside ||= r.node(i).type.name==='list_item';}});return inside;}),false);
+          const after=await page.evaluate(()=>JSON.stringify(window.qaView.state.doc.toJSON()));
+          await page.keyboard.press('Control+z');assert.equal(await page.evaluate(()=>JSON.stringify(window.qaView.state.doc.toJSON())),before);
+          await page.keyboard.press('Control+y');assert.equal(await page.evaluate(()=>JSON.stringify(window.qaView.state.doc.toJSON())),after);
+        }
+        const locationBefore=await listLocations();
+        await select('"저장되지 않은 세션');const beforeX=await quoteX();await page.keyboard.press('Tab');
+        assert.ok(await quoteX()>beforeX);assert.deepEqual(await listLocations(),locationBefore);
+        await page.keyboard.press('Shift+Tab');assert.ok(Math.abs(await quoteX()-beforeX)<1.1);assert.deepEqual(await listLocations(),locationBefore);
+        await select('만약 캐시에',true);
+        const beforeDelete=await page.evaluate(()=>JSON.stringify(window.qaView.state.doc.toJSON()));await page.keyboard.press('Delete');
+        assert.equal(await page.evaluate(()=>JSON.stringify(window.qaView.state.doc.toJSON())),beforeDelete,'Delete must not absorb quote');
+        const saved=await page.locator('#source').inputValue(),beforeReloadX=await quoteX();
+        await page.locator('#source').focus();await page.evaluate(s=>window.setTestDocument('independent-quote-reload',s),saved);
+        await page.locator('#toggle').click();await surface.waitFor({state:'detached'});
+        await page.locator('#toggle').click();await surface.waitFor();
+        await page.waitForFunction(()=>window.qaView && !window.qaView.isDestroyed && !!document.querySelector('.visual-document-surface blockquote'));
+        assert.ok(Math.abs(await quoteX()-beforeReloadX)<1.1,'saved quote indent must survive reload');
+        assert.equal(await surface.textContent(),initialText);assert.deepEqual(errors,[]);
+        console.log('PASS: actual list Tab/Shift+Tab keep quote X fixed; quote keys keep list layout fixed; Delete, undo and reload preserve boundaries');return;
+      }
+      if(process.argv.includes('--quote-outdent-only')){
+        const help=fs.readFileSync('frontend/public/help/HELP-03_문서_저장과_세션_자동_복구의_차이.md','utf8');
+        const source=help.slice(help.indexOf('- 온리비 어서는'),help.indexOf('> [!WARNING]'));
+        await page.locator('#source').focus();await page.evaluate(s=>window.setTestDocument('quote-outdent-initial',s),source);
+        await page.waitForFunction(()=>window.qaView.state.doc.textContent.includes('만약 캐시에'));
+        const originalText=await page.evaluate(()=>window.qaView.state.doc.textContent);
+        await page.evaluate(()=>{const view=window.qaView;let pos;view.state.doc.descendants((n,p)=>{if(n.type.name==='paragraph'&&n.textContent.startsWith('만약 캐시에'))pos=p+1;});view.dispatch(view.state.tr.setSelection(view.state.selection.constructor.create(view.state.doc,pos)));view.focus();});
+        const beforeIndent=await page.evaluate(()=>JSON.stringify(window.qaView.state.doc.toJSON()));
+        await page.keyboard.press('Tab');await page.keyboard.press('Shift+Tab');
+        assert.equal(await page.evaluate(()=>JSON.stringify(window.qaView.state.doc.toJSON())),beforeIndent,'ordinary Tab then Shift+Tab must retain original nesting');
+        let iteration=0;
+        for(const target of ['프로그램을 다시','만약 캐시에','만약 캐시에']){
+          await page.evaluate(target=>{const view=window.qaView;let pos;view.state.doc.descendants((node,p)=>{if(node.type.name==='paragraph'&&node.textContent.startsWith(target))pos=p+1;});view.dispatch(view.state.tr.setSelection(view.state.selection.constructor.create(view.state.doc,pos)));view.focus();},target);
+          const before=await page.evaluate(()=>JSON.stringify(window.qaView.state.doc.toJSON()));
+          await page.keyboard.press('Shift+Tab');
+          const result=await page.evaluate(()=>{const view=window.qaView;view.state.doc.check();const orphan=[];view.state.doc.descendants(n=>{if(n.type.name==='list_item'&&n.firstChild.type.name!=='paragraph')orphan.push(n.toString());});return {json:JSON.stringify(view.state.doc.toJSON()),text:view.state.doc.textContent,orphan,caret:view.state.selection.$from.parent.textContent};});
+          assert.deepEqual(result.orphan,[]);assert.equal(result.text,originalText);assert.ok(result.caret.startsWith(target));
+          await page.keyboard.press('Control+z');assert.equal(await page.evaluate(()=>JSON.stringify(window.qaView.state.doc.toJSON())),before);
+          await page.keyboard.press('Control+y');assert.equal(await page.evaluate(()=>JSON.stringify(window.qaView.state.doc.toJSON())),result.json);
+          const saved=await page.locator('#source').inputValue();assert.ok(!/^-\s*>/m.test(saved),saved);
+          await page.locator('#source').focus();await page.evaluate(({s,id})=>window.setTestDocument(id,s),{s:saved,id:'quote-outdent-reload-'+iteration++});
+          await page.waitForFunction(text=>window.qaView.state.doc.textContent===text,originalText);
+        }
+        await page.locator('#source').focus();await page.evaluate(()=>window.setTestDocument('quote-caret-outdent','- 상위 문장\n\n  > 인용 본문\n\n- 다음 항목'));
+        await page.waitForFunction(()=>window.qaView.state.doc.textContent.includes('인용 본문'));
+        await page.evaluate(()=>{const view=window.qaView;let pos;view.state.doc.descendants((n,p)=>{if(n.type.name==='paragraph'&&n.textContent==='인용 본문')pos=p+1;});view.dispatch(view.state.tr.setSelection(view.state.selection.constructor.create(view.state.doc,pos)));view.focus();});
+        await page.keyboard.press('Shift+Tab');
+        assert.equal(await page.evaluate(()=>window.qaView.state.doc.child(1).type.name),'blockquote');
+        assert.ok((await surface.textContent()).includes('상위 문장'));assert.ok((await surface.textContent()).includes('다음 항목'));
+        for(const source of ['3. 상위 문장\n\n   > 인용 본문\n\n4. 다음 항목','- > 인용 본문\n\n- 다음 항목']){
+          await page.locator('#source').focus();await page.evaluate(s=>window.setTestDocument('quote-only-'+s[0],s),source);
+          await page.waitForFunction(()=>window.qaView.state.doc.textContent.includes('인용 본문'));
+          await page.evaluate(()=>{const v=window.qaView;let pos;v.state.doc.descendants((n,p)=>{if(n.type.name==='paragraph'&&n.textContent==='인용 본문')pos=p+1;});v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc,pos)));v.focus();});
+          await page.keyboard.press('Shift+Tab');
+          assert.equal(await page.evaluate(()=>{let bad=false;window.qaView.state.doc.descendants(n=>{if(n.type.name==='list_item'&&(!n.firstChild?.textContent || n.firstChild.type.name!=='paragraph'))bad=true;});return bad;}),false);
+          if(source.startsWith('3.'))assert.ok((await page.locator('#source').inputValue()).includes('4. 다음 항목'));
+        }
+        assert.deepEqual(errors,[]);console.log('PASS: actual repeated Shift+Tab, quote caret, undo/redo and source reload preserve all content without extra bullets');return;
+      }
       for(const separate of [false,true])for(const startOffset of [0,1]){
-        await page.evaluate(separate=>window.setTestSource(separate?'- sns\n\n1. **페이스북** https://www.facebook.com/\n2. 네이버 블로그 https://blog.naver.com/':'5. sns\n   - 스레드\n6. **페이스북** https://www.facebook.com/\n7. 네이버 블로그 https://blog.naver.com/'),separate);
+        await page.locator('#source').focus();
+        await page.evaluate(({separate,startOffset})=>window.setTestDocument('indent-'+separate+'-'+startOffset,separate?'- sns\n\n1. **페이스북** https://www.facebook.com/\n2. 네이버 블로그 https://blog.naver.com/':'5. sns\n   - 스레드\n6. **페이스북** https://www.facebook.com/\n7. 네이버 블로그 https://blog.naver.com/'),{separate,startOffset});
         await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent.includes('페이스북'));
         const original=await surface.textContent();
         await page.evaluate(offset=>{
@@ -623,7 +867,8 @@ async function visual() {
         assert.equal(await surface.locator(separate?':scope > ul > li':':scope > ol > li').count(),3);
         assert.equal(await surface.textContent(),original);assert.equal(await surface.locator('strong').textContent(),'페이스북');
       }
-      await page.evaluate(()=>window.setTestSource('첫 문단\n\n둘째 문단\n\n선택 밖'));
+      await page.locator('#source').focus();
+      await page.evaluate(()=>window.setTestDocument('indent-paragraphs','첫 문단\n\n둘째 문단\n\n선택 밖'));
       await page.waitForFunction(()=>document.querySelector('.visual-document-surface').textContent.includes('선택 밖'));
       await surface.evaluate(el=>{
         el.focus();const ps=el.querySelectorAll('p'),r=document.createRange();

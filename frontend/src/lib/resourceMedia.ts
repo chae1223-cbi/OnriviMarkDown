@@ -2,6 +2,8 @@
 // 📊 [OMD-LIB-resourceMedia-0001] src/lib/resourceMedia.ts
 // 🎯 @KICK  : 리소스 미디어 저장, 드롭 데이터 파싱(Data URL/SVG/바이너리 디코딩) 및 임포트 관리
 // 🛡️ @GUARD : Rule 1(단일 주석 관리), Base64 인라인 배제 및 리소스 폴더 바이너리 저장 무결성
+// 🚨 @PATCH : **2026-10-24** — [한글 파일명 퍼센트 인코딩 제거 및 깨끗한 한글 원문 경로 반환]:
+//             1) 구글 드라이브 및 로컬 리소스 저장 시 파일명을 encodeURIComponent로 강제 인코딩하지 않고 사람이 읽을 수 있는 한글 원문 경로(/media/파일명.png)로 반환
 // 🚨 @PATCH : **2026-10-18** — [이미지 저장 완료 이벤트(onrivi:media-updated) 실제 저장 파일명(result.fileName) 동기화]:
 //             1) 데스크톱 api.saveImage 호출 후 반환된 실제 고유 파일명(result.fileName)을 announce 이벤트로 전달하여 기존 동일명 이미지의 비정상 캐시 리로드 간섭 방어
 // 🚨 @PATCH : **2026-10-14** — [구글 이미지 검색/외부 웹 이미지 드래그 앤 드롭 정규화(DroppedMediaItem) 및 CORS 우회 다운로드(fetchExternalImageFile) 탑재]:
@@ -29,7 +31,8 @@ export async function saveResourceMedia(file: Blob, name: string, browserHandle?
     if (!settings.mediaFolderId) throw new Error('환경설정의 드라이브 media 폴더를 확인해 주세요.');
     const uploaded = await uploadDriveImage(getSavedDriveToken() || undefined,settings.mediaFolderId,file,filename);
     announce(uploaded.name);
-    return `/media/${encodeURIComponent(uploaded.name)}?driveId=${encodeURIComponent(uploaded.id)}&v=${revision}`;
+    const cleanUploadedName = uploaded.name.replace(/</g, "%3C").replace(/>/g, "%3E");
+    return `/media/${cleanUploadedName}?driveId=${encodeURIComponent(uploaded.id)}&v=${revision}`;
   }
   const api = (window as any).electronAPI;
   if (api) {
@@ -49,7 +52,8 @@ export async function saveResourceMedia(file: Blob, name: string, browserHandle?
   const writable = await destination.createWritable();
   try { await writable.write(file); await writable.close(); } catch (error) { await writable.abort?.(); throw error; }
   announce();
-  return `/media/${encodeURIComponent(filename)}?v=${revision}`;
+  const cleanFilename = filename.replace(/</g, "%3C").replace(/>/g, "%3E");
+  return `/media/${cleanFilename}?v=${revision}`;
 }
 
 /** Import absolute local paths or private Drive URLs; normal web embeds stay links. */

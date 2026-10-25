@@ -1,16 +1,21 @@
-import { resolveDocumentLink } from '@/lib/nativeDocumentPath';
+import { resolveDocumentLink, resolveWorkspaceHelpLink } from '@/lib/nativeDocumentPath';
 import { hasHeadingNumber, headingNodeText } from '@/lib/headingNumbering';
 import { rehypeBibliography } from '@/lib/bibliography';
 import BibliographySummary from '@/components/BibliographySummary';
 import { browserAccountStorage as localStorage } from '@/lib/browserAccountStorage';
 import { remarkCodeBlockMetadata } from '../lib/codeBlockMetadata';
 import { remarkKoreanStrong } from '@/lib/remarkKoreanStrong';
+import { remarkQuoteIndent } from '@/lib/remarkQuoteIndent';
 import { remarkPageBreak } from '@/lib/remarkPageBreak';
 import { bulletNumbersAsText } from '@/lib/bulletNumberText';
 import PicturebookPreview from './PicturebookPreview';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { exportContentFingerprint } from '@/lib/exportPreparation';
 import katex from 'katex';
+// 🚨 @PATCH : **2026-10-25** — [미리보기 목록 전체 들여쓰기(data-onrivi-list-indent) 서식 연동]:
+//             1) ul 및 ol 컴포넌트에 data-onrivi-list-indent 값을 파싱하여 marginLeft 인라인 서식으로 1:1 바인딩
+// 🚨 @PATCH : **2026-10-24** — [도움말 문서 링크(../../ 및 파일명) 작업장 내부 경로 안전 해석 연동]:
+//             1) isPathInsideWorkspace에서 resolveWorkspaceHelpLink를 적용하여 도움말 간 상대경로(../../00_시작하기.md 등)를 현재 도움말 디렉토리 내부 경로로 정확히 보정하여 연결 보장
 // 🚨 @PATCH : **2026-10-23** — [빈 문서 링크 표시 및 경로 검증]: [] 문서 링크에 확장자 없는 파일명을 표시하고 정규화된 작업장 경계로 경로 순회를 차단
 // 🚨 @PATCH : **2026-10-20** — [PDF 인쇄 시 화면 페이지 나누기 1:1 완벽 일치 및 파싱 정밀화]:
 //             1) cleanContent에서 마크다운 주석(<!-- onrivi:page-break -->) 및 LaTeX(\\pagebreak)를 data-onrivi-page-break 블록으로 선행 표준화
@@ -18,6 +23,11 @@ import katex from 'katex';
 // 🚨 @PATCH : **2026-10-17** — [목록 항목 간 줄 여백(margin-bottom) 및 들여쓰기 너비(var(--list-indent)) 서식 프로필 1:1 반영]:
 //             1) .onrivi-content-root ul/ol의 hardcoded padding-left: 1.5em !important를 var(--list-indent, 1.5em)으로 변경하여 서식 프로필의 들여쓰기 설정이 즉각 적용되도록 개선
 //             2) .onrivi-content-root li의 hardcoded margin: 0 !important를 해제하고 margin-bottom: var(--li-margin-bottom, 6px) 및 dynamicCssString 연동을 허용하여 목록 및 체크박스 줄 여백이 정상 작동하도록 조치
+// 🚨 @PATCH : **2026-10-25** — [이미지와 캡션 간격 초밀착(4px) 정돈]:
+//             1) 상단 캡션(mb-1, 4px) 및 하단 캡션(mt-1, 4px) 여백을 축소하여 이미지와 설명 텍스트가 시원하고 정갈하게 밀착되도록 개선
+// 🚨 @PATCH : **2026-10-25** — [이미지 상단 stray bracket/backslash("\[") 유령 캡션 노출 방어 및 캡션 서식 자연화]:
+//             1) alt가 괄호/역슬래시 단독 찌꺼기(/^[\\\[\]\s]+$/)인 경우 figcaption 렌더링을 차단하여 빈 캡션 이미지 상단에 유령 기호("\\[")가 노출되는 결함 원천 해결
+//             2) 실제 캡션 텍스트 내의 불필요한 이스케이프 역슬래시(\[, \])를 자연스러운 괄호 문자([, ])로 표시되도록 자동 정제
 // 🚨 @PATCH : **2026-10-24** — [이미지 URL 쿼리(caption=top|bottom) 기반 캡션 위치 개별 지정 및 CSS 강제 순서 보정]:
 //             1) 이미지 src 쿼리스트링에서 caption=top|bottom을 파싱하여 개별 이미지 단위로 상단/하단 캡션 배치 지원
 //             2) 서식 프로필의 order: -1!important / order: 1!important 강제 순서를 [data-caption-position="top|bottom"] 고특이도 선택자로 제어하여 하단 선택 시 문서보기에 100% 하단 렌더링 보장
@@ -826,6 +836,12 @@ export function isPathInsideWorkspace(
 
   // 앵커(#) 분리 (앵커만 있는 경우는 현재 문서 내부이므로 항상 허용)
   clean = clean.split('#')[0].trim();
+  if (typeof resolveWorkspaceHelpLink !== 'undefined') {
+    const helpResolved = resolveWorkspaceHelpLink(clean, currentFilePath);
+    if (helpResolved !== clean) {
+      clean = helpResolved;
+    }
+  }
   if (!clean) {
     return { isInside: true };
   }
@@ -2696,7 +2712,7 @@ function MarkdownViewer({
             if (cleanUri.trim().toLowerCase().startsWith('javascript:')) return '';
             return cleanUri;
           }}
-          remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkExtendedTable, remarkBreaks, remarkMath, remarkDisableIndentedCode, remarkCodeBlockMetadata, remarkKoreanStrong,remarkPageBreak, remarkEmptyDocumentLinkLabels]}
+          remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkExtendedTable, remarkBreaks, remarkMath, remarkDisableIndentedCode, remarkCodeBlockMetadata, remarkKoreanStrong,remarkPageBreak,remarkQuoteIndent, remarkEmptyDocumentLinkLabels]}
           rehypePlugins={[
             [rehypeKatex, { strict: false }],
             rehypeBrRaw,
@@ -3091,18 +3107,20 @@ function MarkdownViewer({
                 || picturebookProfile?.mediaCaptionStructure?.position
                 || 'top';
               const captionPos = urlCaptionPos || profileCaptionPos;
-              if (alt && alt.trim() !== '') {
+              const hasValidCaption = Boolean(alt && alt.trim() !== '' && !/^[\\\[\]\s]+$/.test(alt));
+              if (hasValidCaption) {
+                const displayCaption = (alt || '').replace(/\\([\\\[\]])/g, '$1');
                 return (
                   <figure data-line={line} data-caption-position={captionPos} className={`onrivi-image-figure caption-${captionPos}`} style={figureStyle}>
                     {captionPos === 'top' && (
-                      <figcaption data-position="top" className="text-[0.88em] tracking-tight text-zinc-600 dark:text-zinc-300 mb-2 mt-0 font-medium" style={{ order: -1, ...(align ? { textAlign: align as any, alignSelf: figureStyle.alignItems } : {}) }}>
-                        {alt}
+                      <figcaption data-position="top" className="text-[0.88em] tracking-tight text-zinc-600 dark:text-zinc-300 mb-1 mt-0 font-medium" style={{ order: -1, ...(align ? { textAlign: align as any, alignSelf: figureStyle.alignItems } : {}) }}>
+                        {displayCaption}
                       </figcaption>
                     )}
                     {imgElement}
                     {captionPos === 'bottom' && (
-                      <figcaption data-position="bottom" className="text-[0.88em] tracking-tight text-zinc-500 dark:text-zinc-400 mt-2.5 mb-1 font-medium" style={{ order: 1, ...(align ? { textAlign: align as any, alignSelf: figureStyle.alignItems } : {}) }}>
-                        {alt}
+                      <figcaption data-position="bottom" className="text-[0.88em] tracking-tight text-zinc-500 dark:text-zinc-400 mt-1 mb-0 font-medium" style={{ order: 1, ...(align ? { textAlign: align as any, alignSelf: figureStyle.alignItems } : {}) }}>
+                        {displayCaption}
                       </figcaption>
                     )}
                   </figure>
@@ -3646,11 +3664,15 @@ function MarkdownViewer({
             },
             ul: ({ node, children, style, ...props }: any) => {
               const line = extractDataLine(props, node);
-              return <ul data-line={line} style={style} {...props}>{children}</ul>;
+              const storedIndent = (props as any)['data-onrivi-list-indent'];
+              const listIndentStyle = storedIndent === undefined ? {} : { marginLeft: Math.max(0, Math.min(4096, Number(storedIndent) || 0)) };
+              return <ul data-line={line} style={{ ...style, ...listIndentStyle }} {...props}>{children}</ul>;
             },
             ol: ({ node, children, style, start, ...props }: any) => {
               const line = extractDataLine(props, node);
-              return <ol start={start} data-line={line} style={style} {...props}>{children}</ol>;
+              const storedIndent = (props as any)['data-onrivi-list-indent'];
+              const listIndentStyle = storedIndent === undefined ? {} : { marginLeft: Math.max(0, Math.min(4096, Number(storedIndent) || 0)) };
+              return <ol start={start} data-line={line} style={{ ...style, ...listIndentStyle }} {...props}>{children}</ol>;
             },
             li: ({ node, children, style, ...props }: any) => {
               const textContent = getTextFromChildren(children).trim();
@@ -3717,6 +3739,8 @@ function MarkdownViewer({
               return <li data-line={dataLineVal} value={explicitValue} style={{ ...style, ...indentStyle }} className={props.className} {...restProps}>{modifiedChildren}</li>;
             },
             blockquote: ({ node, children, style, ...props }) => {
+              const storedIndent=(props as any)['data-onrivi-quote-indent'];
+              const quoteIndentStyle=storedIndent===undefined?{}:{marginLeft:Math.max(0,Math.min(4096,Number(storedIndent)||0))};
               // GitHub style Alerts 파싱: [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION] + 한글 지원 ([!참고], [!팁], [!중요], [!주의], [!경고] 등)
               let alertType: 'NOTE' | 'TIP' | 'IMPORTANT' | 'WARNING' | 'CAUTION' | null = null;
               let rawTagString = '';
@@ -3858,9 +3882,10 @@ function MarkdownViewer({
 
                 return (
                   <div 
-                    style={{ ...style, ...getIndentStyle(node) }} 
+                    style={{ ...style, ...getIndentStyle(node), ...quoteIndentStyle }}
                     ref={(element) => {
                       if (!element) return;
+                      if(storedIndent!==undefined)element.style.setProperty('margin-left',quoteIndentStyle.marginLeft+'px','important');
                       const backgrounds = {NOTE:'#eff6ff',TIP:'#ecfdf5',IMPORTANT:'#faf5ff',WARNING:'#fffbeb',CAUTION:'#fff1f2'};
                       element.style.setProperty('background-color', backgrounds[alertType], 'important');
                     }}
@@ -3880,7 +3905,8 @@ function MarkdownViewer({
 
               return (
                 <blockquote
-                  style={{ ...style, ...getIndentStyle(node) }}
+                  ref={element=>{if(element && storedIndent!==undefined)element.style.setProperty('margin-left',quoteIndentStyle.marginLeft+'px','important');}}
+                  style={{ ...style, ...getIndentStyle(node), ...quoteIndentStyle }}
                   className="p-4 rounded-r-lg border-l-4 border-zinc-500 dark:border-zinc-600 bg-zinc-100/90 dark:bg-zinc-800/80 text-zinc-800 dark:text-zinc-200 font-normal not-italic"
                   {...props}
                 >

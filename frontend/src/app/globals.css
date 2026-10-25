@@ -2445,10 +2445,10 @@ input::-ms-clear {
 
 /* Media actions share one high-contrast style, independent of document themes. */
 .onrivi-media-control {
-  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  display:inline-flex; align-items:center; justify-content:center; gap:5px;
   background:rgba(38,38,38,.92)!important; color:#fff!important;
   border:1px solid rgba(255,255,255,.22)!important; border-radius:6px!important;
-  padding:6px 10px!important; font-size:14px!important; line-height:20px!important;
+  padding:4px 9px!important; font-size:12.5px!important; line-height:18px!important;
   font-weight:600!important; font-family:inherit; white-space:nowrap;
   box-shadow:0 2px 8px rgba(0,0,0,.18); cursor:pointer;
 }
@@ -2471,3 +2471,6 @@ input::-ms-clear {
   }
 }
 @media print { .onrivi-page-break { break-before:page;page-break-before:always;height:0;min-height:0;margin:0;border:0;font-size:0;line-height:0; } }
+/* Explicit emphasis remains visible when an inline code profile sets defaults. */
+:is(.visual-document-surface,.onrivi-content-root) :is(strong,b) code { font-weight:inherit!important; }
+:is(.visual-document-surface,.onrivi-content-root) :is(em,i) code { font-style:inherit!important; }

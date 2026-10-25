@@ -1,5 +1,23 @@
 /**
  * 프로그램명 : OnriviAuthor 
+// 🚨 @PATCH : **2026-10-25** — [코드블록 생성 시 하단 빈 행(문단) 자동 보장 및 밖에서 곧바로 타이핑 지원]:
+//             1) .visual-document-surface .visual-code-block에 margin-bottom: 20px !important를 부여하여 코드블록 바로 아래 빈 문단이 가려지지 않고 선명히 드러나도록 시인성 확보
+//             2) 빈 문단(p:empty)에 cursor: text 및 min-height: 1.5em을 보장하여 코드블록 밖 마우스 클릭 및 즉각 타이핑 편의 극대화
+// 🚨 @PATCH : **2026-10-25** — [이미지와 캡션 간격 초밀착(4px) 정돈 및 인접 마진 중복 상쇄]:
+//             1) .onrivi-image-figure[data-caption-position="top"] 내 img 상단 마진을 0으로 강제 초기화하고 figcaption 하단 마진을 4px로 단정히 축소하여 이미지와 캡션이 시원하게 밀착되도록 개선
+//             2) .onrivi-image-figure[data-caption-position="bottom"] 내 img 하단 마진 및 figcaption 상단 마진도 4px로 일체화
+// 🚨 @PATCH : **2026-10-25** — [문서보기 빈 문단(p:empty) 상하 마진 강제 덮어쓰기 제거 및 서식 프로필 일원화]:
+//             1) .visual-document-surface > p:empty 및 :has(> br:only-child)의 margin-top/bottom: 0.25em !important 강제 규칙을 제거하고 min-height: 1em으로 일원화
+//             2) 빈 문단 상태와 글자 입력 상태의 상하 여백(margin-bottom) 및 행간(line-height)이 활성 서식 프로필과 100% 동일하게 유지되도록 보장하여 타이핑 시 수직 들뜸 방지
+// 🚨 @PATCH : **2026-10-24** — [문서보기 서식 본문 클립보드 복사 엔진 전면 쇄신]:
+//             1) .visual-document-surface(위지윅 문서보기) 및 .markdown-viewer-root(마크다운 뷰어) 우선 타겟 지정으로 툴바/버튼 오염 원천 차단
+//             2) .onrivi-media-control, .visual-media-controls, button, no-print 등 복사 제외 요소 정밀 소거
+//             3) blob/로컬 이미지를 인라인 base64 PNG로 치환하여 외부 앱(Word, 블로그 등) 붙여넣기 시 엑박 방지
+//             4) 현대 웹 표준 ClipboardItem(text/html + text/plain 동시 기록)을 1순위 적용하여 외부 앱 서식 붙여넣기 완벽 보장
+//             5) execCommand 및 Electron IPC/writeText를 2~3순위 Fallback으로 연동하고 성공/실패 토스트 분리
+// 🚨 @PATCH : **2026-10-24** — [도움말 문서 링크(DocLinkPicker) ./상대경로 생성 및 fetchAllMdFiles 도움말 허용]:
+//             1) fetchAllMdFiles에서 현재 문서가 도움말 문서(docs/help/ 또는 help/)일 때 docs/help 파일 제외를 해제하여 형제 문서 목록 온전히 수집
+//             2) buildDocLinkTarget에서 현재 문서와 대상 문서가 모두 도움말인 경우 깔끔한 상대경로(./00_시작하기.md)를 생성하여 상위 이탈(../../) 결함 방어
 // 🚨 @PATCH : **2026-10-24** — [이미지 수정 시 captionPos(top|bottom) URL 쿼리 연동 및 스타일 주입]:
 //             1) editDocumentMedia 및 onImageDialog에서 이미지 URL 쿼리의 caption 파라미터를 읽어 editingImageInfo.captionPos에 바인딩
 //             2) 동적 CSS 규칙에 [data-caption-position="top|bottom"]에 대한 order 및 margin 스타일을 추가하여 어떤 서식 프로필에서도 캡션 위치 100% 보장
@@ -448,6 +466,7 @@ import { msg } from '@/lib/systemMessages'; // 메시지
 import { browserSessionPolling } from '@/lib/sessionPolling';
 import { getApiUrl } from '@/lib/apiUrlBuilder'; // api 서버 경로
 import { exportPDF, exportHTML, exportEPUB, exportPNG } from '@/lib/exportHandlers'; // 파일 내보내기 핸들러
+import { serializeDocumentForClipboard, copyFormattedDocumentToClipboard } from '@/lib/clipboardExport';
 import { configureMonacoEnvironment } from '@/lib/monacoEnv'; // Monaco 환경 설정
 import { idb, FileNode, scanDirectory, scanDirectoryDeep, getFileIcon } from '@/lib/indexedDbHelper'; // indexedDB 헬퍼
 import { captureEditorSession, readEditorSession, matchesSessionTab, SessionTab, isPlaceholderWarning } from '@/lib/editorSession';
@@ -687,7 +706,9 @@ const fetchAllMdFiles = async (
     const pathSegments = normPath.split('/');
     const excludedDirs = ['out', '.next', '.next-web-build', 'dist', 'build', 'release', 'node_modules', '_dev_api_backup', '.vscode', '.idea'];
     if (pathSegments.some(seg => excludedDirs.includes(seg))) return;
-    if (normPath.startsWith('docs/help/') || normPath.includes('/docs/help/')) return;
+    const currentNorm = (currentFileNode?.path || '').replace(/\\/g, '/').toLowerCase();
+    const isCurrentInHelp = currentNorm.includes('docs/help/') || currentNorm.includes('/help/') || currentNorm.startsWith('help/');
+    if (!isCurrentInHelp && (normPath.startsWith('docs/help/') || normPath.includes('/docs/help/'))) return;
     const rawKey = (node.path || node.name).replace(/\\/g, '/').toLowerCase().normalize('NFC');
     if (!fileMap.has(rawKey)) {
       fileMap.set(rawKey, { ...node, ...extra });
@@ -5570,6 +5591,20 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const buildDocLinkTarget = (targetNode: FileNode, heading?: string): string => {
     const targetPath = targetNode.path;
+    const headingSuffix = heading && heading.trim() ? `#${heading.trim()}` : '';
+
+
+    // 💡 [도움말 및 형제 문서 상대경로 보장] 현재 문서와 대상 문서가 모두 도움말(00_시작하기, HELP-*)인 경우 깔끔한 상대경로(./파일명.md) 보장
+    if (typeof currentFileNode !== 'undefined' && currentFileNode?.path) {
+      const currentPath = (currentFileNode.path || '').replace(/\\/g, '/');
+      const isCurrentHelp = /(?:^|\/)(?:docs\/|frontend\/public\/)?help\/[^/]+\.md$/i.test(currentPath) || /^(?:00_시작하기|HELP-\d+)/i.test(currentFileNode.name || '');
+      const isTargetHelp = /(?:^|\/)(?:docs\/|frontend\/public\/)?help\/[^/]+\.md$/i.test(targetPath) || /^(?:00_시작하기|HELP-\d+)/i.test(targetNode.name || '');
+
+      if (isCurrentHelp && isTargetHelp) {
+        const targetFileName = targetNode.name || targetPath.split('/').pop() || targetPath;
+        return `./${targetFileName}${headingSuffix}`;
+      }
+    }
     const nativeApi = (window as any).electronAPI;
     if (nativeApi?.readFromPath && workspaceType !== 'cloud' && !targetPath.startsWith('knowledge://')) {
       const absolutePath = resolveNativeDocumentPath(targetPath, rootFolder);
@@ -5598,7 +5633,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (!relativePath.startsWith('.') && !relativePath.startsWith('/') && !relativePath.includes(':')) {
       relativePath = './' + relativePath;
     }
-    const headingSuffix = heading && heading.trim() ? `#${heading.trim()}` : '';
+
     return `${relativePath}${headingSuffix}`;
   };
 
@@ -5658,68 +5693,53 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0063.1] MainEditorApp.tsx ➔ handleCopyPreviewContent
-  // 🎯 @KICK  : 미리보기 화면의 렌더링된 본문과 서식, 이미지를 클립보드에 안전하게 복사
-  // 🛡️ @GUARD : blob 이미지 URL base64 변환 및 불필요한 UI 훅 숨김 처리 후 복사
-  // 🚨 @PATCH : **2026-09-30** — [미리보기 클립보드 복사 핸들러 표준화]: PreviewToolbar 복사 버튼과 연동
+  // 🎯 @KICK  : 문서보기(VisualDocumentEditor/MarkdownViewer)의 렌더링된 서식 본문을 CSS 인라인 스타일과 함께 클립보드에 안전하게 복사
+  // 🛡️ @GUARD : computedStyle 기반 CSS 인라인 주입, dynamicCss 포함, Word/블로그/노션 호환 HTML 조각 및 다중 Fallback 보장
+  // 🚨 @PATCH : **2026-10-24** — [CSS 서식 1:1 보존 클립보드 직렬화 엔진(clipboardExport) 연동]:
+  //             1) serializeDocumentForClipboard를 연동하여 각 요소의 실제 계산된 CSS(폰트, 크기, 색상, 테두리, 배경, 간격)를 인라인 주입
+  //             2) copyFormattedDocumentToClipboard를 통해 Electron native CF_HTML, Web ClipboardItem, execCommand 3중 복사 완비
   // ====================================================================
-  const handleCopyPreviewContent = useCallback(() => {
+  const handleCopyPreviewContent = useCallback(async () => {
     if (!previewRef.current) return;
     try {
-      const selection = window.getSelection();
-      const originalRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+      // 1) 실제 문서 본문이 렌더링된 타겟 요소 탐색 (.visual-document-surface 우선)
+      const targetEl = (
+        previewRef.current.querySelector('.visual-document-surface') ||
+        previewRef.current.querySelector('.markdown-viewer-root') ||
+        previewRef.current.querySelector('.picturebook-root') ||
+        previewRef.current.querySelector('.visual-document-editor') ||
+        previewRef.current.querySelector('.preview-page-sheet') ||
+        previewRef.current
+      ) as HTMLElement;
 
-      const range = document.createRange();
-      const targetEl = previewRef.current.querySelector('.markdown-viewer-root') || previewRef.current;
-
-      const imgs = Array.from(targetEl.querySelectorAll('img')) as HTMLImageElement[];
-      const restoredImgs: HTMLImageElement[] = [];
-      for (const img of imgs) {
-        const src = img.src;
-        if (src && src.startsWith('blob:')) {
-          try {
-            if (img.complete && img.naturalWidth > 0) {
-              const canvas = document.createElement('canvas');
-              canvas.width = img.naturalWidth;
-              canvas.height = img.naturalHeight;
-              const ctx = canvas.getContext('2d');
-              if (ctx) {
-                ctx.drawImage(img, 0, 0);
-                img.dataset.originalSrc = src;
-                img.src = canvas.toDataURL('image/png');
-                restoredImgs.push(img);
-              }
-            }
-          } catch (e) {
-            console.error(e);
-          }
-        }
+      if (!targetEl) {
+        showToast('복사할 본문 요소를 찾을 수 없습니다.', 'warning');
+        return;
       }
 
-      const hooks = Array.from(targetEl.querySelectorAll('.copy-button-hook')) as HTMLElement[];
-      const hookDisplays = hooks.map(h => h.style.display);
-      hooks.forEach(h => { h.style.display = 'none'; });
+      // 2) 현재 렌더링된 동적 CSS 추출
+      const dynamicCss = document.getElementById('onrivi-dynamic-css')?.textContent || '';
 
-      range.selectNodeContents(targetEl);
-      selection?.removeAllRanges();
-      selection?.addRange(range);
+      // 3) 계산된 CSS 스타일을 인라인으로 1:1 주입하여 표준 HTML 조각 및 텍스트 직렬화
+      const { fullHtml, cleanText } = serializeDocumentForClipboard(targetEl, dynamicCss);
 
-      document.execCommand('copy');
-
-      selection?.removeAllRanges();
-      if (originalRange && selection) selection.addRange(originalRange);
-
-      hooks.forEach((h, i) => { h.style.display = hookDisplays[i]; });
-
-      for (const img of restoredImgs) {
-        if (img.dataset.originalSrc) {
-          img.src = img.dataset.originalSrc;
-          delete img.dataset.originalSrc;
-        }
+      if (!cleanText.trim() && !fullHtml.trim()) {
+        showToast('복사할 본문 내용이 없습니다.', 'info');
+        return;
       }
-      showToast('미리보기 내용이 클립보드에 복사되었습니다.', 'success');
+
+      // 4) 시스템 클립보드에 다중 Fallback으로 안전하게 복사
+      const copied = await copyFormattedDocumentToClipboard(fullHtml, cleanText);
+
+      if (copied) {
+        showToast('CSS 서식이 적용된 문서 내용이 클립보드에 복사되었습니다.', 'success');
+      } else {
+        throw new Error('클립보드 접근이 차단되었거나 복사 명령이 실패했습니다.');
+      }
     } catch (err) {
-      console.error(err);
+      console.error('[handleCopyPreviewContent] Copy failed:', err);
       showToast('클립보드 복사에 실패했습니다.', 'error');
+      throw err;
     }
   }, [showToast]);
 
@@ -7110,12 +7130,24 @@ blockquote li p {
 .onrivi-content-root .onrivi-image-figure[data-caption-position="top"] figcaption {
   order: -1 !important;
   margin-top: 0 !important;
-  margin-bottom: 0.5rem !important;
+  margin-bottom: 4px !important;
+}
+.custom-preview-container .onrivi-image-figure[data-caption-position="top"] img,
+.onrivi-content-root .onrivi-image-figure[data-caption-position="top"] img,
+.custom-preview-container .onrivi-image-figure[data-caption-position="top"] .onrivi-image-wrapper,
+.onrivi-content-root .onrivi-image-figure[data-caption-position="top"] .onrivi-image-wrapper {
+  margin-top: 0 !important;
 }
 .custom-preview-container .onrivi-image-figure[data-caption-position="bottom"] figcaption,
 .onrivi-content-root .onrivi-image-figure[data-caption-position="bottom"] figcaption {
   order: 1 !important;
-  margin-top: 0.5rem !important;
+  margin-top: 4px !important;
+  margin-bottom: 0 !important;
+}
+.custom-preview-container .onrivi-image-figure[data-caption-position="bottom"] img,
+.onrivi-content-root .onrivi-image-figure[data-caption-position="bottom"] img,
+.custom-preview-container .onrivi-image-figure[data-caption-position="bottom"] .onrivi-image-wrapper,
+.onrivi-content-root .onrivi-image-figure[data-caption-position="bottom"] .onrivi-image-wrapper {
   margin-bottom: 0 !important;
 }
 `;
@@ -7610,6 +7642,7 @@ blockquote li p {
 /* Keep native code cards apart and scroll long lines inside each card. */
 .custom-preview-container .visual-document-surface .visual-code-block {
   margin-top: 24px !important;
+  margin-bottom: 20px !important;
   min-width: 0 !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
@@ -7642,9 +7675,8 @@ blockquote li p {
 }
 .custom-preview-container .visual-document-surface > p:empty,
 .custom-preview-container .visual-document-surface > p:has(> br:only-child) {
-  min-height: 1.25em;
-  margin-top: 0.25em !important;
-  margin-bottom: 0.25em !important;
+  min-height: 1.5em;
+  cursor: text;
 }
 `; 
 

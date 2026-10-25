@@ -111,9 +111,9 @@ export default function ExportModal({
   },[isOpen,previewOpen,selectedFormat,settings,documentContent,isPicturebook,pagination]);
 
   const updateWatermarkSettings = (updater: (prev: DocumentPrintSettings) => DocumentPrintSettings) => {
-    setSettings(prev => {
-      const next = normalizePrintSettings(updater(prev));
+      const next = normalizePrintSettings(updater(settingsRef.current));
       settingsRef.current = next;
+      setSettings(next);
       saveDefaultWatermarkSettings(next);
       if (documentContent && hasDocumentPrintSettings(documentContent)) {
         onPrintSettingsChange?.(next);
@@ -121,8 +121,6 @@ export default function ExportModal({
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('onrivi:watermark_changed', { detail: next }));
       }
-      return next;
-    });
   };
 
   useEffect(() => {

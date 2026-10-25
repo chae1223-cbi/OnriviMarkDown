@@ -4,6 +4,8 @@ import { normalizeBookLayout } from '../lib/picturebook';
 // ====================================================================
 // 📊 [OMD-CORE-cssProfile-0006] cssProfile ➔ SYSTEM_PROFILE_IDS
 // 🎯 @KICK  : 시스템 프로필 식별자 목록을 정의한다
+// 🚨 @PATCH : **2026-10-25** — [이미지와 캡션 간격 초밀착(4px) 정돈]:
+//             1) 시스템 서식 프로필 customCss 내 figcaption 상하 마진을 8px에서 4px로 단정히 축소하여 캡션과 이미지 간격 밀착화
 // 🚨 @PATCH : **2026-10-22** — [4대 문서 표준 규격 시스템 서식 프로필(CSS Profile) 신설 탑재]:
 //             1) ks-tech-standard: KS 기술표준 (1. ➔ 1.1 십진 분류, 표 상단/그림 하단 하이픈 표기, 그리드 보더)
 //             2) corp-strategy-report: 대기업 전략기획서 (삼성/현대 스타일: 15px 고밀도 개조식, 상단 요약 바, 볼드 인디케이터)
@@ -3058,7 +3060,7 @@ Object.assign(aiReportProfile.rules.table, {'border-style':'solid','border-color
 aiReportProfile.tableStructure = {outerBorderWidth:'1px',rowBorderWidth:'1px',colBorderWidth:'1px'};
 aiReportProfile.headingNumbering = ['roman', 'decimal', 'hangul', 'decimal-paren', 'hangul-paren', 'none'];
 aiReportProfile.customCss = `.custom-preview-container figure.onrivi-image-figure, .markdown-viewer-root figure.onrivi-image-figure { display:flex; flex-direction:column; }
-.custom-preview-container figure.onrivi-image-figure > figcaption, .markdown-viewer-root figure.onrivi-image-figure > figcaption { order:-1!important; text-align:left!important; align-self:flex-start!important; font-weight:700!important; color:inherit!important; margin:0 0 8px!important; }
+.custom-preview-container figure.onrivi-image-figure > figcaption, .markdown-viewer-root figure.onrivi-image-figure > figcaption { order:-1!important; text-align:left!important; align-self:flex-start!important; font-weight:700!important; color:inherit!important; margin:0 0 4px!important; }
 .custom-preview-container :is(h1,h2,h3,h4,h5,h6) { border:0!important; background:transparent!important; box-shadow:none!important; padding-left:0!important; }
 .custom-preview-container p:has(+table), .custom-preview-container p:has(+.table-wrapper-area) { break-after:avoid; }
 .custom-preview-container img { box-shadow:none!important; }`;
@@ -3078,7 +3080,7 @@ ksTechProfile.mediaCaptionStructure = {
 };
 ksTechProfile.headingNumbering = ['decimal-outline', 'decimal-outline', 'decimal-outline', 'none', 'none', 'none'];
 ksTechProfile.tableStructure = { outerBorderWidth: '1px', rowBorderWidth: '1px', colBorderWidth: '1px' };
-ksTechProfile.customCss = `.custom-preview-container figure.onrivi-image-figure > figcaption, .markdown-viewer-root figure.onrivi-image-figure > figcaption { order: 1!important; text-align: center!important; font-weight: 700!important; margin-top: 8px!important; }`;
+ksTechProfile.customCss = `.custom-preview-container figure.onrivi-image-figure > figcaption, .markdown-viewer-root figure.onrivi-image-figure > figcaption { order: 1!important; text-align: center!important; font-weight: 700!important; margin-top: 4px!important; }`;
 SYSTEM_PROFILES.push(ksTechProfile);
 
 // 2. 대기업 전략기획서 (삼성/현대 스타일)
@@ -3124,7 +3126,7 @@ academicReportProfile.headingNumbering = [
   'decimal', 'hangul', 'none', 'none'
 ];
 academicReportProfile.tableStructure = { outerBorderWidth: '1.5px', rowBorderWidth: '1px', colBorderWidth: '0px' };
-academicReportProfile.customCss = `.custom-preview-container figure.onrivi-image-figure > figcaption, .markdown-viewer-root figure.onrivi-image-figure > figcaption { order: 1!important; text-align: center!important; font-weight: 700!important; margin-top: 8px!important; }
+academicReportProfile.customCss = `.custom-preview-container figure.onrivi-image-figure > figcaption, .markdown-viewer-root figure.onrivi-image-figure > figcaption { order: 1!important; text-align: center!important; font-weight: 700!important; margin-top: 4px!important; }
 .custom-preview-container p.table-title, .markdown-viewer-root p.table-title { font-weight: 700!important; text-align: center!important; margin-bottom: 6px!important; }`;
 SYSTEM_PROFILES.push(academicReportProfile);
 

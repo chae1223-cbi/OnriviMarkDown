@@ -1,6 +1,41 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
+ * 🚨 @PATCH : **2026-10-25** — [인라인 서식(굵게/기울임/취소선/밑줄/인라인코드) 스마트 템플릿 선언 및 Live Preview 전개/접기 렌더링 지원]:
+ *             1) 선택 텍스트가 없는 빈 커서에서 서식 명령(Ctrl+B, Ctrl+I, Ctrl+U, Ctrl+E, Ctrl+Shift+X 등) 실행 시 '**텍스트**', '`코드`' 등 템플릿을 자동 삽입하고 플레이스홀더를 블록 선택하여 즉시 타이핑 대체 지원
+ *             2) 서식 텍스트 내부 커서 진입 시 Live Preview 문법 기호(**, *, ~~, <u>, `)를 양쪽에 동적 전개하여 현재 서식 식별 및 손쉬운 수정 지원
+ *             3) Enter는 줄바꿈과 서식 유지, Tab은 기존 이동/들여쓰기, 좌우 방향키로 서식 경계를 벗어날 때 종료
+ *             4) 좌우 방향키로 서식의 시작(from) 또는 끝(to) 경계를 벗어날 경우 문법 기호가 자동으로 숨겨지고 깔끔한 서식으로 렌더링 복귀
+ *             5) 템플릿 플레이스홀더('텍스트'/'코드') 블록 선택 상태에서 영문/한글 타이핑 대체 시 서식이 유실되던 결함을 handleTextInput 및 compositionstart 서식 보존 인터셉터와 setStoredMarks로 완전 해결
+ *             6) Live Preview 문법 기호 데코레이션에 contentEditable="false"를 부여하여 브라우저 네이티브 선택 영역이 기호를 침범하거나 기호를 삭제·오염시키는 현상 원천 차단
+ *             7) 태그 시작(from) 및 끝(to) 경계에서도 편집 모드가 정상 유지되고 양방향 타이핑 입력이 가능하도록 findAnyActiveMarkRange 및 decorations 접촉 판정 정밀화, 경계 바깥 완전 이탈 시에만 렌더링 전환
+ *             8) 태그 끝(to)에서 연속 타이핑 시 handleTextInput의 과도한 replaceWith 개입으로 자릿수가 늘어나지 않고 덮어써지던 결함을 수정하여 ProseMirror 네이티브 연속 확장을 보장
+ * 🚨 @PATCH : **2026-10-25** — [코드 블록 생성 시 하단 빈 행(문단) 자동 보장 및 밖에서 곧바로 타이핑 지원]:
+ *             1) setCodeBlock 실행 시 코드 블록 바로 아래에 빈 문단(paragraph)을 확실히 추가하여 코드 블록 밖에서 곧바로 타이핑 가능하도록 보장
+ *             2) CODE 언어 입력란에서 Shift+Enter 입력 시 코드 블록 밖 하단 빈 행으로 즉각 커서 이동
+ *             3) 코드 본문에서 빈 코드 블록 Enter, 코드 끝 ArrowDown, Shift+Enter / Ctrl+Enter 입력 시 코드 블록 밖 하단 빈 행으로 부드럽게 탈출 및 연속 타이핑 지원
+ *             4) .visual-code-block에 margin-bottom: 20px를 적용하고 캔버스 클릭 시 코드 블록 하단 빈 행 자동 포커스 보장
+ * 🚨 @PATCH : **2026-10-25** — [코드 블록 생성 시 CODE(언어) 입력란 자동 포커스 및 양방향 키보드 이동 연동]:
+ *             1) setCodeBlock 및 InputRule(```) 생성 시 onrivi:focus-code-block 메타 전달을 통해 CODE 언어 입력란(input)으로 즉시 포커스 및 텍스트 선택(select)
+ *             2) CODE 언어 입력란에서 Enter/Tab/ArrowDown 입력 시 언어 속성(params) 자동 커밋 및 코드 본문(code) 시작 위치로 포커스 자동 전환
+ *             3) 코드 본문 첫 행 첫 열에서 ArrowUp 입력 시 상단 CODE 언어 입력란으로 부드럽게 포커스 복귀 연동
+ * 🚨 @PATCH : **2026-10-25** — [외부 원고(웹/MS Word/Excel) HTML 스마트 붙여넣기 및 서식 정제 파이프라인 연동]:
+ *             1) handlePaste 내 단순 기호(-, 1. 등) 기반 마크다운 오분기로 인한 HTML 서식 손실 버그 원천 해결
+ *             2) 웹/워드/엑셀 등 서식 HTML 복사 시 htmlToImportMarkdown 및 importHtmlWithImages 연동으로 군더더기 스타일 제거 및 표준 마크다운(제목, 표, 목록, 굵게/기울임, 링크, 이미지 로컬화) 자동 정제 주입 완비
+ * 🚨 @PATCH : **2026-10-25** — [이미지와 캡션 간격 초밀착(4px) 및 액션 버튼(복사/편집) 위치 최적화]:
+ *             1) .visual-image-block 상단 캡션([data-caption-position="top"]) 보유 시 액션 컨트롤(.visual-media-controls)의 top을 34px로 재배치하여 캡션과 버튼의 충돌을 방지하고 이미지 우측 상단에 정갈히 안착
+ *             2) .visual-document-surface 내 상단 캡션 이미지의 margin-top을 0으로 강제 초기화하여 설명과 이미지가 4px로 완벽 밀착되도록 개선
+ * 🚨 @PATCH : **2026-10-25** — [이미지 삽입/수정 시 캡션 alt 이중 이스케이프 및 stray bracket 방어]:
+ *             1) beginImageRef에서 alt 내 기존 이스케이프 역슬래시 정규화 및 stray bracket 단독 찌꺼기 필터링으로 깨진 기호("\\[") 주입 차단
+ * 🚨 @PATCH : **2026-10-25** — [목록 첫 번째 항목 Tab/Shift+Tab 전체 문단 들여쓰기/내어쓰기 연동]:
+ *             1) 첫 번째 항목(itemIndex === 0)에서 Tab 입력 시 빈 상위 항목 없이 목록 전체를 오른쪽으로 이동하고, Shift+Tab으로 되돌리는 전체 리스트 들여쓰기(indentWholeList/outdentWholeList) 연동
+ * 🚨 @PATCH : **2026-10-24** — [복사/붙여넣기 시 텍스트 누락 및 단독 이미지 오분기 탈취 결함 완전 해소]:
+ *             1) handlePaste에서 본문 텍스트(text/plain 또는 html 태그 제거 텍스트) 존재 시 단독 이미지 가로채기(beginImageRef)를 원천 차단하여 문서 전체가 누락 없이 완벽 붙여넣기되도록 개선
+ *             2) 텍스트가 전혀 없는 순수 단독 이미지 붙여넣기인 경우에만 기존 단독 이미지 모달/삽입 처리기로 분기
+ * 🚨 @PATCH : **2026-10-24** — [문서보기(위지윅) 인용문(blockquote) Tab 들여쓰기 및 Shift+Tab 내어쓰기 지원]:
+ *             1) indentBlockquote 신설: 인용문 내에서 Tab 입력 시 앞선 리스트(글머리/번호) 항목 내부로 인용문 블록 자체를 종속·들여쓰기하고, 단독 인용문인 경우 중첩 인용구로 구조화
+ *             2) outdentBlockquote 신설: 리스트 내부 인용문에서 Shift+Tab 입력 시 인용문 블록을 리스트 바깥(루트 레벨)으로 즉시 내어쓰기
+ *             3) handleKeyDown에서 인용문(!inQuote) 내부일 때 텍스트 스페이스 삽입 가드를 건너뛰도록 분기 보정
  * 🚨 @PATCH : **2026-10-24** — [문서보기 동영상/지도 캡션 포함 미디어 원자적 위지윅 삽입 지원]:
  *             1) beginMediaRef에서 캡션이 포함된 동영상/지도 HTML 마크다운 삽입 시 createVisualDocumentCodec을 통해 캡션 문단과 미디어 노드를 분리하여 위지윅 문서에 완벽 렌더링
  * 🚨 @PATCH : **2026-10-24** — [문서보기(위지윅) 이미지 캡션(fullMarkdown) 렌더링 지원]:
@@ -10,6 +45,8 @@
  *             1) .visual-document-surface[contenteditable="true"] :is(h1,h2,h3,h4,h5,h6)::after 뱃지 기본 opacity를 0.92로 격상하고 1.5px 고대비 테두리 및 11px 볼드 글꼴을 적용하여 흐릿함 없이 또렷한 시인성 확보
  *             2) @media print 및 PDF 내보내기에서 display: none !important, content: none !important, visibility: hidden !important로 인쇄 시 완전 비표시 삼중 방어 보장
  *             3) 그림책 미리보기 및 읽기 전용 모드 자동 숨김 유지로 원고 본문 무결성 완벽 유지
+ * 🚨 @PATCH : **2026-10-24** — [도움말 문서 링크(../../ 및 파일명) 위지윅 클릭 경로 자동 보정]:
+ *             1) resolveDocPath에서 resolveWorkspaceHelpLink를 연동하여 위지윅 문서보기 내 도움말 형제 문서 클릭 시 정확한 경로로 즉시 전환
  * 🚨 @PATCH : **2026-10-22** — [구분선(HR) 선택 상태에서 Enter 시 구분선 아래 새 문단 생성]:
  *             1) openParagraphAfterHorizontalRule 신설: 구분선 NodeSelection에서 Enter 입력 시 구분선 앞이 아닌 바로 아래에 빈 문단을 생성(기존 빈 문단은 재사용)하고 커서를 이동하여 즉시 새 문단 타이핑 지원
  * 🚨 @PATCH : **2026-10-22** — [문서링크(DocLinkPicker) 선택 텍스트 연동 및 링크명 수정 지원]:
@@ -186,7 +223,8 @@
  *             2) 사용자가 기존 문단에서 오타나 이전 변환으로 '# #2장'처럼 해시가 본문에 박힌 경우에도 제목 2 클릭 시 정상적인 H2 제목으로 변환 보장
  */
 'use client';
-import { resolveDocumentLink } from '@/lib/nativeDocumentPath';
+import { quoteIndent, withIndependentQuotes, protectQuoteBoundary } from '@/lib/visualQuoteCommands';
+import { resolveDocumentLink, resolveWorkspaceHelpLink } from '@/lib/nativeDocumentPath';
 import { removeEmptySignatureBlocks } from '@/lib/signatureCleanup';
 import { clearMarkdownFormatting } from '@/lib/clearMarkdownFormatting';
 import { hasHeadingNumber, numberHeadingTransaction, type HeadingNumberSetting } from '@/lib/headingNumbering';
@@ -194,14 +232,14 @@ import { nextReportNumber } from '@/lib/aiFriendlyReport';
 
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Fragment, Slice, type Node as DocumentNode } from 'prosemirror-model';
+import { Fragment, Slice, MarkType, ResolvedPos, type Node as DocumentNode } from 'prosemirror-model';
 import type { SearchEditorHost } from '@/lib/documentFind';
 import { createPortal } from 'react-dom';
 import TableModal from '@/components/TableModal';
 import LinkModal from '@/components/LinkModal';
 import CalendarModal from '@/components/CalendarModal';
 import DateTimeInsertPicker from '@/components/DateTimeInsertPicker';
-import { selectedList, removeListMarkerAtStart, moveUpFromEmptyOrderedItem, exitEmptyListItem, joinOrderedListsAcrossEmptyParagraph, extendSelectionToListEnd, deleteNextListBoundary, deleteEmptyParagraphBeforeList, independentIndentListItem, independentLiftListItem, moveUpAcrossListBoundary, moveDownAcrossListBoundary, deleteAtEndOfList } from '@/lib/visualListCommands';
+import { selectedList, removeListMarkerAtStart, moveUpFromEmptyOrderedItem, exitEmptyListItem, joinOrderedListsAcrossEmptyParagraph, extendSelectionToListEnd, deleteNextListBoundary, deleteEmptyParagraphBeforeList, independentIndentListItem, independentLiftListItem, indentWholeList, outdentWholeList, moveUpAcrossListBoundary, moveDownAcrossListBoundary, deleteAtEndOfList } from '@/lib/visualListCommands';
 import DocumentPageGuides from '@/components/DocumentPageGuides';
 import { resolvePageGeometry } from '@/lib/pageGeometry';
 import { browserAccountStorage as pageStorage } from '@/lib/browserAccountStorage';
@@ -217,6 +255,8 @@ import BibliographySummary from '@/components/BibliographySummary';
 import {parseBibliography,citationPattern,citationLabel} from '@/lib/bibliography';
 import { desktopClipboardImage } from '@/lib/desktopClipboard';
 import { markdownPasteTransaction } from '@/lib/visualMarkdownPaste';
+import { htmlToImportMarkdown, importHtmlWithImages } from '@/lib/importHtmlMarkdown';
+import { sanitizePastedText } from '@/utils/pasteHandlers';
 import { baseKeymap, chainCommands, exitCode, lift, setBlockType, toggleMark, wrapIn } from 'prosemirror-commands';
 import { splitListItem, sinkListItem, liftListItem } from 'prosemirror-schema-list';
 import { history, undo, redo, closeHistory } from 'prosemirror-history';
@@ -234,6 +274,122 @@ import { canSplit } from 'prosemirror-transform';
 import katex from 'katex';
 
 const slashPattern = new RegExp('(?:^|\\s)([\\/／][\\p{L}\\p{N}_-]*)$', 'u');
+
+const INLINE_SYNTAX_CONFIG: Record<string, { open: string; close: string; placeholder: string }> = {
+  strong: { open: '**', close: '**', placeholder: '텍스트' },
+  em: { open: '*', close: '*', placeholder: '텍스트' },
+  strike: { open: '~~', close: '~~', placeholder: '텍스트' },
+  underline: { open: '<u>', close: '</u>', placeholder: '텍스트' },
+  code: { open: '`', close: '`', placeholder: '코드' }
+};
+
+function findMarkRange($pos: ResolvedPos, markType: MarkType): { from: number; to: number; mark: import('prosemirror-model').Mark } | null {
+  if (!$pos.parent.isTextblock) return null;
+  const parent = $pos.parent;
+  const parentStart = $pos.start();
+  let foundFrom = -1;
+  let foundTo = -1;
+  let foundMark: import('prosemirror-model').Mark | null = null;
+
+  let offset = 0;
+  for (let i = 0; i < parent.childCount; i++) {
+    const child = parent.child(i);
+    const mark = markType.isInSet(child.marks);
+    const childStart = parentStart + offset;
+    const childEnd = childStart + child.nodeSize;
+
+    if (mark) {
+      if (foundFrom === -1) {
+        foundFrom = childStart;
+        foundMark = mark;
+      }
+      foundTo = childEnd;
+    } else {
+      if (foundFrom !== -1) {
+        if ($pos.pos >= foundFrom && $pos.pos <= foundTo) {
+          return { from: foundFrom, to: foundTo, mark: foundMark! };
+        }
+        foundFrom = -1;
+        foundTo = -1;
+        foundMark = null;
+      }
+    }
+    offset += child.nodeSize;
+  }
+
+  if (foundFrom !== -1 && $pos.pos >= foundFrom && $pos.pos <= foundTo) {
+    return { from: foundFrom, to: foundTo, mark: foundMark! };
+  }
+  return null;
+}
+
+function findAnyActiveMarkRange(state: EditorState): { from: number; to: number; markName: string } | null {
+  const { $from, from, to, empty } = state.selection;
+  if (!$from.parent.isTextblock) return null;
+
+  const isExplicitExit = state.storedMarks !== null && state.storedMarks.length === 0;
+  if (isExplicitExit) return null;
+
+  for (const markName of Object.keys(INLINE_SYNTAX_CONFIG)) {
+    const markType = state.schema.marks[markName];
+    if (!markType) continue;
+
+    if (!empty) {
+      if (state.doc.rangeHasMark(from, to, markType)) {
+        const range = findMarkRange($from, markType) || findMarkRange(state.doc.resolve(to), markType);
+        if (range) return { from: range.from, to: range.to, markName };
+      }
+    } else {
+      const range = findMarkRange(state.doc.resolve($from.pos), markType) || findMarkRange($from, markType);
+      if (range) {
+        const isTouching = $from.pos >= range.from && $from.pos <= range.to;
+        if (isTouching) {
+          return { from: range.from, to: range.to, markName };
+        }
+      }
+    }
+  }
+  if (empty && state.storedMarks?.length) {
+    const mark = state.storedMarks.find(mark => INLINE_SYNTAX_CONFIG[mark.type.name]);
+    if (mark) return { from, to, markName: mark.type.name };
+  }
+  return null;
+}
+
+function inlineInputMarks(state: EditorState) {
+  if (state.storedMarks !== null) return state.storedMarks;
+  const { $from, empty } = state.selection;
+  // marksAcross deliberately drops non-inclusive marks at a replacement edge.
+  // Read the selected text itself, not that boundary's inheritance policy.
+  return (!empty ? $from.nodeAfter?.marks : $from.nodeBefore?.marks ?? $from.nodeAfter?.marks) ?? $from.marks();
+}
+
+const smartToggleMark = (markType: MarkType, defaultPlaceholder = '텍스트'): Command => (state, dispatch, view) => {
+  const { from, to, empty, $from } = state.selection;
+  if (!empty) {
+    return toggleMark(markType)(state, dispatch, view);
+  }
+  const currentMark = markType.isInSet($from.marks());
+  if (currentMark) {
+    const range = findMarkRange($from, markType);
+    if (range) {
+      if (dispatch) {
+        let tr = state.tr.removeMark(range.from, range.to, markType);
+        dispatch(tr.scrollIntoView());
+      }
+      return true;
+    }
+  }
+  if (dispatch) {
+    const mark = markType.create();
+    const textNode = state.schema.text(defaultPlaceholder, [mark]);
+    let tr = state.tr.replaceSelectionWith(textNode, false);
+    tr = tr.setSelection(TextSelection.create(tr.doc, from, from + defaultPlaceholder.length));
+    tr = tr.setStoredMarks([mark]);
+    dispatch(tr.scrollIntoView());
+  }
+  return true;
+};
 
 const setHeadingBlock = (level: number): Command => (state, dispatch, view) => {
   const { $from, $to } = state.selection;
@@ -266,9 +422,14 @@ const setCodeBlock: Command = (state, dispatch, view) => {
             const afterPos = $from.after();
             const savedFrom = tr.selection.from;
             const savedTo = tr.selection.to;
-            tr = tr.insert(afterPos, visualSchema.nodes.paragraph.create());
+            if (afterPos >= tr.doc.content.size || tr.doc.nodeAt(afterPos)?.type !== visualSchema.nodes.paragraph) {
+              tr = tr.insert(afterPos, visualSchema.nodes.paragraph.create());
+            } else if (tr.doc.nodeAt(afterPos)?.content.size !== 0) {
+              tr = tr.insert(afterPos, visualSchema.nodes.paragraph.create());
+            }
             tr = tr.setSelection(TextSelection.create(tr.doc, savedFrom, savedTo));
           }
+          tr = tr.setMeta('onrivi:focus-code-block', true);
           dispatch(tr.scrollIntoView());
         }
       : undefined,
@@ -568,17 +729,29 @@ function createListNormalizationPlugin() {
 }
 
 const makeChecklist=selectedList('check');
+
+/** 💬 인용문(blockquote) Tab 들여쓰기: 앞선 리스트 항목 내부로 종속시키거나 중첩 인용문으로 들여쓰기 */
+const indentBlockquote = quoteIndent();
+const outdentBlockquote = quoteIndent(true);
+
 const safeListIndent: Command = (state, dispatch, currentView) => {
   const { $from } = state.selection;
   let inListItem = false;
+  let listDepth = -1;
   for (let d = $from.depth; d > 0; d--) {
     if ($from.node(d).type === visualSchema.nodes.list_item) {
       inListItem = true;
+      listDepth = d - 1;
       break;
     }
   }
   if (inListItem) {
-    sinkListItem(visualSchema.nodes.list_item)(state, dispatch, currentView);
+    const itemIndexInList = $from.index(listDepth);
+    if (itemIndexInList > 0) {
+      sinkListItem(visualSchema.nodes.list_item)(state, dispatch, currentView);
+    } else {
+      indentWholeList(state, dispatch, currentView, listDepth);
+    }
     return true; // 리스트 내부에서는 추가적인 indentDocument로 구조가 깨지지 않도록 방어
   }
   return indentDocument()(state, dispatch, currentView);
@@ -798,6 +971,10 @@ function resolveDropInsertPos(currentView: EditorView, clientX: number, clientY:
 }
 
 function resolveDocPath(relPath: string, currentFile: string): string {
+  if (typeof resolveWorkspaceHelpLink !== 'undefined') {
+    const helpResolved = resolveWorkspaceHelpLink(relPath, currentFile);
+    if (helpResolved !== relPath) return helpResolved;
+  }
   return resolveDocumentLink(relPath, currentFile);
 }
 
@@ -1539,18 +1716,74 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     });
 
     const aiTargets=new VisualAITargets();
+    let inlineComposing = false;
+    let inlineDecorations = DecorationSet.empty;
+    const inlineSyntaxElements = new Map<string, HTMLElement>();
+    const syntaxElement = (key: string, text: string) => {
+      let tag = inlineSyntaxElements.get(key);
+      if (!tag) {
+        tag = document.createElement('span');
+        tag.className = 'onrivi-inline-syntax-tag no-print';
+        tag.contentEditable = 'false';
+        inlineSyntaxElements.set(key, tag);
+      }
+      tag.textContent = text;
+      return tag;
+    };
+    let inlineComposition: { from: number; to: number; marks: readonly import('prosemirror-model').Mark[] } | null = null;
     const view = new EditorView(hostEl, {
       decorations(state){
+        if (inlineComposing) return inlineDecorations;
         const entries=bibRef.current;const decorations:Decoration[]=[...aiTargets.decorations()];
         state.doc.descendants((node,pos)=>{if(node.type.name==='heading' && hasHeadingNumber(node.textContent)) decorations.push(Decoration.node(pos,pos+node.nodeSize,{'data-onrivi-heading-numbered':'true'}));if(!node.isText || node.marks.some(m=>m.type.name==='code') || state.doc.resolve(pos).parent.type.name==='code_block')return;
           for(const match of Array.from((node.text||'').matchAll(citationPattern))){const key=match[1]||match[2],entry=entries.get(key.toLowerCase());decorations.push(Decoration.inline(pos+match.index!,pos+match.index!+match[0].length,{class:entry?'visual-citation':'visual-citation-missing',title:entry?citationLabel(entry)+': '+entry.title:'등록된 문헌 없음: '+key}));}
-        });return DecorationSet.create(state.doc,decorations);
+        });
+        const { $from, from, to, empty } = state.selection;
+        if (!inlineComposing && $from.parent.isTextblock && $from.parent.type.name !== 'code_block') {
+          const isExplicitExit = state.storedMarks !== null && state.storedMarks.length === 0;
+          const processedRanges = new Set<string>();
+          for (const [index, name] of Array.from(Object.keys(INLINE_SYNTAX_CONFIG).entries())) {
+            const markType = state.schema.marks[name];
+            if (!markType) continue;
+            const range = findMarkRange(state.doc.resolve(empty ? $from.pos : from + 1), markType) || findMarkRange($from, markType)
+              || (empty && state.storedMarks?.some(mark => mark.type === markType) ? { from, to } : null);
+            if (range) {
+              const isTouching = $from.pos >= range.from && $from.pos <= range.to;
+              const rangeSelected = !empty && state.doc.rangeHasMark(from, to, markType);
+              if ((isTouching && !isExplicitExit) || rangeSelected) {
+                const config = INLINE_SYNTAX_CONFIG[name];
+                const rangeKey = `${range.from}-${range.to}-${name}`;
+                if (!processedRanges.has(rangeKey)) {
+                  processedRanges.add(rangeKey);
+                  decorations.push(
+                    Decoration.widget(
+                      range.from,
+                      () => {
+                        return syntaxElement(`syntax-open-${name}`, config.open);
+                      },
+                      { side: -1000 + index, key: `syntax-open-${name}` }
+                    ),
+                    Decoration.widget(
+                      range.to,
+                      () => {
+                        return syntaxElement(`syntax-close-${name}`, config.close);
+                      },
+                      { side: 1000 - index, key: `syntax-close-${name}` }
+                    )
+                  );
+                }
+              }
+            }
+          }
+        }
+        inlineDecorations = DecorationSet.create(state.doc,decorations);
+        return inlineDecorations;
       },
       state: cached?.source === content ? cached.state : EditorState.create({ doc: codec.doc, plugins: [history(), visualMarkdownInputRules(), createFootnoteHeaderPlugin(), keymap({
         'Mod-z': undo, 'Mod-y': redo, 'Mod-Shift-z': redo,
         ArrowUp: chainCommands(moveUpAcrossListBoundary, moveUpFromEmptyOrderedItem),
         Backspace: chainCommands(removeHeadingAtStart, backspaceInCodeBlock, undoInputRule, removeListMarkerAtStart, baseKeymap.Backspace),
-        Delete: chainCommands(deleteEmptyParagraphBeforeList, deleteInCodeBlock, deleteAtEndOfList, deleteNextListBoundary, joinOrderedListsAcrossEmptyParagraph, baseKeymap.Delete),
+        Delete: chainCommands(protectQuoteBoundary,deleteEmptyParagraphBeforeList, deleteInCodeBlock, deleteAtEndOfList, deleteNextListBoundary, joinOrderedListsAcrossEmptyParagraph, baseKeymap.Delete),
         'Mod-Shift-k': (state, dispatch) => {
           const { $from } = state.selection;
           if ($from.parent.type === visualSchema.nodes.code_block) {
@@ -1568,7 +1801,15 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           }
           return false;
         },
-        'Mod-u': toggleMark(visualSchema.marks.underline),
+        'Mod-u': smartToggleMark(visualSchema.marks.underline, '텍스트'),
+        'Mod-b': smartToggleMark(visualSchema.marks.strong, '텍스트'),
+        'Mod-B': smartToggleMark(visualSchema.marks.strong, '텍스트'),
+        'Mod-i': smartToggleMark(visualSchema.marks.em, '텍스트'),
+        'Mod-I': smartToggleMark(visualSchema.marks.em, '텍스트'),
+        'Mod-e': smartToggleMark(visualSchema.marks.code, '코드'),
+        'Mod-E': smartToggleMark(visualSchema.marks.code, '코드'),
+        'Mod-Shift-x': smartToggleMark(visualSchema.marks.strike, '텍스트'),
+        'Mod-Shift-X': smartToggleMark(visualSchema.marks.strike, '텍스트'),
         'Mod-k': (state, dispatch) => linkCommandRef.current(state, dispatch),
         'Mod-Alt-f': () => { insertFootnoteRef.current?.(); return true; },
         'Mod-Alt-F': () => { insertFootnoteRef.current?.(); return true; },
@@ -1587,7 +1828,9 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           return false;
         }),
         'Mod-Enter': chainCommands(tableAction('afterTable'),exitCode,exitQuote(),exitMediaBlock()),
-        Enter: chainCommands(
+        Enter: (state, dispatch, currentView) => {
+          const marks = findAnyActiveMarkRange(state) ? inlineInputMarks(state) : null;
+          return chainCommands(
           exitMediaBlock(true),
           tableEnter(),
           calloutEnter,
@@ -1598,12 +1841,16 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           },
           headingEnter,
           baseKeymap.Enter
-        ),
+          )(state, dispatch ? tr => {
+            if (marks && tr.selection.$from.parent.isTextblock) tr.setStoredMarks(tr.selection.$from.parent.type.allowedMarks(marks));
+            dispatch(tr);
+          } : undefined, currentView);
+        },
         'Shift-Enter': chainCommands(exitCode, (state, dispatch) => {
           if (dispatch) dispatch(state.tr.replaceSelectionWith(visualSchema.nodes.hard_break.create()).scrollIntoView());
           return true;
         }),
-        Tab: chainCommands(moveTableCell(),independentIndentListItem,safeListIndent), 'Shift-Tab': chainCommands(moveTableCell(true),independentLiftListItem,liftListItem(visualSchema.nodes.list_item),indentDocument(true)),
+        Tab: chainCommands(moveTableCell(),indentBlockquote,withIndependentQuotes(independentIndentListItem),safeListIndent), 'Shift-Tab': chainCommands(moveTableCell(true),outdentBlockquote,withIndependentQuotes(independentLiftListItem),liftListItem(visualSchema.nodes.list_item),indentDocument(true)),
       }), keymap(baseKeymap)] }),
       editable: () => !readOnly,
       attributes: { spellcheck: String(spellCheck), class: 'visual-document-surface', 'aria-label': '문서 직접 편집', role: 'textbox', 'aria-multiline': 'true', 'data-editor-tab-size': String(tabSize) },
@@ -1788,10 +2035,44 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           const header=document.createElement('div'); header.contentEditable='false'; header.className='visual-code-language no-print';
           header.textContent='CODE ';
           const input=document.createElement('input'); input.setAttribute('aria-label','코드 블록 언어');input.placeholder='text, javascript, python, mermaid';input.value=node.attrs.params || '';input.disabled=!currentView.editable;
-          input.addEventListener('change',()=>{
-            const pos=getPos();if(typeof pos!=='number' || !currentView.editable)return;
-            currentView.dispatch(closeHistory(currentView.state.tr.setNodeMarkup(pos,undefined,{...node.attrs,params:input.value.replace(/[\r\n]/g,'').trim()})));
-          });header.append(input);
+          const commitParams = () => {
+            const pos = getPos();
+            if (typeof pos !== 'number' || !currentView.editable) return;
+            const newParams = input.value.replace(/[\r\n]/g, '').trim();
+            if (newParams !== (node.attrs.params || '')) {
+              currentView.dispatch(closeHistory(currentView.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, params: newParams })));
+            }
+          };
+          input.addEventListener('change', commitParams);
+          input.addEventListener('blur', commitParams);
+          input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === 'Tab' || event.key === 'ArrowDown') {
+              event.preventDefault();
+              event.stopPropagation();
+              commitParams();
+              const pos = getPos();
+              if (typeof pos === 'number' && currentView.editable) {
+                currentView.focus();
+                if (event.shiftKey && (event.key === 'Enter' || event.key === 'Tab')) {
+                  const nodeSize = node.nodeSize;
+                  const outsidePos = Math.min(pos + nodeSize, currentView.state.doc.content.size);
+                  let tr = currentView.state.tr;
+                  if (outsidePos >= tr.doc.content.size || tr.doc.resolve(outsidePos).parent.type !== visualSchema.nodes.paragraph) {
+                    tr = tr.insert(outsidePos, visualSchema.nodes.paragraph.create());
+                  }
+                  currentView.dispatch(tr.setSelection(TextSelection.create(tr.doc, outsidePos + 1)).scrollIntoView());
+                } else {
+                  const targetPos = Math.min(pos + 1, currentView.state.doc.content.size);
+                  currentView.dispatch(currentView.state.tr.setSelection(TextSelection.create(currentView.state.doc, targetPos)).scrollIntoView());
+                }
+              }
+            } else if (event.key === 'Escape') {
+              event.preventDefault();
+              event.stopPropagation();
+              currentView.focus();
+            }
+          });
+          header.append(input);
           const copy=document.createElement('button');copy.type='button';copy.textContent='복사';copy.setAttribute('aria-label','코드 내용 복사');copy.className='onrivi-media-control no-print';copy.contentEditable='false';
           let copyTimer:ReturnType<typeof setTimeout>|undefined;
           copy.addEventListener('mousedown',event=>event.preventDefault());
@@ -2211,6 +2492,26 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         } catch { return false; }
       },
       dispatchTransaction(transaction) {
+        // Removing a template's final character must not turn off its input mode.
+        if (transaction.docChanged && transaction.selection.empty && !inlineComposing &&
+            transaction.steps.length && transaction.steps.every(step => {
+              const json = step.toJSON();
+              return json.stepType === 'replace' && json.to > json.from && !json.slice?.content?.length;
+            }) && findAnyActiveMarkRange(view.state)) {
+          transaction.setStoredMarks(inlineInputMarks(view.state));
+        }
+        if (inlineComposing) {
+          const syntax = inlineDecorations.find().filter(decoration => inlineSyntaxElements.has(decoration.spec.key));
+          const mapped = inlineDecorations.map(transaction.mapping, transaction.doc);
+          const others = mapped.find().filter(decoration => !inlineSyntaxElements.has(decoration.spec.key));
+          inlineDecorations = DecorationSet.create(transaction.doc, [...others, ...syntax.map(decoration =>
+            Decoration.widget(transaction.mapping.map(decoration.from, decoration.spec.side < 0 ? -1 : 1),
+              () => inlineSyntaxElements.get(decoration.spec.key)!, decoration.spec))]);
+        }
+        if (inlineComposition && transaction.docChanged) {
+          inlineComposition.from = transaction.mapping.map(inlineComposition.from, -1);
+          inlineComposition.to = transaction.mapping.map(inlineComposition.to, 1);
+        }
         removeEmptySignatureBlocks(transaction);
         const formats = headingFormatsRef.current;
         if (!formats.readOnly && !view.composing && (transaction.docChanged || transaction.getMeta('onrivi:heading-numbering'))) {
@@ -2231,6 +2532,29 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         view.updateState(view.state.apply(transaction));
         if(preserveViewport && viewport && topBefore!==undefined){
           viewport.scrollTop=topBefore; viewport.scrollLeft=leftBefore || 0;
+        }
+        if (transaction.getMeta('onrivi:focus-code-block')) {
+          requestAnimationFrame(() => {
+            try {
+              const { $from } = view.state.selection;
+              let targetPos = $from.pos;
+              for (let d = $from.depth; d >= 0; d--) {
+                if ($from.node(d).type === visualSchema.nodes.code_block) {
+                  targetPos = $from.start(d);
+                  break;
+                }
+              }
+              const dom = view.domAtPos(targetPos);
+              const codeBlockEl = dom.node instanceof Element ? dom.node.closest('.visual-code-block') : dom.node.parentElement?.closest('.visual-code-block');
+              const input = codeBlockEl?.querySelector<HTMLInputElement>('.visual-code-language input');
+              if (input) {
+                input.focus();
+                input.select();
+              }
+            } catch (err) {
+              console.warn('[VisualDocumentEditor] focus code block input error:', err);
+            }
+          });
         }
         caretRef.current?.schedule();
         if(transaction.selectionSet && !transaction.docChanged && view.hasFocus() && !view.composing && cursorCallback.current){
@@ -2306,8 +2630,12 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         if(event.key==='Tab'){
           const position=currentView.state.selection.$from;
           let inList=false;
-          for(let depth=position.depth;depth>0;depth--)if(position.node(depth).type===visualSchema.nodes.list_item){inList=true;break;}
-          if(!inList && currentView.state.selection.empty && !tableContext(currentView.state) && position.parent.isTextblock && position.parentOffset>0 && position.parentOffset<position.parent.content.size){
+          let inQuote=false;
+          for(let depth=position.depth;depth>0;depth--){
+            if(position.node(depth).type===visualSchema.nodes.list_item) inList=true;
+            if(position.node(depth).type===visualSchema.nodes.blockquote) inQuote=true;
+          }
+          if(!inList && !inQuote && !findAnyActiveMarkRange(currentView.state) && currentView.state.selection.empty && !tableContext(currentView.state) && position.parent.isTextblock && position.parentOffset>0 && position.parentOffset<position.parent.content.size){
             event.preventDefault();return indentDocument(event.shiftKey)(currentView.state,currentView.dispatch,currentView);
           }
         }
@@ -2317,6 +2645,85 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         }
         const configured = configuredHotkeyItem(event, hotkeysRef.current);
         if (configured) { event.preventDefault(); synchronizeTextSelection(currentView); executeItemRef.current(configured.id); return true; }
+        if (event.key === 'ArrowUp' && !event.shiftKey && !event.ctrlKey && !event.altKey && !slashOpenRef.current) {
+          const { $from, empty } = currentView.state.selection;
+          if (empty && $from.parent.type === visualSchema.nodes.code_block && $from.parentOffset === 0) {
+            const dom = currentView.domAtPos($from.pos);
+            const codeBlockEl = dom.node instanceof Element ? dom.node.closest('.visual-code-block') : dom.node.parentElement?.closest('.visual-code-block');
+            const input = codeBlockEl?.querySelector<HTMLInputElement>('.visual-code-language input');
+            if (input) {
+              event.preventDefault();
+              input.focus();
+              input.select();
+              return true;
+            }
+          }
+        }
+        if (event.key === 'ArrowDown' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && !slashOpenRef.current) {
+          const { $from, empty } = currentView.state.selection;
+          if (empty && $from.parent.type === visualSchema.nodes.code_block && $from.parentOffset === $from.parent.content.size) {
+            event.preventDefault();
+            const afterPos = $from.after();
+            let tr = currentView.state.tr;
+            if (afterPos >= tr.doc.content.size || tr.doc.nodeAt(afterPos)?.type !== visualSchema.nodes.paragraph) {
+              tr = tr.insert(afterPos, visualSchema.nodes.paragraph.create());
+            }
+            currentView.dispatch(tr.setSelection(TextSelection.create(tr.doc, afterPos + 1)).scrollIntoView());
+            currentView.focus();
+            caretRef.current?.schedule();
+            return true;
+          }
+        }
+        if (event.key === 'Enter' && !event.isComposing && !slashOpenRef.current) {
+          const { $from, empty } = currentView.state.selection;
+          if (empty && $from.parent.type === visualSchema.nodes.code_block) {
+            const parent = $from.parent;
+            const isCodeEmpty = parent.content.size === 0;
+            const isAtEnd = $from.parentOffset === parent.content.size;
+            if (isCodeEmpty || event.shiftKey || event.ctrlKey || event.metaKey || (isAtEnd && parent.textContent.endsWith('\n'))) {
+              event.preventDefault();
+              const afterPos = $from.after();
+              let tr = currentView.state.tr;
+              if (afterPos >= tr.doc.content.size || tr.doc.nodeAt(afterPos)?.type !== visualSchema.nodes.paragraph) {
+                tr = tr.insert(afterPos, visualSchema.nodes.paragraph.create());
+              }
+              currentView.dispatch(tr.setSelection(TextSelection.create(tr.doc, afterPos + 1)).scrollIntoView());
+              currentView.focus();
+              caretRef.current?.schedule();
+              return true;
+            }
+          }
+        }
+        if (event.key === 'ArrowRight' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !slashOpenRef.current) {
+          const active = findAnyActiveMarkRange(currentView.state);
+          if (active) {
+            const { from } = currentView.state.selection;
+            if (from >= active.to) {
+              event.preventDefault();
+              let tr = currentView.state.tr;
+              tr = tr.setSelection(TextSelection.create(tr.doc, active.to));
+              tr = tr.setStoredMarks([]);
+              currentView.dispatch(tr.scrollIntoView());
+              caretRef.current?.schedule();
+              return true;
+            }
+          }
+        }
+        if (event.key === 'ArrowLeft' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !slashOpenRef.current) {
+          const active = findAnyActiveMarkRange(currentView.state);
+          if (active) {
+            const { from } = currentView.state.selection;
+            if (from <= active.from) {
+              event.preventDefault();
+              let tr = currentView.state.tr;
+              tr = tr.setSelection(TextSelection.create(tr.doc, active.from));
+              tr = tr.setStoredMarks([]);
+              currentView.dispatch(tr.scrollIntoView());
+              caretRef.current?.schedule();
+              return true;
+            }
+          }
+        }
         if (slashOpenRef.current && menuItemsRef.current.length && ['ArrowDown', 'ArrowUp', 'Enter', 'Tab'].includes(event.key)) {
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             const length = menuItemsRef.current.length;
@@ -2356,6 +2763,45 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       },
       handleTextInput(currentView, _from, _to, text) {
         if (!currentView.editable) return false;
+        // IME supplies a replacement range for its in-progress composition.
+        // Replacing state.selection here would append intermediate syllables.
+        if (inlineComposing || currentView.composing) return false;
+        const { state } = currentView;
+        const { from, to, empty } = state.selection;
+        if (!empty) {
+          const active = findAnyActiveMarkRange(state);
+          if (active) {
+            const markType = state.schema.marks[active.markName];
+            if (markType) {
+              const inherited = inlineInputMarks(state);
+              const marks = inherited.length ? inherited : [markType.create()];
+              let tr = state.tr.replaceWith(from, to, state.schema.text(text, marks));
+              const nextPos = from + text.length;
+              tr = tr.setSelection(TextSelection.create(tr.doc, nextPos));
+              tr = tr.setStoredMarks(marks);
+              currentView.dispatch(tr.scrollIntoView());
+              caretRef.current?.schedule();
+              return true;
+            }
+          }
+        }
+        if (empty) {
+          const active = findAnyActiveMarkRange(state);
+          if (active) {
+            const markType = state.schema.marks[active.markName];
+            if (markType) {
+              const marks = inlineInputMarks(state);
+              const inputMarks = marks.length ? marks : [markType.create()];
+              let tr = state.tr.replaceWith(from, to, state.schema.text(text, inputMarks));
+              const nextPos = from + text.length;
+              tr = tr.setSelection(TextSelection.create(tr.doc, nextPos));
+              tr = tr.setStoredMarks(inputMarks);
+              currentView.dispatch(tr.scrollIntoView());
+              caretRef.current?.schedule();
+              return true;
+            }
+          }
+        }
         if (currentView.state.selection instanceof NodeSelection && currentView.state.selection.node.type === visualSchema.nodes.horizontal_rule) {
           if (placeCursorBeforeHorizontalRule(currentView, currentView.state.selection.from)) {
             currentView.dispatch(currentView.state.tr.insertText(text));
@@ -2367,58 +2813,152 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       },
       handlePaste(currentView, event) {
         if (!currentView.editable) return false;
-        const text = event.clipboardData?.getData('text/plain') || '';
         const inCode = currentView.state.selection.$from.parent.type === visualSchema.nodes.code_block;
-        // Raw Markdown wins over syntax-highlighting HTML from the clipboard.
-        if (!inCode && codecRef.current && (/^(?:\uFEFF)?---[^\S\r\n]*\r?\n/.test(text) || /(^|\n)(#{1,6}\s|\s*[-*+]\s|\s*\d+\.\s|\s*>\s|```|\|)|\*\*[^*]+\*\*|`[^`]+`|!\[[^\]]*\]\(|^\s*<(?:video|iframe)\b/.test(text))) {
-          currentView.dispatch(markdownPasteTransaction(currentView.state, codecRef.current, text));
+        if (inCode) return false;
+
+        const text = event.clipboardData?.getData('text/plain') || '';
+        const html = event.clipboardData?.getData('text/html') || '';
+        // A plain inline paste follows the same active marks as typing, including
+        // an empty template or the last position before its closing delimiter.
+        if (text && !html && !/[\r\n\t]/.test(text) && findAnyActiveMarkRange(currentView.state)) {
+          const marks = inlineInputMarks(currentView.state);
+          let tr = currentView.state.tr.replaceSelectionWith(currentView.state.schema.text(text, marks), false);
+          currentView.dispatch(tr.setStoredMarks(marks).scrollIntoView());
           return true;
         }
-        const image = Array.from(event.clipboardData?.files || []).find(file => file.type.startsWith('image/'))
-          || Array.from(event.clipboardData?.items || []).find(item => item.type.startsWith('image/'))?.getAsFile();
-        if (image && images.current.onImageFile) {
-          event.preventDefault(); event.stopPropagation();
-          beginImageRef.current(undefined, undefined, image); return true;
-        }
-        const html = event.clipboardData?.getData('text/html') || '';
-        if (/<img\b/i.test(html)) {
-          const match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
-          const imgSrc = match?.[1] || '';
-          if (imgSrc.startsWith('data:image/')) {
-            try {
-              event.preventDefault(); event.stopPropagation();
-              const [header, b64] = imgSrc.split(',');
-              const mime = header.match(/:(.*?);/)?.[1] || 'image/png';
-              const binaryStr = atob(b64);
-              const len = binaryStr.length;
-              const u8arr = new Uint8Array(len);
-              for (let i = 0; i < len; i++) u8arr[i] = binaryStr.charCodeAt(i);
-              const ext = ({ 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg' } as Record<string, string>)[mime] || 'png';
-              const file = new File([u8arr], `img_${Date.now()}.${ext}`, { type: mime });
-              beginImageRef.current(undefined, undefined, file);
-              return true;
-            } catch (_) {}
-          }
-          if (imgSrc.startsWith('http://') || imgSrc.startsWith('https://')) {
+
+        // 1. 본문 텍스트가 실질적으로 존재하는지 검증 (단독 이미지 붙여넣기 오분기 차단)
+        const textContentInHtml = html
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/&nbsp;/g, ' ')
+          .trim();
+        const hasSubstantialText = text.trim().length > 0 || textContentInHtml.length > 0;
+
+        // 2. 본문 텍스트가 전혀 없는 순수 단독 이미지인 경우에만 단독 이미지 처리기로 위임
+        if (!hasSubstantialText) {
+          const image = Array.from(event.clipboardData?.files || []).find(file => file.type.startsWith('image/'))
+            || Array.from(event.clipboardData?.items || []).find(item => item.type.startsWith('image/'))?.getAsFile();
+          if (image && images.current.onImageFile) {
             event.preventDefault(); event.stopPropagation();
+            beginImageRef.current(undefined, undefined, image); return true;
+          }
+          if (/<img\b/i.test(html)) {
+            const match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+            const imgSrc = match?.[1] || '';
+            if (imgSrc.startsWith('data:image/')) {
+              try {
+                event.preventDefault(); event.stopPropagation();
+                const [header, b64] = imgSrc.split(',');
+                const mime = header.match(/:(.*?);/)?.[1] || 'image/png';
+                const binaryStr = atob(b64);
+                const len = binaryStr.length;
+                const u8arr = new Uint8Array(len);
+                for (let i = 0; i < len; i++) u8arr[i] = binaryStr.charCodeAt(i);
+                const ext = ({ 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg' } as Record<string, string>)[mime] || 'png';
+                const file = new File([u8arr], `img_${Date.now()}.${ext}`, { type: mime });
+                beginImageRef.current(undefined, undefined, file);
+                return true;
+              } catch (_) {}
+            }
+            if (imgSrc.startsWith('http://') || imgSrc.startsWith('https://')) {
+              event.preventDefault(); event.stopPropagation();
+              void (async () => {
+                try {
+                  const resp = await fetch(imgSrc);
+                  if (resp.ok) {
+                    const blob = await resp.blob();
+                    const ext = ({ 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg', 'image/png': 'png' } as Record<string, string>)[blob.type] || 'png';
+                    const file = new File([blob], `img_${Date.now()}.${ext}`, { type: blob.type || 'image/png' });
+                    beginImageRef.current(undefined, undefined, file);
+                    return;
+                  }
+                } catch (_) {}
+                if (images.current.onImageFile) {
+                  beginImageRef.current(undefined, undefined);
+                }
+              })();
+              return true;
+            }
+          }
+        }
+
+        // 3. 🎯 [외부 문서 스마트 붙여넣기 파이프라인]: 웹페이지/MS Word/Excel/Notion 등의 풍부한 HTML 서식 자동 정제
+        const hasRichHtml = !!html && /<(?:table|tbody|tr|th|td|h[1-6]|ul|ol|li|b|strong|i|em|del|s|blockquote|pre|figure|figcaption|a\s+[^>]*href)\b/i.test(html);
+        // 순수 마크다운 파일(Frontmatter 시작)이거나 이미 완성된 마크다운 표(|---|)를 지닌 소스 복사인지 검증
+        const isExplicitPureMarkdown = /^(?:\uFEFF)?---[^\S\r\n]*\r?\n/.test(text) || (!/<table\b/i.test(html) && /\|[\s\t]*:?---*:?[\s\t]*\|/.test(text));
+
+        if (hasRichHtml && !isExplicitPureMarkdown && codecRef.current) {
+          event.preventDefault();
+          event.stopPropagation();
+
+          // 3-1. HTML 내부에 base64 이미지가 포함된 경우 (Word 등에서 이미지와 본문 동시 복사)
+          if (/<img\b[^>]*src=["']data:image\//i.test(html) && images.current.onImageFile) {
             void (async () => {
               try {
-                const resp = await fetch(imgSrc);
-                if (resp.ok) {
-                  const blob = await resp.blob();
-                  const ext = ({ 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg', 'image/png': 'png' } as Record<string, string>)[blob.type] || 'png';
-                  const file = new File([blob], `img_${Date.now()}.${ext}`, { type: blob.type || 'image/png' });
-                  beginImageRef.current(undefined, undefined, file);
-                  return;
-                }
-              } catch (_) {}
-              if (images.current.onImageFile) {
-                beginImageRef.current(undefined, undefined);
+                const markdown = await importHtmlWithImages(html, async (base64, mime) => {
+                  const binaryStr = atob(base64);
+                  const len = binaryStr.length;
+                  const u8arr = new Uint8Array(len);
+                  for (let i = 0; i < len; i++) u8arr[i] = binaryStr.charCodeAt(i);
+                  const ext = ({ 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg' } as Record<string, string>)[mime] || 'png';
+                  const file = new File([u8arr], `paste_${Date.now()}.${ext}`, { type: mime });
+                  if (images.current.onImageFile) {
+                    const saved = await images.current.onImageFile(file);
+                    if (saved) return saved;
+                  }
+                  return `data:${mime};base64,${base64}`;
+                });
+                const cleanMd = sanitizePastedText(markdown);
+                currentView.dispatch(markdownPasteTransaction(currentView.state, codecRef.current!, cleanMd));
+              } catch (err) {
+                console.error('[VisualDocumentEditor] HTML image import failed:', err);
+                const fallbackMd = htmlToImportMarkdown(html);
+                currentView.dispatch(markdownPasteTransaction(currentView.state, codecRef.current!, fallbackMd));
               }
             })();
             return true;
           }
+
+          // 3-2. 일반 웹페이지/워드/엑셀 서식 HTML 정제 (제목, 표, 목록, 굵게/기울임, 링크 등)
+          const convertedMd = htmlToImportMarkdown(html);
+          if (convertedMd.trim()) {
+            const cleanMd = sanitizePastedText(convertedMd);
+            if (findAnyActiveMarkRange(currentView.state)) {
+              const parsed = createVisualDocumentCodec(cleanMd).doc;
+              const paragraph = parsed.childCount === 1 ? parsed.firstChild : null;
+              if (paragraph?.type === visualSchema.nodes.paragraph && paragraph.childCount &&
+                  Array.from({ length: paragraph.childCount }, (_, index) => paragraph.child(index)).every(node => node.isText)) {
+                const marks = inlineInputMarks(currentView.state);
+                const nodes: DocumentNode[] = [];
+                paragraph.forEach(node => {
+                  let combined = node.marks;
+                  for (const mark of marks) combined = mark.addToSet(combined);
+                  nodes.push(node.mark(combined));
+                });
+                const tr = currentView.state.tr.replaceSelection(new Slice(Fragment.fromArray(nodes), 0, 0));
+                currentView.dispatch(tr.setStoredMarks(marks).scrollIntoView());
+                return true;
+              }
+            }
+            currentView.dispatch(markdownPasteTransaction(currentView.state, codecRef.current, cleanMd));
+            return true;
+          }
         }
+
+        // 4. 순수 마크다운 또는 탭(TSV) 표 텍스트 복사 처리
+        if (codecRef.current) {
+          let processedText = text;
+          if (text.includes('\t') && text.includes('\n') && !text.includes('|')) {
+            processedText = sanitizePastedText(text);
+          }
+          if (/^(?:\uFEFF)?---[^\S\r\n]*\r?\n/.test(processedText) || /(^|\n)(#{1,6}\s|\s*[-*+]\s|\s*\d+\.\s|\s*>\s|```|\|)|\*\*[^*]+\*\*|`[^`]+`|!\[[^\]]*\]\(|^\s*<(?:video|iframe)\b/.test(processedText)) {
+            currentView.dispatch(markdownPasteTransaction(currentView.state, codecRef.current, processedText));
+            return true;
+          }
+        }
+
         return false;
       },
       handleDrop(currentView, event) {
@@ -2576,6 +3116,24 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           // Chromium contenteditable에서 선택된 텍스트 위를 클릭했을 때 브라우저가 드래그(DnD)를 대기하느라
           // 선택이 풀리지 않고 유지되는 고질적 결함을 원천 방어하여, 마우스 클릭 위치로 즉시 단일 커서(Caret) 배치
           const target = e.target as HTMLElement | null;
+          // 🛡️ [코드 블록 하단 여백/캔버스 클릭 시 하단 빈 문단으로 즉시 포커스 이동 및 연속 타이핑 보장]
+          if (!target?.closest('a, button, input, textarea, pre, code, [contenteditable="false"]')) {
+            const surfaceEl = currentView.dom;
+            const lastChild = currentView.state.doc.lastChild;
+            if (lastChild && lastChild.type === visualSchema.nodes.code_block) {
+              const rect = surfaceEl.getBoundingClientRect();
+              if (e.target === surfaceEl || e.clientY > rect.bottom - 60) {
+                e.preventDefault();
+                const afterPos = currentView.state.doc.content.size;
+                let tr = currentView.state.tr;
+                tr = tr.insert(afterPos, visualSchema.nodes.paragraph.create());
+                currentView.dispatch(tr.setSelection(TextSelection.create(tr.doc, afterPos + 1)).scrollIntoView());
+                currentView.focus();
+                caretRef.current?.schedule();
+                return true;
+              }
+            }
+          }
           if (!target?.closest('a, button, input, [contenteditable="false"]')) {
             const isSelected = !currentView.state.selection.empty || Boolean(document.getSelection() && !document.getSelection()?.isCollapsed);
             if (isSelected) {
@@ -2611,10 +3169,33 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           return false;
         },
         compositionend(currentView) {
+          const composition = inlineComposition;
+          setTimeout(() => {
+            if (inlineComposition !== composition || viewRef.current !== currentView || currentView.composing) return;
+            inlineComposing = false;
+            inlineComposition = null;
+            let tr = currentView.state.tr;
+            if (composition && composition.to > composition.from) {
+              for (const mark of composition.marks) tr = tr.addMark(composition.from, composition.to, mark);
+              if (tr.selection.empty && tr.selection.from === composition.to && currentView.state.storedMarks?.length !== 0)
+                tr.setStoredMarks(composition.marks);
+            }
+            currentView.dispatch(tr);
+          }, 25);
           setTimeout(() => { if (viewRef.current === currentView && !headingFormatsRef.current.readOnly && !currentView.composing) currentView.dispatch(currentView.state.tr.setMeta('onrivi:heading-numbering', true)); }, 50);
           return false;
         },
         compositionstart(currentView) {
+          inlineComposing = true;
+          const state = currentView.state;
+          if (findAnyActiveMarkRange(state)) {
+            const marks = inlineInputMarks(state);
+            if (marks?.length) {
+              // Do not mutate DOM/selection from compositionstart: Chromium
+              // has already selected the native replacement range at this point.
+              inlineComposition ??= { from: state.selection.from, to: state.selection.to, marks };
+            }
+          }
           if (currentView.state.selection instanceof NodeSelection && currentView.state.selection.node.type === visualSchema.nodes.horizontal_rule) {
             placeCursorBeforeHorizontalRule(currentView, currentView.state.selection.from);
             caretRef.current?.schedule();
@@ -3036,9 +3617,12 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     tableTargetRef.current=target;imageTargets.current.add(target);setTableDialog(true);
   };
   const nativeCommands: Record<string, Command> = {
-    bold: toggleMark(visualSchema.marks.strong), italic: toggleMark(visualSchema.marks.em),
-    underline: toggleMark(visualSchema.marks.underline),
-    inlineCode: toggleMark(visualSchema.marks.code), strikethrough:toggleMark(visualSchema.marks.strike), link, clear,
+    bold: smartToggleMark(visualSchema.marks.strong, '텍스트'),
+    italic: smartToggleMark(visualSchema.marks.em, '텍스트'),
+    underline: smartToggleMark(visualSchema.marks.underline, '텍스트'),
+    inlineCode: smartToggleMark(visualSchema.marks.code, '코드'),
+    strikethrough: smartToggleMark(visualSchema.marks.strike, '텍스트'),
+    link, clear,
     quoteNote:setQuote('NOTE'),quoteTip:setQuote('TIP'),quoteImportant:setQuote('IMPORTANT'),quoteWarning:setQuote('WARNING'),quoteCaution:setQuote('CAUTION'),
     table:()=>{openTableRef.current();return true;},
     list: selectedList('bullet'), orderedList: selectedList('ordered'),
@@ -3186,7 +3770,9 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         }
       } else {
         const title = source ? visualImageDetails(source).title : '';
-        const cleanAlt = (alt ?? '').replace(/([\\\[\]])/g, '\\$1');
+        const rawAlt = (alt ?? '').replace(/\\([\\\[\]])/g, '$1');
+        const unescapedAlt = /^[\\\[\]\s]+$/.test(rawAlt) ? '' : rawAlt;
+        const cleanAlt = unescapedAlt ? unescapedAlt.replace(/([\\\[\]])/g, '\\$1') : '';
         const markdown = `![${cleanAlt}](${path.includes(' ') ? '<' + path + '>' : path}${title ? ' \"' + title.replace(/([\\\"])/g, '\\$1') + '\"' : ''})\n\n`;
         const node = visualSchema.nodes.visual_image.create({ source: markdown });
         if (source) tr = tr.replaceWith(target.from, target.to, node);
@@ -3481,12 +4067,15 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   useEffect(() => {
     if (!commandRef) return;
     const commands: Record<string, Command> = {
-      UNDO: undo, REDO: redo, BOLD: toggleMark(visualSchema.marks.strong),
-      ITALIC: toggleMark(visualSchema.marks.em), UNDERLINE: toggleMark(visualSchema.marks.underline),
-      INLINE_CODE: toggleMark(visualSchema.marks.code),
+      UNDO: undo, REDO: redo,
+      BOLD: smartToggleMark(visualSchema.marks.strong, '텍스트'),
+      ITALIC: smartToggleMark(visualSchema.marks.em, '텍스트'),
+      UNDERLINE: smartToggleMark(visualSchema.marks.underline, '텍스트'),
+      INLINE_CODE: smartToggleMark(visualSchema.marks.code, '코드'),
       LIST: selectedList('bullet'), ORDERED_LIST: selectedList('ordered'),
       CHECK:makeChecklist,CHECKLIST:makeChecklist, QUOTE: setQuote(null), CODE_BLOCK: setCodeBlock,
-      LINK: link, REMOVE_PREFIX: clear, STRIKETHROUGH:toggleMark(visualSchema.marks.strike),
+      LINK: link, REMOVE_PREFIX: clear,
+      STRIKETHROUGH: smartToggleMark(visualSchema.marks.strike, '텍스트'),
       QUOTE_NOTE:setQuote('NOTE'),QUOTE_TIP:setQuote('TIP'),QUOTE_IMPORTANT:setQuote('IMPORTANT'),QUOTE_WARNING:setQuote('WARNING'),QUOTE_CAUTION:setQuote('CAUTION'),
       TABLE:()=>{openTableRef.current();return true;}, QUICK_TABLE:()=>{openTableRef.current();return true;}, INSERT_TABLE_ROW:tableAction('addRow'), DELETE_TABLE_ROW:tableAction('deleteRow'),
       NOW: () => { openDatePickerRef.current(); return true; }, CALENDAR: () => { openDatePickerRef.current(); return true; },
@@ -3924,7 +4513,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       .visual-document-surface ol { padding-left:2em; list-style:decimal; }
       .visual-document-surface blockquote { border-left:3px solid #93c5fd; padding-left:1em; }
       .visual-document-surface pre { background:#f4f4f5; padding:12px; white-space:pre-wrap; }
-      .visual-document-surface .visual-code-block { margin-top:24px!important; min-width:0; max-width:100%; box-sizing:border-box; }
+      .visual-document-surface .visual-code-block { margin-top:24px!important; margin-bottom:20px!important; min-width:0; max-width:100%; box-sizing:border-box; }
       .visual-document-surface .visual-code-editor-panel { min-width:0; max-width:100%; }
       .visual-document-surface .visual-code-block pre { display:block!important; max-width:100%!important; box-sizing:border-box!important; overflow-x:auto!important; white-space:pre!important; overflow-wrap:normal!important; word-break:normal!important; }
       .visual-document-surface .visual-code-block pre code { display:block!important; width:max-content!important; min-width:100%; white-space:pre!important; overflow:visible!important; overflow-wrap:normal!important; word-break:normal!important; }
@@ -3941,7 +4530,11 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       .custom-preview-container .visual-document-surface .visual-code-block code, .visual-document-surface .visual-code-block code { background:transparent!important; color:inherit; opacity:1; white-space:inherit; padding:0!important; font-family:"D2Coding","Cascadia Code",Consolas,monospace!important; line-height:inherit!important; letter-spacing:0!important; }
       .visual-image-block { position:relative; margin:16px 0; }
       .visual-media-controls { position:absolute; right:12px; top:12px; display:flex; gap:6px; z-index:20; opacity:0; pointer-events:none; }
+      .visual-image-block:has([data-caption-position="top"]) .visual-media-controls,
+      .visual-image-block:has(figcaption[data-position="top"]) .visual-media-controls { top:34px; }
       .visual-image-block:hover .visual-media-controls, .visual-image-block:focus-within .visual-media-controls { opacity:1; pointer-events:auto; }
+      .visual-document-surface .onrivi-image-figure[data-caption-position="top"] img { margin-top:0!important; }
+      .visual-document-surface .onrivi-image-figure[data-caption-position="bottom"] img { margin-bottom:0!important; }
       .visual-document-surface[contenteditable="false"] .visual-image-edit { display:none; }
       @media print { .visual-media-controls { display:none; } }
       @media (hover:none) { .visual-media-controls { opacity:1; pointer-events:auto; } }
@@ -4125,6 +4718,28 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       }
       .visual-drag-drop-badge {
         animation: omd-badge-pop 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+      }
+      .onrivi-inline-syntax-tag {
+        font-family: var(--font-mono, 'JetBrains Mono', 'D2Coding', Consolas, monospace);
+        font-size: 0.88em;
+        font-weight: 700;
+        color: #3b82f6;
+        opacity: 0.85;
+        user-select: none;
+        pointer-events: none;
+        display: inline;
+        letter-spacing: -0.02em;
+        margin: 0 1px;
+        vertical-align: baseline;
+      }
+      .dark .onrivi-inline-syntax-tag {
+        color: #60a5fa;
+        opacity: 0.9;
+      }
+      @media print {
+        .onrivi-inline-syntax-tag {
+          display: none !important;
+        }
       }
     `}</style>
   </section>;

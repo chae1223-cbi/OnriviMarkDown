@@ -27,6 +27,12 @@ import {
  */
 // 🚨 @PATCH : **2026-10-23** — [문서 링크 누락 대상 처리]: 미리보기에서 연 문서 링크는 경로를 엄격히 확인하고 같은 파일명 폴백 및 미존재 임시 탭 생성을 차단
 // 🚨 @PATCH : **2026-10-19** — [작업장 파일 자동저장 복구 및 플레이스홀더 수화 강화]: FileSystemAccess 경로 매칭 시 NFC 정규화 및 상대경로 직접 분해 적용, 기존 탭의 플레이스홀더('작업장 외부 문서 안내') 자동 감지 시 rootFolder.handle에서 실제 파일 즉각 수화(Hydration), handle 누락 시 rootFolder 자동 탐색 바인딩으로 저장 대화상자 불필요 팝업 차단
+// 🚨 @PATCH : **2026-10-24** — [구글 드라이브(GDRIVE/cloud) 문서 링크 및 상대경로 온디맨드 즉시 탐색·열기 지원]:
+//             1) handleFileOpenByPath에서 GoogleDrive 작업장 내 링크 클릭 시 fileList 미확장 상태여도 findDriveFile을 통해 구글 드라이브 API로 온디맨드 검색하여 즉시 열기 지원
+//             2) findNodeByPath에서 targetBaseName 폴백 허용으로 폴더 깊이와 무관하게 대상 문서 정상 매칭
+// 🚨 @PATCH : **2026-10-24** — [데스크톱/웹 공통 도움말 문서 링크(../../ 및 파일명) 연결 무결성 보장]:
+//             1) handleFileOpenByPath에서 데스크톱 readFromPath 1차 실패 시 대상이 도움말 문서(00_시작하기, HELP-*)이면 docs/help 및 frontend/public/help 위치를 안전하게 자동 탐색·오픈
+//             2) 웹 환경(!isElectron)에서도 도움말 문서명 링크 클릭 시 /help/ 정적 리소스로 안전하게 자동 페치·오픈하여 웹/데스크톱 100% 동일 동작 보장
 // 🚨 @PATCH : **2026-10-24** — [구글 드라이브 연결 실패 시 불량 토큰 자동 소거 및 즉각 재인증 보장]:
 //             1) connectGoogleDrive 실패 시 기존 불량 토큰/만료 시간 키를 즉각 소거하여 다음 클릭 시 즉시 새 인증 팝업이 뜨도록 개선
 //             2) about?fields=user 응답이 401 외 오류(400, 403 등)일 때도 토큰을 무효화하여 무한 에러 루프 차단
@@ -1080,11 +1086,49 @@ export const useFileExplorer = ({
     const findResult = findNodeByPath(fileList, pathWithoutHash) ||
                        findNodeByPath(fileList, cleanPath) ||
                        findNodeByPath(fileList, cleanPathNoDotSlash) ||
-                       (!/[/\\]/.test(pathWithoutHash.replace(/^\.\//, '')) ? findNodeByPath(fileList, targetBaseName) : null);
+                       findNodeByPath(fileList, targetBaseName);
     if (findResult) {
       await handleFileClick(findResult.node, findResult.parent);
       jumpToAnchor(targetHash);
       return;
+
+    }
+
+    // 💡 [구글 드라이브(GDRIVE / cloud) 작업장 파일 온디맨드 탐색 및 즉시 로드]
+    if (rootFolderRef.current?.type === 'GDRIVE' || workspaceType === 'cloud') {
+      try {
+        const { getSavedDriveToken, getSavedWorkspaceInfo, findDriveFile } = await import('@/lib/gdrive/googleDriveClient');
+        const token = getSavedDriveToken();
+        const wsInfo = getSavedWorkspaceInfo();
+        if (token) {
+          const searchFileName = targetBaseNameWithMd || targetBaseName;
+          let foundDriveId: string | null = null;
+          if (rootFolderRef.current?.driveFolderId) {
+            foundDriveId = await findDriveFile(token, searchFileName, rootFolderRef.current.driveFolderId);
+          }
+          if (!foundDriveId && wsInfo?.workspaceFolderId) {
+            foundDriveId = await findDriveFile(token, searchFileName, wsInfo.workspaceFolderId);
+          }
+          if (!foundDriveId) {
+            foundDriveId = await findDriveFile(token, searchFileName);
+          }
+          if (foundDriveId) {
+            const driveNode: FileNode = {
+              name: searchFileName,
+              path: pathWithoutHash,
+              kind: 'file',
+              driveId: foundDriveId,
+              driveFileId: foundDriveId,
+              id: foundDriveId
+            } as any;
+            await handleFileClick(driveNode);
+            jumpToAnchor(targetHash);
+            return;
+          }
+        }
+      } catch (gdriveErr) {
+        console.warn('[handleFileOpenByPath] Google Drive 파일 탐색 실패:', gdriveErr);
+      }
     }
 
     // 💡 [FileSystemAccess 로컬 폴더 직접 탐색 가드]
@@ -1292,6 +1336,40 @@ export const useFileExplorer = ({
         }
       } catch (electronErr) {
         console.warn('[handleFileOpenByPath] 데스크톱 readFromPath 파일 읽기 시도 예외:', electronErr);
+        if (targetBaseNameWithMd === '00_시작하기.md' || /^HELP-\d+/i.test(targetBaseNameWithMd)) {
+          const fallbackCandidates = [
+            `docs/help/${targetBaseNameWithMd}`,
+            `frontend/public/help/${targetBaseNameWithMd}`,
+            rootFolderRef.current?.name ? `${rootFolderRef.current.name.replace(/\\/g, '/')}/docs/help/${targetBaseNameWithMd}` : '',
+            rootFolderRef.current?.name ? `${rootFolderRef.current.name.replace(/\\/g, '/')}/frontend/public/help/${targetBaseNameWithMd}` : ''
+          ].filter(Boolean);
+          for (const fbPath of fallbackCandidates) {
+            try {
+              const fbObj = await electronApi.readFromPath(fbPath);
+              if (fbObj && typeof fbObj.content === 'string') {
+                const filename = fbObj.name || targetBaseNameWithMd;
+                const resolvedDiskPath = fbObj.path || fbPath;
+                const diskNode: FileNode = { name: filename, path: resolvedDiskPath, kind: 'file' };
+                const existingTab = tabsRef.current.find(t => matchesLinkedDocument(t, resolvedDiskPath, rootFolderRef.current));
+                if (existingTab) {
+                  existingTab.content = fbObj.content;
+                  existingTab.path = resolvedDiskPath;
+                  existingTab.node = diskNode;
+                  setTabs(prev => prev.map(t => t.id === existingTab.id ? { ...t, path: resolvedDiskPath, node: diskNode } : t));
+                  if (existingTab.model && !existingTab.model.isDisposed()) existingTab.model.setValue(fbObj.content);
+                  setContent(fbObj.content);
+                  switchTab(existingTab.id);
+                } else {
+                  createNewTab(fbObj.content, filename, false, resolvedDiskPath, diskNode);
+                }
+                setCurrentFileNode(diskNode);
+                setCurrentFileName(filename);
+                jumpToAnchor(targetHash);
+                return;
+              }
+            } catch {}
+          }
+        }
       }
     } else if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
       try {
@@ -1429,11 +1507,18 @@ export const useFileExplorer = ({
         const normalized = pathWithoutHash.replace(/\\/g, '/');
         const docsIndex = normalized.indexOf('docs/');
         const isBundledHelp = /^(?:\.?\/)?help\//.test(normalized);
-        const isDocSample = isBundledHelp || docsIndex !== -1 || normalized.startsWith('docs/') || normalized === 'welcome.md' || normalized.startsWith('./docs/');
+        const isHelpDocName = targetBaseNameWithMd === '00_시작하기.md' || /^HELP-\d+/i.test(targetBaseNameWithMd);
+        const isDocSample = isBundledHelp || isHelpDocName || docsIndex !== -1 || normalized.startsWith('docs/') || normalized === 'welcome.md' || normalized.startsWith('./docs/');
         
         if (isDocSample) {
-          const fetchPath = isBundledHelp ? '/' + normalized.replace(/^\.?\//, '') : './' + (docsIndex !== -1 ? normalized.substring(docsIndex) : normalized);
-          const res = await fetch(fetchPath);
+          let fetchPath = isBundledHelp ? '/' + normalized.replace(/^\.?\//, '') : './' + (docsIndex !== -1 ? normalized.substring(docsIndex) : normalized);
+          if (isHelpDocName && !isBundledHelp && (!fetchPath.startsWith('/help/') && !fetchPath.startsWith('./help/'))) {
+            fetchPath = '/help/' + targetBaseNameWithMd;
+          }
+          let res = await fetch(fetchPath);
+          if (!res.ok && isHelpDocName && fetchPath !== '/help/' + targetBaseNameWithMd) {
+            res = await fetch('/help/' + targetBaseNameWithMd);
+          }
           if (res.ok) {
             const text = await res.text();
             const filename = targetBaseNameWithMd || targetBaseName || '문서.md';

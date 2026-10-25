@@ -29,3 +29,25 @@ const {history,undo,redo}=req('prosemirror-history');for(const following of [fal
 }
 console.log('PASS: Enter after nested bullets preserves numbered parent, following numbers, nesting and undo/redo');
 
+{
+ const n=api.visualSchema.nodes,p=text=>n.paragraph.create(null,text?api.visualSchema.text(text):null);
+ const blank=p('');
+ const doc=n.doc.create(null,n.ordered_list.create({order:5},n.list_item.create(null,[p('저장 및 최종 내보내기'),n.bullet_list.create(null,[n.list_item.create(null,p('Ctrl + S로 저장합니다.')),n.list_item.create(null,p('필요한 형식으로 내보냅니다.')),n.list_item.create(null,blank)])])));
+ let s=EditorState.create({doc,plugins:[history()]});let pos;
+ doc.descendants((node,offset)=>{if(node===blank)pos=offset+1;});
+ s=s.apply(s.tr.setSelection(TextSelection.create(doc,pos)));
+ for(const expectedDepth of [3,1]){
+  assert.equal(lists.exitEmptyListItem(s,tr=>s=s.apply(tr)),true);s.doc.check();
+  assert.equal(s.selection.$from.depth,expectedDepth);
+  assert.equal(s.doc.firstChild.attrs.order,5);
+  assert.equal(s.doc.firstChild.firstChild.child(1).childCount,2);
+  const saved=api.createVisualDocumentCodec('').serialize(s.doc);
+  const reloaded=api.createVisualDocumentCodec(saved).doc;
+  assert.equal(reloaded.firstChild.attrs.order,5);
+  assert.equal(reloaded.firstChild.firstChild.child(0).textContent,'저장 및 최종 내보내기');
+  assert.equal(reloaded.firstChild.firstChild.child(1).childCount,2);
+  assert.ok(!saved.includes('- \n'),saved);
+ }
+ console.log('PASS: two Enter presses exit nested bullets then numbered parent; numbered content and bullets survive reload (blank caret paragraphs are normalized)');
+}
+

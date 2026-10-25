@@ -2,6 +2,8 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-10-24** — [클립보드 HTML 서식 및 텍스트 동시 복사(clipboard:writeHtml) IPC 탑재]:
+//             1) clipboard.write({ html, text })를 연동하여 OS 시스템 클립보드에 인라인 CSS가 적용된 서식 HTML과 일반 텍스트를 원자적으로 동시 기록
 // 🚨 @PATCH : **2026-10-21** — [AI API 키 리소스 폴더 암호화(AES-256) 전용 격리 및 다중 기기/드라이브 자동 구분 관리]:
 //             1) 로컬 스토리지 API 키 보관을 배제하고 리소스 폴더({resourceFolder}/settings/ai_credentials.enc)를 단일 진실 공급원으로 통일
 //             2) device:get-info IPC 신설로 물리 기기 UUID 및 호스트명(os.hostname()) 자동 감지
@@ -3914,6 +3916,20 @@ ipcMain.handle('clipboard:copyText', (event, text) => {
   }
 });
 
+// 23.4. 클립보드 HTML 서식 및 텍스트 동시 복사 API (OS 시스템 클립보드에 CF_HTML 서식 직접 기록)
+ipcMain.handle('clipboard:writeHtml', (event, { html, text }) => {
+  try {
+    const { clipboard } = require('electron');
+    clipboard.write({
+      html: html || '',
+      text: text || ''
+    });
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 // 23.5. 네이티브 클립보드 이미지 쓰기 API (OS 시스템 클립보드에 비트맵 직접 복사)
 ipcMain.handle('clipboard:writeImage', async (event, source) => {
   try {
@@ -4018,9 +4034,18 @@ ipcMain.handle('clipboard:writeImage', async (event, source) => {
 });
 
 // 24. 클립보드에서 네이티브 이미지 읽기 API (윈도우 캡쳐/탐색기 파일 복사/비트맵 직접 복원)
-function readNativeClipboardImage() {
+function readNativeClipboardImage(preferDocument = false) {
   try {
     const { clipboard } = require('electron');
+    if (preferDocument) {
+      const html = clipboard.readHTML() || '';
+      const text = (clipboard.readText() || '').trim();
+      const nativeFiles = clipboard.availableFormats().some(format => /^(FileNameW|CF_HDROP|HDROP|FileDrop)$/i.test(format));
+      const imagePath = text && /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i.test(text) && fs.existsSync(text);
+      // Ctrl+V must let the DOM paste event handle a document, even when the
+      // OS also publishes a bitmap representation of that same document.
+      if (html.trim() || (text && !nativeFiles && !imagePath)) return null;
+    }
     // 1. 네이티브 비트맵 이미지 확인 (윈도우 캡처, 그림판, 브라우저 이미지 복사 등)
     const image = clipboard.readImage();
     if (!image.isEmpty()) {
@@ -4076,8 +4101,8 @@ function readNativeClipboardImage() {
     return null;
   }
 }
-ipcMain.handle('clipboard:readImage', readNativeClipboardImage);
-ipcMain.on('clipboard:readImageSync', event => { event.returnValue = readNativeClipboardImage(); });
+ipcMain.handle('clipboard:readImage', () => readNativeClipboardImage());
+ipcMain.on('clipboard:readImageSync', event => { event.returnValue = readNativeClipboardImage(true); });
 
 // 시스템 브라우저 외부 링크 실행 핸들러
 ipcMain.handle('system:openExternal', async (event, url) => {
@@ -4207,7 +4232,7 @@ ipcMain.handle('file:saveImage', async (event, targetFolder, base64Data, fileNam
       fileName: finalFileName,
       absolutePath: absolutePath,
       isRelative: isRelative,
-      mediaPath: isRelative ? `/${finalFolderName}/${encodeURIComponent(finalFileName)}?v=${Date.now()}` : null
+      mediaPath: isRelative ? `/${finalFolderName}/${finalFileName}?v=${Date.now()}` : null
     };
   } catch (e) {
     console.error('이미지 저장 실패 (Electron):', e);

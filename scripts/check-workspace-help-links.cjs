@@ -2,7 +2,7 @@ const fs = require('node:fs'), path = require('node:path'), assert = require('no
 const req = require('node:module').createRequire(path.resolve('frontend/package.json'));
 const ts = req('typescript');
 const compile = source => ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
-const load = source => { const exports = {}; Function('exports', 'resolveDocumentLink', compile(source))(exports, typeof native !== 'undefined' ? native.resolveDocumentLink : undefined); return exports; };
+const load = source => { const exports = {}; Function('exports', 'resolveDocumentLink', 'resolveWorkspaceHelpLink', compile(source))(exports, typeof native !== 'undefined' ? native.resolveDocumentLink : undefined, typeof native !== 'undefined' ? native.resolveWorkspaceHelpLink : undefined); return exports; };
 const native = {}; Function('exports', compile(fs.readFileSync('frontend/src/lib/nativeDocumentPath.ts', 'utf8')))(native);
 const workspace = 'D:/Developer/OnriviMarkDown/OnriviMarkDown';
 const current = `${workspace}/frontend/public/help/HELP-01_온리비_어서_소개와_시작하기.md`;
@@ -102,7 +102,7 @@ function ipc(name) {
   const outside='E:/외부 문서/00_시작하기.md';
   files.set(norm(outside),'explicit external document');
   const desktopGuard={};
-  Function('exports','resolveDocumentLink','window',compile(guardCode))(desktopGuard,native.resolveDocumentLink,context.window);
+  Function('exports','resolveDocumentLink','resolveWorkspaceHelpLink','window',compile(guardCode))(desktopGuard,native.resolveDocumentLink,native.resolveWorkspaceHelpLink,context.window);
   assert.equal(guard(outside,current,workspace,'OnriviMarkDown').isInside,false,'web workspace boundary remains enforced');
   assert.equal(desktopGuard.isPathInsideWorkspace(outside,current,workspace,'OnriviMarkDown').isInside,true);
   await hookExports.open(outside,undefined,true);

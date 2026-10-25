@@ -1,7 +1,7 @@
 const HH = 'http://www.hancom.co.kr/hwpml/2011/head';
 
 /** Extend the bundled header without creating dangling character references. */
-export function buildHwpxHeader(template: string, defaultFont?: string): string {
+export function buildHwpxHeader(template: string, defaultFont?: string, maxListDepth = 0): string {
   const doc = new DOMParser().parseFromString(template, 'application/xml');
   if (doc.querySelector('parsererror')) throw new Error('한글 문서 서식 정보를 읽지 못했습니다.');
   const chars = doc.getElementsByTagNameNS(HH, 'charProperties')[0];
@@ -94,6 +94,17 @@ export function buildHwpxHeader(template: string, defaultFont?: string): string 
     for (const setting of Array.from(style.getElementsByTagNameNS(HH,'breakSetting'))) {
       setting.setAttribute('keepWithNext', keepNext ? '1' : '0');
       setting.setAttribute('keepLines','1');
+    }
+    paras.append(style);
+  }
+  const listBase = Array.from(paras.children).find(el => el.getAttribute('id') === '1') || paras.children[0];
+  for (let depth = 1; depth <= maxListDepth; depth++) {
+    const style = listBase.cloneNode(true) as Element;
+    style.setAttribute('id', String(25 + depth));
+    for (const margin of Array.from(style.getElementsByTagNameNS(HH, 'margin'))) {
+      for (const child of Array.from(margin.children)) {
+        if (child.localName === 'left') child.setAttribute('value', String((Number(child.getAttribute('value')) || 0) + depth * 1700));
+      }
     }
     paras.append(style);
   }

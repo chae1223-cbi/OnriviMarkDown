@@ -1,5 +1,9 @@
 // ====================================================================
 // 📊 [OMD-UI-MediaLayoutFields-0001] MediaLayoutFields.tsx ➔ 미디어 레이아웃/크기/정렬 및 캡션 설정 위젯
+// 🚨 @PATCH : **2026-10-24** — [미디어 컨트롤 접근성 탭 오더(tabIndex) 지원]:
+//             1) MediaCaptionControl, MediaSizeInputs, MediaAlignmentControl에 tabIndexStart 속성을 지원하여 모달 내 순차적 키보드 탭 이동 보장
+// 🚨 @PATCH : **2026-10-24** — [미디어 컨트롤 UI 컴팩트화 및 공간 최적화]:
+//             1) 패딩 및 여백 축소(p-3), 캡션/크기/정렬 컨트롤 컴팩트화로 모달 창 세로 초과 방지 및 삽입 버튼 상시 노출 보장
 // 🚨 @PATCH : **2026-10-24** — [이미지 URL 쿼리에 캡션 위치(caption=top|bottom) 인코딩 지원]:
 //             1) imagePathWithDimensions에 captionPos 인자를 추가하여 이미지 쿼리스트링에 캡션 위치를 안전하게 보존
 // 🚨 @PATCH : **2026-10-21** — [미디어 설명(캡션) 위치 및 표현 구문 제어 위젯(MediaCaptionControl) 신설]:
@@ -33,15 +37,17 @@ interface MediaSizeInputsProps {
   onHeightChange: (value: string) => void;
   isDarkMode: boolean;
   imageSizing?: boolean;
+  tabIndexStart?: number;
 }
 
 interface MediaAlignmentControlProps {
   align: MediaAlign;
   onChange: (align: MediaAlign) => void;
   isDarkMode: boolean;
+  tabIndexStart?: number;
 }
 
-export function MediaSizeInputs({ width, height, onWidthChange, onHeightChange, isDarkMode, imageSizing=false }: MediaSizeInputsProps) {
+export function MediaSizeInputs({ width, height, onWidthChange, onHeightChange, isDarkMode, imageSizing=false, tabIndexStart }: MediaSizeInputsProps) {
   const [widthUnit,setWidthUnit]=useState(width ? (width.endsWith('%')?'%':'px') : '%');
   useEffect(()=>{if(width)setWidthUnit(width.endsWith('%')?'%':'px');},[width]);
   const inputClass = `w-full font-mono text-xs border rounded px-3 py-2.5 outline-none focus:ring-1 transition-all ${
@@ -55,39 +61,75 @@ export function MediaSizeInputs({ width, height, onWidthChange, onHeightChange, 
       <div>
         <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 mb-1 block">가로 {imageSizing?'':'(PX)'}</label>
         {imageSizing ? <div className="flex gap-2">
-          <input aria-label="이미지 가로 크기" type="text" inputMode="decimal" value={width.replace(/(?:px|%)$/i,'')} onChange={e=>{
-            const value=e.target.value.trim();
-            if(!value){onWidthChange('');return;}
-            if(/^\d*(?:\.\d*)?$/.test(value))onWidthChange(value+widthUnit);
-            else if(/^\d+(?:\.\d+)?(?:px|%)$/i.test(value))onWidthChange(value.toLowerCase());
-          }} placeholder={widthUnit==='%'?'100':'600'} className={inputClass}/>
-          <select aria-label="이미지 가로 단위" value={widthUnit} className={inputClass+' !w-20 shrink-0'} onChange={e=>{
-            const unit=e.target.value;setWidthUnit(unit);
-            if(width)onWidthChange(width.replace(/(?:px|%)$/i,'')+unit);
-          }}><option value="%">%</option><option value="px">px</option></select>
-        </div> : <input type="text" value={width} onChange={e => onWidthChange(e.target.value)} placeholder="600px 또는 100%" className={inputClass} />}
+          <input
+            aria-label="이미지 가로 크기"
+            type="text"
+            inputMode="decimal"
+            tabIndex={tabIndexStart !== undefined ? tabIndexStart : undefined}
+            value={width.replace(/(?:px|%)$/i,'')}
+            onChange={e=>{
+              const value=e.target.value.trim();
+              if(!value){onWidthChange('');return;}
+              if(/^\d*(?:\.\d*)?$/.test(value))onWidthChange(value+widthUnit);
+              else if(/^\d+(?:\.\d+)?(?:px|%)$/i.test(value))onWidthChange(value.toLowerCase());
+            }}
+            placeholder={widthUnit==='%'?'100':'600'}
+            className={inputClass}
+          />
+          <select
+            aria-label="이미지 가로 단위"
+            tabIndex={tabIndexStart !== undefined ? tabIndexStart + 1 : undefined}
+            value={widthUnit}
+            className={inputClass+' !w-20 shrink-0'}
+            onChange={e=>{
+              const unit=e.target.value;setWidthUnit(unit);
+              if(width)onWidthChange(width.replace(/(?:px|%)$/i,'')+unit);
+            }}
+          >
+            <option value="%">%</option>
+            <option value="px">px</option>
+          </select>
+        </div> : (
+          <input
+            type="text"
+            tabIndex={tabIndexStart !== undefined ? tabIndexStart : undefined}
+            value={width}
+            onChange={e => onWidthChange(e.target.value)}
+            placeholder="600px 또는 100%"
+            className={inputClass}
+          />
+        )}
       </div>
       <div>
         <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 mb-1 block">세로 {imageSizing?'(자동 / px)':'(PX)'}</label>
-        <input aria-label={imageSizing?'이미지 세로 크기':undefined} type="text" value={height} onChange={e => onHeightChange(e.target.value)} placeholder="auto 또는 400px" className={inputClass} />
+        <input
+          aria-label={imageSizing?'이미지 세로 크기':undefined}
+          type="text"
+          tabIndex={tabIndexStart !== undefined ? (imageSizing ? tabIndexStart + 2 : tabIndexStart + 1) : undefined}
+          value={height}
+          onChange={e => onHeightChange(e.target.value)}
+          placeholder="auto 또는 400px"
+          className={inputClass}
+        />
       </div>
-      {imageSizing&&<p className="col-span-2 text-xs text-slate-500 dark:text-zinc-400">가로 80%는 본문 너비의 80%입니다. 세로를 비우거나 auto로 두면 원래 비율을 유지합니다. 단위를 바꾸면 입력한 숫자에 새 단위가 적용됩니다.</p>}
+      {imageSizing&&<p className="col-span-2 text-[10px] text-slate-400 dark:text-zinc-500">※ 가로 기본 100%, 세로 비움 시 원본 비율 유지</p>}
     </div>
   );
 }
 
-export function MediaAlignmentControl({ align, onChange, isDarkMode }: MediaAlignmentControlProps) {
+export function MediaAlignmentControl({ align, onChange, isDarkMode, tabIndexStart }: MediaAlignmentControlProps) {
   return (
-    <div className={`rounded-lg p-4 border ${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'}`}>
-      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 mb-3 block">정렬</label>
+    <div className={`rounded-lg p-3 border ${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'}`}>
+      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 mb-1.5 block">정렬</label>
       <div className="flex gap-2">
-        {(['left', 'center', 'right'] as const).map(option => (
+        {(['left', 'center', 'right'] as const).map((option, idx) => (
           <button
             type="button"
             key={option}
+            tabIndex={tabIndexStart !== undefined ? tabIndexStart + idx : undefined}
             onClick={() => onChange(option)}
             aria-pressed={align === option}
-            className={`flex-1 py-2.5 rounded text-xs font-bold transition-all border ${
+            className={`flex-1 py-1.5 rounded text-xs font-bold transition-all border ${
               align === option
                 ? 'bg-[#1d4ed8] text-white border-[#1d4ed8] shadow-sm'
                 : isDarkMode
@@ -125,6 +167,7 @@ export interface MediaCaptionControlProps {
   customTemplate?: string;
   onCustomTemplateChange?: (value: string) => void;
   isDarkMode: boolean;
+  tabIndexStart?: number;
 }
 
 export function MediaCaptionControl({
@@ -139,7 +182,8 @@ export function MediaCaptionControl({
   onFormatChange,
   customTemplate = '**{kind} {n}. {title}**',
   onCustomTemplateChange,
-  isDarkMode
+  isDarkMode,
+  tabIndexStart
 }: MediaCaptionControlProps) {
   const previewCaption = formatMediaCaption(kind, number, title.trim() || '제목 예시', format === 'none' ? 'standard' : format, customTemplate);
 
@@ -150,7 +194,7 @@ export function MediaCaptionControl({
   }`;
 
   return (
-    <div className={`rounded-lg p-4 border space-y-3.5 ${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'}`}>
+    <div className={`rounded-lg p-3 border space-y-2 ${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'}`}>
       <div className="flex items-center justify-between">
         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 block">
           {kind} 설명(캡션) 설정
@@ -167,6 +211,7 @@ export function MediaCaptionControl({
           </label>
           <input
             type="text"
+            tabIndex={tabIndexStart !== undefined ? tabIndexStart : undefined}
             value={title}
             onChange={(e) => onTitleChange(e.target.value)}
             placeholder={`예: ${kind === '그림' ? '안양예술공원 산책로 풍경' : kind === '지도' ? '서울시청 위치' : '시스템 소개 영상'}`}
@@ -180,6 +225,7 @@ export function MediaCaptionControl({
           <input
             type="number"
             min={1}
+            tabIndex={tabIndexStart !== undefined ? tabIndexStart + 1 : undefined}
             value={number}
             onChange={(e) => onNumberChange(Math.max(1, Number(e.target.value) || 1))}
             className={inputClass + ' font-mono text-center'}
@@ -195,8 +241,9 @@ export function MediaCaptionControl({
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
+            tabIndex={tabIndexStart !== undefined ? tabIndexStart + 2 : undefined}
             onClick={() => onPositionChange('top')}
-            className={`py-2 rounded text-xs font-bold transition-all border ${
+            className={`py-1.5 rounded text-xs font-bold transition-all border ${
               position === 'top'
                 ? 'bg-[#1d4ed8] text-white border-[#1d4ed8] shadow-sm'
                 : isDarkMode
@@ -208,8 +255,9 @@ export function MediaCaptionControl({
           </button>
           <button
             type="button"
+            tabIndex={tabIndexStart !== undefined ? tabIndexStart + 3 : undefined}
             onClick={() => onPositionChange('bottom')}
-            className={`py-2 rounded text-xs font-bold transition-all border ${
+            className={`py-1.5 rounded text-xs font-bold transition-all border ${
               position === 'bottom'
                 ? 'bg-[#1d4ed8] text-white border-[#1d4ed8] shadow-sm'
                 : isDarkMode
@@ -229,6 +277,7 @@ export function MediaCaptionControl({
         </label>
         <select
           value={format}
+          tabIndex={tabIndexStart !== undefined ? tabIndexStart + 4 : undefined}
           onChange={(e) => onFormatChange(e.target.value as MediaCaptionFormat)}
           className={inputClass + ' font-medium cursor-pointer'}
         >
@@ -249,6 +298,7 @@ export function MediaCaptionControl({
           </label>
           <input
             type="text"
+            tabIndex={tabIndexStart !== undefined ? tabIndexStart + 5 : undefined}
             value={customTemplate}
             onChange={(e) => onCustomTemplateChange?.(e.target.value)}
             placeholder="예: **{kind} {n}. {title}**"

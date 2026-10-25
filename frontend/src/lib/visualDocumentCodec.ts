@@ -2,6 +2,21 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-visual-codec
+ * 🚨 @PATCH : **2026-10-25** — [이미지 캡션 대괄호([]) 파싱 누락 및 상단 유령 기호("\[") 노출 결함 해결]:
+ *             1) visualParser에서 image 토큰 파싱 시 defaultMarkdownParser가 alt를 첫 토큰(tok.children[0])만 취해 대괄호([그림 1])가 '['로 잘리고 '\['로 직렬화되던 결함 수정 (tok.children 전체를 안전 결합)
+ *             2) visualImageDetails에서 stray bracket/backslash 단독 찌꺼기(/^[\\\[\]\s]+$/) 자동 정제
+ * 🚨 @PATCH : **2026-10-25** — [문서 끝 정상 개행 문자(\n)의 유령 hard_break 오분기 차단 및 타이핑 시 커서 위로 튀는 결함 완전 해결]:
+ *             1) visualTokenizer에서 파일 끝 1개 개행(\n)은 표준 EOF 개행으로 처리하여 마지막 문단 끝에 불필요한 hard_break(<br>)가 주입되는 현상 차단
+ *             2) 2개 이상의 연속 개행(\n\n 이상)일 때만 실제 의도된 빈 줄(rawTrailing - 1)로 정확히 변환하여 문서 끝에서 2줄 아래(49px)로 커서가 뚝 떨어져 대기하다가 타이핑 시 훅 올라가던 레이아웃 시프트 및 커서 점프 원천 박멸
+ * 🚨 @PATCH : **2026-10-25** — [목록 첫 번째 항목 Tab 전체 들여쓰기 지원을 위한 bullet_list/ordered_list indentPx 속성 및 직렬화 연동]:
+ *             1) visualSchema.nodes.bullet_list 및 ordered_list에 indentPx 속성, data-onrivi-list-indent, margin-left toDOM/parseDOM 등록
+ *             2) visualSerializer에서 <!-- onrivi:list-indent=... --> 직렬화 및 createVisualDocumentCodec 역직렬화 무손실 라운드트립 연동
+ * 🚨 @PATCH : **2026-10-24** — [클립보드 HTML 이미지 블록(<figure class="visual-image-block">) 위지윅 파싱(parseDOM) 지원]:
+ *             1) visualSchema.nodes.visual_image에 parseDOM(figure.visual-image-block)을 등록하여 복사된 서식 HTML 붙여넣기 시 이미지 노드가 무손실로 온전히 파싱되도록 개선
+ * 🚨 @PATCH : **2026-10-24** — [하이퍼링크 복사/붙여넣기 시 가상 툴팁 문구((클릭하여 새 창으로 열기)) 마크다운 Title 오염 결함 원천 해소]:
+ *             1) toDOM에서 사용자 미지정 가상 툴팁((클릭하여 새 창으로 열기))을 DOM title 속성에 임의 주입하던 결함 제거
+ *             2) parseDOM 및 visualSerializer에서 가상 툴팁 및 자동 인코딩된 URL 제목 문자열이 마크다운 링크 Title 문법으로 직렬화되는 현상 3중 원천 차단
+ *             3) mark.type.create()를 통한 정식 ProseMirror Mark 인스턴스 생성으로 TypeScript 빌드 타입 에러 해결
  * 🚨 @PATCH : **2026-10-21** — [마크다운 역슬래시(\\) 과도한 이스케이프 차단 및 특수문자 직렬화 정돈]:
  *             1) visualSerializer의 text 노드 직렬화 시 escape: false를 지정하여 백틱(\  \)과 대괄호([]) 앞에 불필요한 역슬래시(\\)가 강제 삽입되던 결함 해결
  *             2) normalizeVisualMarkdownSpacing에서 기존 문서에 잔존하는 불필요한 이스케이프(\\\, \\[, \\], \\-)를 자동 소거하여 순수 마크다운으로 복원
@@ -66,13 +81,56 @@ import { defaultMarkdownParser, defaultMarkdownSerializer, MarkdownParser, Markd
 //             1) 직렬화 시 빈 문단 <p></p> 생성을 완전 배제하고 순수 마크다운 개행으로 통일
 //             2) 이중 불릿(- - ) 패턴을 단일 불릿(- )으로 정규화하여 볼트 2개 노출 현상 자동 치유
 export const visualSchema = new Schema({
-  nodes: markdownSchema.spec.nodes.update('list_item',{...markdownSchema.spec.nodes.get('list_item'),attrs:{checked:{default:null}},toDOM:node=>['li',{'data-task-checked':node.attrs.checked===null?undefined:String(node.attrs.checked)},0]}).update('doc', { ...markdownSchema.spec.nodes.get('doc'), attrs: { frontmatter: { default: '' } } }).update('blockquote', { ...markdownSchema.spec.nodes.get('blockquote'), attrs:{alertType:{default:null}}, toDOM:node=>{
+  nodes: markdownSchema.spec.nodes.update('list_item',{...markdownSchema.spec.nodes.get('list_item'),attrs:{checked:{default:null}},toDOM:node=>['li',{'data-task-checked':node.attrs.checked===null?undefined:String(node.attrs.checked)},0]}).update('doc', { ...markdownSchema.spec.nodes.get('doc'), attrs: { frontmatter: { default: '' } } }).update('blockquote', { ...markdownSchema.spec.nodes.get('blockquote'), attrs:{alertType:{default:null},indentPx:{default:null}},parseDOM:[{tag:'blockquote',getAttrs:dom=>{const value=(dom as HTMLElement).getAttribute('data-onrivi-quote-indent');return {alertType:(dom as HTMLElement).getAttribute('data-alert-type'),indentPx:value===null?null:Math.max(0,Math.min(4096,Number(value)||0))};}}], toDOM:node=>{
     const tag=String(node.attrs.alertType || '').trim().toUpperCase();
     const aliases:Record<string,string>={'참고':'NOTE','참조':'NOTE','메모':'NOTE','알림':'NOTE','팁':'TIP','도움말':'TIP','중요':'IMPORTANT','필독':'IMPORTANT','주의':'WARNING','경고':'CAUTION','위험':'CAUTION'};
     const palette:Record<string,[string,string]>={NOTE:['#eff6ff','#3b82f6'],TIP:['#ecfdf5','#10b981'],IMPORTANT:['#faf5ff','#a855f7'],WARNING:['#fffbeb','#f59e0b'],CAUTION:['#fff1f2','#f43f5e']};
     const colors=palette[aliases[tag] || tag];
-    return ['blockquote',{'data-alert-type':node.attrs.alertType || undefined,style:colors?`background-color:${colors[0]}!important;border-left:4px solid ${colors[1]}!important;color:inherit!important;font-style:normal!important;padding:12px!important`:undefined},0];
-  } }).addToEnd('page_break', {
+    const indent=node.attrs.indentPx===null?'':`margin-left:${node.attrs.indentPx}px!important;`;
+    return ['blockquote',{'data-alert-type':node.attrs.alertType || undefined,'data-onrivi-quote-indent':node.attrs.indentPx ?? undefined,style:indent+(colors?`background-color:${colors[0]}!important;border-left:4px solid ${colors[1]}!important;color:inherit!important;font-style:normal!important;padding:12px!important`:'') || undefined},0];
+  } }).update('bullet_list', {
+    ...markdownSchema.spec.nodes.get('bullet_list'),
+    attrs: { indentPx: { default: null } },
+    parseDOM: [
+      {
+        tag: 'ul',
+        getAttrs: dom => {
+          const val = (dom as HTMLElement).getAttribute('data-onrivi-list-indent');
+          return { indentPx: val === null ? null : Math.max(0, Math.min(4096, Number(val) || 0)) };
+        },
+      },
+    ],
+    toDOM: node => [
+      'ul',
+      {
+        'data-onrivi-list-indent': node.attrs.indentPx ?? undefined,
+        style: node.attrs.indentPx ? `margin-left:${node.attrs.indentPx}px!important;` : undefined,
+      },
+      0,
+    ],
+  }).update('ordered_list', {
+    ...markdownSchema.spec.nodes.get('ordered_list'),
+    attrs: { order: { default: 1 }, indentPx: { default: null } },
+    parseDOM: [
+      {
+        tag: 'ol',
+        getAttrs: dom => {
+          const val = (dom as HTMLElement).getAttribute('data-onrivi-list-indent');
+          const order = (dom as HTMLElement).hasAttribute('start') ? Number((dom as HTMLElement).getAttribute('start')) : 1;
+          return { order, indentPx: val === null ? null : Math.max(0, Math.min(4096, Number(val) || 0)) };
+        },
+      },
+    ],
+    toDOM: node => [
+      'ol',
+      {
+        start: node.attrs.order === 1 ? undefined : node.attrs.order,
+        'data-onrivi-list-indent': node.attrs.indentPx ?? undefined,
+        style: node.attrs.indentPx ? `margin-left:${node.attrs.indentPx}px!important;` : undefined,
+      },
+      0,
+    ],
+  }).addToEnd('page_break', {
     group:'block',atom:true,selectable:true,
     toDOM:()=>['div',{'data-onrivi-page-break':'true',class:'onrivi-page-break',contenteditable:'false','aria-label':'수동 페이지 나누기'},'수동 페이지 나누기'],
     parseDOM:[{tag:'div[data-onrivi-page-break]'}],
@@ -86,7 +144,17 @@ export const visualSchema = new Schema({
     group: 'block', atom: true, selectable: true, draggable: true,
     attrs: { source: { default: '' } },
     toDOM: node => ['figure', { class: 'visual-image-block', contenteditable: 'false' }, ['img', { src: node.attrs.source.match(/\]\((.*)\)/)?.[1] || '', alt: '' }]],
-    parseDOM: [],
+    parseDOM: [
+      {
+        tag: 'figure.visual-image-block',
+        getAttrs: dom => {
+          const img = (dom as HTMLElement).querySelector('img');
+          const src = img?.getAttribute('src') || '';
+          const alt = img?.getAttribute('alt') || '';
+          return { source: `![${alt}](${src})` };
+        },
+      },
+    ],
   }).addToEnd('visual_media', {
     group:'block', atom:true, selectable:true, draggable:true,
     attrs:{source:{default:''},kind:{default:'video'}},
@@ -139,7 +207,9 @@ export const visualSchema = new Schema({
   })
     .update('strong', { ...markdownSchema.spec.marks.get('strong'), inclusive: false })
     .update('em', { ...markdownSchema.spec.marks.get('em'), inclusive: false })
-    .update('code', { ...markdownSchema.spec.marks.get('code'), inclusive: false })
+    // Code must be the innermost mark. HTML/Markdown delimiters inside a code
+    // span are literal characters and cannot represent underline/strike marks.
+    .remove('code').addToEnd('code', { ...markdownSchema.spec.marks.get('code'), inclusive: false })
     .update('link', {
     ...markdownSchema.spec.marks.get('link'),
     inclusive: false,
@@ -147,13 +217,17 @@ export const visualSchema = new Schema({
       const element = dom as HTMLElement;
       const href = element.getAttribute('href') || '';
       if (/^[a-z][a-z0-9+.-]*:/i.test(href) && !/^(https?:|mailto:|tel:|file:\/\/\/|[a-z]:[\/\\])/i.test(href)) return false;
-      return { href, title: element.getAttribute('title') };
+      let rawTitle = element.getAttribute('title') || '';
+      if (rawTitle && (rawTitle.includes('클릭하여') || rawTitle.includes(href) || (href && rawTitle.includes(decodeURI(href))))) {
+        rawTitle = '';
+      }
+      return { href, title: rawTitle || undefined };
     } }],
     toDOM(node) {
       const { href, title } = node.attrs;
       return ['a', {
         href,
-        title: title || (href ? `${href} (클릭하여 새 창으로 열기)` : undefined),
+        title: title || undefined,
         target: '_blank',
         rel: 'noopener noreferrer'
       }, 0];
@@ -186,8 +260,11 @@ visualTokenizer.parse = (source,environment) => {
   while(source.includes(tailMarker))tailMarker+='X';
   // A parser normally drops whitespace/breaks at EOF. Keep them as inline
   // content while parsing, then remove only the temporary marker.
-  const trailingNewlines=environment?.preserveTrailingNewlines ? (source.match(/\n+$/)?.[0].length || 0) : 0;
-  const parseSource=trailingNewlines ? source.slice(0,-trailingNewlines) : source;
+  const rawTrailingNewlines = environment?.preserveTrailingNewlines ? (source.match(/\n+$/)?.[0].length || 0) : 0;
+  // 표준 텍스트 파일의 단일 EOF 개행(\n 1개)은 일반 문단 끝이므로 hard_break 주입 대상에서 제외하고, 명시적 공백 개행(2칸 이상 공백/역슬래시) 또는 2개 이상의 연속 개행(\n\n 이상)일 때만 의도된 개행으로 보존
+  const hasIntentionalBreak = /(?:[ \t]{2,}|\\)\r?\n+$/.test(source) || rawTrailingNewlines > 1;
+  const trailingNewlines = environment?.preserveTrailingNewlines && hasIntentionalBreak ? rawTrailingNewlines : 0;
+  const parseSource = rawTrailingNewlines ? source.slice(0, -rawTrailingNewlines) : source;
   const prepared=parseSource.replace(/(\\\r?\n)(\s*)$/, '$1'+tailMarker+'$2').replace(/([^\n]*\S[ \t]+)(\r?\n*)$/, '$1'+tailMarker+'$2');
   for(const token of tokenizer.parse(prepared,environment)) {
     if(token.type==='inline' && token.children)for(const child of token.children)if(child.type==='text')child.content=child.content.replaceAll(tailMarker,'');
@@ -232,7 +309,9 @@ visualTokenizer.parse = (source,environment) => {
   return result;
 };
 const visualParser = new MarkdownParser(visualSchema,visualTokenizer,{
-  ...defaultMarkdownParser.tokens,softbreak:{node:'hard_break'},s:{mark:'strike'},u:{mark:'underline'},
+  ...defaultMarkdownParser.tokens,
+  image:{node:'image',getAttrs:(tok: any)=>({src:tok.attrGet('src'),title:tok.attrGet('title')||null,alt:tok.children?tok.children.map((c: any)=>c.content).join(''):(tok.content||null)})},
+  softbreak:{node:'hard_break'},s:{mark:'strike'},u:{mark:'underline'},
   math_inline:{node:'visual_inline_math',getAttrs:(token: any)=>({latex: token.content})},
   footnote_ref:{node:'visual_footnote_ref',getAttrs:(token: any)=>({label: token.content})},
   table:{block:'table'},tr:{block:'table_row'},
@@ -252,10 +331,18 @@ export const visualSerializer = new MarkdownSerializer({
     state.text(value.slice(offset), false);
   },
   hard_break(state) { state.write('\n'); },
-  bullet_list(state,node) { state.renderList(node.type.create({...node.attrs,tight:true},node.content),'  ',()=>'- '); },
-  ordered_list(state,node) { const start=node.attrs.order || 1;const width=String(start+node.childCount-1).length;state.renderList(node.type.create({...node.attrs,tight:true},node.content),' '.repeat(width+2),index=>String(start+index).padStart(width,' ')+'. '); },
+  bullet_list(state,node) {
+    if(node.attrs.indentPx!==null)state.write(`<!-- onrivi:list-indent=${node.attrs.indentPx} -->\n`);
+    state.renderList(node.type.create({...node.attrs,tight:true},node.content),'  ',()=>'- ');
+  },
+  ordered_list(state,node) {
+    if(node.attrs.indentPx!==null)state.write(`<!-- onrivi:list-indent=${node.attrs.indentPx} -->\n`);
+    const start=node.attrs.order || 1;const width=String(start+node.childCount-1).length;
+    state.renderList(node.type.create({...node.attrs,tight:true},node.content),' '.repeat(width+2),index=>String(start+index).padStart(width,' ')+'. ');
+  },
   list_item(state,node) { if(node.attrs.checked!==null)state.write(node.attrs.checked?'[x] ':'[ ] ');state.renderContent(node); },
   blockquote(state,node) {
+    if(node.attrs.indentPx!==null)state.write(`<!-- onrivi:quote-indent=${node.attrs.indentPx} -->\n`);
     state.wrapBlock('> ',null,node,()=>{
       if(node.attrs.alertType){state.write(`[!${node.attrs.alertType}]`);state.ensureNewLine();}
       state.renderContent(node);
@@ -290,14 +377,19 @@ export const visualSerializer = new MarkdownSerializer({
     ...defaultMarkdownSerializer.marks.link,
     close(state, mark, parent, index) {
       const href = String(mark.attrs.href || '');
+      let rawTitle = String(mark.attrs.title || '');
+      if (rawTitle && (rawTitle.includes('클릭하여') || rawTitle.includes(href) || (href && rawTitle.includes(decodeURI(href))))) {
+        rawTitle = '';
+      }
       if (/^(?:https?:|mailto:|tel:)/i.test(href) || !/\.(?:md|markdown)(?:[?#]|$)/i.test(href)) {
+        const cleanMark = mark.type.create({ ...mark.attrs, title: rawTitle || undefined });
         const close = defaultMarkdownSerializer.marks.link.close;
-        return typeof close === 'function' ? close(state,mark,parent,index) : close;
+        return typeof close === 'function' ? close(state, cleanMark, parent, index) : close;
       }
       let readable = href;
       try { readable = decodeURI(href); } catch {}
       readable = readable.replace(/</g,'%3C').replace(/>/g,'%3E').replace(/\r/g,'%0D').replace(/\n/g,'%0A');
-      const title = mark.attrs.title ? ` "${String(mark.attrs.title).replace(/\\/g,'\\\\').replace(/"/g,'\\"')}"` : '';
+      const title = rawTitle ? ` "${rawTitle.replace(/\\/g,'\\\\').replace(/"/g,'\\"')}"` : '';
       return `](<${readable}>${title})`;
     },
   },
@@ -386,8 +478,18 @@ export function createVisualDocumentCodec(markdown: string) {
   });
   const ranges = /(^|\n)\s*:::/.test(syntaxLines.join('')) ? [0] : starts;
   if (ranges.length && ranges[0] > 0) ranges.unshift(0);
+  let quoteIndent: {value:number;raw:string}|null=null;
+  let listIndent: {value:number;raw:string}|null=null;
   for (let i = 0; i < ranges.length; i++) {
-    const raw = body.slice(offsets[ranges[i]], i + 1 < ranges.length ? offsets[ranges[i + 1]] : body.length);
+    let raw = body.slice(offsets[ranges[i]], i + 1 < ranges.length ? offsets[ranges[i + 1]] : body.length);
+    const indentMarker=raw.trim().match(/^<!--\s*onrivi:quote-indent=(\d+(?:\.\d+)?)\s*-->$/);
+    if(indentMarker && i+1<ranges.length && /^\s*>/.test(lines[ranges[i+1]])){
+      quoteIndent={value:Math.max(0,Math.min(4096,Number(indentMarker[1]))),raw};continue;
+    }
+    const listIndentMarker=raw.trim().match(/^<!--\s*onrivi:list-indent=(\d+(?:\.\d+)?)\s*-->$/);
+    if(listIndentMarker && i+1<ranges.length && /^\s*(?:[-*+]|\d+\.)\s/.test(lines[ranges[i+1]])){
+      listIndent={value:Math.max(0,Math.min(4096,Number(listIndentMarker[1]))),raw};continue;
+    }
     let node: DocumentNode;
     const footnoteDefMatch = raw.trim().match(/^\[\^([^\]]+)\]:[ \t]*([\s\S]*)$/);
     const mathMatch = raw.trim().match(/^\$\$([\s\S]*?)\$\$$/);
@@ -464,6 +566,21 @@ export function createVisualDocumentCodec(markdown: string) {
         node = visualSchema.nodes.source_block.create({ source: raw });
       }
     }
+    if(quoteIndent){
+      raw=quoteIndent.raw+raw;
+      if(node.type===visualSchema.nodes.blockquote)node=node.type.create({...node.attrs,indentPx:quoteIndent.value},node.content,node.marks);
+      else node=visualSchema.nodes.source_block.create({source:raw});
+      quoteIndent=null;
+    }
+    if(listIndent){
+      raw=listIndent.raw+raw;
+      if(node.type===visualSchema.nodes.bullet_list || node.type===visualSchema.nodes.ordered_list){
+        node=node.type.create({...node.attrs,indentPx:listIndent.value},node.content,node.marks);
+      } else {
+        node=visualSchema.nodes.source_block.create({source:raw});
+      }
+      listIndent=null;
+    }
     originals.set(node, raw);
     rawSuffixes.push(raw.match(/\n+$/)?.[0] || '\n');
     nodes.push(node);
@@ -515,6 +632,7 @@ export function createVisualDocumentCodec(markdown: string) {
           // is split into paragraphs, its old single newline must not merge
           // the first two newly created paragraphs on the next parse.
           const sep = (previousNode?.type.name === 'paragraph' && node.type.name === 'paragraph')
+            || previousNode?.type.name === 'blockquote' || node.type.name === 'blockquote'
             || previousNode?.type.name === 'page_break' || node.type.name === 'page_break'
             || (node.type.name==='paragraph' && !node.content.size)
             || (previousNode?.type.name==='paragraph' && !previousNode.content.size)
@@ -582,5 +700,7 @@ export function visualImageDetails(source: string) {
   const parsed = visualParser.parse(source);
   const node = parsed.firstChild?.firstChild;
   if (node?.type.name !== 'image') return { path: '', alt: '', title: '' };
-  return { path: String(node.attrs.src || ''), alt: String(node.attrs.alt || ''), title: String(node.attrs.title || '') };
+  const rawAlt = String(node.attrs.alt || '');
+  const cleanAlt = /^[\\\[\]\s]+$/.test(rawAlt) ? '' : rawAlt;
+  return { path: String(node.attrs.src || ''), alt: cleanAlt, title: String(node.attrs.title || '') };
 }

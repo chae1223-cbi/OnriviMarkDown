@@ -1,6 +1,9 @@
 ﻿// @ts-nocheck
 // ====================================================================
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
+// 🚨 @PATCH : **2026-10-24** — [인용문(>) 탭(Tab) 들여쓰기 및 Shift+Tab 내어쓰기 완전 지원]:
+//             1) 인용구(>) 줄에서 커서 위치(접두사/본문/줄 끝)와 무관하게 Tab 입력 시 항상 행 시작에 2칸 들여쓰기 공백을 삽입하여 목록 하위 인용구 및 중첩 인용문 구성 보장
+//             2) 인용구(>) 줄에서 Shift+Tab 입력 시 앞쪽 들여쓰기 공백(최대 2칸) 또는 중첩 기호(>>)를 자연스럽게 소거하여 내어쓰기 지원
 // 🚨 @PATCH : **2026-10-22** — [구분선(HR) 줄에서 Enter 시 새 문단 생성]:
 //             1) 리스트 자동완성 Enter 액션에 구분선(---, ***, ___) 판별 가드를 리스트 판단보다 먼저 배치하여 구분선 줄에서 Enter 시 아래 빈 줄로 커서 이동(빈 줄 없으면 삽입)
 // 🚨 @PATCH : **2026-10-22** — [제목 태그(#) + 스페이스 자동 번호 삽입]:
@@ -468,16 +471,22 @@ export function useMonacoSetup(deps: any) {
 
                       if (isSingleCursor && hasList) {
                         const currentLineContent = model.getLineContent(startLine);
-                        // 체크리스트, 일반 불릿, 순서 리스트(1. 또는 1)), 인용구(>) 접두사 패턴 매칭
-                        const listPrefixMatch = currentLineContent.match(
-                          /^([ \t\u200b\u00a0]*(?:[-*+][ \t]+\[[ xX]\]|[-*+]|\d+[\.\)]|>+)[ \t\u200b\u00a0]*)/
-                        );
-                        if (listPrefixMatch) {
-                          const prefixLength = listPrefixMatch[1].length;
-                          // 1-based column: 커서가 마커 접두사 구간 이하(또는 접두사 바로 뒤 첫 글자)에 있을 때만 들여쓰기
-                          cursorInPrefix = selection.startColumn <= prefixLength + 1;
+                        const isQuoteLine = /^[ \t\u200b\u00a0]*>+/.test(currentLineContent);
+                        if (isQuoteLine) {
+                          // 💬 인용구(>) 줄인 경우: 커서가 줄 내 어디에 위치하든(시작/본문/끝) 항상 줄 전체 들여쓰기 수행
+                          cursorInPrefix = true;
                         } else {
-                          cursorInPrefix = false;
+                          // 체크리스트, 일반 불릿, 순서 리스트(1. 또는 1)) 접두사 패턴 매칭
+                          const listPrefixMatch = currentLineContent.match(
+                            /^([ \t\u200b\u00a0]*(?:[-*+][ \t]+\[[ xX]\]|[-*+]|\d+[\.\)])[ \t\u200b\u00a0]*)/
+                          );
+                          if (listPrefixMatch) {
+                            const prefixLength = listPrefixMatch[1].length;
+                            // 1-based column: 커서가 마커 접두사 구간 이하(또는 접두사 바로 뒤 첫 글자)에 있을 때만 들여쓰기
+                            cursorInPrefix = selection.startColumn <= prefixLength + 1;
+                          } else {
+                            cursorInPrefix = false;
+                          }
                         }
                       }
 
@@ -524,6 +533,15 @@ export function useMonacoSetup(deps: any) {
                             edits.push({
                               range: new monaco.Range(i, 1, i, prefixLength + 1),
                               text: newPrefix
+                            });
+                          } else if (/^[ \t\u200b\u00a0]*>+/.test(lineContent)) {
+                            // 💬 인용구(>) 줄 들여쓰기: 목록 하위 인용문 표준인 2칸 공백을 행 시작에 삽입
+                            const quoteIndentStep = 2;
+                            const newLineContent = " ".repeat(quoteIndentStep) + lineContent;
+                            virtualLines.set(i, newLineContent);
+                            edits.push({
+                              range: new monaco.Range(i, 1, i, 1),
+                              text: " ".repeat(quoteIndentStep)
                             });
                           } else {
                             const newLineContent = " ".repeat(indentSize) + lineContent;
@@ -1344,8 +1362,39 @@ export function useMonacoSetup(deps: any) {
                     const isSingleCursor = selection.startLineNumber === selection.endLineNumber && selection.isEmpty();
                     if (isSingleCursor && position) {
                       const lineContent = model.getLineContent(position.lineNumber);
+                      const isQuote = /^[ \t\u200b\u00a0]*>+/.test(lineContent);
+                      if (isQuote) {
+                        // 💬 인용구(>) 행인 경우: 앞쪽 들여쓰기 공백(최대 2칸)을 소거하여 내어쓰기
+                        const spaceMatch = lineContent.match(/^([ \t\u200b\u00a0]+)(>+)/);
+                        if (spaceMatch) {
+                          const removeLen = Math.min(spaceMatch[1].length, 2);
+                          editor.pushUndoStop();
+                          editor.executeEdits("outdentQuote", [{
+                            range: new monaco.Range(position.lineNumber, 1, position.lineNumber, removeLen + 1),
+                            text: "",
+                            forceMoveMarkers: true
+                          }]);
+                          editor.pushUndoStop();
+                          return;
+                        }
+                        // 앞쪽 공백이 없고 중첩 인용구(>>+)인 경우 > 하나를 소거
+                        const nestedMatch = lineContent.match(/^([ \t\u200b\u00a0]*)(>{2,})/);
+                        if (nestedMatch) {
+                          const startCol = nestedMatch[1].length + 1;
+                          editor.pushUndoStop();
+                          editor.executeEdits("outdentQuote", [{
+                            range: new monaco.Range(position.lineNumber, startCol, position.lineNumber, startCol + 1),
+                            text: "",
+                            forceMoveMarkers: true
+                          }]);
+                          editor.pushUndoStop();
+                          return;
+                        }
+                        return; // 이미 기본 1단계 인용구(> )이고 공백이 없으면 본문 임의 훼손 방지
+                      }
+
                       const listMatch = lineContent.match(
-                        /^([ \t\u200b\u00a0]*(?:[-*+][ \t]+\[[ xX]\]|[-*+]|\d+[\.\)]|>+)[ \t\u200b\u00a0]*)/
+                        /^([ \t\u200b\u00a0]*(?:[-*+][ \t]+\[[ xX]\]|[-*+]|\d+[\.\)])[ \t\u200b\u00a0]*)/
                       );
                       if (listMatch) {
                         const prefixLength = listMatch[1].length;

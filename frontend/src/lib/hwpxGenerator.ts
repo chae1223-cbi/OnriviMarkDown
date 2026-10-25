@@ -90,10 +90,10 @@ export async function generateHwpx(containerEl: HTMLElement, options: HwpxOption
   );
 
   // Embedded binaries are registered in the package manifest, not refList.
-  zip.file('Contents/header.xml', buildHwpxHeader(BASE_HEADER_XML, options.defaultFont));
 
   // 9. Rendered document content; source Markdown is never emitted as prose.
-  const { sectionXml, plainText } = buildSectionXml(containerEl, images);
+  const { sectionXml, plainText, maxListDepth } = buildSectionXml(containerEl, images);
+  zip.file('Contents/header.xml', buildHwpxHeader(BASE_HEADER_XML, options.defaultFont, maxListDepth));
   zip.file('Contents/section0.xml', sectionXml);
 
   // 10. Preview/PrvText.txt (한컴 뷰어/검색용 텍스트 프리뷰)
@@ -105,12 +105,13 @@ export async function generateHwpx(containerEl: HTMLElement, options: HwpxOption
 /**
  * HTML DOM 구조를 순회하여 한글 OWPML 본문 section0.xml 및 평문 텍스트 생성
  */
-function buildSectionXml(containerEl: HTMLElement, images: ExtractedImage[]): { sectionXml: string; plainText: string } {
+function buildSectionXml(containerEl: HTMLElement, images: ExtractedImage[]): { sectionXml: string; plainText: string; maxListDepth: number } {
   const pListXml: string[] = [];
   const textLines: string[] = [];
   let pCounter = 0;
   let tblCounter = 100000;
   let picCounter = 200000;
+  let maxListDepth = 0;
 
   const imageMap = new Map<number, ExtractedImage>(images.map((img) => [img.id, img]));
 
@@ -361,20 +362,43 @@ function buildSectionXml(containerEl: HTMLElement, images: ExtractedImage[]): { 
     // 4. 리스트 (UL / OL)
     if (tag === 'ul' || tag === 'ol') {
       const isOrdered = tag === 'ol';
+      let listDepth = 0;
+      for (let parent = el.parentElement; parent && containerEl.contains(parent); parent = parent.parentElement) {
+        if (parent.matches('ul,ol')) listDepth++;
+      }
+      maxListDepth = Math.max(maxListDepth, listDepth);
+      const paraPrId = listDepth ? 25 + listDepth : 1;
       const items = Array.from(el.children).filter((c) => c.tagName.toLowerCase() === 'li');
       items.forEach((item, idx) => {
         const prefix = item.hasAttribute('data-onrivi-report-marker') ? '　'.repeat(Math.max(0,Number(el.getAttribute('data-onrivi-report-depth'))-1)) : isOrdered ? `${(Number(el.getAttribute('start')) || 1) + idx}. ` : `• `;
-        const own = item.cloneNode(true) as HTMLElement;
-        own.querySelectorAll('ul,ol').forEach(list=>list.remove());
-        const inlines = parseInlines(own, 0);
-        textLines.push(`${prefix}${own.textContent || ''}`);
-        pListXml.push(`
-          <hp:p id="${pCounter++}" paraPrIDRef="1" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
-            <hp:run charPrIDRef="10"><hp:t>${prefix}</hp:t></hp:run>
-            ${inlines}
-          </hp:p>
-        `);
-        Array.from(item.children).filter(child=>/^(UL|OL)$/.test(child.tagName)).forEach(processBlockNode);
+        let first = true;
+        let pending = containerEl.ownerDocument.createElement('p');
+        const flush = () => {
+          if (!pending.textContent?.trim()) { pending = containerEl.ownerDocument.createElement('p');return; }
+          const marker = first ? prefix : '';
+          textLines.push(`${marker}${pending.textContent || ''}`);
+          pListXml.push(`<hp:p id="${pCounter++}" paraPrIDRef="${paraPrId}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="10"><hp:t>${escapeXml(marker)}</hp:t></hp:run>${parseInlines(pending,0)}</hp:p>`);
+          first = false;pending = containerEl.ownerDocument.createElement('p');
+        };
+        // Node views wrap paragraphs and child lists in divs. Walk those wrappers
+        // in document order; never flatten child lists into the parent's text.
+        const visit = (child: Node) => {
+          if (child.nodeType === Node.ELEMENT_NODE) {
+            const element = child as HTMLElement;
+            if (element.matches('script,style,.no-export,[data-editor-controls]')) return;
+            if (element.matches('ul,ol,table,figure,pre,blockquote,img,[data-export-img-id],.mermaid-svg-container,.onrivi-image-wrapper')) {
+              flush();processBlockNode(child);return;
+            }
+            if (element.matches('div,section,article,p')) {
+              if (element.tagName === 'P') flush();
+              Array.from(element.childNodes).forEach(visit);
+              if (element.tagName === 'P') flush();
+              return;
+            }
+          }
+          pending.append(child.cloneNode(true));
+        };
+        Array.from(item.childNodes).forEach(visit);flush();
       });
       return;
     }
@@ -525,7 +549,7 @@ function buildSectionXml(containerEl: HTMLElement, images: ExtractedImage[]): { 
   ${pListXml.join('\n')}
 </hs:sec>`;
 
-  return { sectionXml, plainText: textLines.join('\n') };
+  return { sectionXml, plainText: textLines.join('\n'), maxListDepth };
 }
 
 

@@ -11,6 +11,47 @@
 
 export const EXPORT_RESOURCE_TIMEOUT_MS = 15_000;
 
+/** Select the document before nested viewers used by media node views. */
+export function getExportDocumentRoot(root: HTMLElement): HTMLElement {
+  return root.matches('.visual-document-editor, .markdown-viewer-root') ? root
+    : root.querySelector<HTMLElement>('.visual-document-editor, .markdown-viewer-root') || root;
+}
+
+/** Output is a document, never the application's fixed-height editing viewport. */
+export const EXPORT_DOCUMENT_CSS = `
+[data-onrivi-export-content] :is(strong,b) code { font-weight:inherit!important; }
+[data-onrivi-export-content] :is(em,i) code { font-style:inherit!important; }
+html[data-onrivi-export], html[data-onrivi-export] body {
+  height:auto!important;max-height:none!important;min-height:0!important;
+  overflow:visible!important;overflow-y:visible!important;max-width:none!important;
+}
+[data-onrivi-export-content] :is(h1,h2,h3,h4,h5,h6)::after {
+  content:none!important;display:none!important;
+}
+`;
+
+export function stripExportViewportRules(css: string): string {
+  return css.replace(/[^{}]+\{[^{}]*\}/g, rule =>
+    /(?:html|body)\s*:has\(/i.test(rule.split('{')[0]) && /(?:overflow\s*:\s*hidden|(?:max-)?height\s*:\s*100(?:d?vh|%))/i.test(rule)
+      ? '' : rule);
+}
+
+export function cleanExportDocument(clone: HTMLElement): void {
+  clone.setAttribute('data-onrivi-export-content', 'true');
+  [clone, ...Array.from(clone.querySelectorAll<HTMLElement>('[contenteditable], [role="textbox"]'))].forEach(node => {
+    node.removeAttribute('contenteditable');
+    if (node.getAttribute('role') === 'textbox') node.removeAttribute('role');
+    node.removeAttribute('spellcheck');
+  });
+  const wrappers = [clone, ...Array.from(clone.querySelectorAll<HTMLElement>('.visual-document-editor,.visual-document-surface,.markdown-viewer-root,.onrivi-content-root'))];
+  wrappers.forEach(node => {
+    for (const [property, value] of Object.entries({height:'auto','min-height':'0','max-height':'none','overflow':'visible','overflow-y':'visible'})) node.style.setProperty(property,value,'important');
+  });
+  const style = clone.ownerDocument.createElement('style');
+  style.textContent = EXPORT_DOCUMENT_CSS;
+  clone.append(style);
+}
+
 export function exportContentFingerprint(value: string): string {
   let hash = 2166136261;
   for (let i = 0; i < value.length; i++) hash = Math.imul(hash ^ value.charCodeAt(i), 16777619);

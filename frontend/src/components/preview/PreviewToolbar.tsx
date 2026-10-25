@@ -2,6 +2,9 @@
 // 📊 [OMD-UI-PreviewToolbar-0001] PreviewToolbar ➔ PreviewToolbar
 // 🎯 @KICK  : 미리보기(Preview) 전용 컨트롤러 — 텍스트 찾기, 배율 확대/축소(50%~200%), 100% 리셋 및 마크다운/서식 복사 지원
 // 🛡️ @GUARD : 인쇄 시 no-print로 자동 숨김 처리, 문서 가독성을 해치지 않도록 미세 투명도 및 호버 시 완전 노출
+// 🚨 @PATCH : **2026-10-24** — [복사 핸들러 비동기 연동 및 복사 실패 시 체크마크 오표시 방지]:
+//             1) onCopyPreview 및 onCopyMarkdown에 Promise<void> 비동기 지원
+//             2) try/catch로 복사 완료 시에만 녹색 체크마크 표시하여 실제 복사 성공 여부 100% 일치
 // 🚨 @PATCH : **2026-10-20** — [미리보기 전용 컨트롤 툴바에 '마크다운(MD) 원본 복사' 버튼 추가]:
 //             1) onCopyMarkdown 프롭 및 Lucide 디자인 표준 규격의 정밀한 Markdown(M↓) 라인 아이콘 신설
 //             2) 마크다운 원본 복사(onCopyMarkdown) 및 서식 본문 복사(onCopyPreview)를 분리하여 원클릭 선택 복사 편의성 강화
@@ -53,8 +56,8 @@ interface PreviewToolbarProps {
   isFindOpen: boolean;
   onToggleReplace?: () => void;
   isReplaceOpen?: boolean;
-  onCopyPreview?: () => void;
-  onCopyMarkdown?: () => void;
+  onCopyPreview?: () => void | Promise<void>;
+  onCopyMarkdown?: () => void | Promise<void>;
 }
 
 export function PreviewToolbar({
@@ -72,19 +75,27 @@ export function PreviewToolbar({
   const [copiedHtml, setCopiedHtml] = useState(false);
   const [copiedMarkdown, setCopiedMarkdown] = useState(false);
 
-  const handleCopyPreview = () => {
+  const handleCopyPreview = async () => {
     if (onCopyPreview) {
-      onCopyPreview();
-      setCopiedHtml(true);
-      setTimeout(() => setCopiedHtml(false), 2000);
+      try {
+        await onCopyPreview();
+        setCopiedHtml(true);
+        setTimeout(() => setCopiedHtml(false), 2000);
+      } catch (err) {
+        console.warn('[PreviewToolbar] onCopyPreview failed:', err);
+      }
     }
   };
 
-  const handleCopyMarkdown = () => {
+  const handleCopyMarkdown = async () => {
     if (onCopyMarkdown) {
-      onCopyMarkdown();
-      setCopiedMarkdown(true);
-      setTimeout(() => setCopiedMarkdown(false), 2000);
+      try {
+        await onCopyMarkdown();
+        setCopiedMarkdown(true);
+        setTimeout(() => setCopiedMarkdown(false), 2000);
+      } catch (err) {
+        console.warn('[PreviewToolbar] onCopyMarkdown failed:', err);
+      }
     }
   };
 

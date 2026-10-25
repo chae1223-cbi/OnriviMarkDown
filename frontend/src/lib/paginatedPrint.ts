@@ -23,6 +23,7 @@ import { resolvePageGeometry, PAGE_BREAK_CSS } from './pageGeometry';
 import { DocumentPrintSettings, DEFAULT_WATERMARK_IMAGE, DEFAULT_WATERMARK_TEXT } from './documentPrintSettings';
 import { type DocumentPaginationSettings, emptyPagination, normalizePagination } from './documentPaginationSettings';
 import { applyPrintBreaks } from './printBreaks';
+import { stripExportViewportRules } from './exportPreparation';
 
 let engineSource:Promise<string>|undefined;
 async function engine(){
@@ -33,8 +34,10 @@ async function engine(){
   let lastError: any;
   for (const p of candidatePaths) {
     try {
-      const response = await fetch(p);
-      if (response.ok) return await response.text();
+      const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);
+      let response:Response;
+      try{response=await fetch(p,{signal:controller.signal});if(response.ok)return await response.text();}
+      finally{clearTimeout(timer);}
     } catch (e) {
       lastError = e;
     }
@@ -47,17 +50,19 @@ function timeout<T>(promise:Promise<T>,ms:number,label:string):Promise<T>{
  return new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error(`${label} 시간이 초과되었습니다.`)),ms);promise.then(value=>{clearTimeout(timer);resolve(value);},error=>{clearTimeout(timer);reject(error);});});
 }
 let lastPrint:{input:string;output:string}|undefined;
-export async function paginatePrintHtml(html:string,style:any,watermark:DocumentPrintSettings,signal?:AbortSignal,pagination:DocumentPaginationSettings=emptyPagination()):Promise<string>{
+export async function paginatePrintHtml(html:string,style:any,watermark:DocumentPrintSettings,signal?:AbortSignal,pagination:DocumentPaginationSettings=emptyPagination(),onProgress?:(stage:string)=>void):Promise<string>{
  signal?.throwIfAborted();
  pagination=normalizePagination(pagination);
  const input=JSON.stringify([html,style,watermark,pagination]);
  if(lastPrint?.input===input)return lastPrint.output;
- const output=await renderPrintPages(html,style,watermark,signal,pagination);
+ const output=await renderPrintPages(html,style,watermark,signal,pagination,onProgress);
  signal?.throwIfAborted();lastPrint={input,output};return output;
 }
-async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSettings,signal:AbortSignal|undefined,pagination:DocumentPaginationSettings):Promise<string>{
+async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSettings,signal:AbortSignal|undefined,pagination:DocumentPaginationSettings,onProgress?:(stage:string)=>void):Promise<string>{
  signal?.throwIfAborted();
+ onProgress?.('페이지 엔진 불러오는 중');
  const geometry=resolvePageGeometry(style),source=await engine();
+ onProgress?.('페이지 본문과 서식 분석 중');
  const frame=document.createElement('iframe');
  frame.setAttribute('aria-hidden','true');frame.style.cssText='position:fixed;top:0;left:0;width:1200px;height:900px;opacity:0.001;pointer-events:none;z-index:-9999;border:0;';
  document.body.append(frame);
@@ -108,7 +113,12 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
   const parsed=new DOMParser().parseFromString(html,'text/html');
   parsed.querySelectorAll('script,iframe,object,embed').forEach(n=>n.remove());
   parsed.querySelectorAll('*').forEach(n=>Array.from(n.attributes).forEach(a=>{if(/^on/i.test(a.name)||/^javascript:/i.test(a.value))n.removeAttribute(a.name);}));
-  const css=Array.from(parsed.querySelectorAll('style')).map(s=>s.textContent||'').join('\n');
+  const allCss=stripExportViewportRules(Array.from(parsed.querySelectorAll('style')).map(s=>s.textContent||'').join('\n'));
+  // Embedded fonts can be many MB. The browser loads these directly; feeding
+  // their base64 through PagedJS's CSS parser blocks the UI unnecessarily.
+  const fontCss=(allCss.match(/@font-face\s*\{[^}]*\}/gi)||[]).join('\n');
+  const css=allCss.replace(/@font-face\s*\{[^}]*\}/gi,'');
+  if(fontCss){const fontStyle=doc.createElement('style');fontStyle.textContent=fontCss;doc.head.append(fontStyle);}
   parsed.querySelectorAll('style,link').forEach(n=>n.remove());
   doc.body.className=parsed.body.className;
   const content=doc.createElement('div');content.innerHTML=parsed.body.innerHTML;
@@ -118,6 +128,7 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
   // with inline priority; @page alone owns paper size and margins in PDF.
   const printRootStyle='width:auto!important;max-width:none!important;height:auto!important;min-height:0!important;padding:0!important;margin:0!important;overflow:visible!important;transform:none!important;zoom:1!important;border:0!important;box-shadow:none!important';
   doc.body.style.cssText=printRootStyle;
+  doc.documentElement.style.cssText=printRootStyle;
   content.querySelectorAll<HTMLElement>('.page-break-container,.custom-preview-container,.markdown-viewer-root,.visual-document-surface').forEach(node=>{
     const reset=doc.createElement('div');reset.style.cssText=printRootStyle;
     for(const property of Array.from(reset.style))node.style.setProperty(property,reset.style.getPropertyValue(property),'important');
@@ -162,6 +173,7 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
   });
   const staging=doc.createElement('div');staging.style.width=`${geometry.contentWidth}mm`;staging.append(content);doc.body.append(staging);
   const preloadStyle=doc.createElement('style');preloadStyle.textContent=css;doc.head.append(preloadStyle);
+  onProgress?.('페이지 이미지와 글꼴 확인 중');
   await work(timeout(Promise.all(Array.from(content.querySelectorAll('img')).map(img=>img.decode().catch(()=>{/* 개별 이미지 디코딩 실패 시 전체 중단 방지 */}))),5000,'이미지 준비')).catch(()=>{});
   await work(timeout(doc.fonts.ready,5000,'글꼴 준비')).catch(()=>{});
   const oversized=Array.from(content.querySelectorAll<HTMLElement>('tr,figure,.visual-math-node')).filter(el=>el.getBoundingClientRect().height>geometry.contentHeight*96/25.4+2);
@@ -186,7 +198,9 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
   .prose code::after { content: none !important; }
   `;
   const markup=content.innerHTML;staging.remove();preloadStyle.remove();
+  onProgress?.('서식에 맞춰 페이지 분할 중');
   await work(timeout(win.PagedPolyfill.preview(markup,[{[new URL('/onrivi-print.css',location.href).href]:pageCss}],output),20000,'페이지 계산'));
+  onProgress?.('완성된 페이지 정리 중');
   // PagedJS has already consumed these breaks. Native PDF printing must not
   // apply the inline !important rules a second time inside the generated pages.
   output.querySelectorAll<HTMLElement>('[data-onrivi-forced-break]').forEach(node => {
@@ -212,7 +226,7 @@ async function renderPrintPages(html:string,style:any,watermark:DocumentPrintSet
    page.append(layer);
   }
   const finalCss=Array.from(doc.querySelectorAll('style')).map(s=>s.outerHTML).join('\n');
-  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>쪽 윤곽 미리보기</title>${finalCss}<style>
+  return `<!doctype html><html lang="ko" data-onrivi-export><head><meta charset="utf-8"><title>쪽 윤곽 미리보기</title>${finalCss}<style>
   @page{size:${geometry.width}mm ${geometry.height}mm;margin:0!important}
   html,body{padding:0!important;margin:0!important;height:auto!important;overflow:visible!important}
   .pagedjs_pages{display:block!important}.pagedjs_page{position:relative!important;overflow:hidden!important;break-after:page!important;page-break-after:always!important;margin:0!important;box-shadow:none!important}.pagedjs_page:last-child{break-after:auto!important;page-break-after:auto!important}

@@ -1,6 +1,7 @@
 // @ts-nocheck
 // ====================================================================
 // 📊 [OMD-HOOK-useEditorHandlers-0001] useEditorHandlers.ts ➔ 에디터 액션 핸들러 훅
+// 🚨 @PATCH : **2026-10-24** — [마크다운 전체 복사(copyAll) 다중 Fallback 강화]: Electron copyTextToClipboard 및 writeText 안전 연동
 // 🚨 @PATCH : **2026-10-20** — [문서 서식 정리(cleanDoc) 실행 시 readOnly 모나코 에디터 및 분할 화면 즉각 100% 동기화]:
 //             1) 나란히 보기(both) 등 readOnly 상태에서 editor.executeEdits가 무시되던 결함을 model.pushEditOperations 및 setValue 강제 동기화로 해결
 //             2) 서식 정리 후 contentRef, updateContent, setTabs를 즉시 호출하여 React 상태 및 우측 뷰어까지 완벽 동기화
@@ -484,18 +485,25 @@ export const useEditorHandlers = ({
     // ====================================================================
     // 📊 [OMD-EDIT-USEEDITORHANDLERS-0010] useEditorHandlers.ts ➔ copyAll
     // 🎯 @KICK  : 에디터 전체 마크다운 내용을 클립보드에 복사
-    // 🛡️ @GUARD : contentRef 존재 여부, 클립보드 API 실패 시 오류 토스트
-    // 🚨 @PATCH : 없음
+    // 🛡️ @GUARD : contentRef 존재 여부, Electron copyTextToClipboard 및 Clipboard API 다중 Fallback
+    // 🚨 @PATCH : **2026-10-24** — [마크다운 복사 다중 Fallback 지원]: Electron IPC 및 navigator.clipboard writeText 연동
     // 🔗 @CALLS : showToast
     // ====================================================================
     copyAll: async () => {
       const rawMarkdown = contentRef.current || "";
       if (rawMarkdown) {
         try {
-          await navigator.clipboard.writeText(rawMarkdown);
+          const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+          if (api?.copyTextToClipboard) {
+            const result = await api.copyTextToClipboard(rawMarkdown);
+            if (result !== true && result?.success !== true) await navigator.clipboard.writeText(rawMarkdown);
+          } else {
+            await navigator.clipboard.writeText(rawMarkdown);
+          }
           showToast("에디터의 원본 마크다운 전체 내용이 클립보드에 복사되었습니다.", "success");
         } catch (err) {
           showToast("마크다운 복사에 실패했습니다.", "error");
+          throw err;
         }
       } else {
         showToast("복사할 마크다운 내용이 없습니다.", "info");

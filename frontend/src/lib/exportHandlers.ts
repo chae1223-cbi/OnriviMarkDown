@@ -4,6 +4,9 @@ import { embedExportFonts } from './exportFonts';
 import { startExportProgress } from './exportProgress';
 // PDF and print share the preview pagination engine on web and desktop.
 // A failed calculation must not silently discard the user's output boundaries.
+// 🚨 @PATCH : **2026-10-25** — [이미지와 캡션 간격 초밀착(4px) 정돈 및 인접 마진 중복 상쇄]:
+//             1) .onrivi-image-figure[data-caption-position="top"] 내 img 상단 마진을 0으로 강제 초기화하고 figcaption 하단 마진을 4px로 단정히 축소
+//             2) .onrivi-image-figure[data-caption-position="bottom"] 내 img 하단 마진 및 figcaption 상단 마진도 4px로 일체화
 // 🚨 @PATCH : **2026-10-24** — [PDF 및 인쇄 출력 시 문서보기 제목 태그 뱃지 완전 비표시 보장]:
 //             1) @media print에 :is(h1,h2,h3,h4,h5,h6)::after의 display: none !important, content: none !important, visibility: hidden !important를 주입하여 출력물에 편집용 제목 식별 뱃지가 인쇄되는 결함 원천 차단
 // 🚨 @PATCH : **2026-10-21** — [웹 브라우저 인쇄 시 불필요한 window.confirm 차단 팝업 제거 및 직접 print() 연동]:
@@ -90,7 +93,7 @@ import { startExportProgress } from './exportProgress';
 //             **2026-06-20** — HTML/PNG 내보내기 시 로컬 및 확장프로그램 스타일시트를 런타임에 인라인화하여 테마 서식 동기화 결함 해결; 다크모드 무력화에 대응하여 내보내기 시 라이트모드 기준 스타일 생성(generateExportCss) 및 activeProfile 연동 처리 구현; PDF/HTML/PNG 내보내기 시 @page margin 0 및 body padding 레이아웃을 통해 가장자리 여백 영역까지 배경색이 단일 톤으로 빈틈없이 흐르도록 여백 분리 결함 해결; PDF 내보내기 시 배경색이 흰색으로 누락되는 custom-preview-container transparent 강제 투명화 가드 버그 수정 및 KaTeX 수식 전용 CDN 웹폰트 주입으로 찌그러짐 현상 해결; generateExportCss 선택자 구체성을 .custom-preview-container .markdown-viewer-root 기반으로 대폭 상향하여 사용자 커스텀 서식 100% 보장; HTML 내보내기 시 body 배경색을 용지 배경색(pageBg)과 완벽 동합; PDF 인쇄 템플릿 내의 mm 여백 단위 중복(25mmmm) 결함 수정으로 여백 소실 결함 해결; HTML 내보내기 시 Tailwind CDN에 의한 body 배경색 리셋을 차단하기 위해 body 및 시트지에 인라인 스타일 배경색 강제 지정 적용; PDF 내보내기 및 HTML 인쇄 시 페이지 분할(쪼개짐) 구역의 상하 여백 소실을 차단하기 위해 임시 패딩 래퍼를 롤백하고 표준 @page { margin: ... } 바인딩으로 전환하되, 여백 잘림(흰색 영역)을 막기 위해 html/body 전체 배경색 지정 및 print-color-adjust 강제화 구현; 일렉트론 및 크롬 인쇄 시 여백(마진) 영역의 흰색 잘림 결함을 완벽히 해결하기 위해 @page 지시자 규칙에 background-color 지정을 추가하여 용지 가장자리 영역까지 배경색이 가득 차도록 최종 동기화
 
 import { getApiUrl } from '@/lib/apiUrlBuilder';
-import { prepareExportPreview, waitForExportResources, fetchExportImage, exportBlobToDataUrl, withExportTimeout } from './exportPreparation';
+import { cleanExportDocument, EXPORT_DOCUMENT_CSS, stripExportViewportRules, getExportDocumentRoot, prepareExportPreview, waitForExportResources, fetchExportImage, exportBlobToDataUrl, withExportTimeout } from './exportPreparation';
 import { PRINT_TABLE_FLOW_CSS, unwrapPrintTables } from './exportPagination';
 import { cssPx, EXPORT_FIGURE_HEIGHT_RATIO, EXPORT_LEAD_FIGURE_HEIGHT_RATIO, markLeadExportFigure } from './docxFormatting';
 import { msg } from '@/lib/systemMessages';
@@ -551,12 +554,24 @@ blockquote li p {
 .onrivi-content-root .onrivi-image-figure[data-caption-position="top"] figcaption {
   order: -1 !important;
   margin-top: 0 !important;
-  margin-bottom: 0.5rem !important;
+  margin-bottom: 4px !important;
+}
+.custom-preview-container .onrivi-image-figure[data-caption-position="top"] img,
+.onrivi-content-root .onrivi-image-figure[data-caption-position="top"] img,
+.custom-preview-container .onrivi-image-figure[data-caption-position="top"] .onrivi-image-wrapper,
+.onrivi-content-root .onrivi-image-figure[data-caption-position="top"] .onrivi-image-wrapper {
+  margin-top: 0 !important;
 }
 .custom-preview-container .onrivi-image-figure[data-caption-position="bottom"] figcaption,
 .onrivi-content-root .onrivi-image-figure[data-caption-position="bottom"] figcaption {
   order: 1 !important;
-  margin-top: 0.5rem !important;
+  margin-top: 4px !important;
+  margin-bottom: 0 !important;
+}
+.custom-preview-container .onrivi-image-figure[data-caption-position="bottom"] img,
+.onrivi-content-root .onrivi-image-figure[data-caption-position="bottom"] img,
+.custom-preview-container .onrivi-image-figure[data-caption-position="bottom"] .onrivi-image-wrapper,
+.onrivi-content-root .onrivi-image-figure[data-caption-position="bottom"] .onrivi-image-wrapper {
   margin-bottom: 0 !important;
 }
 `;
@@ -1205,7 +1220,7 @@ function injectPageBreakMarkers(containerEl: HTMLElement, exportPageBreakLevel: 
   if (isNaN(levelNum) || levelNum < 1 || levelNum > 6) return;
 
   // 컨테이너의 직계 자식 요소들 (또는 마크다운 루트의 직계 자식)
-  const root = containerEl.querySelector('.markdown-viewer-root') as HTMLElement || containerEl;
+  const root = getExportDocumentRoot(containerEl);
 
   // .markdown-viewer-root 내부에 래퍼 div가 있을 수 있으므로 querySelectorAll로 모든 헤딩을 추출합니다.
     const children = Array.from(root.querySelectorAll('h1, h2, h3, h4, h5, h6')) as HTMLElement[];
@@ -1842,6 +1857,7 @@ function clonePreview(previewEl: HTMLElement, captureWordLayout = false): HTMLEl
       }
     });
   }
+  clone.querySelectorAll('[data-editor-controls], .onrivi-page-guides, .onrivi-print-tools').forEach(el => el.remove());
   // A top caption must be first in the exported DOM as well as visually above
   // the image; DOCX/HWPX readers do not implement CSS flex ordering.
   const sourceCaptions = Array.from(previewEl.querySelectorAll('figure > figcaption'));
@@ -1854,6 +1870,7 @@ function clonePreview(previewEl: HTMLElement, captureWordLayout = false): HTMLEl
   clone.querySelectorAll('button, .copy-btn, [title*="복사"]').forEach(el => el.remove());
   restoreMapsInClone(clone);
   convertYoutubeIframeToLink(clone);
+  cleanExportDocument(clone);
   return clone;
 }
 
@@ -1890,7 +1907,8 @@ function fixListMarkers(clone: HTMLElement): void {
       marker.className = 'export-list-marker';
       marker.textContent = num + '. ';
       marker.style.cssText = 'display:inline;font-weight:400;margin-right:4px;user-select:none;-webkit-user-select:none;';
-      el.insertBefore(marker, el.firstChild);
+      const textBlock=el.querySelector(':scope > p, :scope > div > p') || el;
+      textBlock.insertBefore(marker, textBlock.firstChild);
     });
   });
 
@@ -1904,7 +1922,8 @@ function fixListMarkers(clone: HTMLElement): void {
       marker.className = 'export-list-marker';
       marker.textContent = '• ';
       marker.style.cssText = 'display:inline;font-weight:400;margin-right:4px;user-select:none;-webkit-user-select:none;';
-      el.insertBefore(marker, el.firstChild);
+      const textBlock=el.querySelector(':scope > p, :scope > div > p') || el;
+      textBlock.insertBefore(marker, textBlock.firstChild);
     });
   });
 }
@@ -2103,6 +2122,60 @@ html, body {
 // 🚨 @PATCH : **2026-06-20** — 신규 구현 (비동기 fetch 대신 브라우저 컴파일 완료된 cssRules 동기식 추출 방식)
 // 🔗 @CALLS : 없음
 // ====================================================================
+async function resolveExportWatermark(settings: DocumentPrintSettings): Promise<DocumentPrintSettings> {
+      const resolved = { ...settings };
+      if(resolved.enabled){
+        if(resolved.opacity===0)throw new Error('워터마크 진하기가 0%입니다. 진하기를 높이거나 사용을 꺼 주세요.');
+        if(resolved.kind==='text' && !resolved.text?.trim()){
+          resolved.text = DEFAULT_WATERMARK_TEXT;
+        }
+        if(resolved.kind==='image'){
+          if(resolved.imageResource){
+            try {
+              const {watermarkResourceIdentity}=await import('./watermarkResources');
+              if(resolved.imageResource!==watermarkResourceIdentity()){
+                console.warn('[Watermark] 리소스 폴더 변경 감지, 기본 엠블럼으로 대체');
+                resolved.image = DEFAULT_WATERMARK_IMAGE;
+              }
+            } catch {
+              resolved.image = DEFAULT_WATERMARK_IMAGE;
+            }
+          }
+          if(!resolved.image) resolved.image = DEFAULT_WATERMARK_IMAGE;
+          if(!resolved.image.startsWith('data:')){
+            try {
+              const { listWatermarkResources, watermarkReferenceKey } = await import('./watermarkResources');
+              const resList = await listWatermarkResources().catch(() => []);
+              const targetKey = watermarkReferenceKey(resolved.image);
+              const matched = resList.find(item => watermarkReferenceKey(item.reference) === targetKey);
+              if (matched) {
+                const blob = await matched.read();
+                resolved.image = await exportBlobToDataUrl(blob);
+              } else {
+                const holder=document.createElement('div'),img=document.createElement('img');img.src=resolved.image;holder.append(img);
+                await inlineLocalImages(holder);
+                resolved.image=img.src;
+              }
+            } catch (err) {
+              console.warn('[Watermark] 워터마크 이미지 로드 실패, 기본 엠블럼으로 안전 대체:', err);
+              resolved.image = DEFAULT_WATERMARK_IMAGE;
+            }
+          }
+        }
+      }
+  return resolved;
+}
+
+async function prepareDocumentFonts(root: HTMLElement): Promise<string> {
+  const controller = new AbortController();
+  try {
+    return await withExportTimeout(embedExportFonts(root, controller.signal), '내보내기 글꼴', 5000);
+  } catch (error) {
+    console.warn('[export] Font embedding skipped; using available fonts:', error);
+    return '';
+  } finally { controller.abort(); }
+}
+
 function collectAllStyles(): { inlineStyles: string; linkTags: string } {
   const inlineStyles: string[] = [];
   const linkTags: string[] = [];
@@ -2113,7 +2186,7 @@ function collectAllStyles(): { inlineStyles: string; linkTags: string } {
       const rules = sheet.cssRules || sheet.rules;
       if (rules) {
         const cssText = Array.from(rules).map(r => r.cssText).join('\n');
-        inlineStyles.push(cssText);
+        inlineStyles.push(stripExportViewportRules(cssText));
       }
     } catch (err) {
       // CORS 제한이 걸린 외부 CDN 스타일시트는 link 태그 원본 그대로 살려둠
@@ -2142,8 +2215,8 @@ function collectAllStyles(): { inlineStyles: string; linkTags: string } {
 /** 다운로드 폴더에 파일 백업 */
 // ====================================================================
 // 📊 [OMD-IO-exportHandlers-0009] exportHandlers.ts ➔ saveToDownloads
-// 🎯 @KICK  : 백엔드 /api/save-export API를 통해 다운로드 폴더에 파일 저장
-// 🛡️ @GUARD : Electron 환경 조기 반환, API fetch 실패 시 false 반환
+// 🎯 @KICK  : 기존 호출자의 저장 결과 분기 호환. 웹 파일은 브라우저 다운로드로 저장한다.
+// 🛡️ @GUARD : 웹에서 존재하지 않는 백업 API를 추가 호출하지 않는다.
 // 🚨 @PATCH : 없음
 // 🔗 @CALLS : getApiUrl
 // ====================================================================
@@ -2154,29 +2227,9 @@ async function saveToDownloads(filename: string, content: string, type: 'base64'
     return true;
   }
 
-  try {
-    const res = await fetch(getApiUrl('/api/save-export'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename, content, type }),
-    });
-    return res.ok;
-  } catch (err) {
-    console.error("[Onrivi Author] saveToDownloads API 호출 실패 (서버 미구동 상태일 수 있음):", err);
-    return false;
-  }
+  return false;
 }
 
-// ─────────────────────────────────────────────
-// PDF 내보내기
-// ─────────────────────────────────────────────
-// ====================================================================
-// 📊 [OMD-IO-exportHandlers-0010] exportHandlers.ts ➔ exportPDF
-// 🎯 @KICK  : 미리보기 DOM을 jsPDF로 선택 용지 PDF 내보내기 (html2canvas 캡처, 페이지 분할, 슬라이스)
-// 🛡️ @GUARD : Electron saveFileAs, orientation/paperSize/여백/배경색 설정, 폰트 로딩 대기
-// 🚨 @PATCH : **2026-06-19** — html2canvas의 수식 깨짐, 정렬 어긋남 한계를 원천 우회하기 위해 Electron 환경에 대해 Chromium 백엔드 네이티브 브라우저 인쇄 엔진 API(printHTMLToPDF IPC) 연동 구현 완료; 일반 웹 브라우저 환경에만 html2canvas 폴백 제공
-// 🔗 @CALLS : flushIME, clonePreview, inlineLocalImages, injectExportStyles, fixListMarkers, applyExportInlineStyles, saveToDownloads
-// ====================================================================
 export async function exportPDF({ 
   previewEl, currentFileName, isDarkMode, showToast, orientation, paperSize, 
   dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, 
@@ -2203,8 +2256,7 @@ export async function exportPDF({
 
     await prepareExportPreview(previewEl);
     // Select the outer document before any MarkdownViewer mounted inside an image node.
-    const targetEl = previewEl.matches('.markdown-viewer-root, .visual-document-editor') ? previewEl
-      : previewEl.querySelector<HTMLElement>('.markdown-viewer-root, .visual-document-editor') || previewEl;
+    const targetEl = getExportDocumentRoot(previewEl);
     const isPicturebook = targetEl.dataset.picturebook === 'true';
     if (isPicturebook) {
       if (targetEl.querySelector('.book-screen-only [role="status"]') || targetEl.dataset.bookInvalid === 'true') {
@@ -2256,6 +2308,9 @@ export async function exportPDF({
     clone.querySelectorAll('figure, .onrivi-image-figure').forEach(el => {
       const fig = el as HTMLElement;
       fig.style.setProperty('display', 'block', 'important');
+      fig.style.setProperty('height', 'auto', 'important');
+      fig.style.setProperty('min-height', '0', 'important');
+      fig.style.setProperty('aspect-ratio', 'auto', 'important');
       fig.style.setProperty('margin', '1.2em auto', 'important');
       fig.style.setProperty('text-align', 'center', 'important');
       fig.style.setProperty('page-break-inside', 'avoid', 'important');
@@ -2264,6 +2319,9 @@ export async function exportPDF({
     clone.querySelectorAll('.onrivi-image-wrapper').forEach(el => {
       const wrap = el as HTMLElement;
       wrap.style.setProperty('display', 'block', 'important');
+      wrap.style.setProperty('height', 'auto', 'important');
+      wrap.style.setProperty('min-height', '0', 'important');
+      wrap.style.setProperty('aspect-ratio', 'auto', 'important');
       wrap.style.setProperty('margin', '0 auto', 'important');
       wrap.style.setProperty('text-align', 'center', 'important');
     });
@@ -2350,7 +2408,7 @@ export async function exportPDF({
 
     const collected = collectAllStyles();
     progress.update('사용 중인 글꼴 준비 중');
-    const inlineStyles = collected.inlineStyles.replace(/@font-face\s*\{[^}]*\}/gi, '') + "\n" + (previewOnly ? '' : await withExportTimeout(embedExportFonts(previewEl), '내보내기 글꼴', 5000).catch(err => { console.warn('[exportPDF] Font embed skipped:', err); return ''; }));
+    const inlineStyles = collected.inlineStyles.replace(/@font-face\s*\{[^}]*\}/gi, '') + "\n" + (previewOnly ? '' : await prepareDocumentFonts(targetEl));
     const linkTags = collected.linkTags;
 
     const pageBg = backgroundColor || '#ffffff';
@@ -2807,52 +2865,13 @@ export async function exportPDF({
 
     if(!isPicturebook){
       const effectiveSettings = printSettings ?? (markdownContent ? readEffectivePrintSettings(markdownContent) : readEffectivePrintSettings(''));
-      let resolved = { ...effectiveSettings };
-      if(resolved.enabled){
-        if(resolved.opacity===0)throw new Error('워터마크 진하기가 0%입니다. 진하기를 높이거나 사용을 꺼 주세요.');
-        if(resolved.kind==='text' && !resolved.text?.trim()){
-          resolved.text = DEFAULT_WATERMARK_TEXT;
-        }
-        if(resolved.kind==='image'){
-          if(resolved.imageResource){
-            try {
-              const {watermarkResourceIdentity}=await import('./watermarkResources');
-              if(resolved.imageResource!==watermarkResourceIdentity()){
-                console.warn('[Watermark] 리소스 폴더 변경 감지, 기본 엠블럼으로 대체');
-                resolved.image = DEFAULT_WATERMARK_IMAGE;
-              }
-            } catch {
-              resolved.image = DEFAULT_WATERMARK_IMAGE;
-            }
-          }
-          if(!resolved.image) resolved.image = DEFAULT_WATERMARK_IMAGE;
-          if(!resolved.image.startsWith('data:')){
-            try {
-              const { listWatermarkResources, watermarkReferenceKey } = await import('./watermarkResources');
-              const resList = await listWatermarkResources().catch(() => []);
-              const targetKey = watermarkReferenceKey(resolved.image);
-              const matched = resList.find(item => watermarkReferenceKey(item.reference) === targetKey);
-              if (matched) {
-                const blob = await matched.read();
-                resolved.image = await exportBlobToDataUrl(blob);
-              } else {
-                const holder=document.createElement('div'),img=document.createElement('img');img.src=resolved.image;holder.append(img);
-                await inlineLocalImages(holder);
-                resolved.image=img.src;
-              }
-            } catch (err) {
-              console.warn('[Watermark] 워터마크 이미지 로드 실패, 기본 엠블럼으로 안전 대체:', err);
-              resolved.image = DEFAULT_WATERMARK_IMAGE;
-            }
-          }
-        }
-      }
+      const resolved = await resolveExportWatermark(effectiveSettings);
       progress.update('용지에 맞춰 페이지 계산 중');
       try {
         const {paginatePrintHtml}=await import('./paginatedPrint');
         const {readPaginationSettings}=await import('./documentPaginationSettings');
         const paginatedResult = await withExportTimeout(
-          paginatePrintHtml(finalHtml, activeProfile?.pageStyle || {paperSize,orientation,marginTop,marginBottom,marginLeft,marginRight}, resolved, signal,paginationSettings || readPaginationSettings(markdownContent || '')),
+          paginatePrintHtml(finalHtml, activeProfile?.pageStyle || {paperSize,orientation,marginTop,marginBottom,marginLeft,marginRight}, resolved, signal,paginationSettings || readPaginationSettings(markdownContent || ''),stage=>progress?.update(stage)),
           '페이지 계산',
           30000
         );
@@ -2993,7 +3012,7 @@ export async function exportHTML({
 }: ExportOptions) {
   try {
     await prepareExportPreview(previewEl);
-    const targetEl = previewEl.querySelector('.markdown-viewer-root') as HTMLElement || previewEl;
+    const targetEl = getExportDocumentRoot(previewEl);
     const clone = clonePreview(targetEl);
     markLeadExportFigure(clone);
     await inlineLocalImages(clone); // 이미지 Base64 인라인 변환 추가
@@ -3019,7 +3038,7 @@ export async function exportHTML({
 
     // 💡 런타임에 에디터에 선언된 로컬 및 확장프로그램 스타일시트 추출
     const collected = collectAllStyles();
-    const inlineStyles = collected.inlineStyles.replace(/@font-face\s*\{[^}]*\}/gi, '') + "\n" + await embedExportFonts(previewEl);
+    const inlineStyles = collected.inlineStyles.replace(/@font-face\s*\{[^}]*\}/gi, '') + "\n" + await prepareDocumentFonts(targetEl);
     const linkTags = collected.linkTags;
 
     // 💡 미리보기에 실제 렌더링된 font-family를 HTML 템플릿에도 반영 (동적 CSS 프로필 값 포함)
@@ -3046,7 +3065,7 @@ export async function exportHTML({
     const activeCss = activeProfile ? generateExportCss(activeProfile) : (dynamicCssString || '');
 
     const finalHtml = `<!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-onrivi-export>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -3150,7 +3169,7 @@ export async function exportHTML({
     ${PRINT_TABLE_FLOW_CSS}
   </style>
 </head>
-<body class="custom-preview-container" style="background-color: ${pageBg} !important;">
+<body class="custom-preview-container" style="background-color: ${pageBg} !important; height:auto!important;max-height:none!important;overflow:visible!important;">
   <div class="preview-page-sheet prose prose-base max-w-none custom-preview-container" style="background-color: ${pageBg} !important;">
     ${clone.outerHTML}
   </div>
@@ -3204,10 +3223,7 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
   const effectiveWatermark = { ...(printSettings ?? (markdownContent ? readEffectivePrintSettings(markdownContent) : readEffectivePrintSettings(''))) };
   let progress: ReturnType<typeof startExportProgress> | undefined;
   try {
-    if(effectiveWatermark.enabled&&effectiveWatermark.kind==='image'){
-      if(effectiveWatermark.imageResource){const {watermarkResourceIdentity}=await import('./watermarkResources');if(effectiveWatermark.imageResource!==watermarkResourceIdentity())throw Error('환경설정에서 현재 리소스 폴더의 워터마크 이미지를 다시 선택해 주세요.');}
-      if(effectiveWatermark.image&&!effectiveWatermark.image.startsWith('data:')){const holder=document.createElement('div'),image=document.createElement('img');image.src=effectiveWatermark.image;holder.append(image);await inlineLocalImages(holder);effectiveWatermark.image=image.src;}
-    }
+    Object.assign(effectiveWatermark, await resolveExportWatermark(effectiveWatermark));
     const desktopApi = (window as any).electronAPI;
     let exportDestination: string | undefined;
     if (desktopApi?.saveBinaryFile) {
@@ -3225,7 +3241,7 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
 
     // ✅ PDF/HTML과 동일한 타겟팅
     await prepareExportPreview(previewEl);
-    const targetEl = previewEl.querySelector('.markdown-viewer-root') as HTMLElement || previewEl;
+    const targetEl = getExportDocumentRoot(previewEl);
     const clone = clonePreview(targetEl);
     progress.update('이미지 준비 중');
     await inlineLocalImages(clone); // 이미지 Base64 인라인 변환 추가
@@ -3357,7 +3373,7 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
 
     }
     progress.update('사용 중인 글꼴 준비 중');
-    const fontCss = await withExportTimeout(embedExportFonts(previewEl), '내보내기 글꼴', 60000);
+    const fontCss = await prepareDocumentFonts(targetEl);
     progress.update('전자책 구성 중');
     const blob = await generateEpub({ 
       title: epubTitle, 
@@ -3448,7 +3464,7 @@ export async function exportPNG({
 
     // ✅ PDF/HTML과 동일한 타겟팅
     await prepareExportPreview(previewEl);
-    const targetEl = previewEl.querySelector('.markdown-viewer-root') as HTMLElement || previewEl;
+    const targetEl = getExportDocumentRoot(previewEl);
     const clone = clonePreview(targetEl);
     await inlineLocalImages(clone); // 이미지 Base64 인라인 변환 추가
     
@@ -3467,7 +3483,7 @@ export async function exportPNG({
     injectExportStyles(clone, activeCss, { hideIndicators: true }, pageBg);
 
     // ✅ 폰트 로딩 대기 (html-to-image는 폰트 미적용 상태로 캡처 시 텍스트 누락)
-    await document.fonts.ready;
+    await waitForExportResources(targetEl);
     await new Promise(r => setTimeout(r, 300));
 
     // 🎯 html2canvas가 ::before/counter() 미지원 → 목록 마커 DOM 직접 주입
@@ -3606,7 +3622,7 @@ export async function exportPNG({
     // 이미지 및 스타일이 완전히 렌더링되도록 500ms 대기합니다.
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    const katexFontCss = await embedExportFonts(previewEl);
+    const katexFontCss = await prepareDocumentFonts(targetEl);
 
     // 전체 본문 내용을 온전히 담기 위해 실제 콘텐츠의 scrollHeight를 측정합니다.
     const rawHeight = wrapper.scrollHeight || wrapper.clientHeight;
@@ -3614,7 +3630,7 @@ export async function exportPNG({
 
     const safeWidth = widthPx;
 
-    const dataUrl = await htmlToImage.toPng(wrapper, {
+    let dataUrl = await htmlToImage.toPng(wrapper, {
       backgroundColor: pageBg,
       width: safeWidth,
       height: finalHeight,
@@ -3631,6 +3647,27 @@ export async function exportPNG({
       fontEmbedCSS: katexFontCss, // 💡 추출한 KaTeX 폰트 규칙만 주입하여 외부 폰트 fetch CORS 오류 방지
     });
 
+    const {rasterContainsText}=await import('./rasterTextCheck');
+    if (!await rasterContainsText(wrapper,dataUrl)) {
+      const {default:html2canvas}=await import('html2canvas');
+      const canvas=await html2canvas(wrapper,{
+        backgroundColor:pageBg,width:safeWidth,height:finalHeight,scale:2,
+        useCORS:true,logging:false,scrollX:0,scrollY:0,
+        onclone:doc=>{
+          for(const element of [doc.documentElement,doc.body]){
+            element.style.setProperty('height','auto','important');
+            element.style.setProperty('max-height','none','important');
+            element.style.setProperty('overflow','visible','important');
+          }
+          doc.querySelectorAll<HTMLElement>('code').forEach(code=>{
+            if(code.closest('pre'))return;
+            for(const [property,value]of Object.entries({display:'inline',position:'static','vertical-align':'baseline',height:'auto',width:'auto','background-color':'transparent',border:'0','box-shadow':'none'}))code.style.setProperty(property,value,'important');
+          });
+        }
+      });
+      dataUrl=canvas.toDataURL('image/png');
+      if(!await rasterContainsText(wrapper,dataUrl))throw new Error('이미지에서 본문 글자를 확인하지 못했습니다. 문서 글꼴을 확인해 주세요.');
+    }
     document.body.removeChild(wrapper);
 
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
@@ -3692,7 +3729,7 @@ export async function exportHWPX({ previewEl, currentFileName, showToast, active
     progress = startExportProgress('HWPX');
     progress.update('미리보기 확인 중');
     await prepareExportPreview(previewEl);
-    const target = (previewEl.querySelector('.markdown-viewer-root') as HTMLElement) || previewEl;
+    const target = getExportDocumentRoot(previewEl);
     const clone = clonePreview(target, true);
     progress.update('이미지 준비 중');
     await inlineLocalImages(clone);
@@ -3728,7 +3765,7 @@ export async function exportDOCX({ previewEl, currentFileName, showToast, active
     showToast('Word 문서 (.docx) 생성 중...', 'info');
 
     await prepareExportPreview(previewEl);
-    const targetEl = (previewEl.querySelector('.markdown-viewer-root') as HTMLElement) || previewEl;
+    const targetEl = getExportDocumentRoot(previewEl);
     const clone = clonePreview(targetEl, true);
     const tableSelector = 'table, th, td, th p, td p, th li, td li, th span, td span';
     const liveTableElements = Array.from(targetEl.querySelectorAll(tableSelector));

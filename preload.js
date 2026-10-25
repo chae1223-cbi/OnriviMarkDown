@@ -172,6 +172,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 23. 파일명 클립보드 복사 API
   copyTextToClipboard: (text) => ipcRenderer.invoke('clipboard:copyText', text),
+  // 23.4. 클립보드 HTML 서식 및 텍스트 동시 복사 API
+  copyHtmlToClipboard: (html, text) => ipcRenderer.invoke('clipboard:writeHtml', { html, text }),
   // 23.5. 클립보드 네이티브 이미지 복사 API
   copyImageToClipboard: (source) => ipcRenderer.invoke('clipboard:writeImage', source),
 
