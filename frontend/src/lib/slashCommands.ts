@@ -19,7 +19,7 @@ export const DEFAULT_HOTKEYS: Record<string, string> = {
   quoteCaution: 'Ctrl+Shift+5',
   inlineCode: 'Ctrl+E',
   codeblock: 'Ctrl+Shift+E',
-  clear: 'Ctrl+Shift+0',
+  clear: 'Ctrl+\\',
   signature: 'Ctrl+Alt+R'
 };
 

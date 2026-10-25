@@ -5,6 +5,10 @@
  * 📊 [OMD-UI-CalendarModal-0001] CalendarModal.tsx ➔ 달력 및 날짜/시간 선택 삽입 모달
  * 🎯 @KICK  : 인터랙티브 월별 달력과 다양한 날짜/시간 서식을 직관적으로 선택하여 본문 커서 위치에 삽입
  * 🛡️ @GUARD : isOpen/mounted false 시 null 반환, ESC 닫기 및 Enter 삽입 단축키 완비
+ * 🚨 @PATCH : **2026-10-25** — [슬래시 커맨드 /calendar 등 모달 진입 시 Enter 키 조기 격발 방어 및 ESLint 경고 해소]:
+ *             1) 슬래시 자동완성 메뉴나 단축키에서 Enter 키로 달력 호출 시 동일한 Enter 이벤트로 인해 오늘 날짜가 즉시 삽입·닫힘되는 현상 방어
+ *             2) canSubmitRef 및 keyup / 200ms 디바운스 가드를 신설하여 달력 UI가 온전히 표시되도록 보장
+ *             3) handleConfirm을 useCallback으로 감싸고 useEffect 의존성 배열에 등록하여 react-hooks/exhaustive-deps ESLint 경고 완전 해소
  * 🚨 @PATCH : **2026-10-13** — [전용 인터랙티브 달력 모달(CalendarModal) 신규 구축]:
  *             1) 연/월 이동 및 오늘 바로가기를 지원하는 인터랙티브 월별 달력 그리드 제공
  *             2) 6대 표준 날짜/시간 프리셋(한국어 서식, ISO 표준, 점 표기, 요일 포함) 및 실시간 미리보기 카드 제공
@@ -16,7 +20,7 @@
 "use client";
 
 import { useModalEscape } from '@/hooks/useModalEscape';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Check } from 'lucide-react';
 
@@ -71,25 +75,6 @@ export default function CalendarModal({
     }
   }, [isOpen]);
 
-  // 키보드 ESC 및 Enter 핸들러
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      } else if (e.key === 'Enter' && !e.shiftKey) {
-        // 인풋 포커스 상태가 아닐 때만 Enter 즉시 삽입
-        const activeTag = (document.activeElement as HTMLElement)?.tagName?.toLowerCase();
-        if (activeTag !== 'input') {
-          e.preventDefault();
-          handleConfirm();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  });
 
   // 이전/다음 월 이동
   const handlePrevMonth = () => {
@@ -210,10 +195,53 @@ export default function CalendarModal({
     return formatDateString(selectedDate, pattern, includeTime, includeSeconds);
   }, [selectedDate, selectedFormat, customFormat, includeTime, includeSeconds]);
 
-  const handleConfirm = () => {
+  const handleConfirm = useCallback(() => {
     onInsert(previewResult);
     onClose();
-  };
+  }, [onInsert, previewResult, onClose]);
+
+  const canSubmitRef = useRef(false);
+
+  // 키보드 ESC 및 Enter 핸들러
+  useEffect(() => {
+    if (!isOpen) {
+      canSubmitRef.current = false;
+      return;
+    }
+
+    canSubmitRef.current = false;
+    const timer = setTimeout(() => {
+      canSubmitRef.current = true;
+    }, 200);
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        canSubmitRef.current = true;
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      } else if (e.key === 'Enter' && !e.shiftKey) {
+        if (!canSubmitRef.current) return;
+        // 인풋 포커스 상태가 아닐 때만 Enter 즉시 삽입
+        const activeTag = (document.activeElement as HTMLElement)?.tagName?.toLowerCase();
+        if (activeTag !== 'input') {
+          e.preventDefault();
+          handleConfirm();
+        }
+      }
+    };
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose, handleConfirm]);
 
   if (!isOpen || !mounted) return null;
 

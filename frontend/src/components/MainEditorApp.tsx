@@ -1,5 +1,13 @@
 /**
  * 프로그램명 : OnriviAuthor 
+// 🚨 @PATCH : **2026-10-25** — [문서 연결(DocLinkPicker) scratch 임시 폴더 스캔 차단 및 도움말 중복 표시 제거]:
+//             1) fetchAllMdFiles 및 DocLinkPicker 제외 목록에 scratch 폴더를 추가하여 임시·테스트 파일 유출을 방지
+//             2) 일반 문서 작성 시 모든 도움말 경로(docs/help, public/help)를 완벽 차단하고, 도움말 문서 편집 시 정적 웹 미러(public/help)를 배제하여 단일 정식 문서(docs/help)만 표시되도록 정돈
+// 🚨 @PATCH : **2026-10-25** — [서식·태그 지우기 단축키 Ctrl+\\ 전역 연동 및 한글 키보드(₩) 정규화]:
+//             1) handleGlobalKeyDown에서 Backslash 및 한글 키보드 원화 기호(₩)를 '\\'로 정규화하여 Ctrl+\\ 입력 시 서식·태그 지우기(REMOVE_PREFIX)가 정상 격발되도록 보장
+// 🚨 @PATCH : **2026-10-25** — [플로팅 서식 툴바 인라인 서식(B, I, U, S 등) 클릭 시 툴바 자동 닫힘 방지 및 멀티 서식 동시 적용 지원]:
+//             1) 플로팅 툴바의 인라인 서식 버튼(BOLD, ITALIC, INLINE_CODE, UNDERLINE, STRIKETHROUGH) 클릭 시 setFloatingToolbar 닫힘 처리를 제거하여 여러 서식을 연속해서 활성화 가능하도록 개선
+//             2) 굵게+밑줄 등 멀티 서식 선언 시 첫 번째 서식이 초기화되거나 툴바가 닫혀버리는 현상 해결
 // 🚨 @PATCH : **2026-10-25** — [코드블록 생성 시 하단 빈 행(문단) 자동 보장 및 밖에서 곧바로 타이핑 지원]:
 //             1) .visual-document-surface .visual-code-block에 margin-bottom: 20px !important를 부여하여 코드블록 바로 아래 빈 문단이 가려지지 않고 선명히 드러나도록 시인성 확보
 //             2) 빈 문단(p:empty)에 cursor: text 및 min-height: 1.5em을 보장하여 코드블록 밖 마우스 클릭 및 즉각 타이핑 편의 극대화
@@ -704,11 +712,19 @@ const fetchAllMdFiles = async (
     }
     const normPath = (node.path || '').replace(/\\/g, '/').toLowerCase();
     const pathSegments = normPath.split('/');
-    const excludedDirs = ['out', '.next', '.next-web-build', 'dist', 'build', 'release', 'node_modules', '_dev_api_backup', '.vscode', '.idea'];
+    const excludedDirs = ['out', '.next', '.next-web-build', 'dist', 'build', 'release', 'node_modules', '_dev_api_backup', '.vscode', '.idea', 'scratch'];
     if (pathSegments.some(seg => excludedDirs.includes(seg))) return;
     const currentNorm = (currentFileNode?.path || '').replace(/\\/g, '/').toLowerCase();
     const isCurrentInHelp = currentNorm.includes('docs/help/') || currentNorm.includes('/help/') || currentNorm.startsWith('help/');
-    if (!isCurrentInHelp && (normPath.startsWith('docs/help/') || normPath.includes('/docs/help/'))) return;
+    const isHelpFile = normPath.startsWith('docs/help/') || normPath.includes('/docs/help/') ||
+                       normPath.startsWith('frontend/public/help/') || normPath.includes('/frontend/public/help/') ||
+                       normPath.startsWith('public/help/') || normPath.includes('/public/help/') ||
+                       /^(?:00_시작하기|help-\d+)/i.test(node.name || '');
+    if (!isCurrentInHelp && isHelpFile) return;
+    if (isCurrentInHelp && (normPath.includes('/public/help/') || normPath.startsWith('public/help/'))) {
+      // 로컬/데스크톱 작업장에서 docs/help와 public/help 복제본 동시 노출 방어
+      return;
+    }
     const rawKey = (node.path || node.name).replace(/\\/g, '/').toLowerCase().normalize('NFC');
     if (!fileMap.has(rawKey)) {
       fileMap.set(rawKey, { ...node, ...extra });
@@ -769,7 +785,7 @@ const fetchAllMdFiles = async (
             } else if (item.kind === 'directory' && item.path) {
               const dirName = (item.name || '').toLowerCase();
               const isIgnored = dirName.startsWith('.') || 
-                ['node_modules', 'out', 'dist', 'build', '_dev_api_backup', '.wrangler', '.next-web-build', '.next', '.vscode', '.idea'].includes(dirName);
+                ['node_modules', 'out', 'dist', 'build', 'release', '_dev_api_backup', '.wrangler', '.next-web-build', '.next', '.vscode', '.idea', 'scratch'].includes(dirName);
               if (!isIgnored) {
                 await scan(item.path);
               }
@@ -8914,8 +8930,12 @@ blockquote li p {
           return;
         }
         if (floatingToolbar.visible) {
-          e.preventDefault();
-          e.stopPropagation();
+          // Let the focused visual editor handle the same Escape to exit its
+          // inline marks. Closing the toolbar must not swallow that key first.
+          if (!(e.target instanceof Element && e.target.closest('.visual-document-surface'))) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
           setFloatingToolbar(prev => ({ ...prev, visible: false }));
           return;
         }
@@ -9113,6 +9133,8 @@ blockquote li p {
           key = e.code.substring(3).toUpperCase(); // 'KeyX' -> 'X'
         } else if (e.code && e.code.startsWith('Digit')) {
           key = e.code.substring(5); // 'Digit7' -> '7'
+        } else if (e.code === 'Backslash' || e.key === '\\' || e.key === '₩') {
+          key = '\\';
         }
       }
 
@@ -10190,13 +10212,13 @@ blockquote li p {
                                 <div className="flex flex-row items-center gap-3.5 min-w-max">
                                   {/* 서식 */}
                                   <div className="flex flex-row items-center gap-1 text-zinc-800 dark:text-zinc-100">
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('BOLD'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] font-black" title="굵게">B</button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('ITALIC'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] italic font-serif" title="기울임">I</button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('INLINE_CODE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="인라인 코드">
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('BOLD'); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] font-black cursor-pointer" title="굵게">B</button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('ITALIC'); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] italic font-serif cursor-pointer" title="기울임">I</button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('INLINE_CODE'); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center cursor-pointer" title="인라인 코드">
                                       <img src="/icons/Password.png" alt="인라인 코드" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('UNDERLINE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] underline font-bold" title="밑줄">U</button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('STRIKETHROUGH'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] font-bold" title="취소선"><span className="line-through">S</span></button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('UNDERLINE'); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] underline font-bold cursor-pointer" title="밑줄">U</button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('STRIKETHROUGH'); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] font-bold cursor-pointer" title="취소선"><span className="line-through">S</span></button>
                                   </div>
                                   <div className="w-px h-7 bg-black/15 dark:bg-white/15" />
                                   {/* 제목 */}
@@ -10470,14 +10492,29 @@ blockquote li p {
 
                                   const deduplicated = (() => {
                                     const map = new Map<string, FileNode>();
+                                    const currentNorm = (currentFileNode?.path || '').replace(/\\/g, '/').toLowerCase();
+                                    const isCurrentInHelp = currentNorm.includes('docs/help/') || currentNorm.includes('/help/') || currentNorm.startsWith('help/');
+                                    const excludedDirs = ['out', '.next', '.next-web-build', 'dist', 'build', 'release', 'node_modules', '_dev_api_backup', '.vscode', '.idea', 'scratch'];
+
                                     for (const f of filtered) {
                                       const currPath = (f.path || '').replace(/\\/g, '/').toLowerCase();
                                       const segments = currPath.split('/');
-                                      const excludedDirs = ['out', '.next', '.next-web-build', 'dist', 'build', 'release', 'node_modules', '_dev_api_backup', '.vscode', '.idea'];
                                       if (segments.some(seg => excludedDirs.includes(seg))) {
                                         continue;
                                       }
-                                      if (currPath.startsWith('docs/help/') || currPath.includes('/docs/help/')) {
+
+                                      const isHelpFile = currPath.startsWith('docs/help/') || currPath.includes('/docs/help/') ||
+                                                         currPath.startsWith('frontend/public/help/') || currPath.includes('/frontend/public/help/') ||
+                                                         currPath.startsWith('public/help/') || currPath.includes('/public/help/') ||
+                                                         /^(?:00_시작하기|help-\d+)/i.test(f.name || '');
+
+                                      // 1) 일반 문서 작성 시 내부 도움말 파일 일체 노출 차단
+                                      if (!isCurrentInHelp && isHelpFile) {
+                                        continue;
+                                      }
+
+                                      // 2) 도움말 작성/연결 시 정적 웹 미러(public/help) 제외하고 정식 docs/help만 1개 유지
+                                      if (isCurrentInHelp && (currPath.includes('/public/help/') || currPath.startsWith('public/help/'))) {
                                         continue;
                                       }
 
@@ -10490,8 +10527,6 @@ blockquote li p {
                                         const prevHasFullPath = prevPath.includes('/') && prevPath !== key;
                                         const currHasFullPath = currPath.includes('/') && currPath !== key;
                                         if (!prevHasFullPath && currHasFullPath) {
-                                          map.set(key, f);
-                                        } else if (currPath.includes('/public/help/') && !prevPath.includes('/public/help/')) {
                                           map.set(key, f);
                                         }
                                       }

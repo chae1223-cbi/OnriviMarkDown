@@ -1,6 +1,9 @@
 // ====================================================================
 // 📊 [OMD-CORE-ToolbarConfig-0001] toolbarConfig.ts ➔ Toolbar Items Configuration
 // 🎯 @KICK  : 에디터 툴바, 플로팅 툴바 및 단축키/슬래시 커맨드 전역 설정 메타데이터
+// 🚨 @PATCH : **2026-10-25** — [서식·태그 지우기(clear/태그 취소) 기본 단축키 Ctrl+\\ 변경 및 한글 키보드(₩) 정규화]:
+//             1) TOOLBAR_ITEMS 태그 취소(clear) 기본 단축키를 Ctrl+Shift+0에서 Ctrl+\\로 변경
+//             2) configuredHotkeyItem에서 event.code === 'Backslash' 및 한글 원화 기호(₩)를 '\\'로 정규화하여 영문/한글 입력기 상태 무관 100% 단축키 동작 보장
 // 🚨 @PATCH : **2026-10-17** — [인용문(기본 및 콜아웃 5종) 슬래시 커맨드 액션 연동 및 하단 빈 행 자동 추가]: quote, quoteNote, quoteTip, quoteImportant, quoteWarning, quoteCaution을 actionOnlyKeys에 등록하여 슬래시 명령어 실행 시에도 인용문 아래에 빈 행이 자동 추가되도록 통일
 // 🚨 @PATCH : **2026-10-15** — [서명/발신인 서식 왼쪽 정렬 기본 전환]: 서명/발신인 템플릿(signature)의 기본 정렬을 <div align="left">로 변경하고 슬래시 자동완성에 '서명/발신인 (왼쪽 정렬)'으로 갱신
 // 🚨 @PATCH : **2026-10-13** — [달력/날짜 슬래시 커맨드 별칭 확장]: now 커맨드에 '달력', '캘린더', '시간' 별칭 추가 연동
@@ -37,7 +40,7 @@ export const TOOLBAR_ITEMS = [
   { id: 'quoteWarning', icon: '⚠️', name: '인용(주의·Warning)', group: '목록', tagFormat: '> [!WARNING]', defaultHotkey: 'Ctrl+Shift+4', defaultCommand: 'warning', insertText: '> [!WARNING]\n> \n\n', kind: 17 },
   { id: 'quoteCaution', icon: '🚨', name: '인용(경고·Caution)', group: '목록', tagFormat: '> [!CAUTION]', defaultHotkey: 'Ctrl+Shift+5', defaultCommand: 'caution', insertText: '> [!CAUTION]\n> \n\n', kind: 17 },
   { id: 'checklist', icon: '☑️', name: '체크리스트', group: '목록', tagFormat: '- [ ] ', defaultHotkey: 'Ctrl+Shift+C', defaultCommand: 'check', insertText: '- [ ] ', kind: 17 },
-  { id: 'clear', icon: '🧹', name: '태그 취소', group: '목록', tagFormat: '서식 취소', defaultHotkey: 'Ctrl+Shift+0', defaultCommand: 'clear', insertText: '', kind: 17 },
+  { id: 'clear', icon: '🧹', name: '태그 취소', group: '목록', tagFormat: '서식 취소', defaultHotkey: 'Ctrl+\\', defaultCommand: 'clear', insertText: '', kind: 17 },
   { id: 'cleanDoc', icon: '✨', name: '문서 서식 일괄 정리', group: '목록', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+L', defaultCommand: 'cleandoc', insertText: '', kind: 17 },
 
   // 4. 미디어 (Media)
@@ -135,7 +138,15 @@ export const SLASH_ALIASES: Record<string, string[]> = {
 export function configuredHotkeyItem(event: KeyboardEvent, custom: Record<string, string> = {}) {
   const mac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/i.test(navigator.userAgent || navigator.platform);
   if (event.isComposing || (!mac && event.metaKey)) return undefined;
-  const key = event.code.startsWith('Key') ? event.code.slice(3) : event.code.startsWith('Digit') ? event.code.slice(5) : event.code === 'Space' ? 'SPACE' : event.key.toUpperCase();
+  const key = event.code.startsWith('Key')
+    ? event.code.slice(3)
+    : event.code.startsWith('Digit')
+    ? event.code.slice(5)
+    : event.code === 'Space'
+    ? 'SPACE'
+    : event.code === 'Backslash' || event.key === '\\' || event.key === '₩'
+    ? '\\'
+    : event.key.toUpperCase();
   const parts = [];
   if (event.ctrlKey || (mac && event.metaKey)) parts.push('CTRL');
   if (event.shiftKey) parts.push('SHIFT');

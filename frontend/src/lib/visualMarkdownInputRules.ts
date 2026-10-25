@@ -2,6 +2,9 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-vm-inputrules
+ * 🚨 @PATCH : **2026-10-25** — [인라인 코드/백틱(`) 내부 서식 태그(<u>, ~~, ** 등) 문자열 보존 가드 신설]:
+ *             1) isInsideCode 판정기를 신설하여 code_block 내부, code 마크 활성 상태, 또는 닫히지 않은 열린 백틱(`) 구간 타이핑 중일 때 <u>...</u>, ~~...~~, **...** 등의 서식 자동 변환 규칙 발속을 전면 억제
+ *             2) `<u>밑줄 내용</u>` 또는 `~~취소선 내용~~` 등 문법 안내 코드를 작성할 때 내부 태그가 성급하게 스타일 마크로 치환되어 <u>`밑줄`</u> 형태로 오변환되는 결함을 원천 해결
  * 🚨 @PATCH : **2026-10-25** — [코드블록(`) 생성 시 하단 빈 행(문단) 자동 보장 및 CODE 입력란 연동]:
  *             1) ` 뒤 언어 식별자 없이 공백 입력 시 onrivi:focus-code-block 트랜잭션 메타를 전달하여 상단 CODE 언어 입력란에 자동 포커스
  *             2) 코드블록 변환 즉시 하단에 빈 문단(paragraph)을 확실히 보장하여 코드블록 밖에서 곧바로 타이핑을 이어갈 수 있도록 개선
@@ -55,8 +58,20 @@ function convertExistingList(state: EditorState, kind:'bullet'|'ordered', start:
   return tr;
 }
 
+function isInsideCode(state: EditorState, from: number): boolean {
+  const $from = state.doc.resolve(from);
+  if ($from.parent.type.name === 'code_block') return true;
+  if ($from.marks().some(m => m.type.name === 'code')) return true;
+  if (state.storedMarks?.some(m => m.type.name === 'code')) return true;
+  const lineBefore = $from.parent.textBetween(0, $from.parentOffset, '\n', '\n');
+  const backtickCount = (lineBefore.match(/`/g) || []).length;
+  if (backtickCount % 2 === 1) return true;
+  return false;
+}
+
 function markRule(expression: RegExp, type: MarkType) {
   return new InputRule(expression, (state, match, start, end) => {
+    if (type.name !== 'code' && isInsideCode(state, start)) return null;
     const marker = match[1];
     const text = match[2];
     const from = start + match[0].length - marker.length;
@@ -301,12 +316,14 @@ export function buildVisualMarkdownRules(): InputRule[] {
     markRule(/(~~([^~\n]+)~~)$/, marks.strike),
     markRule(/(`([^`\n]+)`)$/, marks.code),
     new InputRule(/(<u>([^<\n]+)<\/u>)$/, (state, match, start, end) => {
+      if (isInsideCode(state, start)) return null;
       const text = match[2];
       const from = start + match[0].length - match[1].length;
       return state.tr.insertText(text, from, end).addMark(from, from + text.length, marks.underline.create()).removeStoredMark(marks.underline);
-    }),
+    }, { inCodeMark: false }),
     // 마크다운 링크 입력 규칙: [텍스트](url) 및 [텍스트](url] 입력 시 네이티브 link 마크로 즉각 변환
     new InputRule(/(?:^|[^\\])(\[([^\]\n]+)\]\((https?:\/\/[^\s\)]+|mailto:[^\s\)]+|\/[^\s\)]+|#[^\s\)]+|\.[^\s\)]*)(?:\)|\]))$/, (state, match, start, end) => {
+      if (isInsideCode(state, start)) return null;
       const fullMatch = match[1];
       const text = match[2];
       const href = match[3];
@@ -315,18 +332,20 @@ export function buildVisualMarkdownRules(): InputRule[] {
         .insertText(text, from, end)
         .addMark(from, from + text.length, marks.link.create({ href }))
         .removeStoredMark(marks.link);
-    }),
+    }, { inCodeMark: false }),
     // 일반 URL 자동 링크 입력 규칙: https:// 또는 http:// URL 입력 후 공백 입력 시 link 마크 자동 적용
     new InputRule(/(?:^|\s)(https?:\/\/[^\s]+)\s$/, (state, match, start, end) => {
+      if (isInsideCode(state, start)) return null;
       const url = match[1];
       const from = start + match[0].length - url.length - 1;
       const to = from + url.length;
       return state.tr
         .addMark(from, to, marks.link.create({ href: url }))
         .removeStoredMark(marks.link);
-    }),
+    }, { inCodeMark: false }),
     // 인라인 수식 입력 규칙: $수식$ 타이핑 시 네이티브 visual_inline_math 노드로 즉각 변환 및 후행 공백 삽입으로 옆에 글쓰기 보장
     new InputRule(/(?:^|[^\\])(\$([^\$\n]+)\$)$/, (state, match, start, end) => {
+      if (isInsideCode(state, start)) return null;
       const fullMatch = match[1];
       const latex = match[2].trim();
       if (!latex) return null;
@@ -335,7 +354,7 @@ export function buildVisualMarkdownRules(): InputRule[] {
       const spaceNode = state.schema.text(' ');
       const tr = state.tr.replaceWith(from, end, [mathNode, spaceNode]);
       return tr.setSelection(TextSelection.create(tr.doc, from + mathNode.nodeSize + spaceNode.nodeSize));
-    }),
+    }, { inCodeMark: false }),
   ];
 }
 

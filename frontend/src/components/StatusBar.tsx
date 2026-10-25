@@ -126,6 +126,11 @@ const localTranslations: Record<string, Record<string, string>> = {
 // 📊 [OMD-EDIT-StatusBar-0003] StatusBar ➔ StatusBar
 // 🎯 @KICK  : 상태 표시줄 컴포넌트 - 글자 수, 단어 수, 저장 상태, 라인/컬럼 정보, 테마, 프리뷰 모드 표시
 // 🛡️ @GUARD : StatusBarProps 인터페이스로 props 타입 검증
+// 🚨 @PATCH : **2026-10-25** — [하단 상태표시줄(StatusBar) 글자 수 표기 정돈]:
+//             1) 글자 수 표시에서 불필요한 '(공백제외 ...)' 보조 문구를 제거하고 간결하고 명확한 순수 글자 수만 표시하도록 정돈
+// 🚨 @PATCH : **2026-10-25** — [하단 상태표시줄(StatusBar) 실시간 현재 입력 태그(최종안 태그 뱃지) 탑재]:
+//             1) onrivi:active-tag 이벤트 버스 연동으로 문서보기(위지윅) 및 마크다운 에디터에서 현재 커서가 위치한 최종안 태그(<p>, <h1>~<h6>, <td>, <th>, <li>, <strong>, <u>, <code> 등)를 실시간 수신
+//             2) 상태표시줄 우측 단어 수와 행/열(Ln, Col) 사이에 고대비 태그 뱃지(태그: <최종안태그> (한글서식명))를 영구 고정 배치하여, 문서 스크롤 위치와 무관하게 사용자가 항상 즉시 태그를 식별할 수 있도록 가독성 완비
 // 🚨 @PATCH : **2026-09-02** — 방향키 이동 시 커서 좌표 자릿수 가변에 따른 상태바 흔들림(Jitter) 방지를 위해 고정 너비 및 React.memo 렌더링 격리 적용
 //             **2026-08-26** — StatusBar에서 커서 위치 동기화(setLocalCursor) 시 이전 값과 동일하면 업데이트를 무시하도록 방어 로직을 추가하여 무한 렌더링(Maximum update depth exceeded) 에러 해결; **2026-08-12** — 에디터 타이핑 중 상태바 서식 텍스트가 깜빡거리며 깜빡임/언마운트되는 현상을 이전 유효 서식명을 캐싱하는 Ref 기반 리텐션 가드 및 고정 렌더링으로 개편 완벽 해결;
 // 🔗 @CALLS : getFullPath, t
@@ -277,6 +282,63 @@ function StatusBar() {
       if (disposable) disposable.dispose();
     };
   }, [editorRef, workspaceType, activeProfileId, fileName]); // 탭이나 모드가 변경될 때마다 재연결
+
+  // 🏷️ [실시간 현재 입력 태그 감지] VisualDocumentEditor 등에서 전달되는 활성 태그 및 최종안 태그 동기화
+  const [currentTag, setCurrentTag] = useState<{
+    innermostTag: string;
+    innermostLabel: string;
+    pathString: string;
+    labelPathString: string;
+  }>({
+    innermostTag: 'p',
+    innermostLabel: '본문',
+    pathString: 'p',
+    labelPathString: '본문',
+  });
+
+  useEffect(() => {
+    const handleTagChange = (e: any) => {
+      if (e.detail && e.detail.innermostTag) {
+        setCurrentTag(prev =>
+          prev.innermostTag === e.detail.innermostTag &&
+          prev.innermostLabel === e.detail.innermostLabel &&
+          prev.pathString === e.detail.pathString
+            ? prev
+            : e.detail
+        );
+      }
+    };
+    window.addEventListener('onrivi:active-tag', handleTagChange);
+    return () => window.removeEventListener('onrivi:active-tag', handleTagChange);
+  }, []);
+
+  // Monaco 커서 위치 기반 마크다운 태그 감지 (마크다운 에디터 포커스 시 보조 연동)
+  useEffect(() => {
+    if (previewMode === 'preview') return;
+    const editor = editorRef?.current;
+    if (!editor || !editor.hasTextFocus()) return;
+    const model = editor.getModel();
+    const pos = editor.getPosition();
+    if (!model || !pos) return;
+    const lineContent = model.getLineContent(pos.lineNumber);
+    const trimmed = lineContent.trim();
+    let innermostTag = 'p';
+    let innermostLabel = '본문';
+    let pathString = 'p';
+
+    if (/^#{1}\s/.test(trimmed)) { innermostTag = 'h1'; innermostLabel = '제목 1'; pathString = 'h1'; }
+    else if (/^#{2}\s/.test(trimmed)) { innermostTag = 'h2'; innermostLabel = '제목 2'; pathString = 'h2'; }
+    else if (/^#{3}\s/.test(trimmed)) { innermostTag = 'h3'; innermostLabel = '제목 3'; pathString = 'h3'; }
+    else if (/^#{4}\s/.test(trimmed)) { innermostTag = 'h4'; innermostLabel = '제목 4'; pathString = 'h4'; }
+    else if (/^#{5}\s/.test(trimmed)) { innermostTag = 'h5'; innermostLabel = '제목 5'; pathString = 'h5'; }
+    else if (/^#{6}\s/.test(trimmed)) { innermostTag = 'h6'; innermostLabel = '제목 6'; pathString = 'h6'; }
+    else if (/^(\*|-|\+)\s/.test(trimmed)) { innermostTag = 'li'; innermostLabel = '목록 항목'; pathString = 'ul > li'; }
+    else if (/^\d+\.\s/.test(trimmed)) { innermostTag = 'li'; innermostLabel = '목록 항목'; pathString = 'ol > li'; }
+    else if (/^>\s/.test(trimmed)) { innermostTag = 'blockquote'; innermostLabel = '인용구'; pathString = 'blockquote > p'; }
+    else if (trimmed.startsWith('|') && trimmed.endsWith('|')) { innermostTag = 'td'; innermostLabel = '내용 셀'; pathString = 'table > tr > td'; }
+
+    setCurrentTag({ innermostTag, innermostLabel, pathString, labelPathString: innermostLabel });
+  }, [localCursor, previewMode, editorRef]);
 
   // 🧠 [지식 엔진 백그라운드 색인 실시간 진행 가시성 보장]
   const [knowledgeProgress, setKnowledgeProgress] = useState<{
@@ -652,7 +714,7 @@ function StatusBar() {
 
         {/* 글자 수 */}
         <span className="shrink-0 tabular-nums font-mono text-zinc-700 dark:text-zinc-300">
-          {t('charCount')}: {charCount.toLocaleString()} (공백제외 {charCountNoSpace.toLocaleString()})
+          {t('charCount')}: {charCount.toLocaleString()}
         </span>
 
         <span className="shrink-0 text-black/15 dark:text-white/15 mx-2">|</span>
@@ -661,6 +723,26 @@ function StatusBar() {
         <span className="shrink-0 tabular-nums font-mono text-zinc-700 dark:text-zinc-300">
           {t('wordCount')}: {wordCount.toLocaleString()}
         </span>
+
+        <span className="shrink-0 text-black/15 dark:text-white/15 mx-2">|</span>
+
+        {/* 🏷️ 현재 입력 태그 (최종안 태그 뱃지) */}
+        <div
+          className="flex items-center gap-1.5 shrink-0 select-none cursor-default"
+          title={`전체 태그 경로: ${currentTag.labelPathString || currentTag.innermostLabel} (${currentTag.pathString || currentTag.innermostTag})`}
+        >
+          <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">태그:</span>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-mono font-bold text-[11px] bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 ring-1 ring-blue-400 dark:ring-blue-600 shadow-xs">
+            <span>&lt;{currentTag.innermostTag}&gt;</span>
+            <span className="font-sans font-semibold text-[10px] text-blue-700 dark:text-blue-400">({currentTag.innermostLabel})</span>
+          </span>
+          {currentTag.pathString && currentTag.pathString.includes(' > ') && (
+            <span className="hidden xl:inline-flex items-center text-[10px] font-mono font-bold text-zinc-600 dark:text-zinc-300 truncate max-w-[180px]">
+              <span className="text-zinc-400 mx-1">·</span>
+              {currentTag.pathString}
+            </span>
+          )}
+        </div>
 
         <span className="shrink-0 text-black/15 dark:text-white/15 mx-2">|</span>
 

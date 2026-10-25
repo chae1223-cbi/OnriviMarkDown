@@ -1,7 +1,7 @@
 "use client";
 
 import { useModalEscape } from '@/hooks/useModalEscape';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, X } from 'lucide-react';
 import { reportCaption, formatMediaCaption } from '@/lib/aiFriendlyReport';
@@ -24,6 +24,9 @@ interface TableModalProps {
 // 📊 [OMD-EDIT-TableModal-0003] TableModal ➔ TableModal
 // 🎯 @KICK  : 표 삽입 모달 - 10x10 그리드 UI로 마우스 표 크기 선택 후 마크다운 코드 생성
 // 🛡️ @GUARD : isOpen false 또는 mounted false 시 null 반환으로 조기 종료
+// 🚨 @PATCH : **2026-10-25** — [슬래시 커맨드 /table 등 모달 진입 시 Enter 키 조기 격발 방어]:
+//             1) 슬래시 자동완성 메뉴나 단축키에서 Enter 키로 표 생성을 호출할 때, 동일한 Enter keydown 이벤트가 window 리스너로 전파되어 모달이 화면에 뜨지도 못하고 기본 크기(2열 3행)로 자동 제출·닫힘되는 결함 해결
+//             2) canSubmitRef 및 keyup / 200ms 디바운스 가드를 신설하여 모달이 온전히 화면에 열려 사용자가 행·열을 직접 지정할 수 있도록 보장
 // 🚨 @PATCH : **2026-10-21** — [표 설명(캡션) 위치(상단/하단) 및 표현 구문(mediaCaptionStructure) 연동]:
 //             1) 서식 프로필의 mediaCaptionStructure(position, format) 설정을 표 캡션 생성에 반영
 //             2) formatMediaCaption 연동으로 표준/대괄호/화살괄호 및 상/하단 배치 지원
@@ -94,17 +97,45 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode, next
     onClose();
   }, [selectedPos, alignPreset, tableTitle, tableNumber, captionPosition, captionFormat, customTemplate, onInsert, onClose]);
 
+  const canSubmitRef = useRef(false);
+
   // ⌨️ Enter 키 입력 시 즉시 표 삽입 처리
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      canSubmitRef.current = false;
+      return;
+    }
+
+    // 💡 [슬래시 명령어 /table 등 모달 진입 시 Enter 키 조기 격발 방어]
+    //    슬래시 자동완성 메뉴나 단축키에서 Enter로 명령을 선택하여 모달이 열릴 때,
+    //    동일한 Enter 이벤트가 window 리스너로 전파되어 모달이 화면에 뜨지도 못하고
+    //    기본값(2열 3행)으로 즉시 자동 제출·닫힘되는 결함을 완벽히 방어합니다.
+    canSubmitRef.current = false;
+    const timer = setTimeout(() => {
+      canSubmitRef.current = true;
+    }, 200);
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        canSubmitRef.current = true;
+      }
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && !e.isComposing) {
+        if (!canSubmitRef.current) return;
         e.preventDefault();
         handleInsert();
       }
     };
+
+    window.addEventListener('keyup', handleKeyUp);
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isOpen, handleInsert]);
 
   if (!isOpen) return null;

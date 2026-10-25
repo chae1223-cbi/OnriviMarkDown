@@ -300,6 +300,65 @@ async function visual() {
       await surface.waitFor();
       const emphasisCss=fs.readFileSync(path.join(frontend,'src/app/globals.css'),'utf8').split('\n').filter(line=>line.includes(':is(.visual-document-surface,.onrivi-content-root)')).join('\n');
       await page.addStyleTag({content:'.visual-document-surface code{font-weight:400!important;font-style:normal!important;}'+emphasisCss});
+      const mainSource=fs.readFileSync(path.join(frontend,'src/components/MainEditorApp.tsx'),'utf8');
+      const captureStart=mainSource.indexOf('// Escape: 인용구 드롭다운');
+      const captureEnd=mainSource.indexOf('const isCtrl =',captureStart);
+      assert.ok(captureStart>=0 && captureEnd>captureStart);
+      await page.evaluate(code=>{
+        const handler=Function('e','floatingQuoteDropdown','floatingToolbar','setFloatingQuoteDropdown','setFloatingToolbar',code);
+        window.qaCaptureEscape=e=>handler(e,{open:false},{visible:true},()=>{},()=>{window.qaToolbarClosed=true;});
+        window.addEventListener('keydown',window.qaCaptureEscape,true);
+      },mainSource.slice(captureStart,captureEnd));
+      for (const [index, delimiters] of [['**','**'],['*','*'],['~~','~~'],['<u>','</u>'],['`','`'],['**<u>`','`</u>**']].entries()) {
+        const word='word'+index, start=3, end=start+word.length;
+        const source='앞 '+delimiters[0]+word+delimiters[1]+'😀뒤';
+        const select=async(from,to=from)=>page.evaluate(({from,to})=>{const v=window.qaView;v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc,from,to)));v.focus();},{from,to});
+        await page.locator('#source').focus();await page.evaluate(s=>window.setTestDocument('exit-'+Math.random(),s),source);
+        await page.waitForFunction(text=>window.qaView.state.doc.textContent===text,'앞 '+word+'😀뒤');
+        const original=await page.evaluate(()=>JSON.stringify(window.qaView.state.doc.toJSON()));
+        await select(end);await page.keyboard.press('ArrowRight');
+        assert.equal(await page.evaluate(()=>window.qaView.state.selection.from),end+2,'One arrow exits and advances across the whole emoji');
+        assert.equal(await surface.locator('.onrivi-inline-syntax-tag').count(),0);
+        assert.equal(await page.evaluate(()=>JSON.stringify(window.qaView.state.doc.toJSON())),original);
+        await select(end-1);await page.keyboard.press('ArrowRight');
+        assert.equal(await page.evaluate(()=>window.qaView.state.selection.from),end,'Arriving at the end folds on the same arrow');
+        assert.equal(await surface.locator('.onrivi-inline-syntax-tag').count(),0);
+        await select(start+1);await page.keyboard.press('ArrowLeft');
+        assert.equal(await page.evaluate(()=>window.qaView.state.selection.from),start,'Arriving at the start folds on the same arrow');
+        assert.equal(await surface.locator('.onrivi-inline-syntax-tag').count(),0);
+        await select(start);await page.keyboard.press('ArrowLeft');
+        assert.equal(await page.evaluate(()=>window.qaView.state.selection.from),start-1);
+        assert.equal(await surface.locator('.onrivi-inline-syntax-tag').count(),0);
+        for(const selected of [false,true]) {
+          await select(start+1,selected?end-1:start+1);await page.keyboard.press('End');
+          assert.equal(await page.evaluate(()=>window.qaView.state.selection.from),end+1);
+          assert.equal(await page.evaluate(()=>window.qaView.state.selection.empty),true);
+          assert.equal(await surface.locator('.onrivi-inline-syntax-tag').count(),0);
+          assert.equal(await page.evaluate(()=>window.qaView.state.doc.textContent),'앞 '+word+' 😀뒤');
+          const afterEnd=await page.evaluate(()=>window.qaView.state.doc.textContent);
+          await page.keyboard.press('End');
+          assert.equal(await page.evaluate(()=>window.qaView.state.doc.textContent),afterEnd,'Repeated End must not add spaces');
+        }
+        // End with no active mark retains native navigation. Return to the
+        // known exit location to check the following input's actual marks.
+        await select(end+1);
+        await page.keyboard.type('plain');
+        assert.equal(await page.evaluate(()=>window.qaView.state.selection.$from.nodeBefore.marks.length),0);
+      }
+      await page.locator('#source').focus();
+      await page.evaluate(()=>window.setTestDocument('end-space-tail','**끝**'));
+      await page.waitForFunction(()=>window.qaView.state.doc.textContent==='끝');
+      await page.evaluate(()=>{const v=window.qaView;v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc,2)));v.focus();});
+      await page.keyboard.press('End');
+      assert.equal(await page.evaluate(()=>window.qaView.state.doc.textContent),'끝 ');
+      assert.equal(await page.evaluate(()=>window.qaView.state.selection.from),3);
+      await page.waitForFunction(()=>document.querySelector('#source').value.endsWith(' '));
+      assert.equal(createVisualDocumentCodec(await page.locator('#source').inputValue()).doc.textContent,'끝 ');
+      await page.keyboard.type('일반');
+      assert.equal(await surface.locator('strong').textContent(),'끝');
+      assert.equal(await page.evaluate(()=>window.qaView.state.doc.textContent),'끝 일반');
+      console.log('PASS: End exits through one saved plain space, reuses existing space, and preserves following plain typing; arrow navigation leaves source unchanged');
+      await page.evaluate(()=>window.removeEventListener('keydown',window.qaCaptureEscape,true));
       for (const [name,shortcut,tag] of [['strong','Control+b','strong'],['em','Control+i','em'],['strike','Control+Shift+x','s'],['underline','Control+u','u']]) {
         const sample='sample-'+name;
         await page.locator('#source').focus();
@@ -398,7 +457,7 @@ async function visual() {
       await page.evaluate(()=>{const v=window.qaView;v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc,2)));v.focus();});
       await page.waitForFunction(()=>document.querySelectorAll('.onrivi-inline-syntax-tag').length===4);
       assert.deepEqual(await surface.locator('.onrivi-inline-syntax-tag').allTextContents(),['**','<u>','</u>','**']);
-      await page.keyboard.press('End');
+      await page.evaluate(()=>{const v=window.qaView;v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc,2)).setStoredMarks(v.state.doc.firstChild.firstChild.marks));v.focus();});
       await page.keyboard.press('Tab');
       assert.ok(await surface.locator('.onrivi-inline-syntax-tag').count()>0,'Tab must no longer fold/exit the active marks');
       assert.deepEqual(errors,[]);

@@ -1,15 +1,33 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
- * 🚨 @PATCH : **2026-10-25** — [인라인 서식(굵게/기울임/취소선/밑줄/인라인코드) 스마트 템플릿 선언 및 Live Preview 전개/접기 렌더링 지원]:
- *             1) 선택 텍스트가 없는 빈 커서에서 서식 명령(Ctrl+B, Ctrl+I, Ctrl+U, Ctrl+E, Ctrl+Shift+X 등) 실행 시 '**텍스트**', '`코드`' 등 템플릿을 자동 삽입하고 플레이스홀더를 블록 선택하여 즉시 타이핑 대체 지원
- *             2) 서식 텍스트 내부 커서 진입 시 Live Preview 문법 기호(**, *, ~~, <u>, `)를 양쪽에 동적 전개하여 현재 서식 식별 및 손쉬운 수정 지원
- *             3) Enter는 줄바꿈과 서식 유지, Tab은 기존 이동/들여쓰기, 좌우 방향키로 서식 경계를 벗어날 때 종료
- *             4) 좌우 방향키로 서식의 시작(from) 또는 끝(to) 경계를 벗어날 경우 문법 기호가 자동으로 숨겨지고 깔끔한 서식으로 렌더링 복귀
- *             5) 템플릿 플레이스홀더('텍스트'/'코드') 블록 선택 상태에서 영문/한글 타이핑 대체 시 서식이 유실되던 결함을 handleTextInput 및 compositionstart 서식 보존 인터셉터와 setStoredMarks로 완전 해결
- *             6) Live Preview 문법 기호 데코레이션에 contentEditable="false"를 부여하여 브라우저 네이티브 선택 영역이 기호를 침범하거나 기호를 삭제·오염시키는 현상 원천 차단
- *             7) 태그 시작(from) 및 끝(to) 경계에서도 편집 모드가 정상 유지되고 양방향 타이핑 입력이 가능하도록 findAnyActiveMarkRange 및 decorations 접촉 판정 정밀화, 경계 바깥 완전 이탈 시에만 렌더링 전환
- *             8) 태그 끝(to)에서 연속 타이핑 시 handleTextInput의 과도한 replaceWith 개입으로 자릿수가 늘어나지 않고 덮어써지던 결함을 수정하여 ProseMirror 네이티브 연속 확장을 보장
+ * 🚨 @PATCH : **2026-10-25** — [서식·태그 지우기(clear) 단축키 Ctrl+\\ 연동 및 영문/한글(₩) 키보드 완전 지원]:
+ *             1) keymap에 Mod-\\ (clear)를 등록하고 handleKeyDown 및 bridge(CLEAR/REMOVE_PREFIX)에 Ctrl+\\ / Ctrl+₩ / Backslash를 1:1 매핑
+ *             2) 블록 또는 텍스트 서식(굵게, 밑줄, 인라인코드 등) 및 블록 태그(목록, 제목 등) 적용 상태에서 Ctrl+\\ 입력 시 일반 본문 문단(paragraph) 및 서식 없는 텍스트로 즉각 초기화
+ * 🚨 @PATCH : **2026-10-25** — [인라인 서식 시작 왼쪽 방향키(←) 및 Home 키 서식 탈출(Step Out) 연동]:
+ *             1) 서식 텍스트 시작 경계에서 왼쪽 방향키(←) 입력 시 서식 유지 상태를 부드럽게 벗어나(storedMarks = []) 단축키 없이 즉시 일반 본문 텍스트 타이핑 지원
+ *             2) 이미 탈출한 상태에서 방향키(←) 재입력 시에는 기본 커서 이동이 정상 동작
+ *             3) 서식 내부에서 Home 키 입력 시 행 시작으로 이동함과 동시에 서식을 자동 해제(storedMarks = [])하여 행 선두에서 곧바로 일반 텍스트 작성 지원
+ * 🚨 @PATCH : **2026-10-25** — [문서보기(VisualDocumentEditor) 실시간 태그 표시기(Active Tag Inspector) 탑재]:
+ *             1) getActiveTagInfo 엔진 신설: 커서 위치($from)의 블록 계층(h1~h6, table, tr, th, td, ul, ol, li, blockquote, pre, p, math 등) 및 인라인 서식(strong, em, u, s, code, a)을 AST 기반으로 실시간 탐색
+ *             2) 최종안 태그(Innermost Tag) 식별 알고리즘 구현: 다중 중첩 서식(예: 표 셀 내부 밑줄 table > tr > td > u, 본문 굵은 글씨 p > strong 등)에서 사용자가 실제로 타이핑하고 있는 가장 안쪽 태그를 최우선 추출
+ *             3) 에디터 상단 컨트롤 툴바에 고대비 태그 뱃지(<tag> (라벨)) 및 전체 태그 경로(breadcrumb) 실시간 UI 배치 (Rule 8 고대비 가이드 준수 및 기존 '현재 입력 서식' 테스트 100% 호환 보존)
+ * 🚨 @PATCH : **2026-10-25** — [슬래시 커맨드(/table 등) Enter 키 입력 시 이벤트 전파 차단 및 비동기 실행 분리]:
+ *             1) 슬래시 메뉴에서 Enter/Tab으로 명령 선택 시 event.preventDefault() 및 event.stopPropagation()을 호출하여 bubbling을 원천 차단
+ *             2) executeItemRef.current 호출을 setTimeout(..., 0)으로 비동기 분리하여 모달(TableModal 등)이 동기적으로 열리며 동일한 Enter keydown에 의해 자동 제출·닫힘되는 현상 완전 해결
+ * 🚨 @PATCH : **2026-10-25** — [멀티 서식(굵게+밑줄 등) 동시 적용 지원 및 synchronizeTextSelection storedMarks 유실 결함 완전 해결]:
+ *             1) synchronizeTextSelection 및 run에서 selection 갱신 시 기존 view.state.storedMarks가 null로 날아가던 결함을 tr.setStoredMarks(stored)로 안전 보존
+ *             2) 에디터 상단 컨트롤 툴바에 '밑줄(underline)' 버튼 신설 및 activeMarks/입력 서식 상태 표시 매핑에 underline 완전 등록
+ *             3) 빈 커서 상태에서 굵게, 밑줄 등 복수 서식을 연속 클릭/단축키로 켰을 때 첫 번째 서식이 초기화되거나 풀리지 않고 완벽하게 누적 활성화되도록 개선
+ * 🚨 @PATCH : **2026-10-25** — [인라인 서식 끝 오른쪽 방향키(→) 및 End 키 서식 탈출(Step Out) 연동]:
+ *             1) 서식 텍스트 끝 경계에서 오른쪽 방향키(→) 1회 입력 시 서식 유지 상태를 부드럽게 벗어나(storedMarks = []) 단축키 없이 즉시 일반 본문 텍스트 타이핑 지원
+ *             2) 이미 탈출한 상태에서 방향키(→) 재입력 시에는 기본 커서 이동이 정상 동작하며, 왼쪽 방향키(←) 입력 시 서식 모드로 부드럽게 재진입
+ *             3) 서식 내부 또는 문장 끝에서 End 키 입력 시 행 끝으로 이동함과 동시에 서식을 자동 해제하여 연속 일반 텍스트 작성 지원 (Tab 키는 본래 들여쓰기 기능 100% 보존)
+ * 🚨 @PATCH : **2026-10-25** — [인라인 서식 표준 위지윅(Option B) 전환 및 거추장스러운 문법 기호 전개 제거]:
+ *             1) 인라인 서식(굵게, 기울임, 밑줄, 취소선, 인라인코드)을 화면에 가상 기호(**, <u> 등)를 억지로 전개/접기하지 않고 표준 위지윅 토글(toggleMark) 방식으로 완전 전환
+ *             2) Ctrl+B/I/U/E/Shift+X 단축키 및 툴바 클릭 시 텍스트 선택 영역은 즉시 서식 적용/해제, 빈 커서에서는 서식 활성화 후 실시간 타이핑 지원
+ *             3) 문법 기호 가상 위젯 데코레이션 및 경계 탈출 간섭 코드를 전면 소거하여 캐럿 갇힘, 한글 IME 조합 충돌, 커서 동기화 어긋남 결함 원천 해결
+ *             4) 저장 및 내보내기 시에는 기존과 100% 동일하게 표준 마크다운 문법(**텍스트**, `코드` 등)으로 완벽 직렬화/역직렬화 유지
  * 🚨 @PATCH : **2026-10-25** — [코드 블록 생성 시 하단 빈 행(문단) 자동 보장 및 밖에서 곧바로 타이핑 지원]:
  *             1) setCodeBlock 실행 시 코드 블록 바로 아래에 빈 문단(paragraph)을 확실히 추가하여 코드 블록 밖에서 곧바로 타이핑 가능하도록 보장
  *             2) CODE 언어 입력란에서 Shift+Enter 입력 시 코드 블록 밖 하단 빈 행으로 즉각 커서 이동
@@ -275,121 +293,118 @@ import katex from 'katex';
 
 const slashPattern = new RegExp('(?:^|\\s)([\\/／][\\p{L}\\p{N}_-]*)$', 'u');
 
-const INLINE_SYNTAX_CONFIG: Record<string, { open: string; close: string; placeholder: string }> = {
-  strong: { open: '**', close: '**', placeholder: '텍스트' },
-  em: { open: '*', close: '*', placeholder: '텍스트' },
-  strike: { open: '~~', close: '~~', placeholder: '텍스트' },
-  underline: { open: '<u>', close: '</u>', placeholder: '텍스트' },
-  code: { open: '`', close: '`', placeholder: '코드' }
-};
-
-function findMarkRange($pos: ResolvedPos, markType: MarkType): { from: number; to: number; mark: import('prosemirror-model').Mark } | null {
-  if (!$pos.parent.isTextblock) return null;
-  const parent = $pos.parent;
-  const parentStart = $pos.start();
-  let foundFrom = -1;
-  let foundTo = -1;
-  let foundMark: import('prosemirror-model').Mark | null = null;
-
-  let offset = 0;
-  for (let i = 0; i < parent.childCount; i++) {
-    const child = parent.child(i);
-    const mark = markType.isInSet(child.marks);
-    const childStart = parentStart + offset;
-    const childEnd = childStart + child.nodeSize;
-
-    if (mark) {
-      if (foundFrom === -1) {
-        foundFrom = childStart;
-        foundMark = mark;
-      }
-      foundTo = childEnd;
-    } else {
-      if (foundFrom !== -1) {
-        if ($pos.pos >= foundFrom && $pos.pos <= foundTo) {
-          return { from: foundFrom, to: foundTo, mark: foundMark! };
-        }
-        foundFrom = -1;
-        foundTo = -1;
-        foundMark = null;
-      }
-    }
-    offset += child.nodeSize;
-  }
-
-  if (foundFrom !== -1 && $pos.pos >= foundFrom && $pos.pos <= foundTo) {
-    return { from: foundFrom, to: foundTo, mark: foundMark! };
-  }
-  return null;
+export interface ActiveTagInfo {
+  innermostTag: string;
+  innermostLabel: string;
+  path: Array<{ tag: string; label: string }>;
+  pathString: string;
+  labelPathString: string;
 }
 
-function findAnyActiveMarkRange(state: EditorState): { from: number; to: number; markName: string } | null {
-  const { $from, from, to, empty } = state.selection;
-  if (!$from.parent.isTextblock) return null;
+export function getActiveTagInfo(state: EditorState): ActiveTagInfo {
+  const { $from, empty, from, to } = state.selection;
+  const path: Array<{ tag: string; label: string }> = [];
 
-  const isExplicitExit = state.storedMarks !== null && state.storedMarks.length === 0;
-  if (isExplicitExit) return null;
-
-  for (const markName of Object.keys(INLINE_SYNTAX_CONFIG)) {
-    const markType = state.schema.marks[markName];
-    if (!markType) continue;
-
-    if (!empty) {
-      if (state.doc.rangeHasMark(from, to, markType)) {
-        const range = findMarkRange($from, markType) || findMarkRange(state.doc.resolve(to), markType);
-        if (range) return { from: range.from, to: range.to, markName };
-      }
-    } else {
-      const range = findMarkRange(state.doc.resolve($from.pos), markType) || findMarkRange($from, markType);
-      if (range) {
-        const isTouching = $from.pos >= range.from && $from.pos <= range.to;
-        if (isTouching) {
-          return { from: range.from, to: range.to, markName };
-        }
-      }
+  // 1. 단독 선택된 노드(NodeSelection: 이미지, 구분선, 표, 코드블록 등) 감지
+  if ('node' in state.selection && (state.selection as any).node) {
+    const selNode = (state.selection as any).node;
+    const name = selNode.type.name;
+    if (name === 'visual_image' || name === 'image') {
+      return { innermostTag: 'img', innermostLabel: '이미지', path: [{ tag: 'img', label: '이미지' }], pathString: 'img', labelPathString: '이미지' };
+    }
+    if (name === 'horizontal_rule') {
+      return { innermostTag: 'hr', innermostLabel: '구분선', path: [{ tag: 'hr', label: '구분선' }], pathString: 'hr', labelPathString: '구분선' };
+    }
+    if (name === 'table') {
+      return { innermostTag: 'table', innermostLabel: '표', path: [{ tag: 'table', label: '표' }], pathString: 'table', labelPathString: '표' };
+    }
+    if (name === 'code_block') {
+      const lang = selNode.attrs.params || '';
+      return { innermostTag: 'pre', innermostLabel: lang ? `코드(${lang})` : '코드 블록', path: [{ tag: 'pre', label: lang ? `코드(${lang})` : '코드 블록' }], pathString: 'pre', labelPathString: lang ? `코드(${lang})` : '코드 블록' };
     }
   }
-  if (empty && state.storedMarks?.length) {
-    const mark = state.storedMarks.find(mark => INLINE_SYNTAX_CONFIG[mark.type.name]);
-    if (mark) return { from, to, markName: mark.type.name };
-  }
-  return null;
-}
 
-function inlineInputMarks(state: EditorState) {
-  if (state.storedMarks !== null) return state.storedMarks;
-  const { $from, empty } = state.selection;
-  // marksAcross deliberately drops non-inclusive marks at a replacement edge.
-  // Read the selected text itself, not that boundary's inheritance policy.
-  return (!empty ? $from.nodeAfter?.marks : $from.nodeBefore?.marks ?? $from.nodeAfter?.marks) ?? $from.marks();
-}
+  // 2. 루트부터 커서 위치($from)까지의 블록 노드 계층 탐색
+  for (let depth = 1; depth <= $from.depth; depth++) {
+    const node = $from.node(depth);
+    const name = node.type.name;
+    const parentName = depth > 1 ? $from.node(depth - 1).type.name : '';
 
-const smartToggleMark = (markType: MarkType, defaultPlaceholder = '텍스트'): Command => (state, dispatch, view) => {
-  const { from, to, empty, $from } = state.selection;
-  if (!empty) {
-    return toggleMark(markType)(state, dispatch, view);
-  }
-  const currentMark = markType.isInSet($from.marks());
-  if (currentMark) {
-    const range = findMarkRange($from, markType);
-    if (range) {
-      if (dispatch) {
-        let tr = state.tr.removeMark(range.from, range.to, markType);
-        dispatch(tr.scrollIntoView());
+    if (name === 'heading') {
+      const level = node.attrs.level || 1;
+      path.push({ tag: `h${level}`, label: `제목 ${level}` });
+    } else if (name === 'blockquote') {
+      const alert = node.attrs.alertType;
+      path.push({ tag: 'blockquote', label: alert ? `알림(${alert})` : '인용구' });
+    } else if (name === 'bullet_list') {
+      path.push({ tag: 'ul', label: '글머리 목록' });
+    } else if (name === 'ordered_list') {
+      path.push({ tag: 'ol', label: '번호 목록' });
+    } else if (name === 'list_item') {
+      const isChecked = node.attrs.checked;
+      path.push({ tag: 'li', label: isChecked !== null && isChecked !== undefined ? '체크 항목' : '목록 항목' });
+    } else if (name === 'table') {
+      path.push({ tag: 'table', label: '표' });
+    } else if (name === 'table_row') {
+      path.push({ tag: 'tr', label: '행' });
+    } else if (name === 'table_header') {
+      path.push({ tag: 'th', label: '제목 셀' });
+    } else if (name === 'table_cell') {
+      path.push({ tag: 'td', label: '내용 셀' });
+    } else if (name === 'code_block') {
+      const lang = node.attrs.params || '';
+      path.push({ tag: 'pre', label: lang ? `코드(${lang})` : '코드 블록' });
+    } else if (name === 'paragraph') {
+      if (!['table_header', 'table_cell', 'list_item'].includes(parentName)) {
+        path.push({ tag: 'p', label: '본문' });
       }
-      return true;
+    } else if (name === 'visual_math') {
+      path.push({ tag: 'math', label: '수식 블록' });
+    } else if (name === 'visual_inline_math') {
+      path.push({ tag: 'math', label: '인라인 수식' });
+    } else if (name === 'source_block') {
+      path.push({ tag: 'html', label: 'HTML 블록' });
+    } else if (name === 'visual_footnote_def') {
+      path.push({ tag: 'footnote', label: '각주' });
     }
   }
-  if (dispatch) {
-    const mark = markType.create();
-    const textNode = state.schema.text(defaultPlaceholder, [mark]);
-    let tr = state.tr.replaceSelectionWith(textNode, false);
-    tr = tr.setSelection(TextSelection.create(tr.doc, from, from + defaultPlaceholder.length));
-    tr = tr.setStoredMarks([mark]);
-    dispatch(tr.scrollIntoView());
+
+  // 3. 인라인 서식 마크(Marks) 탐색 및 정렬
+  const markMap: Record<string, { tag: string; label: string }> = {
+    strong: { tag: 'strong', label: '굵게' },
+    em: { tag: 'em', label: '기울임' },
+    strike: { tag: 's', label: '취소선' },
+    underline: { tag: 'u', label: '밑줄' },
+    code: { tag: 'code', label: '인라인 코드' },
+    link: { tag: 'a', label: '링크' },
+  };
+
+  const markNames = ['strong', 'em', 'strike', 'underline', 'code', 'link'];
+  const activeMarkNames = markNames.filter(name => empty
+    ? (state.storedMarks ?? $from.marks()).some(m => m.type.name === name)
+    : state.doc.rangeHasMark(from, to, visualSchema.marks[name]));
+
+  for (const mName of activeMarkNames) {
+    if (markMap[mName]) {
+      path.push(markMap[mName]);
+    }
   }
-  return true;
-};
+
+  if (path.length === 0) {
+    path.push({ tag: 'p', label: '본문' });
+  }
+
+  const innermost = path[path.length - 1];
+
+  return {
+    innermostTag: innermost.tag,
+    innermostLabel: innermost.label,
+    path,
+    pathString: path.map(p => p.tag).join(' > '),
+    labelPathString: path.map(p => p.label).join(' > '),
+  };
+}
+
 
 const setHeadingBlock = (level: number): Command => (state, dispatch, view) => {
   const { $from, $to } = state.selection;
@@ -835,7 +850,10 @@ function synchronizeTextSelection(view: EditorView) {
   try {
     const anchor=view.posAtDOM(selection.anchorNode,selection.anchorOffset),head=view.posAtDOM(selection.focusNode,selection.focusOffset);
     if(anchor!==view.state.selection.anchor || head!==view.state.selection.head) {
-      view.dispatch(view.state.tr.setSelection(TextSelection.between(view.state.doc.resolve(anchor),view.state.doc.resolve(head))));
+      const stored = view.state.storedMarks;
+      let tr = view.state.tr.setSelection(TextSelection.between(view.state.doc.resolve(anchor),view.state.doc.resolve(head)));
+      if (stored) tr = tr.setStoredMarks(stored);
+      view.dispatch(tr);
     }
   } catch { /* A DOM selection may be removed during a document update. */ }
 }
@@ -1156,6 +1174,13 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   const codecRef = useRef<Codec | null>(null);
   const [query, setQuery] = useState('');
   const [activeMarks, setActiveMarks] = useState<string[]>([]);
+  const [tagInfo, setTagInfo] = useState<ActiveTagInfo>({
+    innermostTag: 'p',
+    innermostLabel: '본문',
+    path: [{ tag: 'p', label: '본문' }],
+    pathString: 'p',
+    labelPathString: '본문',
+  });
   const [menuIndex, setMenuIndex] = useState(0);
   const menuIndexRef = useRef(0);
   const slashOpenRef = useRef(false);
@@ -1716,68 +1741,13 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     });
 
     const aiTargets=new VisualAITargets();
-    let inlineComposing = false;
-    let inlineDecorations = DecorationSet.empty;
-    const inlineSyntaxElements = new Map<string, HTMLElement>();
-    const syntaxElement = (key: string, text: string) => {
-      let tag = inlineSyntaxElements.get(key);
-      if (!tag) {
-        tag = document.createElement('span');
-        tag.className = 'onrivi-inline-syntax-tag no-print';
-        tag.contentEditable = 'false';
-        inlineSyntaxElements.set(key, tag);
-      }
-      tag.textContent = text;
-      return tag;
-    };
-    let inlineComposition: { from: number; to: number; marks: readonly import('prosemirror-model').Mark[] } | null = null;
     const view = new EditorView(hostEl, {
       decorations(state){
-        if (inlineComposing) return inlineDecorations;
         const entries=bibRef.current;const decorations:Decoration[]=[...aiTargets.decorations()];
         state.doc.descendants((node,pos)=>{if(node.type.name==='heading' && hasHeadingNumber(node.textContent)) decorations.push(Decoration.node(pos,pos+node.nodeSize,{'data-onrivi-heading-numbered':'true'}));if(!node.isText || node.marks.some(m=>m.type.name==='code') || state.doc.resolve(pos).parent.type.name==='code_block')return;
           for(const match of Array.from((node.text||'').matchAll(citationPattern))){const key=match[1]||match[2],entry=entries.get(key.toLowerCase());decorations.push(Decoration.inline(pos+match.index!,pos+match.index!+match[0].length,{class:entry?'visual-citation':'visual-citation-missing',title:entry?citationLabel(entry)+': '+entry.title:'등록된 문헌 없음: '+key}));}
         });
-        const { $from, from, to, empty } = state.selection;
-        if (!inlineComposing && $from.parent.isTextblock && $from.parent.type.name !== 'code_block') {
-          const isExplicitExit = state.storedMarks !== null && state.storedMarks.length === 0;
-          const processedRanges = new Set<string>();
-          for (const [index, name] of Array.from(Object.keys(INLINE_SYNTAX_CONFIG).entries())) {
-            const markType = state.schema.marks[name];
-            if (!markType) continue;
-            const range = findMarkRange(state.doc.resolve(empty ? $from.pos : from + 1), markType) || findMarkRange($from, markType)
-              || (empty && state.storedMarks?.some(mark => mark.type === markType) ? { from, to } : null);
-            if (range) {
-              const isTouching = $from.pos >= range.from && $from.pos <= range.to;
-              const rangeSelected = !empty && state.doc.rangeHasMark(from, to, markType);
-              if ((isTouching && !isExplicitExit) || rangeSelected) {
-                const config = INLINE_SYNTAX_CONFIG[name];
-                const rangeKey = `${range.from}-${range.to}-${name}`;
-                if (!processedRanges.has(rangeKey)) {
-                  processedRanges.add(rangeKey);
-                  decorations.push(
-                    Decoration.widget(
-                      range.from,
-                      () => {
-                        return syntaxElement(`syntax-open-${name}`, config.open);
-                      },
-                      { side: -1000 + index, key: `syntax-open-${name}` }
-                    ),
-                    Decoration.widget(
-                      range.to,
-                      () => {
-                        return syntaxElement(`syntax-close-${name}`, config.close);
-                      },
-                      { side: 1000 - index, key: `syntax-close-${name}` }
-                    )
-                  );
-                }
-              }
-            }
-          }
-        }
-        inlineDecorations = DecorationSet.create(state.doc,decorations);
-        return inlineDecorations;
+        return DecorationSet.create(state.doc,decorations);
       },
       state: cached?.source === content ? cached.state : EditorState.create({ doc: codec.doc, plugins: [history(), visualMarkdownInputRules(), createFootnoteHeaderPlugin(), keymap({
         'Mod-z': undo, 'Mod-y': redo, 'Mod-Shift-z': redo,
@@ -1801,15 +1771,16 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           }
           return false;
         },
-        'Mod-u': smartToggleMark(visualSchema.marks.underline, '텍스트'),
-        'Mod-b': smartToggleMark(visualSchema.marks.strong, '텍스트'),
-        'Mod-B': smartToggleMark(visualSchema.marks.strong, '텍스트'),
-        'Mod-i': smartToggleMark(visualSchema.marks.em, '텍스트'),
-        'Mod-I': smartToggleMark(visualSchema.marks.em, '텍스트'),
-        'Mod-e': smartToggleMark(visualSchema.marks.code, '코드'),
-        'Mod-E': smartToggleMark(visualSchema.marks.code, '코드'),
-        'Mod-Shift-x': smartToggleMark(visualSchema.marks.strike, '텍스트'),
-        'Mod-Shift-X': smartToggleMark(visualSchema.marks.strike, '텍스트'),
+        'Mod-u': toggleMark(visualSchema.marks.underline),
+        'Mod-b': toggleMark(visualSchema.marks.strong),
+        'Mod-B': toggleMark(visualSchema.marks.strong),
+        'Mod-i': toggleMark(visualSchema.marks.em),
+        'Mod-I': toggleMark(visualSchema.marks.em),
+        'Mod-e': toggleMark(visualSchema.marks.code),
+        'Mod-E': toggleMark(visualSchema.marks.code),
+        'Mod-Shift-x': toggleMark(visualSchema.marks.strike),
+        'Mod-Shift-X': toggleMark(visualSchema.marks.strike),
+        'Mod-\\': clear,
         'Mod-k': (state, dispatch) => linkCommandRef.current(state, dispatch),
         'Mod-Alt-f': () => { insertFootnoteRef.current?.(); return true; },
         'Mod-Alt-F': () => { insertFootnoteRef.current?.(); return true; },
@@ -1828,9 +1799,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           return false;
         }),
         'Mod-Enter': chainCommands(tableAction('afterTable'),exitCode,exitQuote(),exitMediaBlock()),
-        Enter: (state, dispatch, currentView) => {
-          const marks = findAnyActiveMarkRange(state) ? inlineInputMarks(state) : null;
-          return chainCommands(
+        Enter: chainCommands(
           exitMediaBlock(true),
           tableEnter(),
           calloutEnter,
@@ -1841,11 +1810,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           },
           headingEnter,
           baseKeymap.Enter
-          )(state, dispatch ? tr => {
-            if (marks && tr.selection.$from.parent.isTextblock) tr.setStoredMarks(tr.selection.$from.parent.type.allowedMarks(marks));
-            dispatch(tr);
-          } : undefined, currentView);
-        },
+        ),
         'Shift-Enter': chainCommands(exitCode, (state, dispatch) => {
           if (dispatch) dispatch(state.tr.replaceSelectionWith(visualSchema.nodes.hard_break.create()).scrollIntoView());
           return true;
@@ -2492,26 +2457,6 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         } catch { return false; }
       },
       dispatchTransaction(transaction) {
-        // Removing a template's final character must not turn off its input mode.
-        if (transaction.docChanged && transaction.selection.empty && !inlineComposing &&
-            transaction.steps.length && transaction.steps.every(step => {
-              const json = step.toJSON();
-              return json.stepType === 'replace' && json.to > json.from && !json.slice?.content?.length;
-            }) && findAnyActiveMarkRange(view.state)) {
-          transaction.setStoredMarks(inlineInputMarks(view.state));
-        }
-        if (inlineComposing) {
-          const syntax = inlineDecorations.find().filter(decoration => inlineSyntaxElements.has(decoration.spec.key));
-          const mapped = inlineDecorations.map(transaction.mapping, transaction.doc);
-          const others = mapped.find().filter(decoration => !inlineSyntaxElements.has(decoration.spec.key));
-          inlineDecorations = DecorationSet.create(transaction.doc, [...others, ...syntax.map(decoration =>
-            Decoration.widget(transaction.mapping.map(decoration.from, decoration.spec.side < 0 ? -1 : 1),
-              () => inlineSyntaxElements.get(decoration.spec.key)!, decoration.spec))]);
-        }
-        if (inlineComposition && transaction.docChanged) {
-          inlineComposition.from = transaction.mapping.map(inlineComposition.from, -1);
-          inlineComposition.to = transaction.mapping.map(inlineComposition.to, 1);
-        }
         removeEmptySignatureBlocks(transaction);
         const formats = headingFormatsRef.current;
         if (!formats.readOnly && !view.composing && (transaction.docChanged || transaction.getMeta('onrivi:heading-numbering'))) {
@@ -2574,6 +2519,11 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           ? (view.state.storedMarks ?? $from.marks()).some(mark => mark.type.name === name)
           : view.state.doc.rangeHasMark(from, to, visualSchema.marks[name]));
         setActiveMarks(previous => previous.join(',') === currentMarks.join(',') ? previous : currentMarks);
+        const nextTagInfo = getActiveTagInfo(view.state);
+        setTagInfo(previous => previous.pathString === nextTagInfo.pathString && previous.innermostTag === nextTagInfo.innermostTag && previous.innermostLabel === nextTagInfo.innermostLabel ? previous : nextTagInfo);
+        try {
+          window.dispatchEvent(new CustomEvent('onrivi:active-tag', { detail: nextTagInfo }));
+        } catch {}
         const before = $from.parent.isTextblock && $from.parent.type !== visualSchema.nodes.code_block
           ? $from.parent.textBetween(Math.max(0, $from.parentOffset - 100), $from.parentOffset, '\n', '\n') : '';
         const match = before.match(slashPattern);
@@ -2620,7 +2570,71 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             caretRef.current?.schedule();
           }
         }
-        if(event.key==='Tab' || event.key==='Backspace' || event.key==='Delete')synchronizeTextSelection(currentView);
+        if(['Tab','Backspace','Delete','End','Home','ArrowLeft','ArrowRight'].includes(event.key))synchronizeTextSelection(currentView);
+        if (event.key === 'ArrowRight' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !slashOpenRef.current) {
+          const { $from, empty } = currentView.state.selection;
+          if (empty && $from.parent.isTextblock) {
+            const currentStored = currentView.state.storedMarks;
+            const activeMarks = currentStored ?? $from.marks();
+            if (activeMarks && activeMarks.length > 0) {
+              const nodeAfter = $from.nodeAfter;
+              const isAtMarkEnd = !nodeAfter || !activeMarks.some(m => nodeAfter.marks.some(nm => nm.eq(m)));
+              if (isAtMarkEnd && !(currentStored && currentStored.length === 0)) {
+                event.preventDefault();
+                currentView.dispatch(currentView.state.tr.setStoredMarks([]));
+                caretRef.current?.schedule();
+                return true;
+              }
+            }
+          }
+        }
+        if (event.key === 'ArrowLeft' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !slashOpenRef.current) {
+          const { $from, empty } = currentView.state.selection;
+          if (empty && $from.parent.isTextblock) {
+            const currentStored = currentView.state.storedMarks;
+            const activeMarks = currentStored ?? $from.marks();
+            if (activeMarks && activeMarks.length > 0) {
+              const nodeBefore = $from.nodeBefore;
+              const nodeAfter = $from.nodeAfter;
+              const isAtMarkStart = (!nodeBefore || !activeMarks.some(m => nodeBefore.marks.some(nm => nm.eq(m)))) &&
+                                    Boolean(nodeAfter && activeMarks.some(m => nodeAfter.marks.some(nm => nm.eq(m))));
+              if (isAtMarkStart && !(currentStored && currentStored.length === 0)) {
+                event.preventDefault();
+                currentView.dispatch(currentView.state.tr.setStoredMarks([]));
+                caretRef.current?.schedule();
+                return true;
+              }
+            }
+          }
+        }
+        if (event.key === 'End' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !slashOpenRef.current) {
+          const { $from, empty } = currentView.state.selection;
+          if (empty && $from.parent.isTextblock) {
+            const currentStored = currentView.state.storedMarks;
+            const activeMarks = currentStored ?? $from.marks();
+            if (activeMarks && activeMarks.length > 0) {
+              const endPos = $from.end();
+              event.preventDefault();
+              currentView.dispatch(currentView.state.tr.setSelection(TextSelection.create(currentView.state.doc, endPos)).setStoredMarks([]));
+              caretRef.current?.schedule();
+              return true;
+            }
+          }
+        }
+        if (event.key === 'Home' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !slashOpenRef.current) {
+          const { $from, empty } = currentView.state.selection;
+          if (empty && $from.parent.isTextblock) {
+            const startPos = $from.start();
+            const startResolved = currentView.state.doc.resolve(startPos);
+            const nodeAfter = startResolved.nodeAfter;
+            if (nodeAfter && nodeAfter.marks && nodeAfter.marks.length > 0) {
+              event.preventDefault();
+              currentView.dispatch(currentView.state.tr.setSelection(TextSelection.create(currentView.state.doc, startPos)).setStoredMarks([]));
+              caretRef.current?.schedule();
+              return true;
+            }
+          }
+        }
         if(event.key==='ArrowDown' && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && !slashOpenRef.current){
           synchronizeTextSelection(currentView);
           if(extendSelectionToListEnd(currentView.state,currentView.dispatch,currentView)){
@@ -2635,13 +2649,20 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             if(position.node(depth).type===visualSchema.nodes.list_item) inList=true;
             if(position.node(depth).type===visualSchema.nodes.blockquote) inQuote=true;
           }
-          if(!inList && !inQuote && !findAnyActiveMarkRange(currentView.state) && currentView.state.selection.empty && !tableContext(currentView.state) && position.parent.isTextblock && position.parentOffset>0 && position.parentOffset<position.parent.content.size){
+          if(!inList && !inQuote && currentView.state.selection.empty && !tableContext(currentView.state) && position.parent.isTextblock && position.parentOffset>0 && position.parentOffset<position.parent.content.size){
             event.preventDefault();return indentDocument(event.shiftKey)(currentView.state,currentView.dispatch,currentView);
           }
         }
         const clipboardFile = desktopClipboardImage(event);
         if (clipboardFile && images.current.onImageFile) {
           event.preventDefault(); beginImageRef.current(undefined, undefined, clipboardFile); return true;
+        }
+        if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && (event.key === '\\' || event.key === '₩' || event.code === 'Backslash')) {
+          event.preventDefault();
+          synchronizeTextSelection(currentView);
+          run(clear);
+          caretRef.current?.schedule();
+          return true;
         }
         const configured = configuredHotkeyItem(event, hotkeysRef.current);
         if (configured) { event.preventDefault(); synchronizeTextSelection(currentView); executeItemRef.current(configured.id); return true; }
@@ -2694,44 +2715,18 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             }
           }
         }
-        if (event.key === 'ArrowRight' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !slashOpenRef.current) {
-          const active = findAnyActiveMarkRange(currentView.state);
-          if (active) {
-            const { from } = currentView.state.selection;
-            if (from >= active.to) {
-              event.preventDefault();
-              let tr = currentView.state.tr;
-              tr = tr.setSelection(TextSelection.create(tr.doc, active.to));
-              tr = tr.setStoredMarks([]);
-              currentView.dispatch(tr.scrollIntoView());
-              caretRef.current?.schedule();
-              return true;
-            }
-          }
-        }
-        if (event.key === 'ArrowLeft' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !slashOpenRef.current) {
-          const active = findAnyActiveMarkRange(currentView.state);
-          if (active) {
-            const { from } = currentView.state.selection;
-            if (from <= active.from) {
-              event.preventDefault();
-              let tr = currentView.state.tr;
-              tr = tr.setSelection(TextSelection.create(tr.doc, active.from));
-              tr = tr.setStoredMarks([]);
-              currentView.dispatch(tr.scrollIntoView());
-              caretRef.current?.schedule();
-              return true;
-            }
-          }
-        }
         if (slashOpenRef.current && menuItemsRef.current.length && ['ArrowDown', 'ArrowUp', 'Enter', 'Tab'].includes(event.key)) {
+          event.preventDefault();
+          event.stopPropagation();
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             const length = menuItemsRef.current.length;
             menuIndexRef.current = (menuIndexRef.current + (event.key === 'ArrowDown' ? 1 : -1) + length) % length;
             setMenuIndex(menuIndexRef.current);
           } else {
             const item = menuItemsRef.current[menuIndexRef.current] || menuItemsRef.current[0];
-            executeItemRef.current(item.id, true);
+            setTimeout(() => {
+              executeItemRef.current(item.id, true);
+            }, 0);
           }
           return true;
         }
@@ -2758,50 +2753,14 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           }
           return true;
         }
-        if (event.key === 'Escape') { manualFloatingRef.current = false; slashOpenRef.current = false; setSlash(false); setSelection(false); slashRange.current = null; return true; }
+        if (event.key === 'Escape') {
+          manualFloatingRef.current = false; slashOpenRef.current = false; setSlash(false); setSelection(false); slashRange.current = null; return true;
+        }
         return false;
       },
       handleTextInput(currentView, _from, _to, text) {
         if (!currentView.editable) return false;
-        // IME supplies a replacement range for its in-progress composition.
-        // Replacing state.selection here would append intermediate syllables.
-        if (inlineComposing || currentView.composing) return false;
-        const { state } = currentView;
-        const { from, to, empty } = state.selection;
-        if (!empty) {
-          const active = findAnyActiveMarkRange(state);
-          if (active) {
-            const markType = state.schema.marks[active.markName];
-            if (markType) {
-              const inherited = inlineInputMarks(state);
-              const marks = inherited.length ? inherited : [markType.create()];
-              let tr = state.tr.replaceWith(from, to, state.schema.text(text, marks));
-              const nextPos = from + text.length;
-              tr = tr.setSelection(TextSelection.create(tr.doc, nextPos));
-              tr = tr.setStoredMarks(marks);
-              currentView.dispatch(tr.scrollIntoView());
-              caretRef.current?.schedule();
-              return true;
-            }
-          }
-        }
-        if (empty) {
-          const active = findAnyActiveMarkRange(state);
-          if (active) {
-            const markType = state.schema.marks[active.markName];
-            if (markType) {
-              const marks = inlineInputMarks(state);
-              const inputMarks = marks.length ? marks : [markType.create()];
-              let tr = state.tr.replaceWith(from, to, state.schema.text(text, inputMarks));
-              const nextPos = from + text.length;
-              tr = tr.setSelection(TextSelection.create(tr.doc, nextPos));
-              tr = tr.setStoredMarks(inputMarks);
-              currentView.dispatch(tr.scrollIntoView());
-              caretRef.current?.schedule();
-              return true;
-            }
-          }
-        }
+        if (currentView.composing) return false;
         if (currentView.state.selection instanceof NodeSelection && currentView.state.selection.node.type === visualSchema.nodes.horizontal_rule) {
           if (placeCursorBeforeHorizontalRule(currentView, currentView.state.selection.from)) {
             currentView.dispatch(currentView.state.tr.insertText(text));
@@ -2818,13 +2777,13 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
 
         const text = event.clipboardData?.getData('text/plain') || '';
         const html = event.clipboardData?.getData('text/html') || '';
-        // A plain inline paste follows the same active marks as typing, including
-        // an empty template or the last position before its closing delimiter.
-        if (text && !html && !/[\r\n\t]/.test(text) && findAnyActiveMarkRange(currentView.state)) {
-          const marks = inlineInputMarks(currentView.state);
-          let tr = currentView.state.tr.replaceSelectionWith(currentView.state.schema.text(text, marks), false);
-          currentView.dispatch(tr.setStoredMarks(marks).scrollIntoView());
-          return true;
+        if (text && !html && !/[\r\n\t]/.test(text)) {
+          const marks = currentView.state.storedMarks ?? currentView.state.selection.$from.marks();
+          if (marks?.length) {
+            let tr = currentView.state.tr.replaceSelectionWith(currentView.state.schema.text(text, marks), false);
+            currentView.dispatch(tr.setStoredMarks(marks).scrollIntoView());
+            return true;
+          }
         }
 
         // 1. 본문 텍스트가 실질적으로 존재하는지 검증 (단독 이미지 붙여넣기 오분기 차단)
@@ -2925,23 +2884,6 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           const convertedMd = htmlToImportMarkdown(html);
           if (convertedMd.trim()) {
             const cleanMd = sanitizePastedText(convertedMd);
-            if (findAnyActiveMarkRange(currentView.state)) {
-              const parsed = createVisualDocumentCodec(cleanMd).doc;
-              const paragraph = parsed.childCount === 1 ? parsed.firstChild : null;
-              if (paragraph?.type === visualSchema.nodes.paragraph && paragraph.childCount &&
-                  Array.from({ length: paragraph.childCount }, (_, index) => paragraph.child(index)).every(node => node.isText)) {
-                const marks = inlineInputMarks(currentView.state);
-                const nodes: DocumentNode[] = [];
-                paragraph.forEach(node => {
-                  let combined = node.marks;
-                  for (const mark of marks) combined = mark.addToSet(combined);
-                  nodes.push(node.mark(combined));
-                });
-                const tr = currentView.state.tr.replaceSelection(new Slice(Fragment.fromArray(nodes), 0, 0));
-                currentView.dispatch(tr.setStoredMarks(marks).scrollIntoView());
-                return true;
-              }
-            }
             currentView.dispatch(markdownPasteTransaction(currentView.state, codecRef.current, cleanMd));
             return true;
           }
@@ -3169,33 +3111,10 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           return false;
         },
         compositionend(currentView) {
-          const composition = inlineComposition;
-          setTimeout(() => {
-            if (inlineComposition !== composition || viewRef.current !== currentView || currentView.composing) return;
-            inlineComposing = false;
-            inlineComposition = null;
-            let tr = currentView.state.tr;
-            if (composition && composition.to > composition.from) {
-              for (const mark of composition.marks) tr = tr.addMark(composition.from, composition.to, mark);
-              if (tr.selection.empty && tr.selection.from === composition.to && currentView.state.storedMarks?.length !== 0)
-                tr.setStoredMarks(composition.marks);
-            }
-            currentView.dispatch(tr);
-          }, 25);
           setTimeout(() => { if (viewRef.current === currentView && !headingFormatsRef.current.readOnly && !currentView.composing) currentView.dispatch(currentView.state.tr.setMeta('onrivi:heading-numbering', true)); }, 50);
           return false;
         },
         compositionstart(currentView) {
-          inlineComposing = true;
-          const state = currentView.state;
-          if (findAnyActiveMarkRange(state)) {
-            const marks = inlineInputMarks(state);
-            if (marks?.length) {
-              // Do not mutate DOM/selection from compositionstart: Chromium
-              // has already selected the native replacement range at this point.
-              inlineComposition ??= { from: state.selection.from, to: state.selection.to, marks };
-            }
-          }
           if (currentView.state.selection instanceof NodeSelection && currentView.state.selection.node.type === visualSchema.nodes.horizontal_rule) {
             placeCursorBeforeHorizontalRule(currentView, currentView.state.selection.from);
             caretRef.current?.schedule();
@@ -3265,6 +3184,11 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         }, blur() { manualFloatingRef.current = false; setSelection(false); setSlash(false); return false; } },
     });
     viewRef.current = view;
+    try {
+      const initialTagInfo = getActiveTagInfo(view.state);
+      setTagInfo(initialTagInfo);
+      window.dispatchEvent(new CustomEvent('onrivi:active-tag', { detail: initialTagInfo }));
+    } catch {}
     if(aiTargetRef)aiTargetRef.current=(scope)=>{synchronizeTextSelection(view);return aiTargets.capture(view,documentId||'',scope);};
     (hostEl as SearchEditorHost).onriviSearchView = view;
     hostEl.setAttribute('data-onrivi-search-editor', '');
@@ -3319,6 +3243,11 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       if(scrollContainer && top!==undefined){scrollContainer.scrollTop=top;scrollContainer.scrollLeft=left || 0;}
       setInTable(Boolean(tableContext(view.state)));
       setActiveMarks(view.state.selection.$from.marks().map(mark=>mark.type.name));
+      const nextInitTagInfo = getActiveTagInfo(view.state);
+      setTagInfo(nextInitTagInfo);
+      try {
+        window.dispatchEvent(new CustomEvent('onrivi:active-tag', { detail: nextInitTagInfo }));
+      } catch {}
       caretRef.current?.schedule();
       manualFloatingRef.current = false;
       setSlash(false); setSelection(false);
@@ -3416,11 +3345,14 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   const run = (command: Command, removeSlash = false) => {
     const view = viewRef.current;
     if (!view || readOnly) return;
+    const stored = view.state.storedMarks;
     synchronizeTextSelection(view);
     if (removeSlash && slashRange.current) {
       const { from, to } = slashRange.current;
-      const transaction = view.state.tr.delete(from, to);
-      view.dispatch(transaction.setSelection(TextSelection.create(transaction.doc, from)));
+      let transaction = view.state.tr.delete(from, to);
+      transaction = transaction.setSelection(TextSelection.create(transaction.doc, from));
+      if (stored) transaction = transaction.setStoredMarks(stored);
+      view.dispatch(transaction);
       slashRange.current = null; setSlash(false);
     }
     command(view.state, view.dispatch, view);
@@ -3617,11 +3549,11 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     tableTargetRef.current=target;imageTargets.current.add(target);setTableDialog(true);
   };
   const nativeCommands: Record<string, Command> = {
-    bold: smartToggleMark(visualSchema.marks.strong, '텍스트'),
-    italic: smartToggleMark(visualSchema.marks.em, '텍스트'),
-    underline: smartToggleMark(visualSchema.marks.underline, '텍스트'),
-    inlineCode: smartToggleMark(visualSchema.marks.code, '코드'),
-    strikethrough: smartToggleMark(visualSchema.marks.strike, '텍스트'),
+    bold: toggleMark(visualSchema.marks.strong),
+    italic: toggleMark(visualSchema.marks.em),
+    underline: toggleMark(visualSchema.marks.underline),
+    inlineCode: toggleMark(visualSchema.marks.code),
+    strikethrough: toggleMark(visualSchema.marks.strike),
     link, clear,
     quoteNote:setQuote('NOTE'),quoteTip:setQuote('TIP'),quoteImportant:setQuote('IMPORTANT'),quoteWarning:setQuote('WARNING'),quoteCaution:setQuote('CAUTION'),
     table:()=>{openTableRef.current();return true;},
@@ -4068,14 +4000,14 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     if (!commandRef) return;
     const commands: Record<string, Command> = {
       UNDO: undo, REDO: redo,
-      BOLD: smartToggleMark(visualSchema.marks.strong, '텍스트'),
-      ITALIC: smartToggleMark(visualSchema.marks.em, '텍스트'),
-      UNDERLINE: smartToggleMark(visualSchema.marks.underline, '텍스트'),
-      INLINE_CODE: smartToggleMark(visualSchema.marks.code, '코드'),
+      BOLD: toggleMark(visualSchema.marks.strong),
+      ITALIC: toggleMark(visualSchema.marks.em),
+      UNDERLINE: toggleMark(visualSchema.marks.underline),
+      INLINE_CODE: toggleMark(visualSchema.marks.code),
       LIST: selectedList('bullet'), ORDERED_LIST: selectedList('ordered'),
       CHECK:makeChecklist,CHECKLIST:makeChecklist, QUOTE: setQuote(null), CODE_BLOCK: setCodeBlock,
-      LINK: link, REMOVE_PREFIX: clear,
-      STRIKETHROUGH: smartToggleMark(visualSchema.marks.strike, '텍스트'),
+      LINK: link, REMOVE_PREFIX: clear, CLEAR: clear, clear: clear,
+      STRIKETHROUGH: toggleMark(visualSchema.marks.strike),
       QUOTE_NOTE:setQuote('NOTE'),QUOTE_TIP:setQuote('TIP'),QUOTE_IMPORTANT:setQuote('IMPORTANT'),QUOTE_WARNING:setQuote('WARNING'),QUOTE_CAUTION:setQuote('CAUTION'),
       TABLE:()=>{openTableRef.current();return true;}, QUICK_TABLE:()=>{openTableRef.current();return true;}, INSERT_TABLE_ROW:tableAction('addRow'), DELETE_TABLE_ROW:tableAction('deleteRow'),
       NOW: () => { openDatePickerRef.current(); return true; }, CALENDAR: () => { openDatePickerRef.current(); return true; },
@@ -4251,8 +4183,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   const itemButton = (id: string, label: string, removeSlash = false) => <button key={id} type="button"
     aria-label={id === 'inlineCode' ? 'inlinecode' : id}
     disabled={readOnly} onMouseDown={event => event.preventDefault()} onClick={() => executeItem(id, removeSlash)}
-    className={`rounded px-3 py-2 text-sm hover:bg-blue-50 ${activeMarks.includes(({ bold: 'strong', italic: 'em', inlineCode: 'code', link: 'link', strikethrough:'strike' } as Record<string, string>)[id]) ? 'bg-blue-100 ring-1 ring-blue-400' : ''}`}
-    aria-pressed={['bold', 'italic', 'inlineCode', 'link', 'strikethrough'].includes(id) ? activeMarks.includes(({ bold: 'strong', italic: 'em', inlineCode: 'code', link: 'link', strikethrough:'strike' } as Record<string, string>)[id]) : undefined}>{label}</button>;
+    className={`rounded px-3 py-2 text-sm hover:bg-blue-50 ${activeMarks.includes(({ bold: 'strong', italic: 'em', inlineCode: 'code', link: 'link', strikethrough:'strike', underline: 'underline' } as Record<string, string>)[id]) ? 'bg-blue-100 ring-1 ring-blue-400 font-bold text-blue-700' : ''}`}
+    aria-pressed={['bold', 'italic', 'inlineCode', 'link', 'strikethrough', 'underline'].includes(id) ? activeMarks.includes(({ bold: 'strong', italic: 'em', inlineCode: 'code', link: 'link', strikethrough:'strike', underline: 'underline' } as Record<string, string>)[id]) : undefined}>{label}</button>;
 
   return <section style={{tabSize}} className="visual-document-editor relative" aria-label="기본 직접 편집기"
     onClick={event => event.stopPropagation()}
@@ -4285,7 +4217,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       }
     }}>
     <div className="sticky top-0 z-20 flex flex-wrap items-center gap-1 border-b bg-white p-2 text-zinc-800" data-editor-controls>
-      {itemButton('bold', 'bold')}{itemButton('italic', 'italic')}{itemButton('strikethrough', '취소선')}{itemButton('inlineCode', 'inlinecode')}{itemButton('link', 'link')}{itemButton('clear', 'clear')}{itemButton('image', '사진 넣기')}{itemButton('table', '표 넣기')}
+      {itemButton('bold', 'bold')}{itemButton('italic', 'italic')}{itemButton('underline', '밑줄')}{itemButton('strikethrough', '취소선')}{itemButton('inlineCode', 'inlinecode')}{itemButton('link', 'link')}{itemButton('clear', 'clear')}{itemButton('image', '사진 넣기')}{itemButton('table', '표 넣기')}
       {button('실행 취소', undo)}{button('다시 실행', redo)}
       <select aria-label="문단 서식" defaultValue="" onChange={event => {
         const item = blockCommands.find(([label]) => label === event.target.value);
@@ -4294,7 +4226,20 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         {blockCommands.map(([label]) => <option key={label}>{label}</option>)}
       </select>
       <span className="ml-auto text-xs text-zinc-500">/ 입력: 블록 추가 · Ctrl+Space: 툴바 · Ctrl+Enter: 표·코드·인용문·이미지 아래 본문 · Tab: 목록 들여쓰기</span>
-      <span aria-label="현재 입력 서식" className="text-xs text-blue-700">{activeMarks.length ? activeMarks.map(name => ({strong:'bold',em:'italic',code:'inlinecode',link:'link',strike:'strike'})[name]).join(' + ') : 'plain'}</span>
+      <span aria-label="현재 입력 서식" className="text-xs text-blue-700">{activeMarks.length ? activeMarks.map(name => ({strong:'bold',em:'italic',code:'inlinecode',link:'link',strike:'strike',underline:'underline'}[name] || name)).join(' + ') : 'plain'}</span>
+      <div className="flex items-center gap-1.5 border-l border-zinc-200 dark:border-zinc-700 pl-2 select-none" data-testid="active-tag-indicator" aria-label="현재 입력 태그" title={`전체 태그 경로: ${tagInfo.labelPathString} (${tagInfo.pathString})`}>
+        <span className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300">현재 태그:</span>
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono font-bold text-xs bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200 ring-1 ring-blue-400 dark:ring-blue-600 shadow-xs">
+          <span>&lt;{tagInfo.innermostTag}&gt;</span>
+          <span className="font-sans font-semibold text-[11px] text-blue-700 dark:text-blue-300">({tagInfo.innermostLabel})</span>
+        </span>
+        {tagInfo.path.length > 1 && (
+          <span className="hidden sm:inline-flex items-center text-xs font-mono font-bold text-zinc-700 dark:text-zinc-300 truncate max-w-[260px]" title={`전체 태그 경로: ${tagInfo.labelPathString}`}>
+            <span className="text-zinc-400 mx-1 font-normal">·</span>
+            {tagInfo.pathString}
+          </span>
+        )}
+      </div>
     </div>
     {inTable && !readOnly && createPortal(<div style={tableToolPosition} className="no-print fixed z-[100000] flex flex-wrap gap-1 rounded-lg border border-blue-200 bg-blue-50 p-2 text-zinc-800 shadow-lg" data-editor-controls aria-label="표 편집 도구">
       <strong className="self-center px-2 text-sm">표 편집 도구</strong>

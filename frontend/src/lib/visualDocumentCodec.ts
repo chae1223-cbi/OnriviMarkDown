@@ -2,6 +2,10 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-visual-codec
+ * 🚨 @PATCH : **2026-10-25** — [인라인 서식(굵게, 기울임, 밑줄, 취소선, 인라인코드) 끝 연속 타이핑 서식 유지 보장 (inclusive: true)]:
+ *             1) visualSchema.marks에서 strong, em, strike, underline, code의 inclusive: false 제약을 제거하여 기본 inclusive: true로 복원
+ *             2) 서식 텍스트 끝에 커서를 두고 연속 타이핑 시 서식이 끊기며 일반 텍스트로 분기되던 결함 원천 해결
+ *             3) 서식 해제는 Ctrl+B/I/U/E 등 단축키 토글(toggleMark) 또는 툴바/버블 메뉴 조작을 통해 표준 위지윅 방식으로 깔끔하게 제어
  * 🚨 @PATCH : **2026-10-25** — [이미지 캡션 대괄호([]) 파싱 누락 및 상단 유령 기호("\[") 노출 결함 해결]:
  *             1) visualParser에서 image 토큰 파싱 시 defaultMarkdownParser가 alt를 첫 토큰(tok.children[0])만 취해 대괄호([그림 1])가 '['로 잘리고 '\['로 직렬화되던 결함 수정 (tok.children 전체를 안전 결합)
  *             2) visualImageDetails에서 stray bracket/backslash 단독 찌꺼기(/^[\\\[\]\s]+$/) 자동 정제
@@ -201,15 +205,13 @@ export const visualSchema = new Schema({
     .addToEnd('table_header',{content:'paragraph',isolating:true,attrs:{align:{default:'left'}},toDOM:()=>['th',{style:'text-align:center!important'},0],parseDOM:[{tag:'th'}]})
     .addToEnd('table_cell',{content:'paragraph',isolating:true,attrs:{align:{default:'left'}},toDOM:node=>['td',{style:`text-align:${node.attrs.align}`},0],parseDOM:[{tag:'td',getAttrs:dom=>({align:(dom as HTMLElement).style.textAlign || 'left'})}]}),
   marks: markdownSchema.spec.marks.addToEnd('strike', {
-    inclusive:false, parseDOM:[{tag:'s'},{tag:'del'},{style:'text-decoration=line-through'}], toDOM:()=>['s',0],
+    parseDOM:[{tag:'s'},{tag:'del'},{style:'text-decoration=line-through'}], toDOM:()=>['s',0],
   }).addToEnd('underline', {
-    inclusive:false, parseDOM:[{tag:'u'},{style:'text-decoration=underline'}], toDOM:()=>['u',0],
+    parseDOM:[{tag:'u'},{style:'text-decoration=underline'}], toDOM:()=>['u',0],
   })
-    .update('strong', { ...markdownSchema.spec.marks.get('strong'), inclusive: false })
-    .update('em', { ...markdownSchema.spec.marks.get('em'), inclusive: false })
     // Code must be the innermost mark. HTML/Markdown delimiters inside a code
     // span are literal characters and cannot represent underline/strike marks.
-    .remove('code').addToEnd('code', { ...markdownSchema.spec.marks.get('code'), inclusive: false })
+    .remove('code').addToEnd('code', markdownSchema.spec.marks.get('code')!)
     .update('link', {
     ...markdownSchema.spec.marks.get('link'),
     inclusive: false,

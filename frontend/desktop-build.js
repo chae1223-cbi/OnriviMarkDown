@@ -7,6 +7,9 @@
  * 2. next build 실행
  * 3. 임시 이동한 폴더 원위치 복원
  * 
+ * 🚨 @PATCH : **2026-10-25** — [이전 빌드 잔여 청크(Ghost Chunks) 자동 소탕 파이프라인 신설]:
+ *             1) Next.js 빌드 시 해시가 변경되어 out/_next/static/chunks에 이전 빌드 파일들이 끝없이 누적되던 결함(254개 파일, 약 98.6MB) 해결
+ *             2) .next-desktop 정적 번들을 out으로 동기화한 직후, 최신 빌드에 존재하지 않는 과거 청크 및 이전 빌드 디렉터리를 자동 비교·소탕하여 패키징 용량 대폭 절감
  * 🚨 @PATCH : **2026-10-18** — [Windows 파일 잠금 EBUSY 방어 및 out 정적 번들 덮어쓰기 복사]: out 디렉터리 rmSync 선행 삭제를 걷어내고 cpSync({ force: true })로 직접 덮어써 실행 중인 프로세스(Electron) 잠금으로 인한 복사 실패 및 404 방어
  * 🚨 @PATCH : **2026-10-11** — [.next-desktop 산출물 out 복사 및 최신화 누락 버그 해결]: NEXT_BUILD_DIR(.next-desktop)로 export된 정적 번들을 out 디렉터리로 복사하는 단계가 누락되어 데스크톱 Electron(NO_SERVER=true)이 과거 빌드를 바라보던 결함 완전 수정
  * 🚨 @PATCH : **2026-10-11** — [타 빌드 잔여 캐시(.next-dev, .next-web-build) 선행 소탕 추가]: Next.js 타입 검사 시 이전 개발/웹 빌드 캐시의 types 참조로 인한 라우트 격리 컴파일 실패 원천 차단
@@ -114,6 +117,54 @@ if (buildSuccess) {
       }
       fs.cpSync(exportedDir, outputDir, { recursive: true, force: true });
       console.log('[desktop-build] .next-desktop -> out 정적 번들 복사 및 최신화 완료');
+
+      // 🛡️ [과거 빌드 잔여 청크(Ghost Chunks) 소탕]
+      //    Next.js 빌드 시 해시가 변경되어 out/_next/static/chunks에 이전 빌드 파일들이 누적되는 결함을 방지
+      try {
+        const srcNextDir = path.join(exportedDir, '_next');
+        const destNextDir = path.join(outputDir, '_next');
+        if (fs.existsSync(srcNextDir) && fs.existsSync(destNextDir)) {
+          function getRelFiles(dir, base = '') {
+            let res = [];
+            for (const f of fs.readdirSync(dir)) {
+              const full = path.join(dir, f);
+              const rel = path.join(base, f);
+              if (fs.statSync(full).isDirectory()) res = res.concat(getRelFiles(full, rel));
+              else res.push({ full, rel });
+            }
+            return res;
+          }
+          const validFiles = new Set(getRelFiles(srcNextDir).map(x => x.rel));
+          const existingFiles = getRelFiles(destNextDir);
+          let purgedCount = 0;
+          for (const f of existingFiles) {
+            if (!validFiles.has(f.rel)) {
+              try {
+                fs.unlinkSync(f.full);
+                purgedCount++;
+              } catch (_) {}
+            }
+          }
+          function removeEmptyDirs(dir) {
+            try {
+              const entries = fs.readdirSync(dir);
+              for (const e of entries) {
+                const full = path.join(dir, e);
+                if (fs.statSync(full).isDirectory()) {
+                  removeEmptyDirs(full);
+                  if (fs.readdirSync(full).length === 0) fs.rmdirSync(full);
+                }
+              }
+            } catch (_) {}
+          }
+          removeEmptyDirs(destNextDir);
+          if (purgedCount > 0) {
+            console.log(`[desktop-build] 이전 빌드 잔여 청크 ${purgedCount}개 자동 소탕 완료`);
+          }
+        }
+      } catch (cleanStaleErr) {
+        console.warn('[desktop-build] 이전 빌드 잔여 청크 소탕 경고:', cleanStaleErr.message);
+      }
     }
   } catch (copyOutErr) {
     console.error('[desktop-build] out 디렉터리 복사 오류:', copyOutErr.message);
