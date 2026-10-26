@@ -2,6 +2,9 @@
 // 📊 [OMD-STYLE-QUICK-0001] frontend/src/components/style/QuickStylePanel.tsx
 // 🎯 @KICK  : 서식 관리 초보자 및 일반 사용자를 위한 한 페이지 핵심 간편 스타일링 패널
 // 🛡️ @GUARD : Rule 1(단일 주석 관리), Rule 3(컴포넌트 분리 원칙), Rule 6(LDSG & 고대비 가독성 보장)
+// 🚨 @PATCH : **2026-10-26** — [ESLint React Hook exhaustive-deps 의존성 경고 해소]:
+//             1) matchedTheme useMemo가 매 렌더링마다 새로 생성되는 rules 객체 대신 원시 색상 문자열(pColor, h1Color)을 직접 참조하도록 최적화
+//             2) hasCustomSetting 및 isLawActive useMemo가 매 렌더링마다 새로 생성되는 currentOutline 배열 대신 안정적인 headingNumbering을 참조하도록 정리
 // 🚨 @PATCH : **2026-10-26** — [ESLint 빌드 에러 해결]: JSX 텍스트 내 이스케이프되지 않은 작은따옴표(')를 &apos; 엔티티로 치환
 // 🚨 @PATCH : **2026-10-26** — [제목 개요 위계 H1~H6 전면 확장 및 '적용 안함' 기본값(디폴트) 지원]:
 //             1) 위계별 번호 조합 인라인 편집기를 기존 H1~H3에서 H1~H6(최하위 제목)까지 전 레벨 확장
@@ -268,9 +271,11 @@ export default function QuickStylePanel({
   };
 
   // ── 2. 테마 분위기 핸들러 ──
+  const pColor = rules['p']?.color;
+  const h1Color = rules['h1']?.color;
   const matchedTheme = useMemo(() => {
-    return MOOD_THEMES.find(t => (rules['p']?.color === t.textColor) && (rules['h1']?.color === t.h1Color));
-  }, [rules]);
+    return MOOD_THEMES.find(t => (pColor === t.textColor) && (h1Color === t.h1Color));
+  }, [pColor, h1Color]);
 
   const isCustomThemeActive = !matchedTheme;
 
@@ -408,24 +413,26 @@ export default function QuickStylePanel({
   };
 
   // ── 6. 제목 개요 번호 매김 핸들러 ──
-  const currentOutline = currentProfile.headingNumbering || [];
+  const headingNumbering = currentProfile.headingNumbering;
+  const currentOutline = headingNumbering || [];
 
   const hasCustomSetting = useMemo(() => {
-    return currentOutline.some(x => {
+    return (headingNumbering || []).some(x => {
       if (!x) return false;
       if (typeof x === 'object' && (x as any).type === 'custom') return true;
       return headingFormat(x) === 'custom';
     });
-  }, [currentOutline]);
+  }, [headingNumbering]);
 
   const isLawActive = useMemo(() => {
-    const h1 = headingSetting(currentOutline[0]);
-    const h2 = headingSetting(currentOutline[1]);
+    const list = headingNumbering || [];
+    const h1 = headingSetting(list[0]);
+    const h2 = headingSetting(list[1]);
     return (
       typeof h1 === 'object' && h1.prefix === '제' && h1.suffix.startsWith('장') &&
       typeof h2 === 'object' && h2.prefix === '제' && h2.suffix.startsWith('조')
     );
-  }, [currentOutline]);
+  }, [headingNumbering]);
 
   const isOutlinePresetActive = (preset: typeof OUTLINE_PRESETS[0]) => {
     if (preset.id === 'law') {

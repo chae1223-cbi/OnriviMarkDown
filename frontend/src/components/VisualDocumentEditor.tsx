@@ -1,6 +1,8 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
+ * 🚨 @PATCH : **2026-10-26** — [ESLint React Hook exhaustive-deps 의존성 경고 해소]:
+ *             1) PDF 미리보기 계산 useEffect에서 pageStyleRef를 활용하여 pageStyle 객체 참조 불일치 경고 해결
  * 🚨 @PATCH : **2026-10-26** — [표 편집 도구 플로팅 툴바 '닫기' 버튼 및 Esc 닫기 연동]:
  *             1) 표 편집 도구 툴바 우측에 '닫기' 버튼을 신설하여 작업 중 화면을 가리는 도구 모음을 언제든 닫을 수 있도록 지원
  *             2) Esc 키 입력 시에도 표 편집 도구가 부드럽게 닫히도록 연동
@@ -4365,6 +4367,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   const previewRequest=useRef(onPdfPagePreview);
   previewRequest.current=onPdfPagePreview;
   const pageStyleKey=JSON.stringify(pageStyle);
+  const pageStyleRef = useRef(pageStyle);
+  pageStyleRef.current = pageStyle;
   const togglePdfBreak=(anchor:PrintBreakAnchor,existingId?:string)=>{
     if(readOnly)return;
     const current=readPaginationSettings(content);
@@ -4378,7 +4382,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     window.dispatchEvent(new CustomEvent('onrivi:toggle-page-guides',{detail:false}));
   };
   useEffect(()=>{
-    if(!pageGuides || !pageStyle || !previewRequest.current)return;
+    if(!pageGuides || !pageStyleRef.current || !previewRequest.current)return;
     const controller=new AbortController();
     setPdfPageBusy(true);
     setPdfPageError('');

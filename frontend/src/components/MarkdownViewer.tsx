@@ -12,6 +12,8 @@ import PicturebookPreview from './PicturebookPreview';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { exportContentFingerprint } from '@/lib/exportPreparation';
 import katex from 'katex';
+// 🚨 @PATCH : **2026-10-26** — [ESLint React Hook exhaustive-deps 의존성 경고 해소]:
+//             1) useMemo 의존성 배열에서 부모 객체(mediaCaptionStructure)와 중복되는 하위 속성(position, kindOverrides.image.position) 의존성 정리
 // 🚨 @PATCH : **2026-10-26** — [확장 리스트(Loose List) 내부 .onrivi-line 인라인 일원화]:
 //             1) .onrivi-content-root li p .onrivi-line에 display: inline !important 및 width: auto를 지정하여 Loose List(빈 줄 포함 목록)에서도 Tight List(쇼케이스)와 100% 동일하게 불릿/숫자 마커와 글자 간격이 밀착되도록 결함 해결
 // 🚨 @PATCH : **2026-10-26** — [목록 마커-글자 간격(--li-marker-gap) 연동 및 li 패딩 인라인 시작점 분리]:
@@ -3951,7 +3953,7 @@ function MarkdownViewer({
                 </blockquote>
               );
             }
-          }), [getIndentStyle, onImageLoaded, attachMediaActions, picturebookProfile?.mediaCaptionStructure, picturebookProfile?.mediaCaptionStructure?.position, picturebookProfile?.mediaCaptionStructure?.kindOverrides?.image?.position])}
+          }), [getIndentStyle, onImageLoaded, attachMediaActions, picturebookProfile?.mediaCaptionStructure])}
         >
           {processedContent}
         </ReactMarkdown>
