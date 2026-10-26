@@ -1,6 +1,10 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
+ * 🚨 @PATCH : **2026-10-26** — [표 편집 도구 플로팅 툴바 '닫기' 버튼 및 Esc 닫기 연동]:
+ *             1) 표 편집 도구 툴바 우측에 '닫기' 버튼을 신설하여 작업 중 화면을 가리는 도구 모음을 언제든 닫을 수 있도록 지원
+ *             2) Esc 키 입력 시에도 표 편집 도구가 부드럽게 닫히도록 연동
+ *             3) 표 밖으로 커서가 나갔다 다시 진입하거나 다른 표로 이동 시 도구가 자동 복귀되며, 상단 태그 영역에 '표 도구 열기' 복귀 버튼 제공
  * 🚨 @PATCH : **2026-10-26** — [플로팅 서식 툴바 탭오더(Tab/Arrow) 키보드 탐색 및 Enter 적용 후 자동 닫힘(사라짐) 연동]:
  *             1) 플로팅 툴바 및 서식 버튼에 tabIndex={0}, focus:ring-2 focus:ring-blue-500 고대비 포커스 링 부여 및 Tab/Shift+Tab, Arrow 방향키 순환 탐색 연동
  *             2) Enter/Space 키로 태그 및 서식 컨트롤 즉각 적용 및 선택 완료 시 플로팅 툴바 자동 닫힘(setSelection(false)) 연동
@@ -1156,10 +1160,12 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   hotkeysRef.current = customHotkeys;
   const emitted = useRef(content);
   const [inTable,setInTable] = useState(false);
+  const [tableToolbarDismissed, setTableToolbarDismissed] = useState(false);
+  const currentTablePosRef = useRef<number | null>(null);
   const [firstBlockNeedsParagraph,setFirstBlockNeedsParagraph] = useState(false);
   const [tableToolPosition,setTableToolPosition] = useState({top:8,left:8,width:700});
   useEffect(() => {
-    if (!inTable || readOnly) return;
+    if (!inTable || readOnly || tableToolbarDismissed) return;
     const container=host.current?.closest('.custom-preview-container');
     const update=()=>{
       const rect=(container || host.current)?.getBoundingClientRect();
@@ -1167,7 +1173,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     };
     update(); window.addEventListener('resize',update); window.addEventListener('scroll',update,true);
     return ()=>{window.removeEventListener('resize',update);window.removeEventListener('scroll',update,true);};
-  }, [inTable,readOnly]);
+  }, [inTable,readOnly,tableToolbarDismissed]);
 
   const [tableDialog,setTableDialog] = useState(false);
   const tableTargetRef = useRef<{from:number;to:number;valid:boolean}|null>(null);
@@ -2640,7 +2646,14 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             if(offset!==undefined && offset>=0)cursorCallback.current(offset, true);
           } catch {}
         }
-        setInTable(Boolean(tableContext(view.state)));
+        const tblCtx = tableContext(view.state);
+        const currentInTable = Boolean(tblCtx);
+        const tablePos = tblCtx ? tblCtx.pos : null;
+        if (tablePos !== currentTablePosRef.current) {
+          currentTablePosRef.current = tablePos;
+          setTableToolbarDismissed(false);
+        }
+        setInTable(currentInTable);
         const { from, to, $from, empty } = view.state.selection;
         if (transaction.docChanged) manualFloatingRef.current = false;
         setSelection(manualFloatingRef.current);
@@ -2884,7 +2897,9 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           return true;
         }
         if (event.key === 'Escape') {
-          manualFloatingRef.current = false; slashOpenRef.current = false; setSlash(false); setSelection(false); slashRange.current = null; return true;
+          manualFloatingRef.current = false; slashOpenRef.current = false; setSlash(false); setSelection(false); slashRange.current = null;
+          setTableToolbarDismissed(true);
+          return true;
         }
         return false;
       },
@@ -3386,7 +3401,11 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       codec=nextCodec;codecRef.current=codec;emitted.current=source;
       setFirstBlockNeedsParagraph(FIRST_BLOCK_INSERT_TYPES.has(view.state.doc.firstChild?.type.name || ''));
       if(scrollContainer && top!==undefined){scrollContainer.scrollTop=top;scrollContainer.scrollLeft=left || 0;}
-      setInTable(Boolean(tableContext(view.state)));
+      const initTblCtx = tableContext(view.state);
+      const currentInTable = Boolean(initTblCtx);
+      currentTablePosRef.current = initTblCtx ? initTblCtx.pos : null;
+      setTableToolbarDismissed(false);
+      setInTable(currentInTable);
       setActiveMarks(view.state.selection.$from.marks().map(mark=>mark.type.name));
       const nextInitTagInfo = getActiveTagInfo(view.state);
       setTagInfo(nextInitTagInfo);
@@ -4454,14 +4473,24 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             {tagInfo.pathString}
           </span>
         )}
+        {inTable && tableToolbarDismissed && (
+          <button
+            type="button"
+            className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-300 dark:border-blue-700 hover:bg-blue-200 dark:hover:bg-blue-900 cursor-pointer transition-colors shadow-xs"
+            onClick={() => setTableToolbarDismissed(false)}
+            title="닫았던 표 편집 도구를 다시 엽니다"
+          >
+            표 도구 열기
+          </button>
+        )}
       </div>
     </div>
-    {inTable && !readOnly && createPortal(<div style={tableToolPosition} className="no-print fixed z-[150] flex flex-wrap gap-1 rounded-lg border border-blue-200 bg-blue-50 p-2 text-zinc-800 shadow-lg" data-editor-controls aria-label="표 편집 도구">
-      <strong className="self-center px-2 text-sm">표 편집 도구</strong>
+    {inTable && !readOnly && !tableToolbarDismissed && createPortal(<div style={tableToolPosition} className="no-print fixed z-[150] flex flex-wrap gap-1 rounded-lg border border-blue-200 bg-blue-50 p-2 text-zinc-800 shadow-lg items-center" data-editor-controls aria-label="표 편집 도구">
+      <strong className="self-center px-2 text-sm font-bold text-zinc-900">표 편집 도구</strong>
       {firstBlockNeedsParagraph && viewRef.current?.state.doc.firstChild?.type === visualSchema.nodes.table &&
-        <button type="button" className="rounded border border-blue-300 bg-white px-2 py-1 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+        <button type="button" className="rounded border border-blue-300 bg-white px-2 py-1 text-sm font-semibold text-blue-700 hover:bg-blue-100 cursor-pointer"
           onMouseDown={e=>e.preventDefault()} onClick={insertParagraphBeforeFirstBlock}>표 위에 본문</button>}
-      <button type="button" className="onrivi-media-control" aria-label="표 복사" onMouseDown={e=>e.preventDefault()} onClick={async()=>{
+      <button type="button" className="onrivi-media-control cursor-pointer" aria-label="표 복사" onMouseDown={e=>e.preventDefault()} onClick={async()=>{
         const view=viewRef.current,codec=codecRef.current;
         const context=view && tableContext(view.state);
         if(!context || !codec)return;
@@ -4473,8 +4502,18 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           setNotice('표를 마크다운 형식으로 복사했습니다.');
         } catch {setNotice('표 복사에 실패했습니다.');}
       }}>복사</button>
-      {(['addRow','deleteRow','addColumn','deleteColumn','left','center','right','afterTable','deleteTable'] as const).map(action=><button key={action} type="button" className="rounded border bg-white px-2 py-1 text-sm" onMouseDown={e=>e.preventDefault()} onClick={()=>{const view=viewRef.current,command=tableAction(action);if(view && !command(view.state))setNotice('헤더 행과 마지막 열은 삭제할 수 없습니다. 표 전체를 지우려면 표 삭제를 사용해 주세요.');else run(command);}}>
+      {(['addRow','deleteRow','addColumn','deleteColumn','left','center','right','afterTable','deleteTable'] as const).map(action=><button key={action} type="button" className="rounded border bg-white px-2 py-1 text-sm hover:bg-zinc-50 cursor-pointer" onMouseDown={e=>e.preventDefault()} onClick={()=>{const view=viewRef.current,command=tableAction(action);if(view && !command(view.state))setNotice('헤더 행과 마지막 열은 삭제할 수 없습니다. 표 전체를 지우려면 표 삭제를 사용해 주세요.');else run(command);}}>
         {{addRow:'행 추가',deleteRow:'행 삭제',addColumn:'열 추가',deleteColumn:'열 삭제',left:'본문 왼쪽',center:'본문 중앙',right:'본문 오른쪽',afterTable:'표 아래 본문',deleteTable:'표 삭제'}[action]}</button>)}
+      <button
+        type="button"
+        className="rounded border border-zinc-300 bg-white px-2.5 py-1 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 cursor-pointer transition-colors ml-auto"
+        onMouseDown={e => e.preventDefault()}
+        onClick={() => setTableToolbarDismissed(true)}
+        aria-label="표 편집 도구 닫기"
+        title="표 편집 도구 닫기 (Esc 또는 표 밖으로 나가면 닫힙니다)"
+      >
+        닫기
+      </button>
     </div>, document.body)}
     <TableModal nextNumber={nextReportNumber(content, '표')} isOpen={tableDialog} isDarkMode={false} onClose={()=>{setTableDialog(false);if(tableTargetRef.current)imageTargets.current.delete(tableTargetRef.current);tableTargetRef.current=null;}} onInsert={source=>{
       const view=viewRef.current,target=tableTargetRef.current;
