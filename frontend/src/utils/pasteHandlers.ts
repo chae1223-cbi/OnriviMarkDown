@@ -44,8 +44,11 @@ export const sanitizePastedText = (text: string, skipTsvConversion = false) => {
   // 불필요한 다중 줄바꿈 정리 (3개 이상의 줄바꿈을 2개로)
   sanitized = sanitized.replace(/\n{3,}/g, '\n\n');
 
-  // 6. 마크다운 강조 닫힘 태그 뒤에 글자/숫자가 바로 붙어있으면 공백 삽입 (CommonMark 호환성)
-  sanitized = sanitized.replace(/(?<=[^\s*])(\*\*|__|~~)(?=\S)/g, '$1 ');
+  // 6. 완성된 강조 구문의 닫힘 태그 뒤에 글자가 붙은 경우에만 띄웁니다.
+  // 여는 ** 앞에 따옴표가 있어도 "**Then** 을 "** Then** 로 훼손하지 않습니다.
+  sanitized = sanitized.replace(/(?<!\*)\*\*[^*\n]+\*\*(?=[^\s*])/g, '$& ')
+    .replace(/(?<!_)__[^_\n]+__(?=[^\s_])/g, '$& ')
+    .replace(/(?<!~)~~[^~\n]+~~(?=[^\s~])/g, '$& ');
 
   // Auto-convert TSV to Markdown Table
   if (!skipTsvConversion && sanitized.includes('\t') && sanitized.includes('\n') && !sanitized.includes('|')) {

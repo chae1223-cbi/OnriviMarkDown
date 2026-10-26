@@ -49,9 +49,8 @@ function selectedTableCellSpan(state: Parameters<Command>[0]) {
     ? { from: state.selection.from, to: state.selection.to } : null;
 }
 
-export function multiCellTableSelectionText(state: Parameters<Command>[0]): string | null {
-  const span = selectedTableCellSpan(state);
-  return span ? state.doc.textBetween(span.from, span.to, '\n', '\n') : null;
+export function hasMultiCellTableSelection(state: Parameters<Command>[0]): boolean {
+  return selectedTableCellSpan(state) !== null;
 }
 
 /** Clear selected text in each cell without deleting table rows or cell nodes. */

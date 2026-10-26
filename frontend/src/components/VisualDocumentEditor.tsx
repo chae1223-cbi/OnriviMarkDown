@@ -280,7 +280,7 @@ import PrintPaginationPreview from '@/components/PrintPaginationPreview';
 import { readPaginationSettings, writePaginationSettings, type PrintBreakAnchor } from '@/lib/documentPaginationSettings';
 import { browserAccountStorage as pageStorage } from '@/lib/browserAccountStorage';
 import { bulletNumbersAsText } from '@/lib/bulletNumberText';
-import { tableContext, tableAction, moveTableCell, tableEnter } from '@/lib/visualTableCommands';
+import { tableContext, tableAction, moveTableCell, tableEnter, clearMultiCellTableSelection, hasMultiCellTableSelection } from '@/lib/visualTableCommands';
 import VisualReadOnlyMarkdownBlock from '@/components/VisualReadOnlyMarkdownBlock';
 import { EditorState, Selection, TextSelection, NodeSelection, Command, Plugin, PluginKey } from 'prosemirror-state';
 import {VisualAITargets} from '@/lib/ai/visualTarget';
@@ -1167,7 +1167,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   const [firstBlockNeedsParagraph,setFirstBlockNeedsParagraph] = useState(false);
   const [tableToolPosition,setTableToolPosition] = useState({top:8,left:8,width:700});
   useEffect(() => {
-    if (!inTable || readOnly || tableToolbarDismissed) return;
+    if (!inTable || readOnly) return;
     const container=host.current?.closest('.custom-preview-container');
     const update=()=>{
       const rect=(container || host.current)?.getBoundingClientRect();
@@ -1175,7 +1175,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     };
     update(); window.addEventListener('resize',update); window.addEventListener('scroll',update,true);
     return ()=>{window.removeEventListener('resize',update);window.removeEventListener('scroll',update,true);};
-  }, [inTable,readOnly,tableToolbarDismissed]);
+  }, [inTable,readOnly]);
 
   const [tableDialog,setTableDialog] = useState(false);
   const tableTargetRef = useRef<{from:number;to:number;valid:boolean}|null>(null);
@@ -1776,13 +1776,21 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         state.doc.descendants((node,pos)=>{if(node.type.name==='heading' && hasHeadingNumber(node.textContent)) decorations.push(Decoration.node(pos,pos+node.nodeSize,{'data-onrivi-heading-numbered':'true'}));if(!node.isText || node.marks.some(m=>m.type.name==='code') || state.doc.resolve(pos).parent.type.name==='code_block')return;
           for(const match of Array.from((node.text||'').matchAll(citationPattern))){const key=match[1]||match[2],entry=entries.get(key.toLowerCase());decorations.push(Decoration.inline(pos+match.index!,pos+match.index!+match[0].length,{class:entry?'visual-citation':'visual-citation-missing',title:entry?citationLabel(entry)+': '+entry.title:'등록된 문헌 없음: '+key}));}
         });
+        if (state.selection instanceof TextSelection && !state.selection.empty) {
+          const { from, to } = state.selection;
+          state.doc.nodesBetween(from, to, (node, pos) => {
+            if (!node.isText) return;
+            const start = Math.max(from, pos), end = Math.min(to, pos + node.nodeSize);
+            if (end > start) decorations.push(Decoration.inline(start, end, { class: 'visual-selected-text' }));
+          });
+        }
         return DecorationSet.create(state.doc,decorations);
       },
       state: cached?.source === content ? cached.state : EditorState.create({ doc: codec.doc, plugins: [history(), visualMarkdownInputRules(), createFootnoteHeaderPlugin(), keymap({
         'Mod-z': undo, 'Mod-y': redo, 'Mod-Shift-z': redo,
         ArrowUp: chainCommands(moveUpAcrossListBoundary, moveUpFromEmptyOrderedItem),
-        Backspace: chainCommands(removeHeadingAtStart, backspaceInCodeBlock, undoInputRule, removeListMarkerAtStart, baseKeymap.Backspace),
-        Delete: chainCommands(protectQuoteBoundary,deleteEmptyParagraphBeforeList, deleteInCodeBlock, deleteAtEndOfList, deleteNextListBoundary, joinOrderedListsAcrossEmptyParagraph, baseKeymap.Delete),
+        Backspace: chainCommands(clearMultiCellTableSelection, removeHeadingAtStart, backspaceInCodeBlock, undoInputRule, removeListMarkerAtStart, baseKeymap.Backspace),
+        Delete: chainCommands(clearMultiCellTableSelection, protectQuoteBoundary,deleteEmptyParagraphBeforeList, deleteInCodeBlock, deleteAtEndOfList, deleteNextListBoundary, joinOrderedListsAcrossEmptyParagraph, baseKeymap.Delete),
         'Mod-Shift-k': (state, dispatch) => {
           const { $from } = state.selection;
           if ($from.parent.type === visualSchema.nodes.code_block) {
@@ -2924,6 +2932,24 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
 
         const text = event.clipboardData?.getData('text/plain') || '';
         const html = event.clipboardData?.getData('text/html') || '';
+        const hasRichHtml = !!html && /<(?:table|tbody|tr|th|td|h[1-6]|ul|ol|li|b|strong|i|em|del|s|blockquote|pre|figure|figcaption|a\s+[^>]*href)\b/i.test(html);
+        const isExplicitPureMarkdown = /^(?:\uFEFF)?---[^\S\r\n]*\r?\n/.test(text) || (!/<table\b/i.test(html) && /\|[\s\t]*:?---*:?[\s\t]*\|/.test(text));
+        // A copied table cell can carry table HTML even when its text is only
+        // one sentence. Parse that sentence as inline Markdown before the
+        // generic single-line and rich-HTML paste paths.
+        if (tableContext(currentView.state) && currentView.state.selection.$from.parent.isTextblock) {
+          const cellSource = /<table\b/i.test(html) && text
+            ? text
+            : hasRichHtml && !isExplicitPureMarkdown
+            ? sanitizePastedText(htmlToImportMarkdown(html))
+            : text;
+          if (cellSource) {
+            event.preventDefault();
+            event.stopPropagation();
+            currentView.dispatch(markdownPasteInTableCellTransaction(currentView.state, cellSource));
+            return true;
+          }
+        }
         if (text && !html && !/[\r\n\t]/.test(text)) {
           const marks = currentView.state.storedMarks ?? currentView.state.selection.$from.marks();
           if (marks?.length) {
@@ -2991,24 +3017,6 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         }
 
         // 3. 🎯 [외부 문서 스마트 붙여넣기 파이프라인]: 웹페이지/MS Word/Excel/Notion 등의 풍부한 HTML 서식 자동 정제
-        const hasRichHtml = !!html && /<(?:table|tbody|tr|th|td|h[1-6]|ul|ol|li|b|strong|i|em|del|s|blockquote|pre|figure|figcaption|a\s+[^>]*href)\b/i.test(html);
-        // 순수 마크다운 파일(Frontmatter 시작)이거나 이미 완성된 마크다운 표(|---|)를 지닌 소스 복사인지 검증
-        const isExplicitPureMarkdown = /^(?:\uFEFF)?---[^\S\r\n]*\r?\n/.test(text) || (!/<table\b/i.test(html) && /\|[\s\t]*:?---*:?[\s\t]*\|/.test(text));
-
-        // Document slices can split a table. Paste formatted text as inline
-        // content when the selection is inside one cell.
-        if (tableContext(currentView.state) && currentView.state.selection.$from.parent.isTextblock) {
-          const cellSource = hasRichHtml && !isExplicitPureMarkdown
-            ? sanitizePastedText(htmlToImportMarkdown(html))
-            : text;
-          if (cellSource) {
-            event.preventDefault();
-            event.stopPropagation();
-            currentView.dispatch(markdownPasteInTableCellTransaction(currentView.state, cellSource));
-            return true;
-          }
-        }
-
         if (hasRichHtml && !isExplicitPureMarkdown && codecRef.current) {
           event.preventDefault();
           event.stopPropagation();
@@ -3202,6 +3210,18 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         return false;
       },
       handleDOMEvents: {
+        copy(currentView, event) {
+          if (!hasMultiCellTableSelection(currentView.state)) return false;
+          event.preventDefault();
+          onToastRef.current?.('여러 표 셀의 서식 복사는 지원하지 않습니다. 셀 안의 글을 각각 선택해 복사해 주세요.', 'info');
+          return true;
+        },
+        cut(currentView, event) {
+          if (!hasMultiCellTableSelection(currentView.state)) return false;
+          event.preventDefault();
+          onToastRef.current?.('여러 표 셀의 잘라내기는 표 구조를 보호하기 위해 사용할 수 없습니다.', 'info');
+          return true;
+        },
         mousedown(currentView, event) {
           if (!currentView.editable) return false;
           const e = event as MouseEvent;
@@ -3345,6 +3365,59 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         }, blur() { manualFloatingRef.current = false; setSelection(false); setSlash(false); return false; } },
     });
     viewRef.current = view;
+    let mouseSelection: { anchor: number; head: number } | null = null;
+    const beginMouseSelection = (event: MouseEvent) => {
+      if (!view.editable || event.button !== 0 || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target || !view.dom.contains(target) || target.closest('button,input,textarea,select,[contenteditable="false"]')) return;
+      const point = view.posAtCoords({ left: event.clientX, top: event.clientY });
+      if (!point) return;
+      const anchor = TextSelection.near(view.state.doc.resolve(point.pos)).head;
+      mouseSelection = { anchor, head: anchor };
+    };
+    const continueMouseSelection = (event: MouseEvent) => {
+      if (!mouseSelection) return;
+      if (!(event.buttons & 1)) { mouseSelection = null; return; }
+      const bounds = view.dom.getBoundingClientRect();
+      const style = getComputedStyle(view.dom);
+      const inside = event.clientX >= bounds.left + (parseFloat(style.paddingLeft) || 0)
+        && event.clientX <= bounds.right - (parseFloat(style.paddingRight) || 0)
+        && event.clientY >= bounds.top + (parseFloat(style.paddingTop) || 0)
+        && event.clientY <= bounds.bottom - (parseFloat(style.paddingBottom) || 0);
+      // Keep the last selected range while the pointer crosses another pane.
+      // Re-entering this editor with the button held resumes from the anchor.
+      event.preventDefault();
+      const restoreSelection = () => {
+        if (!mouseSelection || (view.state.selection.anchor === mouseSelection.anchor && view.state.selection.head === mouseSelection.head)) return;
+        view.dispatch(view.state.tr.setSelection(TextSelection.between(
+          view.state.doc.resolve(mouseSelection.anchor), view.state.doc.resolve(mouseSelection.head)
+        )));
+      };
+      if (!inside) {
+        restoreSelection();
+        return;
+      }
+      const point = view.posAtCoords({ left: event.clientX, top: event.clientY });
+      if (!point) return;
+      const head = TextSelection.near(view.state.doc.resolve(point.pos)).head;
+      if (head === mouseSelection.head) { restoreSelection(); return; }
+      mouseSelection.head = head;
+      view.dispatch(view.state.tr.setSelection(TextSelection.between(
+        view.state.doc.resolve(mouseSelection.anchor), view.state.doc.resolve(head)
+      )));
+    };
+    const endMouseSelection = () => { mouseSelection = null; };
+    const preventSelectedTextDrag = (event: DragEvent) => {
+      if (mouseSelection) event.preventDefault();
+    };
+    const preventNativeMouseSelection = (event: Event) => {
+      if (mouseSelection) event.preventDefault();
+    };
+    document.addEventListener('mousedown', beginMouseSelection, true);
+    document.addEventListener('mousemove', continueMouseSelection, true);
+    document.addEventListener('mouseup', endMouseSelection, true);
+    document.addEventListener('dragstart', preventSelectedTextDrag, true);
+    document.addEventListener('selectstart', preventNativeMouseSelection, true);
     try {
       const initialTagInfo = getActiveTagInfo(view.state);
       setTagInfo(initialTagInfo);
@@ -3421,6 +3494,11 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     return () => {
       aiTargets.clear();if(aiTargetRef)aiTargetRef.current=null;
       clearDropIndicator();
+      document.removeEventListener('mousedown', beginMouseSelection, true);
+      document.removeEventListener('mousemove', continueMouseSelection, true);
+      document.removeEventListener('mouseup', endMouseSelection, true);
+      document.removeEventListener('dragstart', preventSelectedTextDrag, true);
+      document.removeEventListener('selectstart', preventNativeMouseSelection, true);
       window.removeEventListener('keydown', handleWindowKeyDown);
       window.removeEventListener('dragover', handleWindowDragOver, true);
       window.removeEventListener('dragend', handleWindowDragEnd, true);
@@ -4477,18 +4555,15 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             {tagInfo.pathString}
           </span>
         )}
-        {inTable && tableToolbarDismissed && (
-          <button
-            type="button"
-            className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-300 dark:border-blue-700 hover:bg-blue-200 dark:hover:bg-blue-900 cursor-pointer transition-colors shadow-xs"
-            onClick={() => setTableToolbarDismissed(false)}
-            title="닫았던 표 편집 도구를 다시 엽니다"
-          >
-            표 도구 열기
-          </button>
-        )}
       </div>
     </div>
+    {inTable && !readOnly && tableToolbarDismissed && createPortal(
+      <button type="button" style={{ position:'fixed', top:tableToolPosition.top, left:tableToolPosition.left, zIndex:150 }}
+        className="no-print rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800 shadow-lg hover:bg-blue-100 cursor-pointer"
+        data-editor-controls aria-label="표 편집 도구 다시 열기" title="표 편집 도구 다시 열기"
+        onMouseDown={event=>event.preventDefault()} onClick={()=>setTableToolbarDismissed(false)}>
+        표 도구 열기
+      </button>, document.body)}
     {inTable && !readOnly && !tableToolbarDismissed && createPortal(<div style={tableToolPosition} className="no-print fixed z-[150] flex flex-wrap gap-1 rounded-lg border border-blue-200 bg-blue-50 p-2 text-zinc-800 shadow-lg items-center" data-editor-controls aria-label="표 편집 도구">
       <strong className="self-center px-2 text-sm font-bold text-zinc-900">표 편집 도구</strong>
       {firstBlockNeedsParagraph && viewRef.current?.state.doc.firstChild?.type === visualSchema.nodes.table &&
@@ -4631,6 +4706,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       .visual-citation { color:#1d4ed8; background:#eff6ff; border-radius:3px; }
       .visual-citation-missing { color:#b91c1c; text-decoration:underline wavy; }
       .visual-document-surface a:hover { color:#1e40af; text-decoration:underline; }
+      .visual-document-surface .visual-selected-text { background:#2563eb!important; color:#fff!important; }
+      .visual-document-surface .visual-selected-text::selection { background:#2563eb; color:#fff; }
       .custom-preview-container .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div),
       .onrivi-content-root .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div),
       .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div) { white-space:break-spaces!important; tab-size:inherit; }
