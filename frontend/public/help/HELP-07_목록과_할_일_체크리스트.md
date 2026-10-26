@@ -5,6 +5,7 @@ version: 1.3.0
 lastUpdated: 2026-10-24
 css_profile: onrivi-help
 css_profile_name: "온리비 도움말"
+onrivi_pagination: {"version":1,"breaks":[{"id":"63qbgc","kind":"block","text":"2. 순서 있는 목록 (숫자 목록)","context":"1. 순서 없는 목록 (글머리기호 목록)/","previous":"","next":"단계별 절차, 순위, 요리법 등 순서가 중요한 내용을 작성할 때 사용합니다:"},{"id":"o9civd","kind":"block","text":"3. 들여쓰기(Tab)와 내어쓰기(Shift + Tab)","context":"2. 순서 있는 목록 (숫자 목록)/","previous":"","next":"목록을 작성하는 도중 계층 구조(하위 목록)를 표현할 때 사용합니다:"}]}
 ---
 
 # 목록과 할 일 체크리스트
@@ -106,7 +107,5 @@ css_profile_name: "온리비 도움말"
 > - [ ] 3장 이미지 첨부 및 표 편집
 >
 > - [ ] 최종 PDF 출판 조판 검토
-
----
 
 [도움말 전체 목차](<./00_시작하기.md>)

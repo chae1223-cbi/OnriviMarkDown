@@ -1,5 +1,19 @@
 /**
  * 프로그램명 : OnriviAuthor 
+// 🚨 @PATCH : **2026-10-26** — [확장 리스트(Loose List) 내부 p 및 .onrivi-line 인라인 일원화]:
+//             1) .custom-preview-container li p 및 .onrivi-line에 display: inline !important 및 width: auto를 지정하여 Loose List(빈 줄 포함 목록)에서도 Tight List(쇼케이스)와 100% 동일하게 불릿/숫자 마커와 글자 간격이 밀착되도록 결함 해결
+// 🚨 @PATCH : **2026-10-26** — [목록 기호 마커-텍스트 간격(padding-inline-start) 동적 CSS 주입 및 인용구 목록 패딩 정규화]:
+//             1) dynamicCssString에 --li-marker-gap CSS 변수를 주입하고 .custom-preview-container li, .onrivi-content-root li에 padding-inline-start/padding-left: ${liMarkerGap} !important를 적용하여 간격 슬라이더(0px~32px) 조절이 1:1 실시간 반영되도록 개선
+//             2) 인용구 내부 목록(blockquote ul/ol)의 padding-left를 var(--list-indent, 1.4em)으로 연동하여 비정상적으로 넓던 인용구 목록 간격 완전 정돈
+// 🚨 @PATCH : **2026-10-26** — [동영상·지도 설명(캡션) 이미지 규격 동기화(중앙 정렬 및 0.88em 글자 크기)]:
+//             1) .onrivi-video-figure figcaption 및 .onrivi-map-figure figcaption에 text-align: center, font-size: 0.88em, font-weight: 500 주입
+//             2) 동영상/지도 래퍼 인접 캡션 문단에도 중앙 정렬 및 0.88em 글자 크기를 동기화하여 이미지 캡션과 100% 동일한 조판 완성
+// 🚨 @PATCH : **2026-10-26** — [인용구 활자크기 및 인라인코드 여백 동적 CSS 구체성 강화 및 100% 실시간 연동]:
+//             1) baseSizeSelectors.blockquote에 blockquote, blockquote p, blockquote span, blockquote li를 지정하고 baseSizeRoots를 .prose 및 다크모드까지 전면 확장하여 본문 p 태그의 !important 규칙을 제치고 인용구 활자 크기가 즉시 반영되도록 해결
+//             2) 인라인 코드(code) 선택자를 :not(pre) > code뿐만 아니라 code:not(pre code):not(.codeblock-area code)로 다각화하고 padding, padding-left, padding-right를 !important로 동시 주입하여 좌우 여백 슬라이더 조절 즉각 동기화 보장
+// 🚨 @PATCH : **2026-10-26** — [서식 글자 크기 pt 단위 표준화 및 H1~H6 감쇄 단위 동기화]:
+//             1) H1 기준 활자 크기가 pt 단위일 때 H2~H6 자동 계산 크기도 pt 단위로 일치시켜 동적 CSS에 주입
+//             2) .custom-preview-container 및 .onrivi-content-root 양측 모두에 H2~H6 font-size 동기화 보장
 // 🚨 @PATCH : **2026-10-26** — [플로팅 서식 툴바 탭오더(Tab/Arrow) 키보드 탐색 및 Enter 적용 후 자동 닫힘(사라짐) 연동]:
 //             1) 플로팅 툴바 활성화 시 에디터에서 Tab 입력 시 툴바 첫 번째 버튼으로 포커스 진입 지원 및 툴바 내부 Tab/Shift+Tab, Arrow 방향키 순환 탐색 연동
 //             2) 모든 버튼에 tabIndex={0}, 고대비 포커스 링(focus:ring-2 focus:ring-blue-500) 및 onClick/Enter/Space 이벤트 연동
@@ -6751,13 +6765,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   -moz-tab-size: ${ps.tabSize || '2'} !important;
 }
 `;
-    /* H2~H6 자동 크기 계산 (headingSizeOffset 기반) */
-    const h1SizeVal = (prof.rules.h1 && prof.rules.h1['font-size']) || '28px';
-    const h1Size = parseFloat(h1SizeVal) || 28;
-    const offset = parseFloat(ps.headingSizeOffset) || 4;
+    /* H2~H6 자동 크기 계산 (headingSizeOffset 기반, pt/px 단위 대응) */
+    const h1SizeVal = (prof.rules.h1 && prof.rules.h1['font-size']) || '21pt';
+    const isPt = h1SizeVal.endsWith('pt') || (!h1SizeVal.endsWith('px') && !h1SizeVal.endsWith('rem') && !h1SizeVal.endsWith('em'));
+    const h1Unit = isPt ? 'pt' : (h1SizeVal.endsWith('px') ? 'px' : 'pt');
+    const h1Size = parseFloat(h1SizeVal) || (isPt ? 21 : 28);
+    const offsetVal = ps.headingSizeOffset || (isPt ? '3pt' : '4px');
+    const offset = parseFloat(offsetVal) || (isPt ? 3 : 4);
     for (let level = 2; level <= 6; level++) {
-      const calcSize = Math.max(10, h1Size - (level - 1) * offset);
-      css += `.custom-preview-container h${level} {\n  font-size: ${calcSize}px !important;\n}\n`;
+      const calcSize = Math.max(isPt ? 8 : 10, Math.round((h1Size - (level - 1) * offset) * 10) / 10);
+      css += `.custom-preview-container h${level}, .onrivi-content-root h${level} {\n  font-size: ${calcSize}${h1Unit} !important;\n}\n`;
     }
 
     // 💡 CSS 속성 우선순위 정렬기: 단축 속성(border-style/width 등)이 방향별 속성(border-left/right 등)보다 항상 먼저 선언되도록 보장
@@ -7027,7 +7044,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
 
       const selector = tag === 'taskList' ? '.task-list-item' :
-        tag === 'code' ? ':not(pre) > code' :
+        tag === 'code' ? ':not(pre) > code, code:not(pre code):not(.codeblock-area code)' :
           tag === 'map' ? 'iframe[src*="map"], iframe[src*="google.com/maps"], iframe[src*="maps.google.com"]' :
             tag === 'video' ? 'video, iframe[src*="youtube"], iframe[src*="vimeo"], a[href*="youtube.com"] img, a[href*="youtu.be"] img' : tag;
             
@@ -7056,6 +7073,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           if (wNum < 3) finalVal = '3px';
         }
         css += `  ${prop}: ${finalVal} !important;\n`;
+        // 💡 인라인 코드 패딩 shorthand 시 padding-left/right를 함께 보장하여 globals.css 및 Tailwind px 클래스 오버라이드
+        if (tag === 'code' && prop === 'padding' && val) {
+          const parts = String(val).trim().split(/\s+/);
+          const pxVal = parts.length >= 2 ? parts[1] : parts[0];
+          css += `  padding-left: ${pxVal} !important;\n`;
+          css += `  padding-right: ${pxVal} !important;\n`;
+        }
       });
 
       // 💡 미디어 객체(이미지, 비디오, 지도)의 좌/중/우 정렬을 flex 래퍼 컨테이너 내부에서도 완벽 보장하기 위한 align-self 자동 주입
@@ -7105,7 +7129,7 @@ blockquote ul,
 blockquote ol {
   margin-top: 4px !important;
   margin-bottom: 4px !important;
-  padding-left: 1.4em !important;
+  padding-left: var(--list-indent, 1.4em) !important;
 }
 .custom-preview-container blockquote li,
 .onrivi-content-root blockquote li,
@@ -7214,6 +7238,26 @@ blockquote li p {
   text-align: ${textAlign} !important;
   width: 100% !important;
 }
+.custom-preview-container .onrivi-video-figure figcaption,
+.onrivi-content-root .onrivi-video-figure figcaption {
+  text-align: ${textAlign} !important;
+  align-self: ${alignSelf} !important;
+  font-size: 0.88em !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.01em !important;
+}
+.custom-preview-container .onrivi-video-figure[data-caption-position="top"] figcaption,
+.onrivi-content-root .onrivi-video-figure[data-caption-position="top"] figcaption {
+  order: -1 !important;
+  margin-top: 0 !important;
+  margin-bottom: 6px !important;
+}
+.custom-preview-container .onrivi-video-figure[data-caption-position="bottom"] figcaption,
+.onrivi-content-root .onrivi-video-figure[data-caption-position="bottom"] figcaption {
+  order: 1 !important;
+  margin-top: 6px !important;
+  margin-bottom: 0 !important;
+}
 `;
       } else if (tag === 'map') {
         const ml = ruleObj['margin-left'] || 'auto';
@@ -7249,21 +7293,65 @@ blockquote li p {
   text-align: ${textAlign} !important;
   width: 100% !important;
 }
+.custom-preview-container .onrivi-map-figure figcaption,
+.onrivi-content-root .onrivi-map-figure figcaption {
+  text-align: ${textAlign} !important;
+  align-self: ${alignSelf} !important;
+  font-size: 0.88em !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.01em !important;
+}
+.custom-preview-container .onrivi-map-figure[data-caption-position="top"] figcaption,
+.onrivi-content-root .onrivi-map-figure[data-caption-position="top"] figcaption {
+  order: -1 !important;
+  margin-top: 0 !important;
+  margin-bottom: 6px !important;
+}
+.custom-preview-container .onrivi-map-figure[data-caption-position="bottom"] figcaption,
+.onrivi-content-root .onrivi-map-figure[data-caption-position="bottom"] figcaption {
+  order: 1 !important;
+  margin-top: 6px !important;
+  margin-bottom: 0 !important;
+}
 `;
       }
     });
 
+    // 💡 동영상·지도 인접 단독 문단 캡션도 이미지 캡션과 동일하게 중앙 정렬 및 0.88em 폰트 크기 보장
+    css += `
+.custom-preview-container .onrivi-video-wrapper + p,
+.custom-preview-container p:has(+ .onrivi-video-wrapper),
+.custom-preview-container .onrivi-map-wrapper + p,
+.custom-preview-container p:has(+ .onrivi-map-wrapper),
+.onrivi-content-root .onrivi-video-wrapper + p,
+.onrivi-content-root p:has(+ .onrivi-video-wrapper),
+.onrivi-content-root .onrivi-map-wrapper + p,
+.onrivi-content-root p:has(+ .onrivi-map-wrapper) {
+  text-align: center !important;
+  font-size: 0.88em !important;
+  font-weight: 500 !important;
+}
+`;
+
     // 🧰 구조제어: 표 글자 크기 동적 상속 (설정하지 않은 경우 페이지 기본 크기를 따름)
   // Resolve base-size controls against the document, even inside fixed-size wrappers.
   const baseSizeSelectors = {
-    blockquote: 'blockquote, blockquote > p',
-    codeBlock: '.codeblock-area pre, .codeblock-area pre code',
+    blockquote: 'blockquote, blockquote p, blockquote span, blockquote li',
+    codeBlock: '.codeblock-area pre, .codeblock-area pre code, .codeblock-area .onrivi-line, .codeblock-area .onrivi-line *',
     math: '.katex-display .katex, :not(.katex-display) > .katex',
   };
+  const baseSizeRoots = [
+    '.custom-preview-container',
+    '.custom-preview-container .prose',
+    '.dark .custom-preview-container .prose',
+    '.onrivi-content-root',
+    '.onrivi-content-root .prose',
+    '.dark .onrivi-content-root .prose',
+  ];
   Object.entries(baseSizeSelectors).forEach(([tag, selectors]) => {
     const configured = prof.rules[tag as keyof CssProfile['rules']]?.['font-size'];
     const size = !configured || ['inherit', '0', '0px'].includes(String(configured)) ? ps.fontSize : configured;
-    const scoped = ['.custom-preview-container', '.onrivi-content-root']
+    const scoped = baseSizeRoots
       .flatMap(root => selectors.split(', ').map(selector => `${root} ${selector}`)).join(', ');
     css += `${scoped} { font-size: ${size} !important; }\n`;
   });
@@ -7567,6 +7655,7 @@ blockquote li p {
 
     const liMarginBottom = (prof.rules.li && prof.rules.li['margin-bottom']) || '6px';
     const listIndent = (prof.rules.ul && prof.rules.ul['padding-left']) || (prof.rules.ol && prof.rules.ol['padding-left']) || '28px';
+    const liMarkerGap = (prof.rules.li && (prof.rules.li['padding-inline-start'] || prof.rules.li['padding-left'])) || '0px';
 
     // 💡 마커 색상: ul/ol 텍스트 색상을 상속받도록 강제 (Tailwind 기본색상 무시)
     // 💡 체크리스트(task-list-item): 중복 불릿(•) 기호 완전 소거 및 본문 텍스트 색상과 100% 일치
@@ -7574,11 +7663,13 @@ blockquote li p {
 :root {
   --list-indent: ${listIndent};
   --li-margin-bottom: ${liMarginBottom};
+  --li-marker-gap: ${liMarkerGap};
 }
 .custom-preview-container,
 .onrivi-content-root {
   --list-indent: ${listIndent};
   --li-margin-bottom: ${liMarginBottom};
+  --li-marker-gap: ${liMarkerGap};
 }
 .custom-preview-container ul li::marker,
 .custom-preview-container ol li::marker {
@@ -7618,18 +7709,28 @@ blockquote li p {
   margin-bottom: ${liMarginBottom} !important;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
+  padding-inline-start: ${liMarkerGap} !important;
+  padding-left: ${liMarkerGap} !important;
 }
 .custom-preview-container li > p,
 .custom-preview-container li p,
 .onrivi-content-root li > p,
 .onrivi-content-root li p {
+  display: inline !important;
   margin-top: 0 !important;
   margin-bottom: 0 !important;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
 }
+.custom-preview-container li p .onrivi-line,
+.onrivi-content-root li p .onrivi-line {
+  display: inline !important;
+  width: auto !important;
+  min-height: 0 !important;
+}
 .custom-preview-container li p + p,
 .onrivi-content-root li p + p {
+  display: block !important;
   margin-top: 0.45em !important;
 }
 .custom-preview-container ul,
@@ -11228,7 +11329,7 @@ blockquote li p {
                                   </button>
                                 </div>
                                 {directEditEnabled && !isRestrictedUser && activeTabId && currentFileName !== '도움말.md' && !activeProfile.layout ? (
-                                   <VisualDocumentEditor key={activeTabId} documentId={activeTabId} headingNumbering={activeProfile.headingNumbering} bibContent={bibContent} onCitation={()=>setIsCitationModalOpen(true)} onReferenceSettings={() => setIsReferenceModalOpen(true)} pageStyle={resolveEffectiveDocumentProfile(content).pageStyle} spellCheck={spellCheck} tabSize={editorTabSize} onToast={showToast} onStyleSettings={() => setIsStyleModalOpen(true)}
+                                   <VisualDocumentEditor key={activeTabId} documentId={activeTabId} headingNumbering={activeProfile.headingNumbering} bibContent={bibContent} onCitation={()=>setIsCitationModalOpen(true)} onReferenceSettings={() => setIsReferenceModalOpen(true)} pageStyle={resolveEffectiveDocumentProfile(content).pageStyle} onPdfPagePreview={signal=>handlersRef.current.print(true,undefined,signal)} spellCheck={spellCheck} tabSize={editorTabSize} onToast={showToast} onStyleSettings={() => setIsStyleModalOpen(true)}
                                      onSourceScroll={offset => {
                                        const editor = editorRef.current;
                                        if (previewModeRef.current !== 'both' || !editor?.getModel() || isScrollingRef.current === 'editor') return;

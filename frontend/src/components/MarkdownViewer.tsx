@@ -12,6 +12,17 @@ import PicturebookPreview from './PicturebookPreview';
 import { getResourceSettings, requireResourceSettings } from '@/lib/resourceSettings';
 import { exportContentFingerprint } from '@/lib/exportPreparation';
 import katex from 'katex';
+// 🚨 @PATCH : **2026-10-26** — [확장 리스트(Loose List) 내부 .onrivi-line 인라인 일원화]:
+//             1) .onrivi-content-root li p .onrivi-line에 display: inline !important 및 width: auto를 지정하여 Loose List(빈 줄 포함 목록)에서도 Tight List(쇼케이스)와 100% 동일하게 불릿/숫자 마커와 글자 간격이 밀착되도록 결함 해결
+// 🚨 @PATCH : **2026-10-26** — [목록 마커-글자 간격(--li-marker-gap) 연동 및 li 패딩 인라인 시작점 분리]:
+//             1) .onrivi-content-root li의 hardcoded padding: 1px 0 !important를 상하 1px, 좌측/시작점 var(--li-marker-gap, 0px) !important로 분리하여 마커-글자 간격 슬라이더 조절 즉각 반영
+//             2) 루트 스타일 객체에 --li-marker-gap 및 --li-margin-bottom CSS 변수를 연동 주입
+// 🚨 @PATCH : **2026-10-26** — [동영상·지도 캡션 이미지 규격 일원화(중앙 정렬 및 0.88em 글자 크기)]:
+//             1) 비디오 링크 렌더러의 figcaption 글자 크기를 0.88em 및 text-center로 일치화하여 이미지 figcaption과 100% 동일한 조판 규격 완성
+// 🚨 @PATCH : **2026-10-26** — [미디어 설명(캡션) 위치 및 포맷 구조체 전체 반응성 연동]:
+//             1) ReactMarkdown components의 useMemo 의존성 배열에 picturebookProfile?.mediaCaptionStructure를 연결하여 캡션 위치(상단/하단) 및 포맷 변경 시 실시간 재렌더링 보장
+// 🚨 @PATCH : **2026-10-26** — [onrivi/ 경로 비디오 웹 서빙 정규화]:
+//             video 태그 src가 onrivi/로 시작할 때 /onrivi/로 자동 보정하여 정적 퍼블릭 서빙 보장
 // 🚨 @PATCH : **2026-10-25** — [미리보기 목록 전체 들여쓰기(data-onrivi-list-indent) 서식 연동]:
 //             1) ul 및 ol 컴포넌트에 data-onrivi-list-indent 값을 파싱하여 marginLeft 인라인 서식으로 1:1 바인딩
 // 🚨 @PATCH : **2026-10-24** — [도움말 문서 링크(../../ 및 파일명) 작업장 내부 경로 안전 해석 연동]:
@@ -2493,6 +2504,8 @@ function MarkdownViewer({
         paddingLeft: marginLeft || '0',
         paddingRight: marginRight || '0',
         ['--list-indent' as any]: listIndent || '28px',
+        ['--li-marker-gap' as any]: (picturebookProfile?.rules?.li?.['padding-inline-start'] || picturebookProfile?.rules?.li?.['padding-left'] || '0px'),
+        ['--li-margin-bottom' as any]: (picturebookProfile?.rules?.li?.['margin-bottom'] || '6px'),
       }}
     >
       <style>{`
@@ -2569,7 +2582,10 @@ function MarkdownViewer({
           margin-left: 0;
           margin-right: 0;
           margin-bottom: var(--li-margin-bottom, 6px);
-          padding: 1px 0 !important;
+          padding-top: 1px !important;
+          padding-bottom: 1px !important;
+          padding-inline-start: var(--li-marker-gap, 0px) !important;
+          padding-left: var(--li-marker-gap, 0px) !important;
           line-height: 1.6 !important;
         }
         .onrivi-content-root li > p,
@@ -2579,6 +2595,15 @@ function MarkdownViewer({
           padding: 0 !important;
           display: inline !important;
           white-space: normal !important;
+        }
+        .onrivi-content-root li p .onrivi-line {
+          display: inline !important;
+          width: auto !important;
+          min-height: 0 !important;
+        }
+        .onrivi-content-root li p + p {
+          display: block !important;
+          margin-top: 0.45em !important;
         }
         .onrivi-content-root pre,
         .onrivi-content-root pre code {
@@ -2776,6 +2801,9 @@ function MarkdownViewer({
 
               if (!actualSrc) return <video {...props}>{children}</video>;
               try { if (actualSrc) actualSrc = decodeURI(actualSrc); } catch(e){}
+              if (actualSrc && actualSrc.startsWith('onrivi/')) {
+                actualSrc = '/' + actualSrc;
+              }
               
               let videoSrc = actualSrc;
               let absolutePath = actualSrc;
@@ -3478,7 +3506,7 @@ function MarkdownViewer({
                       api={api}
                       queryString={queryString}
                     />
-                    <figcaption className="text-[0.9em] text-zinc-500 mt-1 font-medium">
+                    <figcaption className="text-[0.88em] text-zinc-500 mt-1 font-medium text-center" style={{ textAlign: 'center', alignSelf: 'center' }}>
                       {finalDisplayName}
                     </figcaption>
                   </figure>
@@ -3923,7 +3951,7 @@ function MarkdownViewer({
                 </blockquote>
               );
             }
-          }), [getIndentStyle, onImageLoaded, attachMediaActions, picturebookProfile?.mediaCaptionStructure?.position, picturebookProfile?.mediaCaptionStructure?.kindOverrides?.image?.position])}
+          }), [getIndentStyle, onImageLoaded, attachMediaActions, picturebookProfile?.mediaCaptionStructure, picturebookProfile?.mediaCaptionStructure?.position, picturebookProfile?.mediaCaptionStructure?.kindOverrides?.image?.position])}
         >
           {processedContent}
         </ReactMarkdown>

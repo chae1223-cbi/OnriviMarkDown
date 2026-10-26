@@ -3,6 +3,20 @@
  * 파일명 : CssStyleModal.tsx
  * -----------------------------------------------------------------------
  * 변경내역
+ * 🚨 @PATCH : **2026-10-26** — [15대 서식 쇼케이스 카드 클릭 시 좌측 설정 패널 즉시 전환 완성]:
+ *             1) 쇼케이스 모아보기에서 카드(소스코드블록, 인라인코드, 링크, 각주, 동영상, 지도 등) 내부 클릭 시 cardModuleId를 최우선 판별하여 해당 설정 패널로 즉시 1:1 전환되도록 클릭 인스펙터 전면 쇄신
+ *             2) 동영상·지도 figure 래퍼가 이미지(img)로 오탐되던 우선순위 결함 및 인라인코드·링크·각주 내부 <p> 태그 오탐으로 본문 패널로 튕기던 문제 완벽 해결
+ *             3) 모든 쇼케이스 카드에 data-module-id 명시 바인딩 및 커서 포인터(cursor-pointer) 시각 피드백 제공
+ * 🚨 @PATCH : **2026-10-26** — [동영상·지도 쇼케이스 캡션 이미지 규격(figure/figcaption, 중앙 정렬, 0.88em) 일원화]:
+ *             1) Card 12(동영상) 및 Card 13(지도) 캡션을 onrivi-video-figure 및 onrivi-map-figure figure/figcaption 구조로 래핑하여 이미지 캡션과 100% 동일한 0.88em 크기 및 중앙 정렬 보장
+ * 🚨 @PATCH : **2026-10-26** — [쇼케이스 이미지·동영상·지도 캡션 위치 및 6종 표현 구문 실시간 연동]:
+ *             1) syncShowcaseModuleMarkdown을 신설하여 이미지뿐만 아니라 동영상, 지도 카드의 캡션 위치(상/하단) 및 6종 포맷(표준/대괄호/화살괄호/일반/제목만/커스텀)이 실시간 동기화되도록 구현
+ *             2) MarkdownViewer에 picturebookProfile={activeProfile}을 바인딩하여 이미지 figcaption 위치 제어가 쇼케이스 및 실제 문서 뷰에 100% 반영되도록 보완
+ * 🚨 @PATCH : **2026-10-26** — [15대 서식 순서 쇼케이스 1:1 자동 스크롤 및 포커스 동기화]:
+ *             1) 좌측 패널의 15대 서식 선택(클릭 칩, 검색, 하단 팝업 리스트, 이전/다음) 시 우측 쇼케이스 해당 카드로 1:1 정확한 스무스 자동 스크롤 및 코발트 조명 링(ring-4) 포커스 연동
+ *             2) 우측 쇼케이스 내 임의 요소 클릭(Click-to-Inspect) 시 15대 세분화 카테고리(코드블록, 인라인코드, 링크, 이미지, 동영상, 지도, 수식 등)로 1:1 정확한 역방향 포커스 연동
+ * 🚨 @PATCH : **2026-10-26** — [미리보기 영역 실시간 클릭 인스펙터(Click-to-Inspect) 신설]:
+ *             우측 미리보기 화면의 임의 요소(제목, 표, 인용구, 코드, 각주, 미디어 등)를 클릭 시 좌측 서식 제어판의 해당 아코디언 및 탭으로 즉시 자동 전환 및 포커스 연동
  * 🚨 @PATCH : **2026-10-22** — [서식 관리 미리보기 제목 번호 형식(headingNumbering) 실시간 동기화]:
  *             1) SHOWCASE_MODULES Card 2(제목 위계 스타일) 마크다운에 activeProfile.headingNumbering을 syncMarkdownHeadingNumbers로 실시간 주입하여 좌측 패널의 제목 번호(1., Ⅰ., 가. 등) 설정이 우측 카드 미리보기에 1:1 즉각 반영되도록 개선
  *             2) 실제 문서 전체 뷰 모드에서도 documentDisplayContent에 headingNumbering을 동기화하여 서식 번호 변경 시 즉시 미리보기에 동기화
@@ -37,6 +51,7 @@ import MarkdownViewer from './MarkdownViewer';
 import { getWelcomeContent } from '@/constants/welcomeContent';
 import { SHOWCASE_MODULES } from '@/constants/styleShowcaseModules';
 import { syncMarkdownHeadingNumbers } from '@/lib/headingNumbering';
+import { resolveCaptionConfig, formatMediaCaption } from '@/lib/aiFriendlyReport';
 import { CssProfile } from '@/types/cssProfile';
 import { DEFAULT_PROFILE } from '@/constants/cssProfile';
 import { PAPER_SIZES } from '@/constants/paperSizes';
@@ -57,6 +72,50 @@ interface CssStyleModalProps {
   geminiApiKey?: string;
   aiModelName?: string;
   currentDocContent?: string;
+}
+
+function syncShowcaseModuleMarkdown(mod: (typeof SHOWCASE_MODULES)[number], profile: CssProfile): string {
+  if (mod.id === 'headings') {
+    return syncMarkdownHeadingNumbers(mod.markdown, profile.headingNumbering);
+  }
+  if (mod.id === 'image') {
+    const cfg = resolveCaptionConfig(profile.mediaCaptionStructure, 'image') || {
+      position: 'top',
+      format: 'standard',
+      customTemplate: '**{kind} {n}. {title}**',
+    };
+    const title = '온리비 에디토리얼 워크스페이스 레이아웃';
+    const rawCaption = formatMediaCaption('그림', 1, title, cfg.format, cfg.customTemplate);
+    const cleanAlt = rawCaption.replace(/\*\*/g, '').trim();
+    return `![${cleanAlt}](https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1200&q=80)`;
+  }
+  if (mod.id === 'video') {
+    const cfg = resolveCaptionConfig(profile.mediaCaptionStructure, 'video') || {
+      position: 'top',
+      format: 'standard',
+      customTemplate: '**{kind} {n}. {title}**',
+    };
+    const title = '동영상 미디어 객체 규격 (환경설정과 화면구성)';
+    const rawCaption = formatMediaCaption('영상', 1, title, cfg.format, cfg.customTemplate);
+    const cleanCaption = rawCaption.replace(/\*\*/g, '').trim();
+    const captionEl = `<figcaption data-position="${cfg.position}" class="text-[0.88em] tracking-tight text-zinc-600 dark:text-zinc-300 font-medium text-center">${cleanCaption}</figcaption>`;
+    const videoEl = `<video src="/onrivi/01_환경설정과 화면구성.mp4" controls style="max-width:100%; border-radius:12px;"></video>`;
+    return `<figure class="onrivi-video-figure" data-caption-position="${cfg.position}" style="display:flex; flex-direction:column; align-items:center; width:100%; text-align:center;">\n${cfg.position === 'top' ? `${captionEl}\n\n${videoEl}` : `${videoEl}\n\n${captionEl}`}\n</figure>`;
+  }
+  if (mod.id === 'map') {
+    const cfg = resolveCaptionConfig(profile.mediaCaptionStructure, 'map') || {
+      position: 'top',
+      format: 'standard',
+      customTemplate: '**{kind} {n}. {title}**',
+    };
+    const title = '인터랙티브 지도(MAP) 객체 규격 (서울특별시청)';
+    const rawCaption = formatMediaCaption('지도', 1, title, cfg.format, cfg.customTemplate);
+    const cleanCaption = rawCaption.replace(/\*\*/g, '').trim();
+    const captionEl = `<figcaption data-position="${cfg.position}" class="text-[0.88em] tracking-tight text-zinc-600 dark:text-zinc-300 font-medium text-center">${cleanCaption}</figcaption>`;
+    const mapEl = `<iframe src="https://maps.google.com/maps?q=37.5665,126.9780&z=15&output=embed" allowfullscreen loading="lazy" style="width:100%; height:420px; border-radius:12px;"></iframe>`;
+    return `<figure class="onrivi-map-figure" data-caption-position="${cfg.position}" style="display:flex; flex-direction:column; align-items:center; width:100%; text-align:center;">\n${cfg.position === 'top' ? `${captionEl}\n\n${mapEl}` : `${mapEl}\n\n${captionEl}`}\n</figure>`;
+  }
+  return mod.markdown;
 }
 
 export default function CssStyleModal({
@@ -92,6 +151,202 @@ export default function CssStyleModal({
   const [syncStatusText, setSyncStatusText] = useState<string>('실시간 미리보기');
   const syncTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  /* ─── 클릭 인스펙터 (Click-to-Inspect) 상태 ─── */
+  const [targetSection, setTargetSection] = useState<string | null>(null);
+  const [targetTag, setTargetTag] = useState<string | null>(null);
+  const [inspectorKey, setInspectorKey] = useState<number>(0);
+  const [inspectorToast, setInspectorToast] = useState<string | null>(null);
+  const inspectorToastTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handlePreviewClickCapture = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+
+    // 1. 모듈 쇼케이스 카드 내부 클릭 시 해당 카드의 15대 서식 ID 즉시 판별
+    const cardEl = target.closest('.onrivi-showcase-card') as HTMLElement | null;
+    const cardModuleId = cardEl?.getAttribute('data-module-id');
+
+    let section = 'paragraph';
+    let tag = 'p';
+    let label = '';
+    let pulseTarget: HTMLElement | null = null;
+
+    if (previewViewMode === 'modules' && cardModuleId) {
+      section = cardModuleId;
+      pulseTarget = cardEl;
+
+      // 모듈 내 서브 요소 정밀 태깅
+      const stylableSubEl = target.closest(
+        'h1, h2, h3, h4, h5, h6, table, blockquote, pre, code, a, hr, img, figure, video, iframe, ul, ol, li, [data-footnote-ref], .footnotes, section[data-footnotes], .katex, .katex-display, p'
+      ) as HTMLElement | null;
+
+      if (stylableSubEl) {
+        pulseTarget = stylableSubEl;
+        const subTag = stylableSubEl.tagName.toLowerCase();
+        if (/^h[1-6]$/.test(subTag)) {
+          tag = subTag;
+        } else if (cardModuleId === 'codeblock') {
+          tag = 'codeBlock';
+        } else if (cardModuleId === 'inlinecode') {
+          tag = 'code';
+        } else if (cardModuleId === 'link') {
+          tag = 'a';
+        } else if (cardModuleId === 'footnote') {
+          tag = 'footnote';
+        } else if (cardModuleId === 'video') {
+          tag = 'video';
+        } else if (cardModuleId === 'map') {
+          tag = 'map';
+        } else if (cardModuleId === 'math') {
+          tag = 'math';
+        } else if (cardModuleId === 'image') {
+          tag = 'img';
+        } else if (cardModuleId === 'quote') {
+          tag = 'blockquote';
+        } else if (cardModuleId === 'table') {
+          tag = 'table';
+        } else if (cardModuleId === 'lists') {
+          tag = subTag === 'ol' ? 'ol' : 'ul';
+        } else if (cardModuleId === 'hr') {
+          tag = 'hr';
+        } else {
+          tag = subTag;
+        }
+      } else {
+        const defaultTagMap: Record<string, string> = {
+          headings: 'h1',
+          paragraph: 'p',
+          table: 'table',
+          quote: 'blockquote',
+          codeblock: 'codeBlock',
+          inlinecode: 'code',
+          link: 'a',
+          footnote: 'footnote',
+          lists: 'ul',
+          hr: 'hr',
+          image: 'img',
+          video: 'video',
+          map: 'map',
+          math: 'math',
+          rules: 'rules',
+        };
+        tag = defaultTagMap[cardModuleId] || 'p';
+      }
+
+      const titleMap: Record<string, string> = {
+        headings: '제목 위계 스타일 (Headings)',
+        paragraph: '본문 문단 (Paragraph)',
+        table: '표 (Table)',
+        quote: '인용구 (Blockquote)',
+        codeblock: '소스코드 블록 (Code Block)',
+        inlinecode: '인라인 코드 (Inline Code)',
+        link: '하이퍼링크 (Link)',
+        footnote: '각주 및 주석 (Footnotes)',
+        lists: '목록 및 태스크 체크박스 (Lists)',
+        hr: '수평 구분선 (HR)',
+        image: '이미지·캡션 (Image)',
+        video: '동영상 (Video)',
+        map: '인터랙티브 지도 (Map)',
+        math: '수식 (Math)',
+        rules: '전체 서식 규칙 (Global Rules)',
+      };
+      label = titleMap[cardModuleId] || cardModuleId;
+    } else {
+      // 2. 실제 내 문서 전체보기(document) 모드에서의 정밀 요소 인스펙터
+      const stylableEl = target.closest(
+        'h1, h2, h3, h4, h5, h6, table, blockquote, pre, code, a, hr, .onrivi-video-figure, video, .onrivi-map-figure, iframe, .onrivi-image-figure, img, figure, ul, ol, li, [data-footnote-ref], .footnotes, section[data-footnotes], .katex, .katex-display, p'
+      ) as HTMLElement | null;
+
+      if (!stylableEl) return;
+      pulseTarget = stylableEl;
+      const tagName = stylableEl.tagName.toLowerCase();
+
+      if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName)) {
+        section = 'headings';
+        tag = tagName;
+        label = `${tagName.toUpperCase()} 제목`;
+      } else if (tagName === 'table' || stylableEl.closest('table')) {
+        section = 'table';
+        tag = 'table';
+        label = '표 (Table)';
+      } else if (tagName === 'blockquote' || stylableEl.closest('blockquote')) {
+        section = 'quote';
+        tag = 'blockquote';
+        label = '인용구 (Blockquote)';
+      } else if (tagName === 'pre' || stylableEl.closest('pre')) {
+        section = 'codeblock';
+        tag = 'codeBlock';
+        label = '소스코드 블록 (Code Block)';
+      } else if (tagName === 'code' || stylableEl.closest('code:not(pre code)')) {
+        section = 'inlinecode';
+        tag = 'code';
+        label = '인라인 코드 (Inline Code)';
+      } else if (tagName === 'a' || stylableEl.closest('a')) {
+        section = 'link';
+        tag = 'a';
+        label = '하이퍼링크 (Link)';
+      } else if (
+        stylableEl.hasAttribute('data-footnote-ref') ||
+        stylableEl.classList.contains('footnotes') ||
+        stylableEl.closest('.footnotes') ||
+        stylableEl.closest('section[data-footnotes]')
+      ) {
+        section = 'footnote';
+        tag = 'footnote';
+        label = '각주 (Footnote)';
+      } else if (tagName === 'hr' || stylableEl.closest('hr')) {
+        section = 'hr';
+        tag = 'hr';
+        label = '수평 구분선 (HR)';
+      } else if (stylableEl.closest('.onrivi-video-figure') || tagName === 'video') {
+        section = 'video';
+        tag = 'video';
+        label = '동영상 (Video)';
+      } else if (stylableEl.closest('.onrivi-map-figure') || tagName === 'iframe') {
+        section = 'map';
+        tag = 'map';
+        label = '지도 (Map)';
+      } else if (tagName === 'img' || stylableEl.closest('.onrivi-image-figure') || stylableEl.closest('figure')) {
+        section = 'image';
+        tag = 'img';
+        label = '이미지·캡션 (Image)';
+      } else if (stylableEl.classList.contains('katex') || stylableEl.closest('.katex') || stylableEl.closest('.katex-display')) {
+        section = 'math';
+        tag = 'math';
+        label = '수식 (Math)';
+      } else if (['ul', 'ol', 'li'].includes(tagName)) {
+        section = 'lists';
+        tag = tagName;
+        label = '목록 (List)';
+      } else if (tagName === 'p') {
+        section = 'paragraph';
+        tag = 'p';
+        label = '본문 문단 (P)';
+      }
+    }
+
+    setTargetSection(section);
+    setTargetTag(tag);
+    setActiveModuleId(section);
+    setInspectorKey(k => k + 1);
+
+    // Trigger visual pulse on clicked element
+    if (pulseTarget) {
+      pulseTarget.classList.remove('onrivi-sync-pulse');
+      void pulseTarget.offsetWidth;
+      pulseTarget.classList.add('onrivi-sync-pulse');
+      setTimeout(() => pulseTarget?.classList.remove('onrivi-sync-pulse'), 1400);
+    }
+
+    // Toast notification
+    setInspectorToast(`📌 [${label}] 서식 설정으로 이동했습니다.`);
+    if (inspectorToastTimerRef.current) clearTimeout(inspectorToastTimerRef.current);
+    inspectorToastTimerRef.current = setTimeout(() => {
+      setInspectorToast(null);
+      inspectorToastTimerRef.current = null;
+    }, 2500);
+  };
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -115,50 +370,60 @@ export default function CssStyleModal({
 
   // ====================================================================
   // 📊 [OMD-EDIT-0038] frontend/src/components/CssStyleModal.tsx ➔ handleActiveSectionChange
-  // 🎯 @KICK  : 펼친 서식 주제에 대응하는 쇼케이스 카드를 활성화하고 첫 태그 이동을 예약한다.
-  // 🛡️ @GUARD : 문서 보기 상태에서도 모듈 보기로 전환하고 동일 주제 재선택을 놓치지 않는다.
+  // 🎯 @KICK  : 좌측에서 선택된 15대 서식에 대응하는 우측 쇼케이스 카드를 활성화하고 1:1 자동 스크롤을 실행한다.
+  // 🛡️ @GUARD : 문서 보기 상태에서도 모듈 보기로 전환하고 동일 서식 재선택 시에도 즉시 뷰포트를 이동한다.
   // 🔗 @CALLS : setActiveModuleId(), setPreviewViewMode(), setScrollRequest()
   // ====================================================================
   const handleActiveSectionChange = (sectionId: string) => {
-    let targetModule = 'typography';
-    if (sectionId === 'headings') targetModule = 'headings';
-    else if (sectionId === 'lists') targetModule = 'lists';
-    else if (sectionId === 'others') targetModule = 'boxes';
-    else if (sectionId === 'media' || sectionId === 'hr') targetModule = 'media';
-    else if (sectionId === 'advanced') targetModule = 'advanced';
-    else if (sectionId === 'typography') targetModule = 'typography';
-
-    setActiveModuleId(targetModule);
+    setActiveModuleId(sectionId);
     setPreviewViewMode('modules');
     setScrollRequest(previous => ({ sectionId, sequence: (previous?.sequence || 0) + 1 }));
   };
 
   // ====================================================================
   // 📊 [OMD-EDIT-0039] frontend/src/components/CssStyleModal.tsx ➔ 서식 주제 쇼케이스 스크롤 효과
-  // 🎯 @KICK  : 펼친 주제의 첫 태그를 우측 쇼케이스 패널의 보이는 영역으로 이동한다.
-  // 🛡️ @GUARD : 렌더 완료 후 대상 DOM을 찾고, 대상이 없으면 카드로 대체하며 음수 스크롤을 막는다.
-  // 🚨 @PATCH : scrollIntoView(nearest)는 카드 일부가 보일 때 이동하지 않아 패널 좌표로 직접 스크롤한다.
-  // 🔗 @CALLS : requestAnimationFrame(), document.getElementById(), querySelector(), getBoundingClientRect(), pane.scrollTo(), cancelAnimationFrame()
+  // 🎯 @KICK  : 선택된 서식 카드를 우측 쇼케이스 패널의 최적 보이는 영역으로 부드럽게 자동 스크롤한다.
+  // 🛡️ @GUARD : 렌더 완료 후 대상 카드 DOM을 찾고, 대상 요소 시각 펄스 강조를 실행한다.
+  // 🚨 @PATCH : 15대 서식 모듈 1:1 대응 및 패널 좌표 기준 스무스 스크롤 연동
   // ====================================================================
   useEffect(() => {
     if (!isOpen || previewViewMode !== 'modules' || !scrollRequest) return;
     const firstTag: Record<string, string> = {
-      typography: 'p', advanced: 'p', headings: 'h1', lists: 'ol',
-      others: 'table', media: 'img, figure', hr: 'hr',
-      'effective-rules': 'p',
+      paragraph: 'p',
+      headings: 'h1',
+      table: 'table',
+      quote: 'blockquote',
+      codeblock: 'pre',
+      inlinecode: 'code',
+      link: 'a',
+      footnote: '.footnotes, [data-footnote-ref], p',
+      lists: 'ul, ol',
+      hr: 'hr',
+      image: 'img, figure',
+      video: 'video',
+      map: 'iframe',
+      math: '.katex-display, .katex',
+      rules: 'p',
     };
-    const moduleId = scrollRequest.sectionId === 'hr' ? 'media'
-      : scrollRequest.sectionId === 'others' ? 'boxes'
-      : scrollRequest.sectionId === 'effective-rules' ? 'typography'
-      : scrollRequest.sectionId;
+    const moduleId = scrollRequest.sectionId;
     const frame = requestAnimationFrame(() => {
       const pane = previewScrollRef.current;
       const card = document.getElementById(`omd-showcase-module-${moduleId}`);
       if (!pane || !card) return;
-      const firstElement = card.querySelector(firstTag[scrollRequest.sectionId] || 'p') || card;
-      const targetTop = pane.scrollTop + firstElement.getBoundingClientRect().top
-        - pane.getBoundingClientRect().top - 20;
+      const paneRect = pane.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const targetTop = pane.scrollTop + cardRect.top - paneRect.top - 20;
       pane.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+
+      // 내부 첫 태그 시각 펄스 강조
+      const selector = firstTag[moduleId] || 'p';
+      const firstElement = (card.querySelector(selector) || card) as HTMLElement;
+      if (firstElement) {
+        firstElement.classList.remove('onrivi-sync-pulse');
+        void firstElement.offsetWidth;
+        firstElement.classList.add('onrivi-sync-pulse');
+        setTimeout(() => firstElement.classList.remove('onrivi-sync-pulse'), 1400);
+      }
     });
     return () => cancelAnimationFrame(frame);
   }, [isOpen, previewViewMode, scrollRequest]);
@@ -337,12 +602,16 @@ export default function CssStyleModal({
               aiModelName={aiModelName}
               onActiveSectionChange={handleActiveSectionChange}
               onActiveTagChange={handleActiveTagChange}
+              targetSection={targetSection}
+              targetTag={targetTag}
+              inspectorKey={inspectorKey}
             />
           </div>
 
           {/* 우측: 듀얼 모드 프리뷰 뷰어 */}
           <div 
             ref={previewScrollRef}
+            onClickCapture={handlePreviewClickCapture}
             className={`flex-1 h-full overflow-y-auto p-6 lg:p-10 ${isDarkMode ? 'bg-[#0E0E10]' : 'bg-slate-100'}`}
           >
             <div
@@ -358,16 +627,15 @@ export default function CssStyleModal({
                 <div className="space-y-8 pb-16">
                   {SHOWCASE_MODULES.map((mod) => {
                     const isCardActive = activeModuleId === mod.id;
-                    const renderedMarkdown = mod.id === 'headings'
-                      ? syncMarkdownHeadingNumbers(mod.markdown, activeProfile.headingNumbering)
-                      : mod.markdown;
+                    const renderedMarkdown = syncShowcaseModuleMarkdown(mod, activeProfile);
                     return (
                       <div
                         key={mod.id}
                         id={'omd-showcase-module-' + mod.id}
-                        className={`onrivi-showcase-card rounded-2xl border transition-all duration-200 overflow-hidden shadow-sm ${
+                        data-module-id={mod.id}
+                        className={`onrivi-showcase-card rounded-2xl border transition-all duration-300 overflow-hidden shadow-sm cursor-pointer ${
                           isCardActive
-                            ? 'onrivi-showcase-card-active border-blue-500/80 ring-2 ring-blue-500/20 shadow-lg'
+                            ? 'onrivi-showcase-card-active border-[#1d4ed8] ring-4 ring-[#1d4ed8]/25 shadow-2xl scale-[1.01]'
                             : 'border-slate-200/80 dark:border-zinc-800/80 hover:border-slate-300 dark:hover:border-zinc-700'
                         }`}
                         style={{ backgroundColor: paperBgColor }}
@@ -379,7 +647,7 @@ export default function CssStyleModal({
                           <div className="flex items-center gap-2.5">
                             <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md ${
                               isCardActive
-                                ? 'bg-blue-600 text-white'
+                                ? 'bg-[#1d4ed8] text-white shadow-xs'
                                 : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
                             }`}>
                               {mod.badge}
@@ -399,6 +667,7 @@ export default function CssStyleModal({
                             content={renderedMarkdown}
                             originalContent={renderedMarkdown}
                             customCss={dynamicCssString}
+                            picturebookProfile={activeProfile}
                             listIndent={activeProfile.rules.ul?.['padding-left'] || activeProfile.rules.ol?.['padding-left'] || '28px'}
                           />
                         </div>
@@ -423,7 +692,7 @@ export default function CssStyleModal({
                     originalContent={syncMarkdownHeadingNumbers(documentDisplayContent, activeProfile.headingNumbering)}
                     customCss={dynamicCssString}
                     listIndent={activeProfile.rules.ul?.['padding-left'] || activeProfile.rules.ol?.['padding-left'] || '28px'}
-                    picturebookProfile={activeProfile.layout?.type === 'picturebook' ? activeProfile : undefined}
+                    picturebookProfile={activeProfile}
                   />
                 </div>
                 </div>
@@ -449,6 +718,13 @@ export default function CssStyleModal({
           geminiApiKey={geminiApiKey}
           aiModelName={aiModelName}
         />
+      )}
+
+      {/* 📌 클릭 인스펙터 실시간 토스트 */}
+      {inspectorToast && (
+        <div className="fixed bottom-6 right-6 z-[99999] px-4 py-2.5 rounded-xl bg-zinc-900/95 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-2xl border border-zinc-700/50 dark:border-zinc-300/50 text-xs font-bold animate-fadeIn flex items-center gap-2 backdrop-blur-sm pointer-events-none">
+          <span>{inspectorToast}</span>
+        </div>
       )}
     </div>
   );

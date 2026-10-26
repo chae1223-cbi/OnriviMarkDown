@@ -18,6 +18,13 @@
 }
 
 /* ===================================================================
+ * 🚨 @PATCH : **2026-10-26** — [확장 리스트(Loose List) 내부 p 및 .onrivi-line 인라인 일원화]:
+ *             li 내부 p 및 span.onrivi-line에 display: inline !important 및 width: auto를 지정하여 Loose List에서도 Tight List(쇼케이스)와 100% 동일하게 불릿/숫자 마커와 글자 간격이 밀착되도록 결함 해결
+ * 🚨 @PATCH : **2026-10-26** — [인용구 내부 리스트 과도한 들여쓰기(2.25rem/36px) 소거 및 --list-indent 동기화]:
+ *             인용구 내부 blockquote ul의 고정 패딩(2.25rem)을 var(--list-indent, 1.25rem)으로 정상화하여 불릿 마커와 본문 간 거대 공백 결함 해결
+ * 🚨 @PATCH : **2026-10-26** — [번들 웹폰트 OTS 파싱 오류(kern table, sfntVersion) 및 디코딩 실패 전면 해결]:
+ *             1) 학교안심 포스터/보드마카의 비정상 PostScript 바이너리 .woff2를 W3C 표준 규격의 정품 .woff 에셋으로 교체 복구
+ *             2) EBS주시경·더서클·이순신돋움 TTF 폰트 내 크롬 OTS 거부 원인인 비표준 Apple-format kern 테이블을 정제하여 브라우저 디코딩 100% 정상화
  * 🚨 @PATCH : **2026-10-18** — [인용구(blockquote) 및 시험 문제 보기 상자 내부 줄 여백 콤팩트 규격화]:
  *             인용구 내부 문단(p: 4px), 목록(ul/ol: 4px, li: 2px)의 불필요한 과대 마진을 콤팩트하게 밀착시켜 화면 및 인쇄 시 보기 상자 비대화 방지
  * 🚨 @PATCH : **2026-10-15** — [슬래시 자동완성 팝업 서식 설명 열 왼쪽 정렬 통일]:
@@ -50,7 +57,7 @@
 /* 기존 문서와 글꼴 선택창의 OTF 이름도 동일한 번들 파일로 연결한다. */
 @font-face {
   font-family: '학교안심 포스터 OTF B';
-  src: url('/fonts/hakgyoansim/Hakgyoansim_PosterB.woff2') format('woff2');
+  src: url('/fonts/hakgyoansim/Hakgyoansim_PosterB.woff') format('woff');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -64,7 +71,7 @@
 }
 @font-face {
   font-family: '학교안심 보드마카 OTF R';
-  src: url('/fonts/hakgyoansim/Hakgyoansim_BoardmarkerR.woff2') format('woff2');
+  src: url('/fonts/hakgyoansim/Hakgyoansim_BoardmarkerR.woff') format('woff');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -72,7 +79,7 @@
 
 @font-face {
   font-family: '학교안심 포스터 B';
-  src: url('/fonts/hakgyoansim/Hakgyoansim_PosterB.woff2') format('woff2');
+  src: url('/fonts/hakgyoansim/Hakgyoansim_PosterB.woff') format('woff');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -96,7 +103,7 @@
 
 @font-face {
   font-family: '학교안심 보드마카 R';
-  src: url('/fonts/hakgyoansim/Hakgyoansim_BoardmarkerR.woff2') format('woff2');
+  src: url('/fonts/hakgyoansim/Hakgyoansim_BoardmarkerR.woff') format('woff');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -944,16 +951,27 @@ mark.onrivi-search-text-highlight {
    loose list 파싱 시 각 li 안에 <p>가 생기면서 margin 0.45em이 중첩되어 높이가 폭발하는 현상을 막기 위해 margin을 0으로 압착.
    단, 들여쓰기로 생성된 두 번째 문단부터는 병합되지 않고 줄바꿈되도록 display: block 유지 및 여백 추가 */
 .prose li p,
-.custom-preview-container li p {
-  display: block !important;
+.custom-preview-container li p,
+.onrivi-content-root li p {
+  display: inline !important;
   margin-top: 0 !important;
   margin-bottom: 0 !important;
   margin-left: 0 !important;
   padding: 0 !important;
 }
 
+.prose li p .onrivi-line,
+.custom-preview-container li p .onrivi-line,
+.onrivi-content-root li p .onrivi-line {
+  display: inline !important;
+  width: auto !important;
+  min-height: 0 !important;
+}
+
 .prose li p + p,
-.custom-preview-container li p + p {
+.custom-preview-container li p + p,
+.onrivi-content-root li p + p {
+  display: block !important;
   margin-top: 0.45em !important;
 }
 
@@ -1508,15 +1526,15 @@ div.monaco-table-line {
 .custom-preview-container blockquote > ol,
 .custom-preview-container blockquote ul,
 .custom-preview-container blockquote ol {
-  padding-left: 2.25rem !important;
+  padding-left: var(--list-indent, 1.25rem) !important;
 }
 
-/* 🛡️ 인용구 내부 중첩 목록: 상위 blockquote ul 패딩(2.25rem)에 묶이지 않고 자연스러운 하위 들여쓰기 보장 */
+/* 🛡️ 인용구 내부 중첩 목록: 상위 들여쓰기와 일치하는 단계별 들여쓰기 보장 */
 .custom-preview-container blockquote ul ul,
 .custom-preview-container blockquote ol ol,
 .custom-preview-container blockquote ul ol,
 .custom-preview-container blockquote ol ul {
-  padding-left: 1.5rem !important;
+  padding-left: var(--list-indent, 1.25rem) !important;
 }
 
 /* 🛡️ 숫자 목록 간 물리적 여백 공간 확보: 파서 훼손 없이 안전한 CSS 마진 적용 */

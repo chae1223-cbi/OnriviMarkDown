@@ -84,7 +84,21 @@ export function installVisualCaret(view: EditorView) {
         const range = selection.getRangeAt(0);
         domRect = range.getClientRects()[0];
       }
-      const rect = domRect && domRect.height > 0 ? domRect : view.coordsAtPos(view.state.selection.head);
+      let rect = domRect && domRect.height > 0 ? domRect : view.coordsAtPos(view.state.selection.head);
+      const { $from } = view.state.selection;
+      if ($from.parent.type.name === 'paragraph' && !$from.parent.content.size) {
+        // A lone ProseMirror-trailingBreak can report a range on the *next*
+        // visual line. Typing removes that break and makes the overlay jump up.
+        const dom = view.domAtPos($from.pos).node;
+        const element = dom instanceof Element ? dom : dom.parentElement;
+        const paragraph = element?.closest('p');
+        if (paragraph && view.dom.contains(paragraph)) {
+          const box = paragraph.getBoundingClientRect();
+          const lineHeight = parseFloat(getComputedStyle(paragraph).lineHeight) || rect.bottom - rect.top;
+          const position = view.coordsAtPos($from.pos);
+          rect = { left: position.left, right: position.right, top: box.top, bottom: box.top + lineHeight };
+        }
+      }
       
       const caretHeight = Math.max(18, rect.bottom - rect.top);
       let top = rect.top;

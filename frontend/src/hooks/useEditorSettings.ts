@@ -12,6 +12,7 @@ import { getActiveResourceApiKey, getActiveResourceAIModel, purgeLocalStorageAIC
 import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
 import { getSavedWorkspaceInfo } from '@/lib/gdrive/googleDriveClient';
 import { getDefaultWatermarkSettings, saveDefaultWatermarkSettings, normalizePrintSettings,watermarkSettingsForStorage, DocumentPrintSettings } from '@/lib/documentPrintSettings';
+import { readResourceShortcodes, writeResourceShortcodes } from '@/lib/resourceJson';
 
 /**
  * [ONR-16-002] useEditorSettings 커스텀 훅
@@ -20,6 +21,9 @@ import { getDefaultWatermarkSettings, saveDefaultWatermarkSettings, normalizePri
 // ====================================================================
 // 📊 [OMD-EDIT-USEEDITORSETTINGS-0005] useEditorSettings.ts ➔ useEditorSettings
 // 🎯 @KICK  : 에디터 사용자 설정(테마, 단축키, 폰트크기 등)을 관리하고 영구 저장소에 동기화
+// 🚨 @PATCH : **2026-10-26** — [단축코드 정의서(shortcodes.json) 리소스 폴더 양방향 수화 및 실시간 동기화]:
+//             1) restoreSettings 시 리소스 폴더(settings/shortcodes.json)에서 사용자 단축키 및 슬래시 명령어를 우선 복원
+//             2) saveSettings 및 onrivi:resource_folder_changed 감지 시 리소스 폴더에 단축코드 정의서를 원자적으로 자동 동기화
 // 🚨 @PATCH : **2026-10-19** — [브라우저 모드 작업장 절대경로 및 메타데이터 복원 정밀화]: rootFolderHandle 복구 시 localStorage의 rootFolder 및 onrivi_workspace_path 메타데이터(path, displayName)를 결합하여 rootFolder에 온전히 주입, 작업장 내부 파일 판별 정상화
 // 🚨 @PATCH : **2026-10-19** — [환경설정 일반설정 기본 워터마크(위치/문구/이미지/진하기) 상태 동기화 탑재]: defaultWatermarkSettings 상태 및 localStorage/Electron 영구 동기화 파이프라인 신설
 // 🚨 @PATCH : **2026-10-07** — [최종 구글 드라이브 작업장 상태 영구 복원 강화]: onrivi_last_workspace_mode 및 getSavedWorkspaceInfo 연동으로 재접속 시 구글 드라이브 작업장 상태 및 rootFolder 100% 자동 복구 보장

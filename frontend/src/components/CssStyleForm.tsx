@@ -4,88 +4,69 @@
  * CssStyleForm.tsx — 사용자 친화적 서식 정의 제어판 (관보 서식 규격 지정)
  * 좌측 영역을 차지하는 패널로, 사용자가 선택한 CssProfile의
  * 전역 타이포그래피와 각 HTML 태그별 CSS 룰셋(CssRuleSet)을 편집합니다.
- * 편집 모드는 두 가지:
- *   1. 위젯 편집 모드 (기본) — 슬라이더와 컬러 피커를 통해 비개발자도 직관적으로 편집
- *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
- * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
+ *
  * 🚨 @PATCH
+ *   2026-10-26 — [15대 서식 쇼케이스 선택 시 해당 설정 패널 즉시 전환 연동]:
+ *     1) targetSection 우선 적용으로 소스코드블록(codeblock), 인라인코드(inlinecode), 하이퍼링크(link), 각주(footnote), 동영상(video), 지도(map) 등 15대 서식 선택 시 좌측 패널이 정확히 전환되도록 보완
+ *     2) 문장 텍스트(<p>) 클릭 시 targetSection이 paragraph로 오인되어 엉뚱한 본문 패널로 튕기던 태그 하이재킹 버그 완벽 차단
+ *   2026-10-26 — [서식 글자 크기 pt 단위 표준화]:
+ *     baseFontSize를 formatPt 헬퍼를 통해 pt 단위로 일원화하여 모든 세부 패널에 상속 제공
+ *   2026-10-26 — [하단 배지 서식 팝업 리스트 선택기(List Selector) 전환]:
+ *     1) 하단 탐색 바의 중앙 배지(예: 📋 목록·체크 (9/15))를 클릭 시 15대 전체 서식 리스트가 위로 부드럽게 펼쳐지는 팝업 리스트 선택기로 전면 개편
+ *     2) 1~15번 번호, 아이콘, 명칭, 현재 선택 상태 뱃지가 포함된 직관적인 리스트에서 원하는 서식을 클릭 한 번으로 즉시 선택 지원
+ *     3) 외부 클릭(click-outside) 시 자동 닫힘 및 닫힘 애니메이션 연동
+ *   2026-10-26 — [페이지 서식 일괄 갱신(Partial<CssPageStyle>) 지원 및 프리셋 활성화 결함 해결]:
+ *     1) handlePageStyleChange에 객체 형태의 일괄 변경(Partial<CssPageStyle>) 오버로딩을 추가하여 폰트/행간 및 여백 4방향 프리셋이 상태 덮어쓰기 없이 단일 트랜잭션으로 원자적 갱신되도록 개선
+ *   2026-10-26 — [인라인코드·링크 및 미디어 4종 독립 분리 & 스크롤 없는 상하단 고정 내비게이션 완비]:
+ *     1) 인라인 코드(code)와 하이퍼링크(a)를 별도 독립 패널(DetailInlineCodePanel, DetailLinkPanel)로 분리하고 상단 탭 신설
+ *     2) 미디어를 이미지·캡션(DetailImagePanel), 동영상(DetailVideoPanel), 지도(DetailMapPanel), 수식(DetailMathPanel) 4개 전용 패널로 세분화 분리
+ *     3) 카테고리 탭과 빠른 검색창을 상단 고정(Sticky Top) 배치하여, 슬라이더 조작을 위해 스크롤을 내린 상태에서도 위로 올릴 필요 없이 즉시 다른 항목 전환 지원
+ *     4) 하단에 [◀ 이전 서식] [현재 서식 배지/점프] [다음 서식 ▶] 스티키 플로팅 바(Sticky Bottom Navigation)를 탑재하여 스크롤 없이 순차 탐색 극대화
+ *     5) 카테고리 전환 시 패널 최상단으로 자동 부드러운 스크롤 복귀(Auto-Scroll to Top) 지원
+ *     6) 기본 글꼴·크기·줄간격·배경색 및 종이 규격·문서 배치·개요 설정을 간편 스타일링으로 완전 위임하여 충돌 차단
  *   2026-10-22 — [제목 번호 형식에 계층형 십진(1. ➔ 1.1 ➔ 1.1.1) 옵션 추가]: KS/ISO 기술표준 서식용 decimal-outline 선택지를 제목 번호 형식 드롭다운에 노출
- *   2026-10-21 — [미디어 설명(캡션) 위치 및 표현 구문(mediaCaptionStructure) 서식 제어 패널 신설]: 서식 제어판 [6] 미디어 아코디언 내에 캡션 기본 위치(상단/하단) 토글, 표현 구문(표준/대괄호/화살괄호/일반/제목만/커스텀) 선택 및 커스텀 템플릿 입력 UI 탑재
- *   2026-10-17 — [목록 기본 들여쓰기 너비 슬라이더 조작 시 triggerUpdate 연동]: '목록 기본 들여쓰기 너비' 슬라이더 변경 시 onUpdateProfile 직접 호출 대신 triggerUpdate(updated, 'ul', '목록 기본 들여쓰기 너비')를 호출하여 실시간 미리보기 펄스 하이라이트 및 상태 동기화 완벽 보장
- *   2026-10-14 — [서식관리 아코디언 [5] 타이틀에 '각주' 명시 및 각주 스타일 설정 시인성 강화]: 아코디언 [5] 타이틀을 '🏺 표, 하이퍼링크, 소스코드, 인용구, 각주'로 명시하여 사용자가 각주 글자 크기, 색상, 줄간격, 상하 여백을 한눈에 찾아 설정할 수 있도록 접근성 극대화
- *   2026-10-01 — [내보내기 페이지 나누기 설정 UI 제거]: PDF/EPUB 내보내기 시 제목 기준 강제 페이지 분할 폐지에 따라 페이지 설정 탭의 '내보내기 페이지 나누기' 드롭다운 컨트롤 제거
- *   2026-09-26 — [서식 설정 전체 프리셋 및 굵기 선택 활성화 상태 전수 점검 및 일괄 개선]: 1) 코드블록(라이트/다크 배경색 감지), 2) 이미지(썸네일/폴라로이드/기본형), 3) 인용구(왼쪽띠/전체박스/그림자 복합 border 우선순위), 4) 표(가로선전용 td border-left:none 정밀 감지), 5) 인용구/링크/각주 글자굵기 select에 isFontWeightBold 연동으로 숫자 font-weight 공백 현상 방지, 6) hrStructure 개별 속성 폴백 안전화로 모든 서식의 설정 상태가 UI에 100% 명확히 표시되도록 개선
- *   2026-09-26 — [제목 하단 밑줄(border-bottom) 선 스타일 키워드 기반 활성 판별 및 색상 보존 개선]: '2px solid #ff5a00' 등 다양한 두께/색상의 border-bottom 설정 시 startsWith('1px') 실패로 인해 [실선] 버튼이 미선택으로 보이던 결함을 solid/double 키워드 기반 판별(isBorderMatch)로 전면 개선하여 H1~H6의 하단 밑줄 설정 상태를 정확하게 표시하고 변경 시 기존 색상 보존 연동
- *   2026-09-26 — [서식설정 버튼 활성 표시 정확도 개선]: font-weight('700'/'bold'/>=700 모두 굵게 활성), border-bottom(''/'none'/undefined → 선없음 활성), text-decoration(includes 매칭), text-align(미지정 시 왼쪽 활성) 등 isStyleOptionActive·isBorderMatch·isAlignActive 헬퍼 도입으로 H1~H6 모든 스타일 버튼 정확히 하이라이트
- *   2026-09-26 — [기본 타이포그래피 패널을 아코디언으로 전환]: 고정 패널에서 AccordionSection으로 전환하여 전체 7개 섹션 아코디언 통일
- *   2026-09-26 — [표 형태 프리셋(Grid/가로선강조/미니멀) 선택 활성 표시(activeClass) 및 세로선 동기화]: tableStructure(outerBorderWidth, rowBorderWidth, colBorderWidth) 기준으로 프리셋 활성 상태(isGrid, isHorizontal, isMinimal) 판별 로직을 일원화하여 선택 표시를 즉각 하이라이트하고 세로선 잔여 legacy 스타일 자동 정제 연동
- *   2026-09-26 — [코드 블록 줄 간격(행간) 제어 슬라이더 신설]: codeBlock 섹션에 줄 간격(1.0~2.0배, 기본 1.35배) 조절 슬라이더(SliderWidget)를 탑재하여 코드블록 내부 줄간격 컴팩트 제어 지원
- *   2026-09-25 — [서식 설정 슬라이더 0px/최솟값 튕김 버그 완전 해결]: 모든 SliderWidget의 value 전달 시 Falsy 단락 평가(||)로 인해 0px 또는 최소 경계값 도달 시 기본값으로 강제 튕겨 나오던 버그를 getNumValue 안전 파서로 전면 교체하여 0px 및 양 끝까지 부드럽게 이동·유지되도록 보장
- *   2026-09-25 — [체크박스 및 체크리스트 글자색 본문 글씨색(#2f2f2f) 기본값 동기화]: checkboxStructure.color 기본 폴백을 본문 글자색(#2f2f2f)으로 맞추어 체크박스 및 체크리스트 글자가 본문 기본색과 일원화되도록 보장
- *   2026-09-24 — [체크리스트 글자 색상(taskList.color) 제어 컬러피커 신설]: 목록 및 태스크 체크박스 섹션에 체크리스트 글자 색상(ColorPickerWidget)을 추가하여 체크박스 항목 텍스트 색상을 자유롭게 변경 및 상속(inherit) 제어 가능하도록 구현
- *   2026-09-24 — [문서 표준 용지 여백(상하 18mm, 좌우 12mm) 최적화 및 슬라이더 연동]: pageStyle 여백 기본값을 상하 18mm, 좌우 12mm로 일원화하고 슬라이더 위젯 폴백 동기화
- *   2026-09-24 — [표 외곽 테두리·행(가로선)·열(세로선) 두께 개별 선언(tableStructure) 및 제어 슬라이더 3종 신설]: 단일 표 테두리 슬라이더를 외곽 테두리 두께, 행(가로선) 두께, 열(세로선) 두께로 3분할 독립 선언 및 프리셋(Grid/가로선강조/미니멀) 연동
- *   2026-09-24 — [서식 내보내기/복사 7대 쇼케이스 완전체 정규화(normalizeCssProfile) 및 Blob 다운로드 전환]: exportCurrentProfile 및 copyProfileToClipboard 시 최신 규격으로 완전 정규화하여 내보내고 data: URI 대신 표준 Blob 객체 다운로드로 대용량/유니코드 안정성 확보
- *   2026-09-24 — [외부 서식 가져오기/붙여넣기/업로드 정제 및 자동 선택 동기화]: sanitizeAndParseCssProfileJson 연동으로 마크다운 코드블록/설명문/주석 포함 텍스트 관대 파싱, 가져온 서식 즉시 활성화(onSelectProfile) 보장
- *   2026-09-24 — [각주(Footnote) 글자 크기 직접설정 슬라이더 단일화]: 사용자 요청에 따라 기본설정 유지 토글을 제거하고 직접 설정 전용 단일 슬라이더(SliderWidget)로 간소화하여 즉각적인 크기 조절 제공
- *   2026-09-24 — [각주(Footnote) 상하 바깥 여백 실시간 동기화 및 0px 슬라이더 버그 해결]: 각주 상하 여백 슬라이더에 triggerUpdate 연동 및 0px 설정 시 단락평가 폴백 버그 방어로 즉각 반응 보장
- *   2026-09-24 — [사용자 정의 CSS(Custom CSS) 아코디언 완전 삭제]: 사용자 요청에 따라 불필요해진 커스텀 CSS 편집기 UI 소거
- *   2026-09-24 — [본문 문단(P) 위/아래 여백, 문장 사이 간격, 줄간격 실시간 동기화 완벽 정상화]:
- *     1) 문단 위/아래 여백, 문장 사이 간격, 들여쓰기 슬라이더 0px 설정 시 폴백 버그 해결 (0px 즉각 반응 보장) 및 triggerUpdate 연동
- *     2) 문단 줄간격 슬라이더 조작 시 pageStyle.lineHeight 및 rules.p['line-height'] 동시 갱신으로 100% 실시간 연동
- *   2026-09-24 — [수식(math) 기본 글자 크기 유지 및 상하여백 0px 데드존/단축속성 충돌 해결]:
- *     1) 수식 글자 크기 기본설정 유지 클릭 시 currentProfile.rules.math에서 font-size를 정확히 제거하고 raw 프로필 기준으로 inherit 모드 정상 활성화
- *     2) 상하 여백 슬라이더 0px 설정 시 || 16 폴백으로 인한 0px 무반응 버그 해결 (0px 즉각 반응 보장)
- *     3) 단축 margin 잔재를 완전 소거하여 margin-top/margin-bottom 1:1 독립 제어 보장
- *   2026-09-24 — [미디어(이미지·동영상·지도) 규격·상하여백·정렬 실시간 동기화 정상화]:
- *     1) updateMediaAlign 및 상하 바깥 여백 슬라이더에 triggerUpdate 연동 및 HUD/펄스 피드백 활성화
- *     2) 상하 바깥 여백 변경 시 기존 정렬(margin-left/right) 값이 중앙으로 강제 초기화되던 결함 원천 해결
- *     3) updateMediaAlign 시 단축 margin 잔재 삭제 및 width 미지정 시 기본 너비 자동 보정으로 좌/우 정렬 시각적 식별성 확보
- *     4) getMediaAlign에서 '0' 및 '0px' 양쪽 모두 정합 지원
- *     5) 이미지 형태 프리셋 변경 시 triggerUpdate 연동
- *   2026-09-24 — [표 형태(가로선 강조/미니멀) 프리셋 잔재 속성 제거]: 프리셋 전환 시 border-style, border-width 등 단축 속성 잔재를 완전 소거하여 방향별 border: none 설정과의 CSS 충돌 원천 차단
- *   2026-09-24 — [브라우저 자동번역기 DOM 충돌 방어 및 FontSizeControl 안정화]: FontSizeControl에 notranslate/translate="no" 및 조건부 렌더링 key 부여, 텍스트 노드 단일 템플릿화로 크롬 번역기 removeChild NotFoundError 에러 원천 차단
- *   2026-09-24 — [문서 서식 기본 글자 크기 유지(상속) 및 직접 설정 듀얼 모드 위젯(FontSizeControl) 도입]: 표(Table), 인용구(Blockquote), 코드블록(CodeBlock), 각주(Footnote), 수식(Math)에 대해 '기본설정 유지' vs '직접 설정' 세그먼트 위젯을 제공하여 페이지 기본 글자 크기(pageStyle.fontSize) 실시간 동기화 지원
- *   2026-09-24 — [표 하단 여백 렌더링 정상화 및 실시간 HUD/펄스 동기화]: 표 상하 여백 슬라이더 조작 시 triggerUpdate에 한국어 명칭 및 수치 전달, table-wrapper-area 1:1 반응 보장
- *   2026-09-24 — [표 테두리 이중선(double) 렌더링 정상화 및 단축 속성 충돌 해결]: updateTableBorder 실행 시 shorthand border 잔재 삭제, double 선택 시 브라우저 물리 렌더링 한계(최소 3px) 돌파를 위한 두께 자동 보정 및 th/td border-style 일원화
- *   2026-09-24 — [인용구 상하 여백 0~15px 데드존 완전 소멸]: 슬라이더 0px 설정 시 인접 블록 마진 0 강제와 연동되어 완전 밀착 및 1px 단위 즉각 반응 보장
- *   2026-09-24 — [인용구(blockquote) 상하 여백 및 형태 프리셋 triggerUpdate 연동]: 슬라이더 및 프리셋 클릭 시 triggerUpdate로 실시간 펄스 하이라이트 및 HUD 배지 동기화
- *   2026-09-24 — [수평 구분선(HR) 실시간 동기화 및 충돌 방어]: updateHrStructure에 rules.hr 동기화 및 triggerUpdate('hr') 연동, 구분선 스타일/두께/여백/너비 변경 시 우측 미리보기 즉시 갱신 및 펄스 피드백 지원
- *   2026-09-24 — [제목 위계 H1~H6 왼쪽 여백(padding-left) 조절 슬라이더 위젯 신설]: H1 마스터 및 H2~H6 세부 설정에 왼쪽 여백 슬라이더 추가하여 제목 수직 정렬 정밀 조작 지원
- *   2026-09-24 — [서식 관리 우측 서식별 모듈 1:1 실시간 동기화 연동]: 아코디언 토글 시 onActiveSectionChange, 각 서식 속성 변경 시 onActiveTagChange 콜백 연동
- *   2026-09-12 — [모든 AI 질의 표준 재시도 적용]: 1회 실패 후 3초 대기 -> 2회 시도 후 3초 대기 -> 3회 시도 후 최종 실패 에러 표출 규칙 및 기본 모델 gemini-3.8-flash 통일 적용
- *   2026-09-11 — Modern Technical Editorial 표준 적용 및 미리보기 영역 사용자 정의 CSS (Custom CSS 직접 입력) 편집 아코디언 신설
- *   2026-09-05 — 표 상단 여백 (제목 문구와의 간격, margin-top) 및 하단 여백(margin-bottom) 정밀 조절 슬라이더 위젯 추가
- *   2026-09-02 — LINE Design System (LDSG v5.0) 표준 적용: 테마 드롭다운 및 갤러리 팝오버 LDSG Green(#1d4ed8) 악센트 및 LDSG 경계선 규격 통일
- *   2026-08-15 — 상단 헤더 간소화: 7개 이모지 버튼 제거, [테마 선택 드롭다운] + [서식 관리 ⚙] 버튼 2개로 교체
- *               onOpenStyleManager prop 추가 → StyleManagerModal 연동
- *   2026-07-15 — AI 서식 생성 기능 추가: GoogleGenerativeAI 직접 호출로 processTextWithAI 대체
- *               (이전 방식의 사전 코드블록 제거가 JSON 파싱과 충돌하는 버그 수정)
- *             — 브레이스 밸런싱 JSON 파서 도입 (AI 응답 후미 설명글/괄호 오염 원천 차단)
- *             — 서식 삭제(🗑️)·이름변경(✏️) 버튼 항상 표시로 복구 (시스템 서식 선택 시 비활성화 처리)
- *             — window.confirm → ConfirmModal 공통 모달로 전환 (handleDeleteClick, resetToDefault)
+ *   2026-10-21 — [미디어 설명(캡션) 위치 및 표현 구문(mediaCaptionStructure) 서식 제어 패널 신설]: 서식 제어판 미디어 내에 캡션 기본 위치 토글, 표현 구문 선택 및 커스텀 템플릿 입력 UI 탑재
+ *   2026-10-17 — [목록 기본 들여쓰기 너비 슬라이더 조작 시 triggerUpdate 연동]: triggerUpdate(updated, 'ul')를 호출하여 실시간 미리보기 펄스 하이라이트 및 상태 동기화 완벽 보장
+ *   2026-10-14 — [서식관리 타이틀에 '각주' 명시 및 각주 스타일 설정 시인성 강화]: 각주 글자 크기, 색상, 줄간격, 상하 여백 설정 접근성 극대화
+ *   2026-10-01 — [내보내기 페이지 나누기 설정 UI 제거]: PDF/EPUB 내보내기 시 제목 기준 강제 페이지 분할 폐지에 따라 컨트롤 제거
+ *   2026-09-26 — [서식 설정 전체 프리셋 및 굵기 선택 활성화 상태 전수 점검 및 일괄 개선]: 15대 도메인 위젯 안정화
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react'; // useState : 상태 관리, useEffect : 컴포넌트 생명주기 관리, useRef : 참조 관리
-import { CssProfile, CssRuleSet } from '@/types/cssProfile'; // CssProfile : 서식 프로필 타입, CssRuleSet : 서식 규칙 타입
-import { DEFAULT_PROFILE, isSystemProfileId, sanitizeAndParseCssProfileJson, normalizeCssProfile, resolveCssProfile } from '@/constants/cssProfile'; // DEFAULT_PROFILE : 기본 프로필, isSystemProfileId : 시스템 프로필인지 확인, 정규화 엔진
-import { headingFormat, headingMarker, headingSetting, type HeadingNumberSetting } from '@/lib/headingNumbering';
-import { PAPER_SIZES } from '@/constants/paperSizes'; // PAPER_SIZES : 종이 크기
-import { DEFAULT_BOOK_LAYOUT, BOOK_SAMPLE } from '@/lib/picturebook';
-import { CSS_PROFILE_GUIDE_MD } from '@/constants/cssProfileGuide'; // CSS_PROFILE_GUIDE_MD : CSS 프로필 가이드
-import FontSelectorModal from './FontSelectorModal'; // FontSelectorModal : 폰트 선택 모달
-import ConfirmModal from './ConfirmModal'; // ConfirmModal : 확인 모달
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import type { CssProfile } from '@/types/cssProfile';
 
-/**
- * 🎯 원클릭 서식 프리셋 템플릿 데이터 모델
- */
+type CssPageStyle = CssProfile['pageStyle'];
+import {
+  DEFAULT_PROFILE,
+  isSystemProfileId,
+  sanitizeAndParseCssProfileJson,
+  normalizeCssProfile,
+  resolveCssProfile,
+} from '@/constants/cssProfile';
+import { headingFormat, headingMarker, headingSetting } from '@/lib/headingNumbering';
+import { CSS_PROFILE_GUIDE_MD } from '@/constants/cssProfileGuide';
+import ConfirmModal from './ConfirmModal';
+import QuickStylePanel from './style/QuickStylePanel';
+import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 
+// 도메인 분리 세부 서식 패널 임포트 (15대 도메인 완전 격리)
+import { formatPt } from './style/detail/DetailWidgets';
+import DetailParagraphPanel from './style/detail/DetailParagraphPanel';
+import DetailHeadingPanel from './style/detail/DetailHeadingPanel';
+import DetailTablePanel from './style/detail/DetailTablePanel';
+import DetailQuotePanel from './style/detail/DetailQuotePanel';
+import DetailCodePanel from './style/detail/DetailCodePanel';
+import DetailInlineCodePanel from './style/detail/DetailInlineCodePanel';
+import DetailLinkPanel from './style/detail/DetailLinkPanel';
+import DetailFootnotePanel from './style/detail/DetailFootnotePanel';
+import DetailListPanel from './style/detail/DetailListPanel';
+import DetailHrPanel from './style/detail/DetailHrPanel';
+import DetailImagePanel from './style/detail/DetailImagePanel';
+import DetailVideoPanel from './style/detail/DetailVideoPanel';
+import DetailMapPanel from './style/detail/DetailMapPanel';
+import DetailMathPanel from './style/detail/DetailMathPanel';
+import DetailRulesPanel from './style/detail/DetailRulesPanel';
 
-// ================================================================================
-// CssStyleFormProps 인터페이스 정의서
-//
-// ================================================================================
 interface CssStyleFormProps {
   profiles: CssProfile[];
   activeProfileId: string;
@@ -101,1251 +82,507 @@ interface CssStyleFormProps {
   aiModelName?: string;
   onActiveSectionChange?: (sectionId: string) => void;
   onActiveTagChange?: (tag: string, label?: string) => void;
+  targetSection?: string | null;
+  targetTag?: string | null;
+  inspectorKey?: number;
 }
 
-// ====================================================================
-// [OMD-CORE-CssStyleForm-0001] CssStyleForm ➔ AccordionSection
-// 1. 아코디언 섹션 래퍼 (글씨 크기를 시원하게 상향)
-// ====================================================================
-// AccordionSection 컴포넌트 정의
-// ====================================================================
-interface AccordionSectionProps { // AccordionSection 컴포넌트가 받을 속성(props)들의 타입 정의 
-  id: string; // id : 아코디언 섹션 ID 
-  title: string; // title : 아코디언 섹션 제목 
-  isOpen: boolean; // isOpen : 아코디언 섹션 열림 여부 
-  onToggle: () => void; // onToggle : 아코디언 섹션 토글 콜백 함수 
-  children: React.ReactNode; // children : 아코디언 섹션 자식 컴포넌트
-  sectionRef?: (el: HTMLDivElement | null) => void; // sectionRef : 스크롤 이동용 섹션 루트 DOM callback ref
-}
+export type DetailCategory =
+  | 'paragraph'
+  | 'headings'
+  | 'table'
+  | 'quote'
+  | 'codeblock'
+  | 'inlinecode'
+  | 'link'
+  | 'footnote'
+  | 'lists'
+  | 'hr'
+  | 'image'
+  | 'video'
+  | 'map'
+  | 'math'
+  | 'rules';
 
-// ====================================================================
-// AccordionSection 컴포넌트 구현
-// ==================================================================== 
-function AccordionSection({ title, isOpen, onToggle, children, sectionRef }: AccordionSectionProps) {
-  return (
-    <div ref={sectionRef} className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-white dark:bg-zinc-950 shadow-sm transition-all duration-200">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full px-5 py-4 flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-left"
-      >
-        <span className="font-bold text-[16px] text-zinc-800 dark:text-zinc-200">{title}</span>
-        <span className={`text-[13px] text-zinc-400 transform transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>
-          ▼
-        </span>
-      </button>
-      {isOpen && (
-        <div className="p-5 border-t border-zinc-100 dark:border-zinc-900 space-y-5">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-
-// 0 또는 '0' 값(Falsy)을 누락시키지 않고 기본값을 안전하게 처리하는 헬퍼 함수
-const getNumValue = (val: string | number | undefined | null, defaultVal: number): number => {
-  if (val === undefined || val === null || val === '') return defaultVal;
-  const parsed = typeof val === 'number' ? val : parseFloat(val);
-  return isNaN(parsed) ? defaultVal : parsed;
-};
-
-// ====================================================================
-// 📊 [OMD-CORE-CssStyleForm-0002] CssStyleForm ➔ SliderWidget
-// 🎯 @KICK  : HTML5 range 슬라이더로 숫자 값 실시간 조정 위젯
-// 🛡️ @GUARD : getNumValue로 falsy 값 안전 처리
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : getNumValue
-// ====================================================================
-// 2. HTML5 표준 슬라이더 위젯 (가독성 높은 폰트 크기 및 두툼한 슬라이더 적용)
-interface SliderWidgetProps { // SliderWidget 컴포넌트가 받을 속성(props)들의 타입 정의 
-  label: string; // label : 슬라이더 레이블 
-  min: number; // min : 슬라이더 최소값 
-  max: number; // max : 슬라이더 최대값 
-  step?: number; // step : 슬라이더 스텝 
-  value: number | string; // value : 슬라이더 값 
-  unit: string; // unit : 슬라이더 단위 
-  disabled: boolean; // disabled : 슬라이더 비활성화 여부 
-  onChange: (val: string) => void; // onChange : 슬라이더 값 변경 콜백 함수 
-}
-
-// ====================================================================
-// SliderWidget 컴포넌트 구현
-// ==================================================================== 
-function SliderWidget({ label, min, max, step = 1, value, unit, disabled, onChange }: SliderWidgetProps) {
-  const parsedVal = getNumValue(value, min);
-  const clampedVal = Math.min(Math.max(parsedVal, min), max);
-  const displayVal = step < 1 ? Number(clampedVal.toFixed(step < 0.1 ? 2 : 1)) : clampedVal;
-  return (
-    <div className="space-y-2.5 bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-      <div className="flex items-center justify-between">
-        <span className="text-zinc-700 dark:text-zinc-300 font-semibold text-[13.5px]">{label}</span>
-        <span className="font-mono text-sm font-bold text-blue-600 dark:text-blue-400">
-          {displayVal}{unit}
-        </span>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={clampedVal}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full h-2.5 bg-zinc-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-650 disabled:opacity-50 disabled:cursor-not-allowed"
-      />
-    </div>
-  );
-}
-
-// ====================================================================
-// 📊 [OMD-CORE-CssStyleForm-0002B] CssStyleForm ➔ FontSizeControl
-// 🎯 @KICK  : 기본 글자 크기 유지(상속) vs 개별 직접 설정 듀얼 모드 글자 크기 제어 위젯
-// 🛡️ @GUARD : disabled 처리 및 빈 문자열('') 전달로 inherit 보장
-// 🚨 @PATCH : **2026-09-24** — [글자 크기 듀얼 모드 위젯 신설] 기본설정 유지 및 슬라이더 전환 지원
-// 🔗 @CALLS : 없음
-// ====================================================================
-interface FontSizeControlProps {
+interface CategoryOption {
+  id: DetailCategory;
   label: string;
-  value: string | undefined;
-  baseFontSize: string;
-  disabled: boolean;
-  onChange: (val: string) => void;
-  min?: number;
-  max?: number;
-  defaultCustomValue?: number;
+  icon: string;
 }
 
-function FontSizeControl({
-  label,
-  value,
-  baseFontSize,
-  disabled,
-  onChange,
-  min = 10,
-  max = 36,
-  defaultCustomValue,
-}: FontSizeControlProps) {
-  const isInherited = !value || value === '' || value === 'inherit' || value === '0' || value === '0px';
-  const parsedBase = parseInt(baseFontSize, 10) || 14;
-  const currentNumVal = parseInt(value || '', 10) || parsedBase || defaultCustomValue || 14;
-  const clampedNumVal = Math.min(Math.max(currentNumVal, min), max);
+const CATEGORIES: CategoryOption[] = [
+  { id: 'paragraph', label: '본문·여백', icon: '📄' },
+  { id: 'headings', label: '제목', icon: '🏷️' },
+  { id: 'table', label: '표', icon: '📊' },
+  { id: 'quote', label: '인용구', icon: '💬' },
+  { id: 'codeblock', label: '코드블록', icon: '💻' },
+  { id: 'inlinecode', label: '인라인코드', icon: '🔤' },
+  { id: 'link', label: '하이퍼링크', icon: '🔗' },
+  { id: 'footnote', label: '각주', icon: '📌' },
+  { id: 'lists', label: '목록·체크', icon: '📋' },
+  { id: 'hr', label: '구분선', icon: '➖' },
+  { id: 'image', label: '이미지·캡션', icon: '🖼️' },
+  { id: 'video', label: '동영상', icon: '🎥' },
+  { id: 'map', label: '지도', icon: '🗺️' },
+  { id: 'math', label: '수식', icon: '📐' },
+  { id: 'rules', label: '전체 규칙', icon: '🧩' },
+];
 
-  return (
-    <div className="space-y-2.5 bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60 transition-all notranslate" translate="no">
-      <div className="flex items-center justify-between gap-2 notranslate">
-        <span className="text-zinc-700 dark:text-zinc-300 font-semibold text-[13.5px] notranslate">{label}</span>
-        
-        {/* 모드 선택 세그먼트 버튼 */}
-        <div className="inline-flex rounded-lg p-0.5 bg-zinc-200/80 dark:bg-zinc-800 border border-zinc-300/80 dark:border-zinc-700/80 text-xs font-semibold shrink-0 notranslate">
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onChange('')}
-            className={`px-2.5 py-1 rounded-md transition-all notranslate ${
-              isInherited
-                ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 font-bold shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-            } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-            title="문서 전체 기본 글자 크기를 그대로 상속받습니다"
-          >
-            기본설정 유지
-          </button>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onChange(`${clampedNumVal}px`)}
-            className={`px-2.5 py-1 rounded-md transition-all notranslate ${
-              !isInherited
-                ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 font-bold shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-            } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-            title="이 태그에만 적용될 글자 크기를 직접 지정합니다"
-          >
-            직접 설정
-          </button>
-        </div>
-      </div>
-
-      {isInherited ? (
-        <div key="fc-inherited-view" className="flex items-center justify-between py-2 px-3 bg-blue-50/70 dark:bg-blue-950/30 rounded-md border border-blue-100 dark:border-blue-900/40 text-xs text-blue-800 dark:text-blue-300 notranslate">
-          <div className="flex items-center gap-1.5 font-medium notranslate">
-            <span className="notranslate">🔗</span>
-            <span className="notranslate">문서 기본 글자 크기를 따릅니다</span>
-          </div>
-          <span className="font-mono font-bold px-2 py-0.5 bg-white dark:bg-blue-900/60 rounded border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 shrink-0 notranslate">
-            {`현재: ${baseFontSize || '14px'}`}
-          </span>
-        </div>
-      ) : (
-        <div key="fc-custom-view" className="space-y-1.5 pt-1 notranslate">
-          <div className="flex items-center justify-between notranslate">
-            <span className="text-xs text-zinc-500 dark:text-zinc-400 font-medium notranslate">개별 지정 크기</span>
-            <span className="font-mono text-sm font-bold text-blue-600 dark:text-blue-400 notranslate">
-              {`${clampedNumVal}px`}
-            </span>
-          </div>
-          <input
-            type="range"
-            min={min}
-            max={max}
-            step={1}
-            value={clampedNumVal}
-            disabled={disabled}
-            onChange={(e) => onChange(e.target.value + 'px')}
-            className="w-full h-2.5 bg-zinc-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-650 disabled:opacity-50 disabled:cursor-not-allowed notranslate"
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ====================================================================
-// 📊 [OMD-CORE-CssStyleForm-0003] CssStyleForm ➔ ColorPickerWidget
-// 🎯 @KICK  : 브라우저 내장 컬러 피커와 텍스트 입력을 연동한 색상 선택 위젯
-// 🛡️ @GUARD : value가 #으로 시작하지 않으면 #000000 기본값 사용
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : 없음
-// ====================================================================
-// 3. 브라우저 내장 컬러 피커 연동 위젯 
-interface ColorPickerWidgetProps { // ColorPickerWidget 컴포넌트가 받을 속성(props)들의 타입 정의 
-  label: string; // label : 컬러 피커 레이블 
-  value: string; // value : 컬러 피커 값 
-  disabled: boolean; // disabled : 컬러 피커 비활성화 여부 
-  onChange: (val: string) => void; // onChange : 컬러 피커 값 변경 콜백 함수 
-}
-
-// ===================================================================
-// ColorPickerWidget 컴포넌트 구현
-// ===================================================================  
-function ColorPickerWidget({ label, value, disabled, onChange }: ColorPickerWidgetProps) {
-  const hexValue = value && value.startsWith('#') ? value : '#000000';
-  return (
-    <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-      <span className="text-zinc-700 dark:text-zinc-300 font-semibold text-[13.5px]">{label}</span>
-      <div className="flex items-center gap-2.5">
-        <input
-          type="text"
-          value={value || ''}
-          disabled={disabled}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="inherit"
-          className="w-28 p-2 text-center font-mono text-sm text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-800 rounded outline-none"
-        />
-        <div className="relative w-8 h-8 rounded-full border border-zinc-250 dark:border-zinc-700 overflow-hidden cursor-pointer shrink-0 shadow-sm">
-          <input
-            type="color"
-            value={hexValue}
-            disabled={disabled}
-            onChange={(e) => onChange(e.target.value)}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-            style={{ transform: 'scale(2)' }}
-          />
-          <div
-            className="w-full h-full rounded-full transition-transform hover:scale-105"
-            style={{ backgroundColor: value || 'transparent' }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ====================================================================
-// 📊 [OMD-CORE-CssStyleForm-0004] CssStyleForm ➔ TagRuleEditor
-// 🎯 @KICK  : 특정 HTML 태그의 CSS 룰셋을 키-값 쌍으로 편집하는 서브 에디터
-// 🛡️ @GUARD : isSystemProfile true면 모든 입력 비활성화
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : onUpdateRule, onRemoveRule
-// ====================================================================
-// 4. 복합 태그용 간편 편집 에디터 
-interface TagRuleEditorProps { // TagRuleEditor 컴포넌트가 받을 속성(props)들의 타입 정의 
-  tag: string; // tag : HTML 태그 
-  label: string; // label : 태그 레이블 
-  rules: CssRuleSet; // rules : CSS 규칙 세트 
-  isSystemProfile: boolean; // isSystemProfile : 시스템 프로파일 여부 
-  onUpdateRule: (tag: string, property: string, value: string) => void; // onUpdateRule : CSS 속성 업데이트 콜백 함수 
-  onRemoveRule: (tag: string, property: string) => void; // onRemoveRule : CSS 속성 제거 콜백 함수 
-}
-
-// ===================================================================
-// TagRuleEditor 컴포넌트 구현
-// ===================================================================  
-function TagRuleEditor({ tag, label, rules, isSystemProfile, onUpdateRule, onRemoveRule }: TagRuleEditorProps) {
-  const entries = Object.entries(rules).filter(([, v]) => v !== '');
-
-  return (
-    <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-3.5 bg-white dark:bg-zinc-950 shadow-sm">
-      <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-2 mb-2.5">
-        <span className="font-bold text-zinc-700 dark:text-zinc-300 text-sm">{label}</span>
-      </div>
-
-      <div className="space-y-2">
-        {entries.length === 0 && (
-          <span className="text-xs text-zinc-450 italic block font-semibold">지정된 CSS 규칙 없음 (기본값 사용)</span>
-        )}
-        {entries.map(([prop, val]) => (
-          <div key={prop} className="flex items-center gap-2">
-            <span className="text-zinc-650 font-mono text-xs w-36 shrink-0">{prop}:</span>
-            <input
-              type="text"
-              value={val}
-              onChange={(e) => onUpdateRule(tag, prop, e.target.value)}
-              className="flex-1 p-1.5 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-50 dark:bg-zinc-900 font-mono text-sm text-blue-600 dark:text-blue-400"
-              disabled={isSystemProfile}
-            />
-            {!isSystemProfile && (
-              <button
-                onClick={() => onRemoveRule(tag, prop)}
-                className="text-zinc-400 hover:text-red-400 text-sm px-1.5"
-              >
-                X
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ────────────────────────────────────────────────────────
-   🏛️ [메인 CssStyleForm 컴포넌트]
-   ──────────────────────────────────────────────────────── */
-
-// [ONR-MD-003] 서식설정 CSS 실시간 컴파일 및 주입: 사용자가 좌측 서식 정의 에디터 폼 위젯의 폰트 크기, 마진 등을 변경할 때마다 requestAnimationFrame 프레임 가드를 거쳐 CSS Profile을 실시간 갱신하고 미리보기에 자동 렌더링을 지시합니다.
-// ====================================================================
-// 📊 [OMD-CORE-CssStyleForm-0005] CssStyleForm ➔ CssStyleForm
-// 🎯 @KICK  : 좌측 서식 정의 에디터 폼 - CSS 프로필 전역 타이포그래피 및 태그별 룰셋 편집
-// 🛡️ @GUARD : 시스템 프로필(isSystemProfileId) 선택 시 모든 입력 비활성화
-// 🚨 @PATCH : RAF 기반 triggerUpdate로 고속 업데이트 병합 최적화
-// 🔗 @CALLS : AccordionSection, SliderWidget, ColorPickerWidget, TagRuleEditor, FontSelectorModal
-// ====================================================================
-// CssStyleForm 컴포넌트가 받을 속성(props)들의 타입 정의 
-
-// ===================================================================
-// CssStyleForm 컴포넌트 구현 
-// ===================================================================
 export default function CssStyleForm({
-  profiles, activeProfileId, onSelectProfile, onUpdateProfile, onAddProfile, onDeleteProfile, onImportProfile, onClose, onOpenStyleManager, isDarkMode, geminiApiKey, aiModelName,
-  onActiveSectionChange, onActiveTagChange
+  profiles,
+  activeProfileId,
+  onSelectProfile,
+  onUpdateProfile,
+  onDeleteProfile,
+  onImportProfile,
+  onClose,
+  onOpenStyleManager,
+  isDarkMode,
+  onActiveSectionChange,
+  onActiveTagChange,
+  targetSection,
+  targetTag,
+  inspectorKey,
 }: CssStyleFormProps) {
-  const rawProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+  // 현재 활성 프로필 확인 및 시스템 프로필 여부 판별
+  const rawProfile = profiles.find((p) => p.id === activeProfileId) || profiles[0] || DEFAULT_PROFILE;
   const currentProfile = useMemo(() => resolveCssProfile(rawProfile), [rawProfile]);
-  const isSystemProfile = isSystemProfileId(rawProfile.id) || rawProfile.id === 'default';
-  const baseFontSize = currentProfile?.pageStyle?.fontSize || '14px';
+  const isSystemProfile = isSystemProfileId(currentProfile.id);
 
-  /* ─── 아코디언 상태 관리 ─── */
-  const [openAccordion, setOpenAccordion] = useState<string | null>('typography');
+  // 간편 모드('quick') vs 세부 서식 다듬기('pro') 듀얼 뷰 상태
+  const [styleMode, setStyleMode] = useState<'quick' | 'pro'>('quick');
 
-  // 스크롤 컨테이너 ref (overflow-y-auto 패널)
+  // 세부 서식 단일 뷰 카테고리 선택 상태
+  const [activeCategory, setActiveCategory] = useState<DetailCategory>('paragraph');
+  const [searchKeyword, setSearchKeyword] = useState<string>('');
+
+  // 갤러리 메가 메뉴 열림 여부
+  const [isGalleryOpen, setShowAllProfiles] = useState(false);
+
+  // 테마 이름 인라인 수정 상태
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState(currentProfile.name);
+
+  // 모달 및 토스트 알림 상태
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importJsonText, setImportJsonText] = useState('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    isDanger: boolean;
+    onConfirm: () => void;
+  } | null>(null);
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  // 각 아코디언 섹션 DOM ref (id → ref 맵)
-  const accordionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [isBottomListOpen, setIsBottomListOpen] = useState(false);
+  const bottomListRef = useRef<HTMLDivElement>(null);
 
-  const handleAccordionToggle = (id: string) => {
-    const next = openAccordion === id ? null : id;
-    setOpenAccordion(next);
-    if (next) {
-      onActiveSectionChange?.(next);
-      // 펼친 섹션 헤더를 스크롤 컨테이너 최상단으로 이동
-      requestAnimationFrame(() => {
-        const container = scrollContainerRef.current;
-        const section = accordionRefs.current[next];
-        if (container && section) {
-          const containerTop = container.getBoundingClientRect().top;
-          const sectionTop = section.getBoundingClientRect().top;
-          const offset = sectionTop - containerTop + container.scrollTop - 8; // 8px 여유
-          container.scrollTo({ top: offset, behavior: 'smooth' });
-        }
-      });
+  // 하단 팝업 리스트 외부 클릭 시 자동 닫힘
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (bottomListRef.current && !bottomListRef.current.contains(e.target as Node)) {
+        setIsBottomListOpen(false);
+      }
+    };
+    if (isBottomListOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
     }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isBottomListOpen]);
+
+  // 실시간 토스트 메시지 표출
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 2500);
   };
 
-
-  /* ─── 폰트 선택 및 위계 탭 관리 ─── */
-  const [isFontModalOpen, setIsFontModalOpen] = useState(false); // 폰트 선택 모달 상태 
-  const [activeHeadingTab, setActiveHeadingTab] = useState(2); // 활성 헤딩 탭 
-  const [activeInlineTab, setActiveInlineTab] = useState<'strong' | 'em' | 'u' | 'del'>('strong'); // 활성 인라인 탭 
-  const [showJson, setShowJson] = useState<string | null>(null); // JSON 보기 상태 
-
-  /* ─── 가져오기/내보내기 상태 ─── */
-  const [showImportModal, setShowImportModal] = useState(false); // 가져오기 모달 상태 
-  const [importJsonText, setImportJsonText] = useState(''); // 가져오기 JSON 텍스트 
-  const [toastMessage, setToastMessage] = useState<string | null>(null); // 토스트 메시지 
-
-  /* ─── 인라인 이름 변경 상태 ─── */
-  const [isEditingName, setIsEditingName] = useState(false); // 이름 편집 상태 
-  const [tempName, setTempName] = useState(''); // 임시 이름 
-  const [showAllProfiles, setShowAllProfiles] = useState(false); // 모든 프로파일 표시 여부 
-
-  /* ─── AI 서식 테마 자동 생성 상태 및 함수 ─── */
-  const [showAiGenerator, setShowAiGenerator] = useState(false); // AI 생성기 표시 여부 
-  const [aiPromptInput, setAiPromptInput] = useState(''); // AI 생성기 입력값 
-  const [isAiGenerating, setIsAiGenerating] = useState(false); // AI 생성기 상태 
-
-  /* ─── 커스텀 컨펌 모달 상태 ─── */
-  // [ONR-MD-006] 서식 설정 마법사 프롬프트 모달: 사용자가 AI 테마 생성 기능을 사용할 때, 입력값 검증 및 실행 전 확정을 위해 이 모달을 사용합니다. 
-  // [ONR-MD-007] 서식 규칙 충돌 경고: 사용자가 이미 존재하는 다른 프로파일과 동일한 CSS 규칙(property=value)을 추가하려고 할 때 충돌을 감지하고 사용자에게 경고하는 기능입니다.    
-  const [confirmConfig, setConfirmConfig] = useState<{ // 확인 모달 설정 
-    isOpen: boolean; // 확인 모달 열림 상태 
-    title: string; // 확인 모달 제목 
-    message: string; // 확인 모달 메시지 
-    onConfirm: () => void; // 확인 모달 확인 함수 
-    isDanger?: boolean; // 확인 모달 위험 여부 
-  } | null>(null); // 확인 모달 설정 
-
-  /* ─── AI 서식 테마 자동 생성 함수 ─── */
-  const handleGenerateAiProfile = async () => { // AI 서식 테마 자동 생성 함수 
-    if (!aiPromptInput.trim() || !geminiApiKey) return; // AI 생성기 입력값 또는 API 키가 없으면 반환 
-
-    setIsAiGenerating(true); // AI 생성기 상태를 true로 변경 
-    try {
-      // 최신 CSS 가이드 문서 불러오기
-      let guideContent = '';
-      try {
-        const res = await fetch('/CSS_PROFILE_GUIDE.md');
-        if (res.ok) {
-          guideContent = await res.text();
-        }
-      } catch (e) {
-        console.warn('CSS 가이드 문서를 불러오지 못했습니다.', e);
-      }
-
-      const promptText = `당신은 마크다운 조판 서식 디자이너입니다. 사용자가 입력한 설명에 부합하는 세련되고 아름다운 CSS 서식 테마(CssProfile) 데이터를 생성해 주세요.
-사용자 요청: "${aiPromptInput}"
-
-다음은 Onrivi Author의 공식 CSS 서식 프로필 가이드 문서입니다. 이를 바탕으로 JSON 객체 규격을 완벽하게 준수하여 생성하세요:
---- 가이드 시작 ---
-${guideContent}
---- 가이드 끝 ---
-
-반드시 위 가이드라인과 JSON 구조를 준수해야 하며, 다른 텍스트 설명이나 코드 블록 기호(\`\`\`) 없이 오직 순수한 JSON 문자열만 출력해 주세요.`;
-
-      // GoogleGenerativeAI 직접 호출 — processTextWithAI의 사전 코드블록 제거가 JSON 파싱과 충돌하므로 raw 응답을 직접 수신
-      const targetModel = aiModelName || 'gemini-3.8-flash';
-      const genAI = new GoogleGenerativeAI((geminiApiKey || '').trim());
-      const model = genAI.getGenerativeModel({
-        model: targetModel,
-        systemInstruction: '당신은 CSS 서식 JSON 생성 전문가입니다. 오직 순수한 JSON 객체만 출력하십시오. 마크다운 코드 블록 기호, 설명 문구, 부연 텍스트는 절대 포함하지 마십시오. 가이드에 정의된 모든 태그와 CSS 속성을 단 하나도 빠짐없이 완벽하게 채워서 JSON 결과물로 출력해야 합니다.',
-      });
-
-      let attempts = 0;
-      const maxAttempts = 3;
-      let responseText = '';
-
-      while (attempts < maxAttempts) {
-        try {
-          attempts++;
-          const result = await model.generateContent(promptText);
-          responseText = result.response.text();
-          break;
-        } catch (callErr: any) {
-          if (attempts < maxAttempts) {
-            console.warn(`[CssStyleForm] '${targetModel}' AI 서식 생성 ${attempts}회 실패. 3초 후 재시도합니다...`);
-            await new Promise(resolve => setTimeout(resolve, 3000));
-            continue;
-          }
-          throw callErr;
-        }
-      }
-
-      // JSON 문자열 정제 (코드 블록 및 사족 제거)
-      let cleanedText = responseText.trim();
-      const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/i;
-      const match = cleanedText.match(jsonBlockRegex);
-      if (match && match[1]) {
-        cleanedText = match[1].trim();
-      }
-
-      // [ONR-AI-JSON-GUARD] 코드 블록 여부와 무관하게 항상 첫 { 부터 매칭되는 닫는 } 까지 브레이스 밸런싱 방식으로 정확히 발라냄
-      const startIdx = cleanedText.indexOf('{');
-      if (startIdx !== -1) {
-        let braceCount = 0;
-        let inString = false;
-        let escape = false;
-        let foundEnd = false;
-
-        for (let i = startIdx; i < cleanedText.length; i++) {
-          const char = cleanedText[i];
-          if (escape) {
-            escape = false;
-            continue;
-          }
-          if (char === '\\') {
-            escape = true;
-            continue;
-          }
-          if (char === '"') {
-            inString = !inString;
-            continue;
-          }
-          if (!inString) {
-            if (char === '{') {
-              braceCount++;
-            } else if (char === '}') {
-              braceCount--;
-              if (braceCount === 0) {
-                cleanedText = cleanedText.substring(startIdx, i + 1);
-                foundEnd = true;
-                break;
-              }
-            }
-          }
-        }
-
-        if (!foundEnd) {
-          const endIdx = cleanedText.lastIndexOf('}');
-          if (endIdx > startIdx) {
-            cleanedText = cleanedText.substring(startIdx, endIdx + 1).trim();
-          }
-        }
-      }
-
-      const parsedData = JSON.parse(cleanedText);
-
-      if (onImportProfile) {
-        onImportProfile(parsedData);
-      }
-      setAiPromptInput('');
-      setShowAiGenerator(false);
-    } catch (err: any) {
-      console.error(err);
-      showToast(err.message || 'AI 서식 생성 실패. 형식에 맞지 않는 응답이거나 서버 오류입니다.');
-    } finally {
-      setIsAiGenerating(false);
-    }
-  };
-
-  /* ─── ⚡ [고속 업데이트 최적화 가드] ─── */
-  const rafIdRef = useRef<number | null>(null);
-  const pendingProfileRef = useRef<CssProfile | null>(null);
-
-  // ====================================================================
-  // 📊 [OMD-CORE-CssStyleForm-0006] CssStyleForm ➔ triggerUpdate
-  // 🎯 @KICK  : requestAnimationFrame 기반 고속 업데이트 최적화 게이트 - 중복 호출 병합
-  // 🛡️ @GUARD : pendingProfileRef 및 rafIdRef로 중복 RAF 실행 방어
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : onUpdateProfile
-  // ====================================================================
+  // 실시간 프로필 갱신 및 펄스 하이라이트 트리거
   const triggerUpdate = (updated: CssProfile, tag?: string, label?: string) => {
-    if (isSystemProfile || isSystemProfileId(updated.id)) return;
-    pendingProfileRef.current = updated;
+    onUpdateProfile(updated);
     if (tag) {
       onActiveTagChange?.(tag, label);
     }
-    if (!rafIdRef.current) {
-      rafIdRef.current = requestAnimationFrame(() => {
-        if (pendingProfileRef.current) {
-          onUpdateProfile(pendingProfileRef.current);
-          pendingProfileRef.current = null;
-        }
-        rafIdRef.current = null;
-      });
-    }
   };
 
-  /* ─── 📤 📥 가져오기/내보내기 비즈니스 로직 ─── */
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
-
-  // ====================================================================
-  // 📊 [OMD-CORE-CssStyleForm-0007] CssStyleForm ➔ downloadGuideSpec
-  // 🎯 @KICK  : CSS 프로필 명세서 가이드 마크다운 파일을 다운로드
-  // 🛡️ @GUARD : try-catch로 다운로드 실패 시 토스트 메시지
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : showToast
-  // ====================================================================
-  const downloadGuideSpec = () => {
-    try {
-      const dataStr = "data:text/markdown;charset=utf-8," + encodeURIComponent(CSS_PROFILE_GUIDE_MD);
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", "Onrivi_CSS_Profile_명세서.md");
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
-      showToast("서식 작성 가이드가 다운로드되었습니다.");
-    } catch (e) {
-      showToast("가이드 다운로드 실패!");
-    }
-  };
-
-  const exportCurrentProfile = () => {
-    try {
-      // 💡 최신 Onrivi 서식 기준(7대 쇼케이스 태그, hrStructure, checkboxStructure 등)으로 완벽 정규화하여 내보내기
-      const exportData = normalizeCssProfile(currentProfile, profiles);
-      const json = JSON.stringify(exportData, null, 2);
-      const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.href = url;
-      const safeName = (exportData.name || 'onrivi_style').trim().replace(/[/\\?%*:|"<>]/g, '_');
-      downloadAnchor.download = `${safeName}.json`;
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
-      URL.revokeObjectURL(url);
-      showToast(`서식 파일('${exportData.name}')이 다운로드되었습니다.`);
-    } catch (e) {
-      showToast("서식 내보내기 실패!");
-    }
-  };
-
-  // ====================================================================
-  // 📊 [OMD-CORE-CssStyleForm-0009] CssStyleForm ➔ copyProfileToClipboard
-  // 🎯 @KICK  : 현재 서식 프로필을 Onrivi 최신 기준 정규화 후 JSON 문자열로 클립보드에 복사
-  // 🛡️ @GUARD : clipboard.writeText 실패 시 catch로 안전 처리
-  // 🚨 @PATCH : **2026-09-24** — [서식 복사 7대 쇼케이스 완전체 정규화(normalizeCssProfile) 동기화]
-  // 🔗 @CALLS : showToast
-  // ====================================================================
-  const copyProfileToClipboard = () => {
-    try {
-      const exportData = normalizeCssProfile(currentProfile, profiles);
-      navigator.clipboard.writeText(JSON.stringify(exportData, null, 2));
-      showToast(`'${exportData.name}' 서식이 클립보드에 복사되었습니다.`);
-    } catch (e) {
-      showToast("클립보드 복사 실패!");
-    }
-  };
-
-  // ====================================================================
-  // 📊 [OMD-CORE-CssStyleForm-0010] CssStyleForm ➔ importProfileString
-  // 🎯 @KICK  : JSON 문자열을 파싱하여 유효성 검증 후 서식 프로필 가져오기
-  // 🛡️ @GUARD : name/pageStyle/rules 필수 속성 검증, JSON 파싱 실패 시 alert
-  // 🚨 @PATCH : **2026-09-24** — [외부 서식 가져오기/붙여넣기 관대 파싱 및 자동 선택 동기화]: sanitizeAndParseCssProfileJson 연동 및 가져온 서식 즉시 활성화(onSelectProfile)
-  // 🔗 @CALLS : onImportProfile, onSelectProfile, showToast
-  // ====================================================================
-  const importProfileString = (jsonStr: string): boolean => {
-    try {
-      const parsed = sanitizeAndParseCssProfileJson(jsonStr);
-      if (!parsed || !parsed.name || !parsed.pageStyle || !parsed.rules) {
-        showToast("올바른 Onrivi 서식 양식이 아닙니다. name, pageStyle, rules 속성이 필수입니다.");
-        return false;
-      }
-      const normalized = normalizeCssProfile(parsed, profiles);
-      if (onImportProfile) {
-        onImportProfile(normalized);
-      }
-      if (onSelectProfile) {
-        onSelectProfile(normalized.id);
-      }
-      showToast(`서식 '${normalized.name}'이(가) 성공적으로 추가되었습니다.`);
-      setShowImportModal(false);
-      setImportJsonText('');
-      return true;
-    } catch (e) {
-      showToast("JSON 문법 에러! 형식을 확인해 주세요.");
-    }
-    return false;
-  };
-
-  // ====================================================================
-  // 📊 [OMD-CORE-CssStyleForm-0011] CssStyleForm ➔ handleFileUpload
-  // 🎯 @KICK  : JSON 서식 파일을 FileReader로 읽어 importProfileString으로 가져오기
-  // 🛡️ @GUARD : 파일 미선택 시 실행 차단
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : importProfileString
-  // ====================================================================
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      importProfileString(text);
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
-  /* ─── CssRuleSet 조작 헬퍼 ─── */
-  const getTagRules = (tag: string): CssRuleSet => {
-    const tagKey = tag as keyof CssProfile['rules'];
-    const currentRules = currentProfile?.rules?.[tagKey] || {};
-    const defaultRules = DEFAULT_PROFILE?.rules?.[tagKey] || {};
-    return { ...defaultRules, ...currentRules };
-  };
-
-  const getMediaAlign = (tag: string): string => {
-    const rules = getTagRules(tag);
-    const ml = rules['margin-left'];
-    const mr = rules['margin-right'];
-    if ((ml === '0px' || ml === '0') && mr === 'auto') return 'left';
-    if (ml === 'auto' && (mr === '0px' || mr === '0')) return 'right';
-    return 'center';
-  };
-
-  // ====================================================================
-  // 📊 [OMD-CORE-CssStyleForm-0012] CssStyleForm ➔ updateMediaAlign
-  // 🎯 @KICK  : 이미지/동영상/지도 미디어 객체의 정렬 방식(좌/중/우) 업데이트
-  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
-  // 🚨 @PATCH : 2026-09-24 — 단축 margin 잔재 삭제, width 미정의 시 기본 너비 자동 보정으로 정렬 시각적 식별 보장
-  // 🔗 @CALLS : triggerUpdate, getTagRules, getMediaAlign
-  // ====================================================================
-  const updateMediaAlign = (tag: string, align: string) => {
+  // 단일 CSS 규칙 갱신
+  const updateCssRule = (tag: string, prop: string, val: string) => {
     if (isSystemProfile) return;
     const tagKey = tag as keyof CssProfile['rules'];
-    const baseRule = currentProfile.rules[tagKey] || {};
-    let newRules: CssRuleSet = { ...baseRule, 'display': 'block', 'float': 'none' };
-    delete newRules['margin'];
-
-    if (!newRules['width']) {
-      const fallbackW = tag === 'img' ? '480px' : tag === 'video' ? '560px' : '600px';
-      newRules['width'] = getTagRules(tag)['width'] || fallbackW;
-    }
-
-    if (align === 'left') {
-      newRules['margin-left'] = '0px';
-      newRules['margin-right'] = 'auto';
-    } else if (align === 'right') {
-      newRules['margin-left'] = 'auto';
-      newRules['margin-right'] = '0px';
-    } else {
-      // center
-      newRules['margin-left'] = 'auto';
-      newRules['margin-right'] = 'auto';
-    }
-
+    const currentRules = currentProfile.rules[tagKey] || {};
     const updated = {
       ...currentProfile,
       rules: {
         ...currentProfile.rules,
-        [tagKey]: newRules
-      }
-    };
-    const tagLabel = tag === 'img' ? '이미지' : tag === 'video' ? '동영상' : '지도';
-    const alignLabel = align === 'left' ? '왼쪽' : align === 'right' ? '오른쪽' : '중앙';
-    triggerUpdate(updated, tag, `${tagLabel} 정렬 (${alignLabel})`);
-  };
-
-  // ====================================================================
-  // 📊 [OMD-CORE-CssStyleForm-0013] CssStyleForm ➔ updateCssRule
-  // 🎯 @KICK  : 특정 HTML 태그의 단일 CSS 속성 값을 업데이트
-  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : triggerUpdate, getTagRules
-  // ====================================================================
-  const updateCssRule = (tag: string, property: string, value: string) => {
-    if (isSystemProfile) return;
-    const tagKey = tag as keyof CssProfile['rules'];
-    const currentTagRules = currentProfile.rules[tagKey] || {};
-    const updated = {
-      ...currentProfile,
-      rules: {
-        ...currentProfile.rules,
-        [tagKey]: { ...currentTagRules, [property]: value },
+        [tagKey]: {
+          ...currentRules,
+          [prop]: val,
+        },
       },
     };
-    triggerUpdate(updated, tag, `${tag.toUpperCase()} (${property})`);
+    triggerUpdate(updated, tag, `${tag} ${prop}`);
   };
 
-  // ====================================================================
-  // 📊 [OMD-CORE-CssStyleForm-0014] CssStyleForm ➔ removeCssRule
-  // 🎯 @KICK  : 특정 태그의 CSS 속성 하나를 제거
-  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : triggerUpdate, getTagRules
-  // ====================================================================
-  const removeCssRule = (tag: string, property: string) => {
+  // 단일 CSS 규칙 삭제
+  const removeCssRule = (tag: string, prop: string) => {
     if (isSystemProfile) return;
     const tagKey = tag as keyof CssProfile['rules'];
-    const currentTagRules = currentProfile.rules[tagKey] || {};
-    const { [property]: _, ...rest } = currentTagRules as any;
-    const updated = {
-      ...currentProfile,
-      rules: { ...currentProfile.rules, [tagKey]: rest },
-    };
-    triggerUpdate(updated);
-  };
-
-  /* ─── 표 테두리 묶음 업데이트 ─── */
-  // ====================================================================
-  // 📊 [OMD-CORE-CssStyleForm-0015] CssStyleForm ➔ updateTableBorder
-  // 🎯 @KICK  : 표(table/th/td) 테두리 스타일/두께/색상을 일괄 업데이트
-  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : triggerUpdate, getTagRules
-  // ====================================================================
-  const updateTableBorder = (property: string, value: string) => {
-    if (isSystemProfile) return;
-    const tableRules = { ...getTagRules('table') };
-    const thRules = { ...getTagRules('th') };
-    const tdRules = { ...getTagRules('td') };
-
-    if (property === 'border-style') {
-      // 1. 단축 속성(border, border-top 등)에 포함된 이전 스타일(solid 등) 충돌 원천 제거
-      const shorthandKeys = ['border', 'border-top', 'border-bottom', 'border-left', 'border-right'];
-      shorthandKeys.forEach(k => {
-        delete (tableRules as any)[k];
-        delete (thRules as any)[k];
-        delete (tdRules as any)[k];
-      });
-
-      // 2. 이중선(double)인 경우, CSS 물리적 최소 두께(3px 이상이어야 두 줄이 그려짐) 자동 보정
-      if (value === 'double') {
-        const curWidth = parseInt(tableRules['border-width'] || '1', 10);
-        if (curWidth < 3) {
-          tableRules['border-width'] = '3px';
-          thRules['border-width'] = '3px';
-          tdRules['border-width'] = '3px';
-        }
-      }
-
-      tableRules['border-style'] = value;
-      thRules['border-style'] = value;
-      tdRules['border-style'] = value;
-    } else if (property === 'border-width') {
-      tableRules['border-width'] = value;
-      thRules['border-width'] = value;
-      tdRules['border-width'] = value;
-      delete (tableRules as any)['border'];
-      delete (thRules as any)['border'];
-      delete (tdRules as any)['border'];
-    } else if (property === 'border-color') {
-      tableRules['border-color'] = value;
-      thRules['border-color'] = value;
-      tdRules['border-color'] = value;
-      delete (tableRules as any)['border'];
-      delete (thRules as any)['border'];
-      delete (tdRules as any)['border'];
-    } else {
-      (tableRules as any)[property] = value;
-      (thRules as any)[property] = value;
-      (tdRules as any)[property] = value;
-    }
-
-    const nextTableStructure = currentProfile.tableStructure ? {
-      ...currentProfile.tableStructure,
-      ...(property === 'border-width' ? {
-        outerBorderWidth: value,
-        rowBorderWidth: value,
-        colBorderWidth: value,
-      } : {})
-    } : undefined;
-
-    const updated = {
-      ...currentProfile,
-      ...(nextTableStructure ? { tableStructure: nextTableStructure } : {}),
-      rules: {
-        ...currentProfile.rules,
-        table: tableRules,
-        th: thRules,
-        td: tdRules,
-      }
-    };
-    const label = property === 'border-style' 
-      ? `표 테두리 모양 (${value === 'double' ? '이중선' : value === 'dotted' ? '점선' : value === 'dashed' ? '대시선' : value === 'solid' ? '실선' : value})` 
-      : property === 'border-width' 
-        ? `표 테두리 두께 (${value})` 
-        : '표(Table) 테두리';
-    triggerUpdate(updated, 'table', label);
-  };
-
-  /* ─── 표 셀 여백 묶음 업데이트 ─── */
-  // ====================================================================
-  // 📊 [OMD-CORE-CssStyleForm-0016] CssStyleForm ➔ updateCellPadding
-  // 🎯 @KICK  : 표 th/td 셀 내부 여백을 일괄 업데이트
-  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : triggerUpdate, getTagRules
-  // ====================================================================
-  const updateCellPadding = (value: string) => {
-    if (isSystemProfile) return;
-    const thRules = getTagRules('th');
-    const tdRules = getTagRules('td');
+    const currentRules = { ...(currentProfile.rules[tagKey] || {}) };
+    delete (currentRules as any)[prop];
     const updated = {
       ...currentProfile,
       rules: {
         ...currentProfile.rules,
-        th: { ...thRules, 'padding': value },
-        td: { ...tdRules, 'padding': value },
-      }
-    };
-    triggerUpdate(updated, 'table', '표(Table) 셀 여백');
-  };
-
-  /* ─── 표 글자 크기 묶음 업데이트 ─── */
-  // ====================================================================
-  // 📊 [OMD-CORE-CssStyleForm-0017] CssStyleForm ➔ updateTableFontSize
-  // 🎯 @KICK  : 표(table/th/td) 글자 크기를 일괄 업데이트 또는 제거
-  // 🛡️ @GUARD : isSystemProfile true면 실행 차단, value가 비면 font-size 속성 제거
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : triggerUpdate, getTagRules
-  // ====================================================================
-  const updateTableFontSize = (value: string) => {
-    if (isSystemProfile) return;
-    const tableRules = getTagRules('table');
-    const thRules = getTagRules('th');
-    const tdRules = getTagRules('td');
-    const updatedRules = { ...currentProfile.rules };
-    if (!value) {
-      const { 'font-size': _, ...restTable } = tableRules;
-      const { 'font-size': __, ...restTh } = thRules;
-      const { 'font-size': ___, ...restTd } = tdRules;
-      updatedRules.table = { ...restTable, 'font-size': 'inherit' };
-      updatedRules.th = { ...restTh, 'font-size': 'inherit' };
-      updatedRules.td = { ...restTd, 'font-size': 'inherit' };
-    } else {
-      updatedRules.table = { ...tableRules, 'font-size': value };
-      updatedRules.th = { ...thRules, 'font-size': value };
-      updatedRules.td = { ...tdRules, 'font-size': value };
-    }
-    const updated = {
-      ...currentProfile,
-      rules: updatedRules
-    };
-    triggerUpdate(updated, 'table', '표(Table) 글자 크기');
-  };
-
-  // ====================================================================
-  // 📊 [OMD-CORE-CssStyleForm-0018] CssStyleForm ➔ handlePageStyleChange
-  // 🎯 @KICK  : 용지 레이아웃 속성(글꼴, 글자 크기, 줄 간격, 용지 크기, 여백 등) 업데이트
-  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
-  // 🚨 @PATCH : paperSize(용지 크기) 선택 기능 추가
-  // 🔗 @CALLS : triggerUpdate
-  // ====================================================================
-  const handlePageStyleChange = (key: keyof CssProfile['pageStyle'], value: string) => {
-    if (isSystemProfile) return;
-    const updated = {
-      ...currentProfile,
-      pageStyle: { ...currentProfile.pageStyle, [key]: value },
-    };
-    if (key === 'lineHeight') {
-      const pRules = updated.rules.p || {};
-      updated.rules = {
-        ...updated.rules,
-        p: { ...pRules, 'line-height': value }
-      };
-    }
-    triggerUpdate(updated, 'p', `본문 줄 간격 (${value}배)`);
-  };
-
-  const handleNameChange = (name: string) => {
-    if (isSystemProfile) return;
-    onUpdateProfile({ ...currentProfile, name });
-  };
-
-  const handleRenameClick = () => {
-    if (isSystemProfile) return;
-    setTempName(currentProfile.name);
-    setIsEditingName(true);
-  };
-
-  const handleRenameSave = () => {
-    if (isSystemProfile) return;
-    const trimmed = tempName.trim();
-    if (trimmed !== '') {
-      handleNameChange(trimmed);
-    }
-    setIsEditingName(false);
-  };
-
-  // ====================================================================
-  // 📊 [OMD-CORE-CssStyleForm-0019] CssStyleForm ➔ handleDeleteClick
-  // 🎯 @KICK  : 현재 선택된 서식 프로필 삭제 처리
-  // 🛡️ @GUARD : canDelete 및 onDeleteProfile 존재 여부 확인, confirm 창으로 재확인
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : onDeleteProfile
-  // ====================================================================
-  const handleDeleteClick = () => {
-    if (!canDelete || !onDeleteProfile) return;
-    setConfirmConfig({
-      isOpen: true,
-      title: "서식 삭제",
-      message: `서식 "${currentProfile.name}"을(를) 정말로 삭제하시겠습니까?`,
-      isDanger: true,
-      onConfirm: () => {
-        onDeleteProfile(currentProfile.id);
-        setConfirmConfig(null);
-      }
-    });
-  };
-
-
-  /* ─── 구조제어 데이터 ─── */
-  const hrStructure = {
-    borderTopStyle: currentProfile.hrStructure?.borderTopStyle || 'solid',
-    borderTopWidth: currentProfile.hrStructure?.borderTopWidth || '1px',
-    marginTopBottom: currentProfile.hrStructure?.marginTopBottom || '32px',
-    lineWidth: currentProfile.hrStructure?.lineWidth || '100%'
-  };
-
-  const checkboxStructure = {
-    checkedEffect: currentProfile.checkboxStructure?.checkedEffect || DEFAULT_PROFILE.checkboxStructure?.checkedEffect || 'none',
-    boxSize: currentProfile.checkboxStructure?.boxSize || DEFAULT_PROFILE.checkboxStructure?.boxSize || '16px',
-    textGap: currentProfile.checkboxStructure?.textGap || DEFAULT_PROFILE.checkboxStructure?.textGap || '10px',
-    color: currentProfile.checkboxStructure?.color || DEFAULT_PROFILE.checkboxStructure?.color || '#2f2f2f'
-  };
-
-  // ====================================================================
-  // 📊 [OMD-CORE-CssStyleForm-0020] CssStyleForm ➔ updateHrStructure
-  // 🎯 @KICK  : 수평 구분선(HR) 스타일(선 스타일, 두께, 여백, 너비) 업데이트 및 rules.hr 실시간 동기화
-  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
-  // 🚨 @PATCH : **2026-09-24** — rules.hr 레거시 margin/border 정제 및 hrStructure 속성 1:1 동기화, triggerUpdate('hr') 펄스 연동
-  // 🔗 @CALLS : triggerUpdate
-  // ====================================================================
-  const updateHrStructure = (key: string, value: string, label?: string) => {
-    if (isSystemProfile) return;
-    const nextHrStructure = { ...hrStructure, [key]: value };
-
-    // rules.hr 동기화: legacy 속성(margin, border, height, background-color) 정제 및 hrStructure 규격 1:1 동기화
-    const currentHrRules = { ...(currentProfile.rules.hr || {}) };
-    delete (currentHrRules as any)['margin'];
-    delete (currentHrRules as any)['border'];
-    delete (currentHrRules as any)['height'];
-    delete (currentHrRules as any)['background-color'];
-
-    if (key === 'borderTopStyle') currentHrRules['border-top-style'] = value;
-    if (key === 'borderTopWidth') currentHrRules['border-top-width'] = value;
-    if (key === 'marginTopBottom') {
-      currentHrRules['margin-top'] = value;
-      currentHrRules['margin-bottom'] = value;
-    }
-    if (key === 'lineWidth') currentHrRules['width'] = value;
-
-    const updated = {
-      ...currentProfile,
-      hrStructure: nextHrStructure,
-      rules: {
-        ...currentProfile.rules,
-        hr: currentHrRules,
-      }
-    };
-    triggerUpdate(updated, 'hr', label || '구분선(HR)');
-  };
-
-  // ====================================================================
-  // 📊 [OMD-CORE-CssStyleForm-0021] CssStyleForm ➔ updateCheckboxStructure
-  // 🎯 @KICK  : 체크박스 구조(완료 효과, 박스 크기, 텍스트 간격) 업데이트
-  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : triggerUpdate
-  // ====================================================================
-  const updateCheckboxStructure = (key: string, value: string) => {
-    if (isSystemProfile) return;
-    const updated = {
-      ...currentProfile,
-      checkboxStructure: { ...checkboxStructure, [key]: value }
-    };
-    triggerUpdate(updated);
-  };
-
-  /* ─── 미디어 캡션 위치 및 표현 구문 데이터 및 업데이트 ─── */
-  const mediaCaptionStructure = currentProfile.mediaCaptionStructure || {
-    position: 'top',
-    format: 'standard',
-    customTemplate: '**{kind} {n}. {title}**'
-  };
-
-  const updateMediaCaption = (key: string, value: string) => {
-    if (isSystemProfile) return;
-    const updated = {
-      ...currentProfile,
-      mediaCaptionStructure: { ...mediaCaptionStructure, [key]: value }
-    };
-    triggerUpdate(updated, 'img', `미디어 설명(캡션) ${key === 'position' ? '위치' : '표현 구문'} 변경`);
-  };
-
-  /* ─── 표 구조(외곽선/행/열 두께) 데이터 및 업데이트 ─── */
-  const tableStructure = currentProfile.tableStructure || {
-    outerBorderWidth: (currentProfile.rules.table && currentProfile.rules.table['border-width']) || '1px',
-    rowBorderWidth: (currentProfile.rules.th && currentProfile.rules.th['border-width']) || '1px',
-    colBorderWidth: (currentProfile.rules.td && currentProfile.rules.td['border-width']) || '1px',
-  };
-
-  // ====================================================================
-  // 📊 [OMD-CORE-CssStyleForm-0021-1] CssStyleForm ➔ updateTableStructure
-  // 🎯 @KICK  : 표 외곽 테두리 두께, 행(가로선) 두께, 열(세로선) 두께 개별 업데이트
-  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
-  // 🚨 @PATCH : **2026-09-24** — 외곽/행/열 개별 두께 선언 및 실시간 펄스 연동
-  // 🔗 @CALLS : triggerUpdate
-  // ====================================================================
-  const updateTableStructure = (
-    key: 'outerBorderWidth' | 'rowBorderWidth' | 'colBorderWidth',
-    value: string
-  ) => {
-    if (isSystemProfile) return;
-    const nextTableStructure = { ...tableStructure, [key]: value };
-    const tableRules = { ...(currentProfile.rules.table || {}) };
-    const thRules = { ...(currentProfile.rules.th || {}) };
-    const tdRules = { ...(currentProfile.rules.td || {}) };
-
-    if (key === 'outerBorderWidth') {
-      tableRules['border-width'] = value;
-      delete (tableRules as any)['border'];
-    }
-    if (key === 'colBorderWidth') {
-      delete (thRules as any)['border-left'];
-      delete (thRules as any)['border-right'];
-      delete (tdRules as any)['border-left'];
-      delete (tdRules as any)['border-right'];
-    }
-    if (key === 'rowBorderWidth') {
-      delete (thRules as any)['border-top'];
-      delete (thRules as any)['border-bottom'];
-      delete (tdRules as any)['border-top'];
-      delete (tdRules as any)['border-bottom'];
-    }
-
-    const updated = {
-      ...currentProfile,
-      tableStructure: nextTableStructure,
-      rules: {
-        ...currentProfile.rules,
-        table: tableRules,
-        th: thRules,
-        td: tdRules,
+        [tagKey]: currentRules,
       },
     };
-    const labelName = key === 'outerBorderWidth' ? '외곽 테두리' : key === 'rowBorderWidth' ? '행(가로선)' : '열(세로선)';
-    triggerUpdate(updated, 'table', `표 ${labelName} 두께 (${value})`);
+    triggerUpdate(updated, tag, `${tag} ${prop} 삭제`);
   };
 
-  /* ─── 공장 초기 설정 복구 ─── */
-  // ====================================================================
-  // 📊 [OMD-CORE-CssStyleForm-0022] CssStyleForm ➔ resetToDefault
-  // 🎯 @KICK  : 시스템 기본 서식(DEFAULT_PROFILE)으로 즉시 전환
-  // 🛡️ @GUARD : isSystemProfile true면 실행 차단, confirm 창으로 재확인
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : onSelectProfile
-  // ====================================================================
+  // 페이지 스타일(용지, 마진, 자간 등) 갱신 (단일 속성 또는 다중 속성 일괄 갱신)
+  const handlePageStyleChange = (propOrChanges: keyof CssPageStyle | Partial<CssPageStyle>, val?: any) => {
+    if (isSystemProfile) return;
+    const patch = typeof propOrChanges === 'object' && propOrChanges !== null
+      ? propOrChanges
+      : { [propOrChanges as keyof CssPageStyle]: val };
+    const updated = {
+      ...currentProfile,
+      pageStyle: {
+        ...currentProfile.pageStyle,
+        ...patch,
+      },
+    };
+    const label = typeof propOrChanges === 'object' && propOrChanges !== null
+      ? Object.keys(propOrChanges).join(', ')
+      : String(propOrChanges);
+    triggerUpdate(updated, 'page', `페이지 서식 변경 (${label})`);
+  };
+
+  // 현재 개요 체계 요약 텍스트
+  const currentOutlineSummary = useMemo(() => {
+    const numbering = currentProfile.headingNumbering || [];
+    if (numbering.length === 0 || numbering.every((x) => x === 'none')) return '적용 안함 (번호 없음)';
+    if (numbering[0] === 'decimal-outline') return '십진 기술표준 (1. ➔ 1.1 ➔ 1.1.1)';
+    if (numbering[0] === 'roman') return '보고서 표준 (Ⅰ. ➔ 1. ➔ 가.)';
+    if (numbering[0] === 'decimal' && numbering[1] === 'hangul') return '공문서 한글 (1. ➔ 가. ➔ (1))';
+    const h1 = headingSetting(numbering[0]);
+    if (typeof h1 === 'object' && h1.type === 'custom') {
+      return `사용자 정의 (${headingMarker(h1, 1)})`;
+    }
+    return '사용자 정의 번호 체계';
+  }, [currentProfile.headingNumbering]);
+
+  // 카테고리 클릭 핸들러 (스크롤을 맨 위로 부드럽게 리셋)
+  const handleCategoryClick = (catId: DetailCategory) => {
+    setActiveCategory(catId);
+    setSearchKeyword('');
+    onActiveSectionChange?.(catId);
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // 이전 / 다음 카테고리 순환 이동 헬퍼
+  const currentIndex = CATEGORIES.findIndex((c) => c.id === activeCategory);
+  const handlePrevCategory = () => {
+    const nextIdx = (currentIndex - 1 + CATEGORIES.length) % CATEGORIES.length;
+    handleCategoryClick(CATEGORIES[nextIdx].id);
+  };
+  const handleNextCategory = () => {
+    const nextIdx = (currentIndex + 1) % CATEGORIES.length;
+    handleCategoryClick(CATEGORIES[nextIdx].id);
+  };
+
+  // 빠른 검색어 입력 시 자동 카테고리 전환
+  const handleSearchChange = (kw: string) => {
+    setSearchKeyword(kw);
+    const q = kw.trim().toLowerCase();
+    if (!q) return;
+
+    if (
+      q.includes('제목') ||
+      q.includes('h1') ||
+      q.includes('h2') ||
+      q.includes('h3') ||
+      q.includes('h4') ||
+      q.includes('h5') ||
+      q.includes('h6') ||
+      q.includes('개요')
+    ) {
+      setActiveCategory('headings');
+    } else if (
+      q.includes('본문') ||
+      q.includes('자간') ||
+      q.includes('여백') ||
+      q.includes('마진') ||
+      q.includes('문단') ||
+      q.includes('들여쓰기') ||
+      q.includes('행간') ||
+      q.includes('줄간격') ||
+      q.includes('탭')
+    ) {
+      setActiveCategory('paragraph');
+    } else if (
+      q.includes('표') ||
+      q.includes('테이블') ||
+      q.includes('table') ||
+      q.includes('th') ||
+      q.includes('td')
+    ) {
+      setActiveCategory('table');
+    } else if (q.includes('인용구') || q.includes('블록') || q.includes('인용') || q.includes('quote')) {
+      setActiveCategory('quote');
+    } else if (q.includes('코드블록') || q.includes('codeblock') || q.includes('pre')) {
+      setActiveCategory('codeblock');
+    } else if (q.includes('인라인') || q.includes('inline') || q.includes('백틱')) {
+      setActiveCategory('inlinecode');
+    } else if (q.includes('링크') || q.includes('하이퍼링크') || q.includes('link') || q.includes('url')) {
+      setActiveCategory('link');
+    } else if (q.includes('각주') || q.includes('footnote')) {
+      setActiveCategory('footnote');
+    } else if (
+      q.includes('목록') ||
+      q.includes('리스트') ||
+      q.includes('체크') ||
+      q.includes('ul') ||
+      q.includes('ol') ||
+      q.includes('li')
+    ) {
+      setActiveCategory('lists');
+    } else if (q.includes('구분선') || q.includes('hr') || q.includes('수평선')) {
+      setActiveCategory('hr');
+    } else if (q.includes('이미지') || q.includes('사진') || q.includes('img') || q.includes('캡션')) {
+      setActiveCategory('image');
+    } else if (q.includes('동영상') || q.includes('video') || q.includes('영상') || q.includes('유튜브')) {
+      setActiveCategory('video');
+    } else if (q.includes('지도') || q.includes('map')) {
+      setActiveCategory('map');
+    } else if (q.includes('수식') || q.includes('math') || q.includes('katex')) {
+      setActiveCategory('math');
+    } else if (q.includes('규칙') || q.includes('css') || q.includes('커스텀')) {
+      setActiveCategory('rules');
+    }
+  };
+
+  // 미리보기 클릭 인스펙터(Click-to-Inspect) 연동
+  useEffect(() => {
+    if (!inspectorKey) return;
+    setStyleMode('pro');
+
+    // 1. targetSection이 제공된 경우 15대 카테고리 1:1 우선 전환 (하위 <p> 태그 오탐 방지)
+    if (targetSection) {
+      const s = targetSection.toLowerCase();
+      if (['headings', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(s)) {
+        setActiveCategory('headings');
+        return;
+      }
+      if (['paragraph', 'body', 'advanced', 'p'].includes(s)) {
+        setActiveCategory('paragraph');
+        return;
+      }
+      if (s === 'table') {
+        setActiveCategory('table');
+        return;
+      }
+      if (['quote', 'blockquote'].includes(s)) {
+        setActiveCategory('quote');
+        return;
+      }
+      if (['codeblock', 'pre', 'codeBlock'].includes(s)) {
+        setActiveCategory('codeblock');
+        return;
+      }
+      if (s === 'inlinecode') {
+        setActiveCategory('inlinecode');
+        return;
+      }
+      if (['link', 'a'].includes(s)) {
+        setActiveCategory('link');
+        return;
+      }
+      if (['footnote', 'footnotes'].includes(s)) {
+        setActiveCategory('footnote');
+        return;
+      }
+      if (['lists', 'list', 'ul', 'ol', 'li'].includes(s)) {
+        setActiveCategory('lists');
+        return;
+      }
+      if (s === 'hr') {
+        setActiveCategory('hr');
+        return;
+      }
+      if (['image', 'img', 'media'].includes(s)) {
+        setActiveCategory('image');
+        return;
+      }
+      if (s === 'video') {
+        setActiveCategory('video');
+        return;
+      }
+      if (s === 'map') {
+        setActiveCategory('map');
+        return;
+      }
+      if (s === 'math') {
+        setActiveCategory('math');
+        return;
+      }
+      if (['rules', 'effective-rules'].includes(s)) {
+        setActiveCategory('rules');
+        return;
+      }
+    }
+
+    // 2. targetTag 기반 보조 폴백
+    if (targetTag) {
+      const t = targetTag.toLowerCase();
+      if (/^h[1-6]$/.test(t)) {
+        setActiveCategory('headings');
+        return;
+      }
+      if (['table', 'th', 'td', 'thead', 'tbody', 'tr'].includes(t)) {
+        setActiveCategory('table');
+        return;
+      }
+      if (t === 'blockquote') {
+        setActiveCategory('quote');
+        return;
+      }
+      if (t === 'pre' || t === 'codeblock') {
+        setActiveCategory('codeblock');
+        return;
+      }
+      if (t === 'code') {
+        setActiveCategory('inlinecode');
+        return;
+      }
+      if (t === 'a') {
+        setActiveCategory('link');
+        return;
+      }
+      if (['footnote', 'sup', 'footnotes'].includes(t)) {
+        setActiveCategory('footnote');
+        return;
+      }
+      if (['ul', 'ol', 'li', 'tasklist'].includes(t)) {
+        setActiveCategory('lists');
+        return;
+      }
+      if (t === 'hr') {
+        setActiveCategory('hr');
+        return;
+      }
+      if (t === 'img') {
+        setActiveCategory('image');
+        return;
+      }
+      if (t === 'video') {
+        setActiveCategory('video');
+        return;
+      }
+      if (t === 'map' || t === 'iframe') {
+        setActiveCategory('map');
+        return;
+      }
+      if (t === 'math') {
+        setActiveCategory('math');
+        return;
+      }
+      if (['p', 'strong', 'em', 'u', 'del'].includes(t)) {
+        setActiveCategory('paragraph');
+        return;
+      }
+    }
+  }, [inspectorKey, targetSection, targetTag]);
+
+  // 기본 서식으로 복구
   const resetToDefault = () => {
     if (isSystemProfile) return;
     setConfirmConfig({
       isOpen: true,
-      title: "서식 초기화",
-      message: "시스템 기본 서식으로 전환하시겠습니까?",
+      title: '서식 초기화',
+      message: '시스템 기본 서식으로 전환하시겠습니까?',
       isDanger: false,
       onConfirm: () => {
-        onSelectProfile(DEFAULT_PROFILE.id); // DEFAULT_PROFILE = system-gov
+        onSelectProfile(DEFAULT_PROFILE.id);
         setConfirmConfig(null);
-      }
+      },
     });
   };
 
-  const nonDefaultProfiles = profiles.filter(p => !isSystemProfileId(p.id)).length;
-  const canDelete = !isSystemProfile && nonDefaultProfiles > 0;
-
-  const h1Rules = currentProfile.rules.h1 || {};
-  const alignOptions = [
-    { label: '왼쪽', value: 'left' },
-    { label: '중앙', value: 'center' },
-    { label: '오른쪽', value: 'right' },
-    { label: '양끝', value: 'justify' },
-  ] as const;
-
-  const styleOptions = [
-    { label: '굵게', property: 'font-weight', onVal: 'bold', offVal: 'normal' },
-    { label: '기울임', property: 'font-style', onVal: 'italic', offVal: 'normal' },
-    { label: '밑줄', property: 'text-decoration', onVal: 'underline', offVal: 'none' },
-  ] as const;
-
-  const borderOptions = [
-    { label: '선 없음', value: '' },
-    { label: '실선', value: '1px solid' },
-    { label: '관보선', value: '3px double' },
-  ] as const;
-
-  // ── active 판별 헬퍼 ──────────────────────────────────────────
-  // 600~900 및 bold 계열은 쇼케이스에서 굵게 보이므로 버튼도 활성화한다.
-  const isFontWeightBold = (v: string | undefined): boolean => {
-    if (!v) return false;
-    if (v === 'bold' || v === 'bolder') return true;
-    const n = parseInt(v, 10);
-    return !isNaN(n) && n >= 600;
-  };
-  // font-style 활성 판별
-  const isFontStyleActive = (v: string | undefined, onVal: string): boolean => v === onVal;
-  // text-decoration 활성 판별 (underline / line-through 포함 여부)
-  const isTextDecorationActive = (v: string | undefined, onVal: string): boolean =>
-    !!v && v !== 'none' && v.includes(onVal);
-  // border-bottom: '' / undefined / 'none' → "선 없음" 활성
-  const isBorderNone = (v: string | undefined): boolean => !v || v.trim() === '' || v === 'none' || v.trim().startsWith('0');
-  // border-bottom 특정 값과 매칭 (두께나 색상에 구애받지 않고 solid/double 키워드로 실선/관보선 정확 판별)
-  const isBorderMatch = (v: string | undefined, target: string): boolean => {
-    if (target === '') return isBorderNone(v);
-    if (isBorderNone(v)) return false;
-    const lower = v!.toLowerCase();
-    if (target.includes('double')) {
-      return lower.includes('double');
+  // 테마 이름 변경 저장
+  const handleRenameSave = () => {
+    if (tempName.trim() && tempName !== currentProfile.name) {
+      onUpdateProfile({ ...currentProfile, name: tempName.trim() });
     }
-    if (target.includes('solid')) {
-      return lower.includes('solid') && !lower.includes('double');
-    }
-    return lower.includes(target.toLowerCase());
+    setIsEditingName(false);
   };
-  // 하단 밑줄 변경 시 기존 색상 보존 핸들러
-  const handleBorderBottomClick = (tag: string, targetValue: string, currentVal: string | undefined, tagColor?: string) => {
-    if (targetValue === '') {
-      updateCssRule(tag, 'border-bottom', 'none');
-      return;
-    }
-    // 기존 border-bottom에 지정된 색상이 있다면 유지, 없으면 태그 글자색 또는 기본 회색 적용
-    const colorMatch = currentVal?.match(/(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\))/);
-    const colorToUse = colorMatch ? colorMatch[1] : (tagColor || '#e5e5e5');
-    updateCssRule(tag, 'border-bottom', `${targetValue} ${colorToUse}`.trim());
-  };
-  // text-align: 미지정 시 기본 'left' 활성 처리
-  const isAlignActive = (v: string | undefined, target: string): boolean =>
-    target === 'left' ? (!v || v === 'left') : v === target;
 
-  // styleOptions 개별 active 판별 (font-weight 특별 처리)
-  const isStyleOptionActive = (
-    rules: Record<string, string>,
-    property: string,
-    onVal: string
-  ): boolean => {
-    const v = rules[property];
-    if (property === 'font-weight') return isFontWeightBold(v);
-    if (property === 'font-style') return isFontStyleActive(v, onVal);
-    if (property === 'text-decoration') return isTextDecorationActive(v, onVal);
-    return v === onVal;
-  };
-  // ─────────────────────────────────────────────────────────────
-
-  const marginOptions = [
-    { label: '여백 없음', value: '0px' },
-    { label: '좁게', value: '12px' },
-    { label: '기본', value: '24px' },
-    { label: '넓게', value: '40px' },
-  ] as const;
-
-  // 팝오버 토글 상태: showAllProfiles를 팝오버 On/Off로 사용
-  const isGalleryOpen = showAllProfiles;
-
-  // 📥 JSON 파일 내보내기 핸들러
-  const handleExportJson = () => {
-    if (!currentProfile) return;
-    const jsonString = JSON.stringify(currentProfile, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
+  // 서식 가이드 마크다운 다운로드
+  const downloadGuideSpec = () => {
+    const blob = new Blob([CSS_PROFILE_GUIDE_MD], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    // 파일명: 테마이름_theme.json
-    const safeName = currentProfile.name.replace(/[^a-z0-9가-힣]/gi, '_');
-    link.download = `${safeName}_theme.json`;
+    link.download = 'Onrivi_CSS_Profile_Guide.md';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
 
+  // 서식 JSON 파일 업로드
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      importProfileString(content);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  // 서식 문자열 파싱 및 등록
+  const importProfileString = (jsonStr: string) => {
+    try {
+      const parsed = sanitizeAndParseCssProfileJson(jsonStr);
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('유효한 서식 JSON 형식이 아닙니다.');
+      }
+      const imported: CssProfile = {
+        ...parsed,
+        id: `custom-${Date.now()}`,
+        name: parsed.name ? `${parsed.name} (가져옴)` : `가져온 서식 ${new Date().toLocaleDateString()}`,
+      };
+      onImportProfile?.(imported);
+      onSelectProfile(imported.id, imported);
+      setShowImportModal(false);
+      setImportJsonText('');
+      showToast('서식을 성공적으로 가져왔습니다!');
+    } catch (err: any) {
+      alert(`서식 가져오기 실패: ${err.message || '파일 내용을 확인해 주세요.'}`);
+    }
+  };
+
+  const baseFontSize = formatPt(currentProfile.pageStyle?.fontSize, 11);
+  const currentCategoryObj = CATEGORIES[currentIndex] || CATEGORIES[0];
+
   return (
     <div className="w-full h-full bg-transparent flex flex-col select-none text-sm animate-fadeIn relative">
-
-      {/* 1단계: 최상단 헤더 (LDSG 규격) */}
-      <div className="px-4 py-3 bg-white/70 dark:bg-[#17191E]/70 backdrop-blur-sm border-b border-[#EFEFEF] dark:border-[#22242A] shrink-0 z-20 flex flex-col gap-2">
-        {/* 우측 상단 버튼 영역 */}
+      {/* 1단계: 최상단 헤더 */}
+      <div className="px-4 py-3 bg-white/70 dark:bg-[#17191E]/70 backdrop-blur-sm border-b border-[#EFEFEF] dark:border-[#22242A] shrink-0 z-30 flex flex-col gap-2">
         <div className="flex items-center justify-end gap-2 -mt-1 mb-1">
           <button
             onClick={downloadGuideSpec}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-zinc-600 hover:text-[#1d4ed8] dark:text-zinc-400 dark:hover:text-[#1d4ed8] bg-white dark:bg-[#131519] hover:bg-slate-50 dark:hover:bg-[#22242A] rounded-lg border border-[#EFEFEF] dark:border-[#22242A] transition-colors shadow-sm"
+            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-zinc-600 hover:text-[#1d4ed8] dark:text-zinc-400 dark:hover:text-[#1d4ed8] bg-white dark:bg-[#131519] hover:bg-slate-50 dark:hover:bg-[#22242A] rounded-lg border border-[#EFEFEF] dark:border-[#22242A] transition-colors shadow-xs cursor-pointer"
             title="CSS 프로필 설정 가이드 다운로드"
           >
             📖 서식 설정 가이드
@@ -1353,7 +590,7 @@ ${guideContent}
           {onOpenStyleManager && (
             <button
               onClick={onOpenStyleManager}
-              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-zinc-600 hover:text-[#1d4ed8] dark:text-zinc-400 dark:hover:text-[#1d4ed8] bg-white dark:bg-[#131519] hover:bg-slate-50 dark:hover:bg-[#22242A] rounded-lg border border-[#EFEFEF] dark:border-[#22242A] transition-colors shadow-sm"
+              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-zinc-600 hover:text-[#1d4ed8] dark:text-zinc-400 dark:hover:text-[#1d4ed8] bg-white dark:bg-[#131519] hover:bg-slate-50 dark:hover:bg-[#22242A] rounded-lg border border-[#EFEFEF] dark:border-[#22242A] transition-colors shadow-xs cursor-pointer"
               title="서식 관리 (추가/삭제/가져오기/AI생성)"
             >
               ⚙ 서식 관리
@@ -1361,7 +598,7 @@ ${guideContent}
           )}
         </div>
 
-        {/* 테마 선택 드롭다운 */}
+        {/* 테마 선택 드롭다운 버튼 */}
         {isEditingName && !isSystemProfile ? (
           <input
             type="text"
@@ -1378,7 +615,7 @@ ${guideContent}
         ) : (
           <button
             onClick={() => setShowAllProfiles(!isGalleryOpen)}
-            className="flex items-center justify-between w-full p-2.5 bg-gradient-to-r from-emerald-50/70 to-blue-50/70 dark:from-[#1d4ed8]/10 dark:to-[#4D73FF]/10 rounded-xl border border-[#1d4ed8]/30 dark:border-[#1d4ed8]/20 hover:border-[#1d4ed8] dark:hover:border-[#1d4ed8] hover:shadow-md transition-all group"
+            className="flex items-center justify-between w-full p-2.5 bg-gradient-to-r from-emerald-50/70 to-blue-50/70 dark:from-[#1d4ed8]/10 dark:to-[#4D73FF]/10 rounded-xl border border-[#1d4ed8]/30 dark:border-[#1d4ed8]/20 hover:border-[#1d4ed8] dark:hover:border-[#1d4ed8] hover:shadow-md transition-all group cursor-pointer"
           >
             <div className="flex items-center gap-2">
               <span className="text-xl">{isSystemProfile ? '🏛️' : '🫆'}</span>
@@ -1387,7 +624,11 @@ ${guideContent}
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span className={`text-zinc-400 group-hover:text-[#1d4ed8] transition-transform duration-200 ${isGalleryOpen ? 'rotate-180' : ''}`}>
+              <span
+                className={`text-zinc-400 group-hover:text-[#1d4ed8] transition-transform duration-200 ${
+                  isGalleryOpen ? 'rotate-180' : ''
+                }`}
+              >
                 ▼
               </span>
             </div>
@@ -1395,24 +636,32 @@ ${guideContent}
         )}
       </div>
 
-      {/* 팝오버 메가 메뉴 갤러리 (z-index 40) */}
+      {/* 갤러리 메가 메뉴 팝오버 */}
       {isGalleryOpen && (
         <div className="absolute top-[104px] left-0 right-0 max-h-[400px] overflow-y-auto z-40 bg-white/95 dark:bg-[#17191E]/95 backdrop-blur-md border-b border-[#EFEFEF] dark:border-[#22242A] shadow-2xl p-4 custom-scrollbar animate-in slide-in-from-top-2">
           <div className="text-xs font-bold text-zinc-500 mb-3">테마 선택 ({profiles.length}개)</div>
           <div className="grid grid-cols-3 gap-2.5">
-            {profiles.map(p => {
+            {profiles.map((p) => {
               const isActive = p.id === activeProfileId;
               return (
                 <button
                   key={p.id}
                   onClick={() => {
                     onSelectProfile(p.id);
-                    setShowAllProfiles(false); // 선택 후 자동 닫힘
+                    setShowAllProfiles(false);
                   }}
-                  className={`w-full h-[70px] rounded-xl border-2 flex flex-col items-center justify-center p-2 transition-all ${isActive ? 'border-[#1d4ed8] bg-[#1d4ed8]/10 shadow-sm' : 'border-[#EFEFEF] dark:border-[#22242A] bg-white dark:bg-[#131519] hover:border-[#1d4ed8]/50'}`}
+                  className={`w-full h-[70px] rounded-xl border-2 flex flex-col items-center justify-center p-2 transition-all cursor-pointer ${
+                    isActive
+                      ? 'border-[#1d4ed8] bg-[#1d4ed8]/10 shadow-sm'
+                      : 'border-[#EFEFEF] dark:border-[#22242A] bg-white dark:bg-[#131519] hover:border-[#1d4ed8]/50'
+                  }`}
                 >
                   <span className="text-[18px] mb-1">{isSystemProfileId(p.id) ? '🏛️' : '🫆'}</span>
-                  <span className={`text-[11px] font-bold truncate w-full text-center ${isActive ? 'text-[#1d4ed8] dark:text-[#1d4ed8]' : 'text-zinc-600 dark:text-zinc-400'}`}>
+                  <span
+                    className={`text-[11px] font-bold truncate w-full text-center ${
+                      isActive ? 'text-[#1d4ed8] dark:text-[#1d4ed8]' : 'text-zinc-600 dark:text-zinc-400'
+                    }`}
+                  >
                     {p.name}
                   </span>
                 </button>
@@ -1422,2331 +671,384 @@ ${guideContent}
         </div>
       )}
 
-      {/* 2단계: 스크롤 가능한 본문 영역 (슬라이더 패널) */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 space-y-5 custom-scrollbar">
-
-        {/* 2단계: 기본 타이포그래피 아코디언 */}
-        <AccordionSection
-          id="typography"
-          title="✍️ 기본 타이포그래피"
-          isOpen={openAccordion === 'typography'}
-          onToggle={() => handleAccordionToggle('typography')}
-          sectionRef={(el) => { accordionRefs.current['typography'] = el; }}
-        >
-          <div className="space-y-4">
-
-            {/* 글꼴 선택 */}
-            <div className="flex gap-2.5 items-end">
-              <div className="flex-1">
-                <span className="text-zinc-500 dark:text-zinc-400 text-xs font-semibold block mb-1">문서 전체 글꼴</span>
-                <input
-                  type="text"
-                  value={isFontModalOpen ? '선택 중...' : (currentProfile.pageStyle.fontFamily || '')}
-                  readOnly
-                  className="w-full p-2 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50 dark:bg-zinc-900 font-mono text-sm text-zinc-800 dark:text-zinc-200 cursor-not-allowed"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => { if (!isSystemProfile) setIsFontModalOpen(true); }}
-                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-900 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-sm font-bold rounded-lg transition-colors shrink-0 disabled:opacity-50"
-                disabled={isSystemProfile}
-              >
-                변경
-              </button>
-            </div>
-
-            {/* 스무스 슬라이더들 */}
-            <SliderWidget
-              label="기본 글자 크기"
-              min={10}
-              max={36}
-              value={getNumValue(currentProfile.pageStyle.fontSize, 15)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => handlePageStyleChange('fontSize', v + 'px')}
-            />
-            <SliderWidget
-              label="기본 줄 간격"
-              min={1.0}
-              max={3.0}
-              step={0.1}
-              value={getNumValue(currentProfile.pageStyle.lineHeight, 1.8)}
-              unit="배"
-              disabled={isSystemProfile}
-              onChange={(v) => handlePageStyleChange('lineHeight', v)}
-            />
-          </div>
-        </AccordionSection>
-
-        {/* 3단계: 고급 레이아웃 아코디언 설정들 */}
-        <div className="p-4 border rounded-xl space-y-3">
-          <h3 className="font-bold">문서 배치</h3>
-          <select aria-label="문서 배치" disabled={isSystemProfile}
-            value={currentProfile.layout ? 'picturebook' : 'flow'}
-            onChange={e => triggerUpdate({ ...currentProfile, layout: e.target.value === 'picturebook' ? { ...DEFAULT_BOOK_LAYOUT } : undefined })}>
-            <option value="flow">일반 문서</option><option value="picturebook">그림책 — 그림과 본문</option>
-          </select>
-          {currentProfile.layout && <>
-            <label className="block">표지 배치 <select disabled={isSystemProfile} value={currentProfile.layout.cover}
-              onChange={e => triggerUpdate({ ...currentProfile, layout: { ...currentProfile.layout!, cover: e.target.value as 'full-image' | 'image-right' } })}>
-              <option value="full-image">전체 그림 표지</option><option value="image-right">오른쪽 그림 표지</option>
-            </select></label>
-            <label className="block">그림 영역 {Math.round(currentProfile.layout.imageRatio*100)}%
-              <input type="range" min="30" max="70" disabled={isSystemProfile} value={currentProfile.layout.imageRatio*100}
-                onChange={e => triggerUpdate({ ...currentProfile, layout: { ...currentProfile.layout!, imageRatio: Number(e.target.value)/100 } })} />
-            </label>
-            <label className="block">그림 맞춤 <select disabled={isSystemProfile} value={currentProfile.layout.imageFit}
-              onChange={e => triggerUpdate({ ...currentProfile, layout: { ...currentProfile.layout!, imageFit: e.target.value as 'contain' | 'cover' } })}>
-              <option value="contain">전체 보이기</option><option value="cover">영역 채우기</option>
-            </select></label>
-            <label className="block">영역 간격(mm) <input type="number" min="0" max="30" disabled={isSystemProfile}
-              value={parseFloat(currentProfile.layout.gap)} onChange={e => triggerUpdate({ ...currentProfile, layout: { ...currentProfile.layout!, gap: `${Math.max(0, Math.min(30, Number(e.target.value)))}mm` } })} /></label>
-            <label className="block"><input type="checkbox" disabled={isSystemProfile} checked={currentProfile.layout.pageNumbers}
-              onChange={e => triggerUpdate({ ...currentProfile, layout: { ...currentProfile.layout!, pageNumbers: e.target.checked } })} /> 페이지 번호</label>
-            <button type="button" className="border rounded px-3 py-2" onClick={() => {
-              const latest = pendingProfileRef.current?.id === currentProfile.id ? pendingProfileRef.current : currentProfile;
-              onSelectProfile(latest.id, latest);
-              showToast('현재 문서에 용지와 서식을 적용했습니다.');
-            }}>현재 문서에 이 서식 적용</button>
-            <p className="text-xs">설정 변경은 미리보기에서 확인한 후 적용하세요. 문서는 마지막으로 적용한 서식을 보관합니다.</p>
-            <p className="text-sm">용지와 방향은 아래 용지 설정을 따릅니다. 원문은 장면 블록으로 작성합니다. 표지 장면에는 {'{cover}'}를 붙입니다.</p>
-            <details><summary>장면 작성 예시</summary><pre className="whitespace-pre-wrap text-xs">{BOOK_SAMPLE}</pre>
-              <button type="button" onClick={() => navigator.clipboard.writeText(BOOK_SAMPLE)}>예시 복사</button></details>
-          </>}
+      {/* 2단계: 스크롤 가능한 본문 영역 */}
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+        {/* 모드 전환 세그먼트 (간편 스타일링 vs 세부 서식 다듬기) */}
+        <div className="flex items-center p-1 bg-zinc-100 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xs shrink-0">
+          <button
+            type="button"
+            onClick={() => setStyleMode('quick')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+              styleMode === 'quick'
+                ? 'bg-white dark:bg-zinc-800 text-[#1d4ed8] dark:text-blue-400 shadow-sm'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+            }`}
+          >
+            <span>⚡ 간편 스타일링 (Simple)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStyleMode('pro')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+              styleMode === 'pro'
+                ? 'bg-white dark:bg-zinc-800 text-[#1d4ed8] dark:text-blue-400 shadow-sm'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+            }`}
+          >
+            <span>🎨 세부 서식 다듬기 (Detail)</span>
+          </button>
         </div>
-        <AccordionSection
-          id="advanced"
-          title="⚙️ 고급 레이아웃 및 본문 문단"
-          isOpen={openAccordion === 'advanced'}
-          onToggle={() => handleAccordionToggle('advanced')}
-          sectionRef={(el) => { accordionRefs.current['advanced'] = el; }}
-        >
-          <div className="space-y-4.5">
 
-            {/* 자간 간격 슬라이더 */}
-            <SliderWidget
-              label="자간 간격 (Letter Spacing)"
-              min={-0.05}
-              max={0.05}
-              step={0.01}
-              value={getNumValue(currentProfile.pageStyle.letterSpacing, 0)}
-              unit="em"
-              disabled={isSystemProfile}
-              onChange={(v) => handlePageStyleChange('letterSpacing', v + 'em')}
-            />
-
-            {/* 용지 크기 */}
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">용지 크기</span>
-              <select
-                disabled={isSystemProfile}
-                value={currentProfile.pageStyle.paperSize || 'a4'}
-                onChange={(e) => handlePageStyleChange('paperSize', e.target.value)}
-                className="px-3 py-2 rounded text-sm border bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 disabled:opacity-50"
-              >
-                {Object.entries(PAPER_SIZES).map(([key, spec]) => (
-                  <option key={key} value={key}>
-                    {spec.label} ({spec.width}×{spec.height}mm)
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* 용지 방향 */}
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">용지 방향</span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={isSystemProfile}
-                  onClick={() => handlePageStyleChange('orientation', 'portrait')}
-                  className={`px-4 py-2 rounded text-sm font-bold border transition-all ${(currentProfile.pageStyle.orientation || 'portrait') === 'portrait'
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
-                    : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'
-                    }`}
-                >
-                  세로
-                </button>
-                <button
-                  type="button"
-                  disabled={isSystemProfile}
-                  onClick={() => handlePageStyleChange('orientation', 'landscape')}
-                  className={`px-4 py-2 rounded text-sm font-bold border transition-all ${currentProfile.pageStyle.orientation === 'landscape'
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
-                    : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'
-                    }`}
-                >
-                  가로
-                </button>
-              </div>
-            </div>
-
-
-            {/* 페이지 배경색 */}
-            <ColorPickerWidget
-              label="페이지 배경색"
-              value={currentProfile.pageStyle.backgroundColor || '#ffffff'}
-              disabled={isSystemProfile}
-              onChange={(v) => handlePageStyleChange('backgroundColor', v)}
-            />
-            {/* 용지 여백 설정 */}
-            <div className="border-t border-zinc-100 dark:border-zinc-800 pt-3 space-y-2">
-              <span className="text-zinc-650 dark:text-zinc-350 font-bold text-sm block">용지 마진 여백 (mm)</span>
-              <div className="grid grid-cols-2 gap-2.5">
-                <SliderWidget
-                  label="위 여백"
-                  min={5}
-                  max={50}
-                  value={getNumValue(currentProfile.pageStyle.marginTop, 18)}
-                  unit="mm"
-                  disabled={isSystemProfile}
-                  onChange={(v) => handlePageStyleChange('marginTop', v + 'mm')}
-                />
-                <SliderWidget
-                  label="아래 여백"
-                  min={5}
-                  max={50}
-                  value={getNumValue(currentProfile.pageStyle.marginBottom, 18)}
-                  unit="mm"
-                  disabled={isSystemProfile}
-                  onChange={(v) => handlePageStyleChange('marginBottom', v + 'mm')}
-                />
-                <SliderWidget
-                  label="왼쪽 여백"
-                  min={5}
-                  max={50}
-                  value={getNumValue(currentProfile.pageStyle.marginLeft, 12)}
-                  unit="mm"
-                  disabled={isSystemProfile}
-                  onChange={(v) => handlePageStyleChange('marginLeft', v + 'mm')}
-                />
-                <SliderWidget
-                  label="오른쪽 여백"
-                  min={5}
-                  max={50}
-                  value={getNumValue(currentProfile.pageStyle.marginRight, 12)}
-                  unit="mm"
-                  disabled={isSystemProfile}
-                  onChange={(v) => handlePageStyleChange('marginRight', v + 'mm')}
-                />
-              </div>
-            </div>
-
-            {/* 탭 간격(Tab Size) 슬라이더 */}
-            <div className="border-t border-zinc-100 dark:border-zinc-800 pt-3">
-              <SliderWidget
-                label="탭 간격 (Tab Size)"
-                min={1}
-                max={10}
-                step={1}
-                value={getNumValue(currentProfile.pageStyle.tabSize, 4)}
-                unit="칸"
-                disabled={isSystemProfile}
-                onChange={(v) => handlePageStyleChange('tabSize', String(v))}
-              />
-            </div>
-          </div>
-
-          {/* 本문 문단 (P) 설정 */}
-          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">기본 본문 문단 (P) 스타일</span>
-              <button
-                type="button"
-                onClick={() => setShowJson(showJson === 'p' ? null : 'p')}
-                className="text-xs text-blue-500 hover:text-blue-600 font-bold"
-              >
-                {showJson === 'p' ? '위젯 보기' : 'JSON 직접 편집'}
-              </button>
-            </div>
-
-            {showJson === 'p' ? (
-              <textarea
-                value={JSON.stringify(currentProfile.rules.p || {}, null, 2)}
-                disabled={isSystemProfile}
-                onChange={(e) => {
-                  try {
-                    const parsed = JSON.parse(e.target.value);
-                    onUpdateProfile({
-                      ...currentProfile,
-                      rules: { ...currentProfile.rules, p: parsed }
-                    });
-                  } catch { }
-                }}
-                className="w-full h-32 p-2 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-900 text-emerald-400 font-mono text-sm leading-relaxed"
-              />
-            ) : (
-              <div className="space-y-3">
-                {/* 1. 글자 정렬 */}
-                <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-                  <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">본문 글자 정렬</span>
-                  <select
-                    value={(currentProfile.rules.p || {})['text-align'] || 'left'}
-                    disabled={isSystemProfile}
-                    onChange={(e) => updateCssRule('p', 'text-align', e.target.value)}
-                    className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-                  >
-                    <option value="left">왼쪽 정렬</option>
-                    <option value="center">가운데 정렬</option>
-                    <option value="right">오른쪽 정렬</option>
-                    <option value="justify">양끝 정렬 (Justify)</option>
-                  </select>
-                </div>
-
-                {/* 2. 위 여백 */}
-                <SliderWidget
-                  label="문단 위 여백"
-                  min={0}
-                  max={48}
-                  value={getNumValue((currentProfile.rules.p || {})['margin-top'], 0)}
-                  unit="px"
-                  disabled={isSystemProfile}
-                  onChange={(v) => {
-                    const px = v + 'px';
-                    const updated = {
-                      ...currentProfile,
-                      rules: {
-                        ...currentProfile.rules,
-                        p: { ...(currentProfile.rules.p || {}), 'margin-top': px }
-                      }
-                    };
-                    triggerUpdate(updated, 'p', `문단 위 여백 (${v}px)`);
-                  }}
-                />
-
-                {/* 3. 하단 여백 */}
-                <SliderWidget
-                  label="문단 아래 여백"
-                  min={0}
-                  max={48}
-                  value={getNumValue((currentProfile.rules.p || {})['margin-bottom'], 16)}
-                  unit="px"
-                  disabled={isSystemProfile}
-                  onChange={(v) => {
-                    const px = v + 'px';
-                    const updated = {
-                      ...currentProfile,
-                      rules: {
-                        ...currentProfile.rules,
-                        p: { ...(currentProfile.rules.p || {}), 'margin-bottom': px }
-                      }
-                    };
-                    triggerUpdate(updated, 'p', `문단 아래 여백 (${v}px)`);
-                  }}
-                />
-
-                {/* 3-1. 문장 사이 간격 */}
-                <SliderWidget
-                  label="문장 사이 간격 (문단 내 줄바꿈 간격)"
-                  min={0}
-                  max={32}
-                  value={getNumValue((currentProfile.rules.p || {})['sentence-gap'], 0)}
-                  unit="px"
-                  disabled={isSystemProfile}
-                  onChange={(v) => {
-                    const px = v + 'px';
-                    const updated = {
-                      ...currentProfile,
-                      rules: {
-                        ...currentProfile.rules,
-                        p: { ...(currentProfile.rules.p || {}), 'sentence-gap': px }
-                      }
-                    };
-                    triggerUpdate(updated, 'p', `문장 사이 간격 (${v}px)`);
-                  }}
-                />
-
-                {/* 4. 들여쓰기 */}
-                <SliderWidget
-                  label="첫 줄 들여쓰기 (Text Indent)"
-                  min={0}
-                  max={48}
-                  value={getNumValue((currentProfile.rules.p || {})['text-indent'], 0)}
-                  unit="px"
-                  disabled={isSystemProfile}
-                  onChange={(v) => {
-                    const px = v + 'px';
-                    const updated = {
-                      ...currentProfile,
-                      rules: {
-                        ...currentProfile.rules,
-                        p: { ...(currentProfile.rules.p || {}), 'text-indent': px }
-                      }
-                    };
-                    triggerUpdate(updated, 'p', `첫 줄 들여쓰기 (${v}px)`);
-                  }}
-                />
-
-                {/* 5. 줄간격 */}
-                <SliderWidget
-                  label="문단 줄 간격 (Line Height)"
-                  min={1.0}
-                  max={3.0}
-                  step={0.1}
-                  value={getNumValue((currentProfile.rules.p || {})['line-height'] || currentProfile.pageStyle.lineHeight, 1.8)}
-                  unit="배"
-                  disabled={isSystemProfile}
-                  onChange={(v) => {
-                    const updated = {
-                      ...currentProfile,
-                      pageStyle: { ...currentProfile.pageStyle, lineHeight: String(v) },
-                      rules: {
-                        ...currentProfile.rules,
-                        p: { ...(currentProfile.rules.p || {}), 'line-height': String(v) }
-                      }
-                    };
-                    triggerUpdate(updated, 'p', `문단 줄 간격 (${v}배)`);
-                  }}
-                />
-
-                {/* 6. 글자 색상 (컬러 피커 연동) */}
-                <ColorPickerWidget
-                  label="본문 글자 색상"
-                  value={(currentProfile.rules.p || {})['color'] || ''}
-                  disabled={isSystemProfile}
-                  onChange={(v) => updateCssRule('p', 'color', v)}
-                />
-              </div>
-            )}
-          </div>
-        </AccordionSection>
-
-        {/* 🟢 아코디언 [2]: 제목 스타일 H1 ~ H6 */}
-        <AccordionSection
-          id="headings"
-          title="👑 제목 위계 스타일 (H1 ~ H6)"
-          isOpen={openAccordion === 'headings'}
-          onToggle={() => handleAccordionToggle('headings')}
-          sectionRef={(el) => { accordionRefs.current['headings'] = el; }}
-        >
+        {styleMode === 'quick' ? (
+          <QuickStylePanel
+            currentProfile={currentProfile}
+            isSystemProfile={isSystemProfile}
+            onUpdateProfile={onUpdateProfile}
+            onSwitchToProMode={() => setStyleMode('pro')}
+            isDarkMode={isDarkMode}
+          />
+        ) : (
           <div className="space-y-4">
-            <div className="rounded-lg border p-3 space-y-2">
-              <div className="text-sm font-semibold">제목 번호 형식</div>
-              <div className="flex gap-2">
-                <button type="button" disabled={isSystemProfile} onClick={() => onUpdateProfile({ ...currentProfile, headingNumbering: ['roman', 'decimal', 'hangul', 'decimal-paren', 'hangul-paren', 'none'] })}>보고서 번호 적용</button>
-                <button type="button" disabled={isSystemProfile} onClick={() => onUpdateProfile({ ...currentProfile, headingNumbering: [] })}>번호 없음</button>
-              </div>
-              {Array.from({ length: 6 }, (_, index) => (
-                <div key={index} className="space-y-2 text-sm">
-                <label className="flex items-center gap-3">
-                  <span>제목 {index + 1}</span>
-                  <select disabled={isSystemProfile} value={headingFormat(currentProfile.headingNumbering?.[index])} onChange={event => {
-                    const formats = Array.from({ length: 6 }, (_, i) => currentProfile.headingNumbering?.[i] || 'none');
-                    formats[index] = event.target.value === 'custom' ? { type: 'custom', number: 'decimal', prefix: '', suffix: '.' } : event.target.value as HeadingNumberSetting;
-                    onUpdateProfile({ ...currentProfile, headingNumbering: formats });
-                  }} className="rounded border p-1 bg-white dark:bg-zinc-900">
-                    <option value="none">번호 없음</option>
-                    <option value="roman">Ⅰ., Ⅱ., Ⅲ.</option>
-                    <option value="decimal">1., 2., 3.</option>
-                    <option value="decimal-outline">1. ➔ 1.1 ➔ 1.1.1 (계층형)</option>
-                    <option value="hangul">가., 나., 다.</option>
-                    <option value="decimal-paren">1), 2), 3)</option>
-                    <option value="hangul-paren">가), 나), 다)</option>
-                    <option value="custom">사용자 지정</option>
-                  </select>
-                </label>
-                {headingFormat(currentProfile.headingNumbering?.[index]) === 'custom' && (() => {
-                  const raw = headingSetting(currentProfile.headingNumbering?.[index]);
-                  const custom = typeof raw === 'object' ? raw : { type: 'custom' as const, number: 'decimal' as const, prefix: '', suffix: '.', bullet: '•' };
-                  const update = (patch: Partial<typeof custom>) => {
-                    const formats = Array.from({ length: 6 }, (_, i) => currentProfile.headingNumbering?.[i] || 'none');
-                    formats[index] = { ...custom, ...patch };
-                    onUpdateProfile({ ...currentProfile, headingNumbering: formats });
-                  };
-                  return <div className="ml-12 rounded border p-2 space-y-2">
-                    <div className="flex flex-wrap gap-2">
-                      <label>앞 문구 <input aria-label={`제목 ${index + 1} 번호 앞 문구`} disabled={isSystemProfile} maxLength={40} value={custom.prefix} onChange={e => update({ prefix: e.target.value })} placeholder="예: 제, (" className="w-24 rounded border p-1 bg-white dark:bg-zinc-900" /></label>
-                      <label>번호 <select aria-label={`제목 ${index + 1} 사용자 지정 번호 종류`} disabled={isSystemProfile} value={custom.number} onChange={e => update({ number: e.target.value as typeof custom.number, ...(e.target.value === 'bullet' ? { suffix: '', bullet: custom.bullet || '•' } : {}) })} className="rounded border p-1 bg-white dark:bg-zinc-900"><option value="decimal">1, 2, 3</option><option value="roman">Ⅰ, Ⅱ, Ⅲ</option><option value="hangul">가, 나, 다</option><option value="bullet">글머리기호</option></select></label>
-                      <label>뒤 문구 <input aria-label={`제목 ${index + 1} 번호 뒤 문구`} disabled={isSystemProfile} maxLength={40} value={custom.suffix} onChange={e => update({ suffix: e.target.value })} placeholder="예: 장, )" className="w-24 rounded border p-1 bg-white dark:bg-zinc-900" /></label>
-                    </div>
-                    {custom.number === 'bullet' && <label className="block">글머리기호 <input aria-label={`제목 ${index + 1} 글머리기호`} disabled={isSystemProfile} maxLength={40} value={custom.bullet || '•'} onChange={e => update({ bullet: e.target.value })} className="w-24 rounded border p-1 bg-white dark:bg-zinc-900" /> <span className="text-xs text-zinc-500">예: • ○ □ ◆ ※</span></label>}
-                    <p className="text-xs text-zinc-500">미리보기: {[1, 2, 3].map(n => headingMarker(custom, n)).join(' / ')}</p>
-                  </div>;
-                })()}
+            {/* ⚡ 간편 스타일링 위임 알림 배너 */}
+            <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50/40 dark:from-blue-950/20 dark:to-indigo-950/10 rounded-xl border border-blue-200 dark:border-blue-900/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900 dark:text-blue-300">
+                  <span>📐</span>
+                  <span>기본 글꼴·크기·줄간격·배경색 및 용지·배치·개요</span>
                 </div>
-              ))}
-              <p className="text-xs text-zinc-500">상위 제목이 바뀌면 하위 번호가 다시 시작됩니다. 번호·글머리기호는 마크다운 원문에도 저장되며, 기존 제목 앞 번호는 새 형식으로 갱신합니다.</p>
-            </div>
-            <div className="bg-zinc-100 dark:bg-zinc-800/40 p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3.5">
-              <div className="text-sm font-bold text-blue-600 dark:text-blue-400 border-b border-zinc-200 dark:border-zinc-700 pb-1.5">
-                H1 마스터 설정
-              </div>
-
-              {/* H1 정렬 */}
-              <div className="bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm space-y-1.5">
-                <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block">정렬</span>
-                <div className="flex gap-1.5 flex-wrap">
-                  {alignOptions.map(({ label, value }) => (
-                    <button key={value} type="button" disabled={isSystemProfile}
-                      onClick={() => updateCssRule('h1', 'text-align', value)}
-                      className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (isAlignActive(h1Rules['text-align'], value)
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
-                        : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
-                    >{label}</button>
-                  ))}
-                </div>
-              </div>
-
-              {/* H1 크기 (슬라이더화) */}
-              <SliderWidget
-                label="H1 기준 글자 크기"
-                min={16}
-                max={48}
-                value={getNumValue(h1Rules['font-size'], 28)}
-                unit="px"
-                disabled={isSystemProfile}
-                onChange={(v) => updateCssRule('h1', 'font-size', v + 'px')}
-              />
-
-              {/* H2~H6 크기 감소폭 (슬라이더화) */}
-              <SliderWidget
-                label="단계별 크기 감소폭"
-                min={0}
-                max={10}
-                value={getNumValue(currentProfile.pageStyle.headingSizeOffset, 4)}
-                unit="px"
-                disabled={isSystemProfile}
-                onChange={(v) => handlePageStyleChange('headingSizeOffset', v)}
-              />
-
-              {/* 서식 */}
-              <div className="bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm space-y-1.5">
-                <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block">기본 스타일 효과</span>
-                <div className="flex gap-1.5 flex-wrap">
-                  {styleOptions.map(({ label, property, onVal, offVal }) => {
-                    const isActive = isStyleOptionActive(h1Rules, property, onVal);
-                    return (
-                      <button key={property} type="button" disabled={isSystemProfile}
-                        onClick={() => updateCssRule('h1', property, isActive ? offVal : onVal)}
-                        className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (isActive
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
-                          : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
-                      >{label}</button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* H1 자간 (슬라이더화) */}
-              <SliderWidget
-                label="H1 자간 간격"
-                min={-0.05}
-                max={0.05}
-                step={0.01}
-                value={getNumValue(h1Rules['letter-spacing'], 0)}
-                unit="em"
-                disabled={isSystemProfile}
-                onChange={(v) => updateCssRule('h1', 'letter-spacing', v + 'em')}
-              />
-
-              {/* 위 여백 */}
-              <SliderWidget
-                label="H1 위 여백"
-                min={0}
-                max={80}
-                value={getNumValue(h1Rules['margin-top'], 24)}
-                unit="px"
-                disabled={isSystemProfile}
-                onChange={(v) => updateCssRule('h1', 'margin-top', v + 'px')}
-              />
-
-              {/* 아래 여백 */}
-              <SliderWidget
-                label="H1 아래 여백"
-                min={0}
-                max={80}
-                value={getNumValue(h1Rules['margin-bottom'], 16)}
-                unit="px"
-                disabled={isSystemProfile}
-                onChange={(v) => updateCssRule('h1', 'margin-bottom', v + 'px')}
-              />
-
-              {/* 왼쪽 여백 */}
-              <SliderWidget
-                label="H1 왼쪽 여백"
-                min={0}
-                max={60}
-                value={getNumValue(h1Rules['padding-left'], 0)}
-                unit="px"
-                disabled={isSystemProfile}
-                onChange={(v) => updateCssRule('h1', 'padding-left', v + 'px')}
-              />
-
-              {/* H1 글자 색상 (컬러 피커 연동) */}
-              <ColorPickerWidget
-                label="H1 글자 색상"
-                value={h1Rules['color'] || ''}
-                disabled={isSystemProfile}
-                onChange={(v) => updateCssRule('h1', 'color', v)}
-              />
-
-              {/* H1 하단 밑줄 테두리 */}
-              <div className="bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm space-y-1.5">
-                <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block">하단 밑줄</span>
-                <div className="flex gap-1.5 flex-wrap">
-                  {borderOptions.map(({ label, value }) => (
-                    <button key={label} type="button" disabled={isSystemProfile}
-                      onClick={() => handleBorderBottomClick('h1', value, h1Rules['border-bottom'], h1Rules['color'])}
-                      className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (isBorderMatch(h1Rules['border-bottom'], value)
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
-                        : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
-                    >{label}</button>
-                  ))}
-                </div>
-              </div>
-
-              {/* H1 불필요한 장식 제거 */}
-              {(h1Rules['border-left'] || h1Rules['background-color'] || h1Rules['border'] || h1Rules['border-right'] || h1Rules['border-top']) && (
-                <div className="bg-red-50 dark:bg-red-900/20 p-2.5 rounded-lg shadow-sm border border-red-100 dark:border-red-900/30 flex flex-col sm:flex-row items-center justify-between gap-2 mt-2">
-                  <span className="text-xs font-semibold text-red-600 dark:text-red-400 text-center sm:text-left">비표준 장식(배경/왼쪽 테두리 등)이 감지되었습니다.</span>
-                  <button type="button" disabled={isSystemProfile}
-                    onClick={() => {
-                      const newRule = { ...(currentProfile.rules['h1'] || {}) };
-                      delete newRule['border-left'];
-                      delete newRule['border-right'];
-                      delete newRule['border-top'];
-                      delete newRule['border'];
-                      delete newRule['background-color'];
-                      delete newRule['padding'];
-                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, h1: newRule }});
-                    }}
-                    className="px-3 py-1.5 rounded text-xs font-bold bg-white dark:bg-zinc-800 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/40 transition-colors whitespace-nowrap"
-                  >
-                    장식 모두 제거
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* H2~H6 세부 설정 구역 */}
-            <div className="space-y-3">
-              {/* 위계 선택 탭 바 */}
-              <div className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-800/40 p-2 rounded-lg border border-zinc-200 dark:border-zinc-800">
-                <span className="text-sm font-bold text-zinc-650 dark:text-zinc-400 pl-2">세부 H 위계</span>
-                <div className="inline-flex bg-zinc-200/60 dark:bg-zinc-700/60 p-0.5 rounded-md text-sm font-semibold">
-                  {[2, 3, 4, 5, 6].map((level) => (
-                    <button key={level}
-                      onClick={() => setActiveHeadingTab(level)}
-                      className={'px-3 py-1.5 rounded transition-all ' + (activeHeadingTab === level ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 font-bold shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700')}
-                    >H{level}</button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 활성 H{n} 스타일 구성 */}
-              {(() => {
-                const tag = 'h' + activeHeadingTab;
-                const tagRules = currentProfile.rules[tag as keyof typeof currentProfile.rules] || {};
-                const offset = parseInt(currentProfile.pageStyle.headingSizeOffset) || 4;
-                const h1Size = parseInt(h1Rules['font-size']) || 28;
-                const calculatedSize = Math.max(10, h1Size - (activeHeadingTab - 1) * offset);
-                return (
-                  <div className="bg-zinc-100 dark:bg-zinc-800/40 p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3">
-                    <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-700 pb-2">
-                      <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200">H{activeHeadingTab} 설정</span>
-                      <span className="font-mono text-sm text-blue-600 dark:text-blue-400 font-bold">
-                        {calculatedSize}px
-                      </span>
-                    </div>
-
-                    {/* 서식 선택 */}
-                    <div className="bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm space-y-1.5">
-                      <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block">효과</span>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {styleOptions.map(({ label, property, onVal, offVal }) => {
-                          const isActive = isStyleOptionActive(tagRules, property, onVal);
-                          return (
-                            <button key={property} type="button" disabled={isSystemProfile}
-                              onClick={() => updateCssRule(tag, property, isActive ? offVal : onVal)}
-                              className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (isActive
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
-                                : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
-                            >{label}</button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* 하단 테두리 */}
-                    <div className="bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm space-y-1.5">
-                      <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block">하단 밑줄</span>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {borderOptions.map(({ label, value }) => (
-                          <button key={label} type="button" disabled={isSystemProfile}
-                            onClick={() => handleBorderBottomClick(tag, value, tagRules['border-bottom'], tagRules['color'])}
-                            className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (isBorderMatch(tagRules['border-bottom'], value)
-                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
-                              : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
-                          >{label}</button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 위 여백 */}
-                    <SliderWidget
-                      label="위 여백"
-                      min={0}
-                      max={80}
-                      value={getNumValue(tagRules['margin-top'], 16)}
-                      unit="px"
-                      disabled={isSystemProfile}
-                      onChange={(v) => updateCssRule(tag, 'margin-top', v + 'px')}
-                    />
-
-                    {/* 아래 여백 */}
-                    <SliderWidget
-                      label="아래 여백"
-                      min={0}
-                      max={80}
-                      value={getNumValue(tagRules['margin-bottom'], 8)}
-                      unit="px"
-                      disabled={isSystemProfile}
-                      onChange={(v) => updateCssRule(tag, 'margin-bottom', v + 'px')}
-                    />
-
-                    {/* 왼쪽 여백 */}
-                    <SliderWidget
-                      label="왼쪽 여백"
-                      min={0}
-                      max={60}
-                      value={getNumValue(tagRules['padding-left'], 0)}
-                      unit="px"
-                      disabled={isSystemProfile}
-                      onChange={(v) => updateCssRule(tag, 'padding-left', v + 'px')}
-                    />
-
-                    {/* 글자 색상 (컬러 피커 연동) */}
-                    <ColorPickerWidget
-                      label="글자 색상"
-                      value={tagRules['color'] || ''}
-                      disabled={isSystemProfile}
-                      onChange={(v) => updateCssRule(tag, 'color', v)}
-                    />
-
-                    {/* Hn 불필요한 장식 제거 */}
-                    {(tagRules['border-left'] || tagRules['background-color'] || tagRules['border'] || tagRules['border-right'] || tagRules['border-top']) && (
-                      <div className="bg-red-50 dark:bg-red-900/20 p-2.5 rounded-lg shadow-sm border border-red-100 dark:border-red-900/30 flex flex-col sm:flex-row items-center justify-between gap-2 mt-2">
-                        <span className="text-xs font-semibold text-red-600 dark:text-red-400 text-center sm:text-left">비표준 장식(배경/왼쪽 테두리 등)이 감지되었습니다.</span>
-                        <button type="button" disabled={isSystemProfile}
-                          onClick={() => {
-                            const newRule = { ...(currentProfile.rules[tag as keyof typeof currentProfile.rules] || {}) };
-                            delete newRule['border-left'];
-                            delete newRule['border-right'];
-                            delete newRule['border-top'];
-                            delete newRule['border'];
-                            delete newRule['background-color'];
-                            delete newRule['padding'];
-                            onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, [tag]: newRule }});
-                          }}
-                          className="px-3 py-1.5 rounded text-xs font-bold bg-white dark:bg-zinc-800 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/40 transition-colors whitespace-nowrap"
-                        >
-                          장식 모두 제거
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-
-          {/* 인라인 서식 (Strong, Em, U, Del) 설정 */}
-          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
-            <div className="flex items-center justify-between animate-fadeIn">
-              <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">본문 내 인라인 강조 요소</span>
-              <div className="inline-flex bg-zinc-200/60 dark:bg-zinc-700/60 p-0.5 rounded-md text-sm font-semibold">
-                {(['strong', 'em', 'u', 'del'] as const).map((tab) => (
-                  <button key={tab} onClick={() => setActiveInlineTab(tab)}
-                    className={'px-3.5 py-1.5 rounded transition-all ' + (activeInlineTab === tab ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 font-bold shadow-sm' : 'text-zinc-500 hover:text-zinc-700')}>
-                    {tab.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60 space-y-3.5">
-              {(() => {
-                const tag = activeInlineTab;
-                const tagRules = currentProfile.rules[tag] || {};
-
-                switch (tag) {
-                  case 'strong':
-                    return (
-                      <>
-                        <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm">
-                          <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">굵기</span>
-                          <select value={tagRules['font-weight'] || 'bold'} disabled={isSystemProfile}
-                            onChange={(e) => updateCssRule('strong', 'font-weight', e.target.value)}
-                            className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right">
-                            <option value="normal">일반 (normal)</option>
-                            <option value="bold">굵게 (bold)</option>
-                            <option value="900">최대 굵게 (900)</option>
-                          </select>
-                        </div>
-                        <ColorPickerWidget label="강조 글자 색상" value={tagRules['color'] || ''} disabled={isSystemProfile} onChange={(v) => updateCssRule('strong', 'color', v)} />
-                        <ColorPickerWidget label="강조 배경 색상" value={tagRules['background-color'] || ''} disabled={isSystemProfile} onChange={(v) => updateCssRule('strong', 'background-color', v)} />
-                      </>
-                    );
-                  case 'em':
-                    return (
-                      <>
-                        <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm">
-                          <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">기울임 모양</span>
-                          <select value={tagRules['font-style'] || 'italic'} disabled={isSystemProfile}
-                            onChange={(e) => updateCssRule('em', 'font-style', e.target.value)}
-                            className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right">
-                            <option value="normal">정체</option>
-                            <option value="italic">이탤릭</option>
-                            <option value="oblique">기울임</option>
-                          </select>
-                        </div>
-                        <ColorPickerWidget label="기울임 글자 색상" value={tagRules['color'] || ''} disabled={isSystemProfile} onChange={(v) => updateCssRule('em', 'color', v)} />
-                      </>
-                    );
-                  case 'u':
-                    return (
-                      <>
-                        <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm">
-                          <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">밑줄 모양</span>
-                          <select value={tagRules['text-decoration-style'] || 'solid'} disabled={isSystemProfile}
-                            onChange={(e) => updateCssRule('u', 'text-decoration-style', e.target.value)}
-                            className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right">
-                            <option value="solid">실선</option>
-                            <option value="dashed">대시선</option>
-                            <option value="dotted">점선</option>
-                            <option value="wavy">물결선</option>
-                          </select>
-                        </div>
-                        <ColorPickerWidget label="밑줄 색상" value={tagRules['text-decoration-color'] || ''} disabled={isSystemProfile} onChange={(v) => updateCssRule('u', 'text-decoration-color', v)} />
-                        <SliderWidget label="밑줄 간격" min={0} max={12} value={getNumValue(tagRules['text-underline-offset'], 2)} unit="px" disabled={isSystemProfile} onChange={(v) => updateCssRule('u', 'text-underline-offset', v + 'px')} />
-                      </>
-                    );
-                  case 'del':
-                    return (
-                      <>
-                        <ColorPickerWidget label="취소선 색상" value={tagRules['text-decoration-color'] || ''} disabled={isSystemProfile} onChange={(v) => updateCssRule('del', 'text-decoration-color', v)} />
-                        <SliderWidget label="취소선 굵기" min={1} max={8} value={getNumValue(tagRules['text-decoration-thickness'], 1)} unit="px" disabled={isSystemProfile} onChange={(v) => updateCssRule('del', 'text-decoration-thickness', v + 'px')} />
-                        <SliderWidget label="투명도" min={10} max={100} step={5} value={getNumValue(tagRules['opacity'] !== undefined && tagRules['opacity'] !== '' ? parseFloat(tagRules['opacity']) * 100 : undefined, 60)} unit="%" disabled={isSystemProfile} onChange={(v) => updateCssRule('del', 'opacity', (parseFloat(v) / 100).toString())} />
-                      </>
-                    );
-                  default:
-                    return null;
-                }
-              })()}
-            </div>
-          </div>
-        </AccordionSection>
-
-        {/* 🟢 아코디언 [3]: 목록 및 체크박스 */}
-        <AccordionSection
-          id="lists"
-          title="📋 목록 및 태스크 체크박스"
-          isOpen={openAccordion === 'lists'}
-          onToggle={() => handleAccordionToggle('lists')}
-          sectionRef={(el) => { accordionRefs.current['lists'] = el; }}
-        >
-          <div className="space-y-3.5">
-            <div className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">글머리 & 숫자 목록 설정</div>
-
-            {/* 글머리 마커 종류 */}
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">글머리 마커</span>
-              <select
-                value={(currentProfile.rules.ul || {})['list-style-type'] || 'disc'}
-                disabled={isSystemProfile}
-                onChange={(e) => updateCssRule('ul', 'list-style-type', e.target.value)}
-                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-              >
-                <option value="disc">채워진 원</option>
-                <option value="circle">비어있는 원</option>
-                <option value="square">정사각형</option>
-                <option value="none">없음</option>
-              </select>
-            </div>
-
-            {/* 글머리 마커 색상 */}
-            <ColorPickerWidget
-              label="글머리 마커 색상"
-              value={(currentProfile.rules.ul || {})['color'] || ''}
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('ul', 'color', v)}
-            />
-
-            {/* 숫자 마커 종류 */}
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">숫자 목록 마커</span>
-              <select
-                value={(currentProfile.rules.ol || {})['list-style-type'] || 'decimal'}
-                disabled={isSystemProfile}
-                onChange={(e) => updateCssRule('ol', 'list-style-type', e.target.value)}
-                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-              >
-                <option value="decimal">1, 2, 3</option>
-                <option value="onrivi-report">보고서: Ⅰ. → 1. → 가. → 1) → 가)</option>
-                <option value="decimal-leading-zero">01, 02, 03</option>
-                <option value="lower-roman">i, ii, iii</option>
-                <option value="upper-roman">I, II, III</option>
-                <option value="none">없음</option>
-              </select>
-            </div>
-
-            {(currentProfile.rules.ol || {})['list-style-type'] === 'onrivi-report' && (
-              <p className="text-xs text-zinc-500">단계별로 Ⅰ. → 1. → 가. → 1) → 가)를 표시합니다. Enter로 다음 항목, Tab·Shift+Tab으로 단계를 바꿉니다. 마크다운 원문은 표준 숫자 목록과 계층을 유지하며, 지정 서식과 출력물에서 보고서 번호를 표시합니다. 6단계부터는 숫자를 사용합니다.</p>
-            )}
-            {/* 숫자 마커 색상 */}
-            <ColorPickerWidget
-              label="숫자 마커 색상"
-              value={(currentProfile.rules.ol || {})['color'] || ''}
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('ol', 'color', v)}
-            />
-
-            {/* 목록 줄 간격 슬라이더 */}
-            <SliderWidget
-              label="목록 항목 간 줄 여백"
-              min={0}
-              max={32}
-              value={getNumValue((currentProfile.rules.li || {})['margin-bottom'], 6)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('li', 'margin-bottom', v + 'px')}
-            />
-
-            {/* 목록 전체 들여쓰기 슬라이더 */}
-            <SliderWidget
-              label="목록 기본 들여쓰기 너비"
-              min={0}
-              max={60}
-              value={getNumValue((currentProfile.rules.ul || {})['padding-left'], 28)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => {
-                const pxVal = v + 'px';
-                const updated = {
-                  ...currentProfile,
-                  rules: {
-                    ...currentProfile.rules,
-                    ul: { ...(currentProfile.rules.ul || {}), 'padding-left': pxVal },
-                    ol: { ...(currentProfile.rules.ol || {}), 'padding-left': pxVal },
-                  }
-                };
-                triggerUpdate(updated, 'ul', '목록 기본 들여쓰기 너비');
-              }}
-            />
-
-            {/* 마커-글자 간격 슬라이더 */}
-            <SliderWidget
-              label="기호 마커와 글자 간격"
-              min={0}
-              max={32}
-              value={getNumValue((currentProfile.rules.li || {})['padding-inline-start'], 8)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('li', 'padding-inline-start', v + 'px')}
-            />
-
-            {/* 태스크 체크박스 규칙 */}
-            <div className="border-t border-zinc-200 dark:border-zinc-800 pt-3.5 space-y-3.5">
-              <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">태스크 리스트 체크박스</span>
-
-              {/* 완료 항목 효과 */}
-              <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-                <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">완료 항목 스타일</span>
-                <select
-                  value={checkboxStructure.checkedEffect || 'none'}
-                  disabled={isSystemProfile}
-                  onChange={(e) => updateCheckboxStructure('checkedEffect', e.target.value)}
-                  className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+                <button
+                  type="button"
+                  onClick={() => setStyleMode('quick')}
+                  className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-all cursor-pointer flex items-center gap-1"
                 >
-                  <option value="none">효과 없음</option>
-                  <option value="line-through-and-dim">취소선 + 반투명</option>
-                  <option value="dim-only">반투명 효과만</option>
-                </select>
+                  <span>⚡ 간편 모드로 가기</span>
+                  <span>➔</span>
+                </button>
               </div>
-
-              {/* 체크박스 색상 */}
-              <ColorPickerWidget
-                label="체크박스 색상"
-                value={checkboxStructure.color || ''}
-                disabled={isSystemProfile}
-                onChange={(v) => updateCheckboxStructure('color', v)}
-              />
-
-              {/* 체크리스트 글자 색상 */}
-              <ColorPickerWidget
-                label="체크리스트 글자 색상"
-                value={(currentProfile.rules.taskList || {})['color'] || ''}
-                disabled={isSystemProfile}
-                onChange={(v) => updateCssRule('taskList', 'color', v)}
-              />
-
-              {/* 박스 크기 슬라이더 */}
-              <SliderWidget
-                label="체크박스 물리 크기"
-                min={8}
-                max={32}
-                value={getNumValue(checkboxStructure.boxSize, 16)}
-                unit="px"
-                disabled={isSystemProfile}
-                onChange={(v) => updateCheckboxStructure('boxSize', v + 'px')}
-              />
-
-              {/* 체크박스-글자 간격 슬라이더 */}
-              <SliderWidget
-                label="체크박스와 텍스트 간격"
-                min={0}
-                max={32}
-                value={getNumValue(checkboxStructure.textGap, 10)}
-                unit="px"
-                disabled={isSystemProfile}
-                onChange={(v) => updateCheckboxStructure('textGap', v + 'px')}
-              />
-            </div>
-          </div>
-        </AccordionSection>
-
-        {/* 🟢 아코디언 [4]: 구분선 규칙 (HR) */}
-        <AccordionSection
-          id="hr"
-          title="➖ 수평 구분선 (HR) 규격"
-          isOpen={openAccordion === 'hr'}
-          onToggle={() => handleAccordionToggle('hr')}
-          sectionRef={(el) => { accordionRefs.current['hr'] = el; }}
-        >
-          <div className="space-y-3.5">
-            {/* 선 모양 종류 */}
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">선 스타일</span>
-              <select
-                value={hrStructure.borderTopStyle}
-                disabled={isSystemProfile}
-                onChange={(e) => updateHrStructure('borderTopStyle', e.target.value, `구분선 스타일(${e.target.options[e.target.selectedIndex].text})`)}
-                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-              >
-                <option value="solid">실선</option>
-                <option value="dotted">점선</option>
-                <option value="dashed">대시선</option>
-                <option value="double">이중선</option>
-              </select>
-            </div>
-
-            {/* 선 두께 슬라이더 */}
-            <SliderWidget
-              label="구분선 선 두께"
-              min={1}
-              max={10}
-              value={getNumValue(hrStructure.borderTopWidth, 1)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateHrStructure('borderTopWidth', v + 'px', `구분선 두께(${v}px)`)}
-            />
-
-            {/* 위아래 여백 슬라이더 */}
-            <SliderWidget
-              label="구분선 상하 여백 너비"
-              min={0}
-              max={100}
-              value={getNumValue(hrStructure.marginTopBottom, 32)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateHrStructure('marginTopBottom', v + 'px', `구분선 상하 여백(${v}px)`)}
-            />
-
-            {/* 가로 길이 비율 */}
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">구분선 너비</span>
-              <select
-                value={hrStructure.lineWidth}
-                disabled={isSystemProfile}
-                onChange={(e) => updateHrStructure('lineWidth', e.target.value, `구분선 너비(${e.target.value})`)}
-                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-              >
-                <option value="100%">100% (전체)</option>
-                <option value="75%">75% (중앙)</option>
-                <option value="50%">50% (중앙)</option>
-                <option value="30%">30% (짧은 선)</option>
-              </select>
-            </div>
-
-            {/* 선 색상 (컬러 피커 연동) */}
-            <ColorPickerWidget
-              label="구분선 색상"
-              value={(currentProfile.rules.hr || {})['border-top-color'] || ''}
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('hr', 'border-top-color', v)}
-            />
-          </div>
-        </AccordionSection>
-
-        {/* 🟢 아코디언 [5]: 표, 하이퍼링크, 소스코드, 인용구, 각주 */}
-        <AccordionSection
-          id="others"
-          title="🏺 표, 하이퍼링크, 소스코드, 인용구, 각주"
-          isOpen={openAccordion === 'others'}
-          onToggle={() => handleAccordionToggle('others')}
-          sectionRef={(el) => { accordionRefs.current['others'] = el; }}
-        >
-          {/* 인용구 (Blockquote) 설정 */}
-          <div className="space-y-3.5">
-            <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">💬 인용구 (Blockquote) 스타일</span>
-            
-            {/* 인용구 형태 프리셋 버튼 */}
-            {(() => {
-              // 버튼 활성화 상태(선택 표시)는 DEFAULT_PROFILE과 병합된 getTagRules 대신 
-              // 현재 프로필에 실제로 저장된 raw 객체를 기준으로 판단해야 삭제된 속성이 되살아나지 않습니다.
-              const rawBq = currentProfile.rules.blockquote || {};
-              const hasBorderLeft = !!rawBq['border-left'] && rawBq['border-left'] !== 'none';
-              const hasBorder = !!rawBq['border'] && rawBq['border'] !== 'none';
-              const hasBoxShadow = !!rawBq['box-shadow'] && rawBq['box-shadow'] !== 'none';
-
-              const isShadowBox = hasBoxShadow && !hasBorder && !hasBorderLeft;
-              const isLeftLine = hasBorderLeft;
-              const isFullBox = !hasBorderLeft && hasBorder;
-              
-              const activeClass = 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300';
-              const inactiveClass = 'border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300';
-
-              return (
-                <div className="flex gap-2 mb-4">
-                  <button 
-                    disabled={isSystemProfile}
-                    onClick={() => {
-                      const newBq = { ...(currentProfile.rules.blockquote || {}) };
-                      newBq['border-left'] = (newBq['border-left'] && newBq['border-left'] !== 'none') ? newBq['border-left'] : '4px solid #2563eb';
-                      delete newBq['border'];
-                      delete newBq['border-width'];
-                      delete newBq['border-color'];
-                      newBq['box-shadow'] = 'none';
-                      newBq['border-radius'] = '0 8px 8px 0';
-                      newBq['padding'] = '14px 20px';
-                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, blockquote: newBq }}, 'blockquote', '인용구 형태 (왼쪽 띠형)');
-                    }}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isLeftLine ? activeClass : inactiveClass}`}
-                  >
-                    왼쪽 띠형
-                  </button>
-                  <button 
-                    disabled={isSystemProfile}
-                    onClick={() => {
-                      const newBq = { ...(currentProfile.rules.blockquote || {}) };
-                      delete newBq['border-left'];
-                      delete newBq['border-left-width'];
-                      delete newBq['border-left-color'];
-                      newBq['border'] = (newBq['border'] && newBq['border'] !== 'none') ? newBq['border'] : '1px solid #cbd5e1';
-                      newBq['box-shadow'] = 'none';
-                      newBq['border-radius'] = '8px';
-                      newBq['padding'] = '16px';
-                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, blockquote: newBq }}, 'blockquote', '인용구 형태 (전체 박스형)');
-                    }}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isFullBox ? activeClass : inactiveClass}`}
-                  >
-                    전체 박스형
-                  </button>
-                  <button 
-                    disabled={isSystemProfile}
-                    onClick={() => {
-                      const newBq = { ...(currentProfile.rules.blockquote || {}) };
-                      delete newBq['border-left'];
-                      delete newBq['border-left-width'];
-                      delete newBq['border-left-color'];
-                      delete newBq['border'];
-                      delete newBq['border-width'];
-                      delete newBq['border-color'];
-                      // 그림자 효과 강화 (더 진하고 넓게)
-                      newBq['box-shadow'] = '0 8px 24px rgba(0,0,0,0.15)';
-                      newBq['border-radius'] = '8px';
-                      newBq['padding'] = '16px';
-                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, blockquote: newBq }}, 'blockquote', '인용구 형태 (그림자 박스형)');
-                    }}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isShadowBox ? activeClass : inactiveClass}`}
-                  >
-                    그림자 박스형
-                  </button>
-                </div>
-              );
-            })()}
-
-            {/* 인용구 배경 색상 (컬러 피커 연동) */}
-            <ColorPickerWidget
-              label="인용구 채우기 배경색"
-              value={(currentProfile.rules.blockquote || {})['background-color'] || ''}
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('blockquote', 'background-color', v)}
-            />
-
-            {/* 강조선 색상 (컬러 피커 연동) */}
-            <ColorPickerWidget
-              label="테두리/왼쪽 선 색상"
-              value={(currentProfile.rules.blockquote || {})['border-left-color'] || (currentProfile.rules.blockquote || {})['border-color'] || ''}
-              disabled={isSystemProfile}
-              onChange={(v) => {
-                const bq = currentProfile.rules.blockquote || {};
-                if (bq['border'] && bq['border'] !== 'none') {
-                  updateCssRule('blockquote', 'border-color', v);
-                } else {
-                  updateCssRule('blockquote', 'border-left-color', v);
-                }
-              }}
-            />
-
-            {/* 테두리 두께 슬라이더 */}
-            <SliderWidget
-              label="테두리/선 두께"
-              min={0}
-              max={20}
-              value={getNumValue((currentProfile.rules.blockquote || {})['border-width'] ?? (currentProfile.rules.blockquote || {})['border-left-width'], 4)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => {
-                const newBq = { ...(currentProfile.rules.blockquote || {}) };
-                if (newBq['border'] && newBq['border'] !== 'none') {
-                  newBq['border-width'] = v + 'px';
-                  delete newBq['border-left-width'];
-                } else {
-                  newBq['border-left-width'] = v + 'px';
-                  delete newBq['border-width'];
-                }
-                triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, blockquote: newBq }}, 'blockquote', `인용 테두리 두께 (${v}px)`);
-              }}
-            />
-
-            {/* 모서리 둥글기 슬라이더 */}
-            <SliderWidget
-              label="모서리 둥글기 (Border Radius)"
-              min={0}
-              max={40}
-              value={getNumValue((currentProfile.rules.blockquote || {})['border-radius'], 8)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('blockquote', 'border-radius', v + 'px')}
-            />
-
-            {/* 바깥 상하 여백 슬라이더 */}
-            <SliderWidget
-              label="인용 상하 바깥 여백"
-              min={0}
-              max={80}
-              value={getNumValue((currentProfile.rules.blockquote || {})['margin-top'], 24)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => {
-                const pxVal = v + 'px';
-                const updated = {
-                  ...currentProfile,
-                  rules: {
-                    ...currentProfile.rules,
-                    blockquote: {
-                      ...(currentProfile.rules.blockquote || {}),
-                      'margin-top': pxVal,
-                      'margin-bottom': pxVal
-                    }
-                  }
-                };
-                triggerUpdate(updated, 'blockquote', `인용 상하 여백 (${v}px)`);
-              }}
-            />
-
-            {/* 내부 패딩 슬라이더 */}
-            <SliderWidget
-              label="인용 내부 패딩 여백"
-              min={0}
-              max={64}
-              value={getNumValue((currentProfile.rules.blockquote || {})['padding'], 16)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('blockquote', 'padding', v + 'px')}
-            />
-
-            {/* 인용구 글자 크기 */}
-            <FontSizeControl
-              label="인용구 글자 크기"
-              value={getTagRules('blockquote')['font-size']}
-              baseFontSize={baseFontSize}
-              disabled={isSystemProfile}
-              onChange={(v) => {
-                if (!v) {
-                  const { 'font-size': _, ...rest } = getTagRules('blockquote');
-                  triggerUpdate({
-                    ...currentProfile,
-                    rules: { ...currentProfile.rules, blockquote: { ...rest, 'font-size': 'inherit' } }
-                  }, 'blockquote', '인용구 기본 글자 크기 유지');
-                } else {
-                  updateCssRule('blockquote', 'font-size', v);
-                }
-              }}
-            />
-
-            {/* 인용구 글자 굵기 설정 */}
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">인용 글자 굵기</span>
-              <select
-                value={isFontWeightBold(getTagRules('blockquote')['font-weight']) ? 'bold' : 'normal'}
-                disabled={isSystemProfile}
-                onChange={(e) => updateCssRule('blockquote', 'font-weight', e.target.value)}
-                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-              >
-                <option value="normal">보통</option>
-                <option value="bold">굵게</option>
-              </select>
-            </div>
-          </div>
-
-          {/* 표 (Table) 설정 */}
-          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
-            <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">📊 표 (Table) 스타일</span>
-
-            {/* 표 형태 프리셋 버튼 */}
-            {(() => {
-              const rawT = currentProfile.rules.table || {};
-              const rawTh = currentProfile.rules.th || {};
-              const rawTd = currentProfile.rules.td || {};
-              const ts = currentProfile.tableStructure || {
-                outerBorderWidth: rawT['border-width'] || (rawT['border'] ? '1px' : (rawT['border-top'] ? '1px' : '0px')),
-                rowBorderWidth: rawTh['border-width'] || (rawTh['border-bottom'] ? '1px' : '1px'),
-                colBorderWidth: rawTd['border-left'] === 'none' ? '0px' : (rawTd['border-left'] ? '1px' : (rawTd['border-width'] || '0px')),
-              };
-              const outerW = parseInt(ts.outerBorderWidth || '0', 10) || 0;
-              const rowW = parseInt(ts.rowBorderWidth || '0', 10) || 0;
-              const colW = parseInt(ts.colBorderWidth || '0', 10) || 0;
-
-              const isMinimal = outerW === 0 && rowW === 0 && colW === 0;
-              const isGrid = !isMinimal && colW > 0;
-              const isHorizontal = !isMinimal && colW === 0;
-              
-              const activeClass = 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/40 border-blue-400 dark:border-blue-500 text-blue-700 dark:text-blue-300 font-bold shadow-xs';
-              const inactiveClass = 'border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300';
-
-              return (
-                <div className="flex gap-2 mb-4">
-                  <button 
-                    disabled={isSystemProfile}
-                    onClick={() => {
-                      const newT = { ...(currentProfile.rules.table || {}) };
-                      const newTh = { ...(currentProfile.rules.th || {}) };
-                      const newTd = { ...(currentProfile.rules.td || {}) };
-                      const color = newT['border-color'] || '#cbd5e1';
-                      const bStyle = newT['border-style'] || 'solid';
-                      // 모든 테두리 (Grid): 1px 사방 테두리
-                      newT['border-style'] = bStyle; newT['border-width'] = '1px'; newT['border-color'] = color;
-                      newTh['border-style'] = bStyle; newTh['border-width'] = '1px'; newTh['border-color'] = color;
-                      newTd['border-style'] = bStyle; newTd['border-width'] = '1px'; newTd['border-color'] = color;
-                      // 기존 shorthand 및 방향별 설정 완전 제거
-                      delete newT['border']; delete newTh['border']; delete newTd['border'];
-                      delete newT['border-top']; delete newT['border-bottom']; delete newT['border-left']; delete newT['border-right'];
-                      delete newTh['border-bottom']; delete newTh['border-top']; delete newTh['border-left']; delete newTh['border-right'];
-                      delete newTd['border-bottom']; delete newTd['border-top']; delete newTd['border-left']; delete newTd['border-right'];
-                      const nextTableStructure = { outerBorderWidth: '1px', rowBorderWidth: '1px', colBorderWidth: '1px' };
-                      triggerUpdate({ ...currentProfile, tableStructure: nextTableStructure, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }}, 'table', '표 형태 (모든 테두리)');
-                    }}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isGrid ? activeClass : inactiveClass}`}
-                  >
-                    모든 테두리 (Grid)
-                  </button>
-                  <button 
-                    disabled={isSystemProfile}
-                    onClick={() => {
-                      const newT = { ...(currentProfile.rules.table || {}) };
-                      const newTh = { ...(currentProfile.rules.th || {}) };
-                      const newTd = { ...(currentProfile.rules.td || {}) };
-                      const color = newT['border-color'] || '#cbd5e1';
-                      const bStyle = newT['border-style'] || 'solid';
-                      // 가로선 강조: 외곽 2px, 행 1px, 열 0px(세로선 없음)
-                      newT['border-style'] = bStyle; newT['border-width'] = '2px'; newT['border-color'] = color;
-                      newTh['border-style'] = bStyle; newTh['border-width'] = '1px'; newTh['border-color'] = color;
-                      newTd['border-style'] = bStyle; newTd['border-width'] = '1px'; newTd['border-color'] = color;
-                      delete newT['border']; delete newTh['border']; delete newTd['border'];
-                      delete newT['border-top']; delete newT['border-bottom']; delete newT['border-left']; delete newT['border-right'];
-                      delete newTh['border-bottom']; delete newTh['border-top']; delete newTh['border-left']; delete newTh['border-right'];
-                      delete newTd['border-bottom']; delete newTd['border-top']; delete newTd['border-left']; delete newTd['border-right'];
-                      const nextTableStructure = { outerBorderWidth: '2px', rowBorderWidth: '1px', colBorderWidth: '0px' };
-                      triggerUpdate({ ...currentProfile, tableStructure: nextTableStructure, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }}, 'table', '표 형태 (가로선 강조)');
-                    }}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isHorizontal ? activeClass : inactiveClass}`}
-                  >
-                    가로선 강조
-                  </button>
-                  <button 
-                    disabled={isSystemProfile}
-                    onClick={() => {
-                      const newT = { ...(currentProfile.rules.table || {}) };
-                      const newTh = { ...(currentProfile.rules.th || {}) };
-                      const newTd = { ...(currentProfile.rules.td || {}) };
-                      // 미니멀: 외곽 0px, 행 0px, 열 0px (테두리 완전 소멸)
-                      newT['border'] = 'none';
-                      newTh['border'] = 'none';
-                      newTd['border'] = 'none';
-                      newT['border-style'] = 'none'; newT['border-width'] = '0px';
-                      newTh['border-style'] = 'none'; newTh['border-width'] = '0px';
-                      newTd['border-style'] = 'none'; newTd['border-width'] = '0px';
-                      newTh['background-color'] = newTh['background-color'] || '#f8fafc';
-                      delete newT['border-top']; delete newT['border-bottom']; delete newT['border-left']; delete newT['border-right'];
-                      delete newTh['border-bottom']; delete newTh['border-top']; delete newTh['border-left']; delete newTh['border-right'];
-                      delete newTd['border-bottom']; delete newTd['border-top']; delete newTd['border-left']; delete newTd['border-right'];
-                      const nextTableStructure = { outerBorderWidth: '0px', rowBorderWidth: '0px', colBorderWidth: '0px' };
-                      triggerUpdate({ ...currentProfile, tableStructure: nextTableStructure, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }}, 'table', '표 형태 (미니멀)');
-                    }}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isMinimal ? activeClass : inactiveClass}`}
-                  >
-                    미니멀
-                  </button>
-                </div>
-              );
-            })()}
-
-            {/* 표 전체 너비 */}
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">표 전체 너비</span>
-              <select
-                value={getTagRules('table')['width'] || '100%'}
-                disabled={isSystemProfile}
-                onChange={(e) => updateCssRule('table', 'width', e.target.value)}
-                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-              >
-                <option value="100%">100% (최대)</option>
-                <option value="auto">auto (콘텐츠 맞춤)</option>
-                <option value="50%">50% (반 너비)</option>
-              </select>
-            </div>
-
-            {/* 표 테두리 스타일 */}
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">표 테두리 모양</span>
-              <select
-                value={getTagRules('table')['border-style'] || 'solid'}
-                disabled={isSystemProfile}
-                onChange={(e) => updateTableBorder('border-style', e.target.value)}
-                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-              >
-                <option value="solid">실선</option>
-                <option value="double">이중선</option>
-                <option value="dotted">점선</option>
-                <option value="dashed">대시선</option>
-                <option value="none">없음</option>
-              </select>
-            </div>
-
-            {/* 표 외곽 테두리 두께 */}
-            <SliderWidget
-              label="표 외곽 테두리 두께"
-              min={0}
-              max={8}
-              value={getNumValue(tableStructure.outerBorderWidth, 1)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateTableStructure('outerBorderWidth', v + 'px')}
-            />
-
-            {/* 표 행(가로선) 두께 */}
-            <SliderWidget
-              label="표 행(가로선) 두께"
-              min={0}
-              max={8}
-              value={getNumValue(tableStructure.rowBorderWidth, 1)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateTableStructure('rowBorderWidth', v + 'px')}
-            />
-
-            {/* 표 열(세로선) 두께 */}
-            <SliderWidget
-              label="표 열(세로선) 두께"
-              min={0}
-              max={8}
-              value={getNumValue(tableStructure.colBorderWidth, 1)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateTableStructure('colBorderWidth', v + 'px')}
-            />
-
-            {/* 표 테두리 색상 */}
-            <ColorPickerWidget
-              label="표 테두리 색상"
-              value={getTagRules('table')['border-color'] || ''}
-              disabled={isSystemProfile}
-              onChange={(v) => updateTableBorder('border-color', v)}
-            />
-
-            {/* 헤더 배경색 */}
-            <ColorPickerWidget
-              label="표 헤더(TH) 배경색"
-              value={getTagRules('th')['background-color'] || ''}
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('th', 'background-color', v)}
-            />
-
-            {/* 행 배경색 */}
-            <ColorPickerWidget
-              label="표 본문(TD) 배경색"
-              value={getTagRules('td')['background-color'] || ''}
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('td', 'background-color', v)}
-            />
-
-            {/* 셀 패딩 (여백) */}
-            <SliderWidget
-              label="표 셀 내부 여백 (Padding)"
-              min={0}
-              max={24}
-              value={getNumValue(getTagRules('th')['padding'], 8)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCellPadding(v + 'px')}
-            />
-
-            {/* 표 글자 크기 */}
-            <FontSizeControl
-              label="표 글자 크기"
-              value={getTagRules('table')['font-size']}
-              baseFontSize={baseFontSize}
-              disabled={isSystemProfile}
-              onChange={(v) => updateTableFontSize(v)}
-            />
-
-            {/* 표 상단 여백 (제목 문구와의 간격) */}
-            <SliderWidget
-              label="표 상단 여백 (제목 문구와의 간격)"
-              min={0}
-              max={48}
-              value={getNumValue(getTagRules('table')['margin-top'], 4)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => {
-                const currentTagRules = currentProfile.rules['table'] || {};
-                const updated = {
-                  ...currentProfile,
-                  rules: {
-                    ...currentProfile.rules,
-                    table: { ...currentTagRules, 'margin-top': v + 'px' },
-                  },
-                };
-                triggerUpdate(updated, 'table', `표 상단 여백 (${v}px)`);
-              }}
-            />
-
-            {/* 표 하단 여백 */}
-            <SliderWidget
-              label="표 하단 여백"
-              min={0}
-              max={48}
-              value={getNumValue(getTagRules('table')['margin-bottom'], 16)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => {
-                const currentTagRules = currentProfile.rules['table'] || {};
-                const updated = {
-                  ...currentProfile,
-                  rules: {
-                    ...currentProfile.rules,
-                    table: { ...currentTagRules, 'margin-bottom': v + 'px' },
-                  },
-                };
-                triggerUpdate(updated, 'table', `표 하단 여백 (${v}px)`);
-              }}
-            />
-          </div>
-
-          {/* 하이퍼링크 (A) 설정 */}
-          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
-            <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🔗 하이퍼링크 (Link) 스타일</span>
-
-            <ColorPickerWidget
-              label="링크 글자 색상"
-              value={getTagRules('a')['color'] || ''}
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('a', 'color', v)}
-            />
-
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">링크 밑줄 여부</span>
-              <select
-                value={getTagRules('a')['text-decoration'] || 'underline'}
-                disabled={isSystemProfile}
-                onChange={(e) => updateCssRule('a', 'text-decoration', e.target.value)}
-                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-              >
-                <option value="underline">밑줄 노출</option>
-                <option value="none">밑줄 소거</option>
-              </select>
-            </div>
-
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">링크 글자 굵기</span>
-              <select
-                value={isFontWeightBold(getTagRules('a')['font-weight']) ? 'bold' : 'normal'}
-                disabled={isSystemProfile}
-                onChange={(e) => updateCssRule('a', 'font-weight', e.target.value)}
-                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-              >
-                <option value="normal">보통</option>
-                <option value="bold">굵게</option>
-              </select>
-            </div>
-          </div>
-
-          {/* 소스코드 및 코드 블록 설정 */}
-          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
-            <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">💻 소스코드 및 코드 블록</span>
-
-            {/* 코드 블록 형태 프리셋 버튼 */}
-            {(() => {
-              const cb = getTagRules('codeBlock');
-              const bg = (cb['background-color'] || '').toLowerCase();
-              const isMac = bg === '#282c34';
-              const isDark = !isMac && (bg === '#0f172a' || bg === '#1e293b' || bg === '#111827' || bg === '#18181b' || (cb['color'] && cb['color'].toLowerCase().startsWith('#f')));
-              const isBasic = !isMac && !isDark;
-              
-              const activeClass = 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300';
-              const inactiveClass = 'border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300';
-
-              return (
-                <div className="flex gap-2 mb-4">
-                  <button 
-                    disabled={isSystemProfile}
-                    onClick={() => {
-                      const newCb = { ...(currentProfile.rules.codeBlock || {}) };
-                      const newCbt = { ...(currentProfile.rules.codeBlockTitle || {}) };
-                      newCb['background-color'] = '#f1f5f9';
-                      newCb['color'] = '#1e293b';
-                      newCb['border-radius'] = '6px';
-                      newCbt['background-color'] = '#e2e8f0';
-                      newCbt['color'] = '#475569';
-                      newCbt['padding'] = '8px 12px';
-                      newCbt['border-radius'] = '6px 6px 0 0';
-                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, codeBlock: newCb, codeBlockTitle: newCbt }});
-                    }}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isBasic ? activeClass : inactiveClass}`}
-                  >
-                    기본 박스
-                  </button>
-                  <button 
-                    disabled={isSystemProfile}
-                    onClick={() => {
-                      const newCb = { ...(currentProfile.rules.codeBlock || {}) };
-                      const newCbt = { ...(currentProfile.rules.codeBlockTitle || {}) };
-                      newCb['background-color'] = '#282c34';
-                      newCb['color'] = '#abb2bf';
-                      newCb['border-radius'] = '0 0 8px 8px';
-                      newCbt['background-color'] = '#21252b';
-                      newCbt['color'] = '#abb2bf';
-                      newCbt['padding'] = '10px 16px';
-                      newCbt['border-radius'] = '8px 8px 0 0';
-                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, codeBlock: newCb, codeBlockTitle: newCbt }});
-                    }}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isMac ? activeClass : inactiveClass}`}
-                  >
-                    Mac OS 테마
-                  </button>
-                  <button 
-                    disabled={isSystemProfile}
-                    onClick={() => {
-                      const newCb = { ...(currentProfile.rules.codeBlock || {}) };
-                      const newCbt = { ...(currentProfile.rules.codeBlockTitle || {}) };
-                      newCb['background-color'] = '#0f172a';
-                      newCb['color'] = '#e2e8f0';
-                      newCb['border-radius'] = '0 0 8px 8px';
-                      newCbt['background-color'] = '#1e293b';
-                      newCbt['color'] = '#94a3b8';
-                      newCbt['padding'] = '8px 12px';
-                      newCbt['border-radius'] = '8px 8px 0 0';
-                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, codeBlock: newCb, codeBlockTitle: newCbt }});
-                    }}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isDark ? activeClass : inactiveClass}`}
-                  >
-                    다크 테마 고정
-                  </button>
-                </div>
-              );
-            })()}
-
-            <ColorPickerWidget
-              label="코드 블록 타이틀 배경색"
-              value={getTagRules('codeBlockTitle')['background-color'] || ''}
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('codeBlockTitle', 'background-color', v)}
-            />
-            <ColorPickerWidget
-              label="코드 블록 타이틀 글자색"
-              value={getTagRules('codeBlockTitle')['color'] || ''}
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('codeBlockTitle', 'color', v)}
-            />
-
-            <ColorPickerWidget
-              label="코드 블록 배경색"
-              value={getTagRules('codeBlock')['background-color'] || ''}
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('codeBlock', 'background-color', v)}
-            />
-            <ColorPickerWidget
-              label="코드 블록 글자색"
-              value={getTagRules('codeBlock')['color'] || ''}
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('codeBlock', 'color', v)}
-            />
-            <FontSizeControl
-              label="코드 글자 크기"
-              min={10}
-              max={24}
-              value={getTagRules('codeBlock')['font-size']}
-              baseFontSize={baseFontSize}
-              disabled={isSystemProfile}
-              onChange={(v) => {
-                if (!v) {
-                  const { 'font-size': _, ...rest } = getTagRules('codeBlock');
-                  triggerUpdate({
-                    ...currentProfile,
-                    rules: { ...currentProfile.rules, codeBlock: { ...rest, 'font-size': 'inherit' } }
-                  }, 'codeBlock', '코드 블록 기본 글자 크기 유지');
-                } else {
-                  updateCssRule('codeBlock', 'font-size', v);
-                }
-              }}
-            />
-
-            {/* 코드 블록 줄 간격(행간) 슬라이더 */}
-            <SliderWidget
-              label="코드 블록 줄 간격 (행간)"
-              min={1.0}
-              max={2.0}
-              step={0.05}
-              value={parseFloat((getTagRules('codeBlock')['line-height']) || '1.35')}
-              unit="배"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('codeBlock', 'line-height', String(v))}
-            />
-
-            <SliderWidget
-              label="코드 블록 내부 패딩"
-              min={0}
-              max={32}
-              value={getNumValue(getTagRules('codeBlock')['padding'], 12)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('codeBlock', 'padding', v + 'px')}
-            />
-
-            <SliderWidget
-              label="코드 블록 테두리 둥글기"
-              min={0}
-              max={16}
-              value={getNumValue(getTagRules('codeBlock')['border-radius'], 6)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('codeBlock', 'border-radius', v + 'px')}
-            />
-          </div>
-
-          {/* 인라인 코드 (Code) 설정 */}
-          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
-            <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">💻 CODE - 인라인 소스 코드 스타일</span>
-            <ColorPickerWidget
-              label="코드 글자 색상"
-              value={getTagRules('code')['color'] || ''}
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('code', 'color', v)}
-            />
-            <ColorPickerWidget
-              label="코드 배경 색상"
-              value={getTagRules('code')['background-color'] || ''}
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('code', 'background-color', v)}
-            />
-
-            <SliderWidget
-              label="코드 테두리 둥글기"
-              min={0}
-              max={16}
-              value={getNumValue(getTagRules('code')['border-radius'], 4)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('code', 'border-radius', v + 'px')}
-            />
-
-            {/* 인라인 코드 글자 굵기 설정 */}
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">코드 글자 굵기</span>
-              <select
-                value={getTagRules('code')['font-weight'] || 'normal'}
-                disabled={isSystemProfile}
-                onChange={(e) => updateCssRule('code', 'font-weight', e.target.value)}
-                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-              >
-                <option value="normal">보통</option>
-                <option value="bold">굵게</option>
-              </select>
-            </div>
-          </div>
-
-          {/* 각주 영역 (Footnote) 설정 */}
-          <div className="border-t border-zinc-200 dark:border-zinc-800/60 pt-4 space-y-3.5">
-            <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">📌 FOOTNOTE - 각주 영역 스타일 조작</span>
-            <ColorPickerWidget
-              label="각주 글자 색상"
-              value={getTagRules('footnote')['color'] || ''}
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('footnote', 'color', v)}
-            />
-            <div className="flex items-center justify-between p-3 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
-              <span className="text-[13.5px] font-bold text-zinc-700 dark:text-zinc-300">각주 굵기 (Font Weight)</span>
-              <select
-                value={isFontWeightBold(getTagRules('footnote')['font-weight']) ? 'bold' : 'normal'}
-                disabled={isSystemProfile}
-                onChange={(e) => updateCssRule('footnote', 'font-weight', e.target.value)}
-                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-              >
-                <option value="normal">보통</option>
-                <option value="bold">굵게</option>
-              </select>
-            </div>
-            <SliderWidget
-              label="각주 글자 크기"
-              min={9}
-              max={24}
-              value={getNumValue(getTagRules('footnote')['font-size'], 12)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('footnote', 'font-size', `${v}px`)}
-            />
-            <SliderWidget
-              label="각주 줄 간격"
-              min={1.0}
-              max={2.5}
-              step={0.1}
-              value={getNumValue(getTagRules('footnote')['line-height'], 1.4)}
-              unit="배"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('footnote', 'line-height', v)}
-            />
-            <SliderWidget
-              label="각주 상하 바깥 여백"
-              min={0}
-              max={60}
-              value={getNumValue(getTagRules('footnote')['margin-top'], 8)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => {
-                const px = v + 'px';
-                if (!isSystemProfile) {
-                  const updated = {
-                    ...currentProfile,
-                    rules: {
-                      ...currentProfile.rules,
-                      footnote: {
-                        ...(currentProfile.rules.footnote || {}),
-                        'margin-top': px,
-                        'margin-bottom': px
-                      }
-                    }
-                  };
-                  triggerUpdate(updated, 'footnote', `각주 상하 바깥 여백: ${px}`);
-                }
-              }}
-            />
-          </div>
-        </AccordionSection>
-
-        {/* 🎬 아코디언 [6]: 미디어 (이미지, 동영상, 지도, 수식) */}
-        <AccordionSection
-          id="media"
-          title="🎬 미디어 (이미지, 동영상, 지도, 수식)"
-          isOpen={openAccordion === 'media'}
-          onToggle={() => handleAccordionToggle('media')}
-          sectionRef={(el) => { accordionRefs.current['media'] = el; }}
-        >
-          {/* 이미지 객체 (Image) 설정 */}
-          <div className="space-y-3.5">
-            <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🖼️ IMG - 이미지 객체 규격 조작</span>
-
-            {/* 이미지 형태 프리셋 버튼 */}
-            {(() => {
-              const imgRules = currentProfile.rules.img || {};
-              const hasImgBorderBottom = !!imgRules['border-bottom-width'] && imgRules['border-bottom-width'] !== 'none';
-              const hasImgBoxShadow = !!imgRules['box-shadow'] && imgRules['box-shadow'] !== 'none';
-              
-              const isPolaroid = imgRules['border-bottom-width'] === '32px' || hasImgBorderBottom;
-              const isThumbnail = !isPolaroid && hasImgBoxShadow;
-              const isBasic = !isPolaroid && !isThumbnail;
-              
-              const activeClass = 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300';
-              const inactiveClass = 'border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300';
-
-              return (
-                <div className="flex gap-2 mb-4">
-                  <button 
-                    disabled={isSystemProfile}
-                    onClick={() => {
-                      const img = { ...(currentProfile.rules.img || {}) };
-                      delete img['border'];
-                      delete img['border-bottom-width'];
-                      delete img['box-shadow'];
-                      img['border-radius'] = '4px';
-                      img['padding'] = '0px';
-                      img['background-color'] = 'transparent';
-                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, img }}, 'img', '이미지 형태 (기본형)');
-                    }}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isBasic ? activeClass : inactiveClass}`}
-                  >
-                    기본형
-                  </button>
-                  <button 
-                    disabled={isSystemProfile}
-                    onClick={() => {
-                      const img = { ...(currentProfile.rules.img || {}) };
-                      img['border'] = '10px solid white';
-                      img['border-bottom-width'] = '32px';
-                      img['box-shadow'] = '0 8px 16px rgba(0,0,0,0.15)';
-                      img['border-radius'] = '2px';
-                      img['background-color'] = 'white';
-                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, img }}, 'img', '이미지 형태 (폴라로이드형)');
-                    }}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isPolaroid ? activeClass : inactiveClass}`}
-                  >
-                    폴라로이드형
-                  </button>
-                  <button 
-                    disabled={isSystemProfile}
-                    onClick={() => {
-                      const img = { ...(currentProfile.rules.img || {}) };
-                      delete img['border'];
-                      delete img['border-bottom-width'];
-                      img['box-shadow'] = '0 4px 12px rgba(0,0,0,0.1)';
-                      img['border-radius'] = '16px';
-                      img['padding'] = '0px';
-                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, img }}, 'img', '이미지 형태 (둥근 썸네일형)');
-                    }}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isThumbnail ? activeClass : inactiveClass}`}
-                  >
-                    둥근 썸네일형
-                  </button>
-                </div>
-              );
-            })()}
-
-            {/* 모서리 둥글기 슬라이더 */}
-            <SliderWidget
-              label="모서리 둥글기 (Border Radius)"
-              min={0}
-              max={60}
-              value={getNumValue((currentProfile.rules.img || {})['border-radius'], 4)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('img', 'border-radius', v + 'px')}
-            />
-
-            {/* 그림자 두께 슬라이더 */}
-            <SliderWidget
-              label="그림자 강도 (Shadow Blur)"
-              min={0}
-              max={40}
-              value={(() => {
-                const shadow = (currentProfile.rules.img || {})['box-shadow'] || '';
-                const match = shadow.match(/0 \d+px (\d+)px/);
-                return match ? parseInt(match[1], 10) : 0;
-              })()}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => {
-                const numV = parseInt(v);
-                const shadow = numV > 0 ? `0 ${Math.floor(numV/2)}px ${numV}px rgba(0,0,0,0.15)` : 'none';
-                updateCssRule('img', 'box-shadow', shadow);
-              }}
-            />
-            <SliderWidget
-              label="이미지 가로 너비"
-              min={50}
-              max={800}
-              value={getNumValue(getTagRules('img')['width'], 400)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('img', 'width', v + 'px')}
-            />
-            <SliderWidget
-              label="이미지 세로 높이"
-              min={50}
-              max={600}
-              value={getNumValue(getTagRules('img')['height'], 300)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('img', 'height', v + 'px')}
-            />
-            <SliderWidget
-              label="이미지 상하 바깥 여백"
-              min={0}
-              max={80}
-              value={getNumValue(getTagRules('img')['margin-top'], 16)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => {
-                const px = v + 'px';
-                if (!isSystemProfile) {
-                  const cur = currentProfile.rules.img || {};
-                  const updated = {
-                    ...currentProfile,
-                    rules: {
-                      ...currentProfile.rules,
-                      img: {
-                        ...cur,
-                        'margin-top': px,
-                        'margin-bottom': px,
-                        'display': 'block',
-                        'margin-left': cur['margin-left'] || 'auto',
-                        'margin-right': cur['margin-right'] || 'auto'
-                      }
-                    }
-                  };
-                  triggerUpdate(updated, 'img', `이미지 상하 바깥 여백 (${v}px)`);
-                }
-              }}
-            />
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">이미지 정렬 방식</span>
-              <select
-                value={getMediaAlign('img')}
-                disabled={isSystemProfile}
-                onChange={(e) => updateMediaAlign('img', e.target.value)}
-                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-              >
-                <option value="center">중앙 정렬</option>
-                <option value="left">왼쪽 정렬</option>
-                <option value="right">오른쪽 정렬</option>
-              </select>
-            </div>
-
-            {/* 🏷️ 미디어 설명(캡션) 위치 및 표현 구문 설정 */}
-            <div className="border-t border-zinc-200 dark:border-zinc-800/60 pt-4 space-y-3.5">
-              <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">
-                🏷️ 미디어(이미지·지도·동영상) 설명(캡션) 위치 및 표현 구문
-              </span>
-              <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-                <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">설명(캡션) 기본 위치</span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    disabled={isSystemProfile}
-                    onClick={() => updateMediaCaption('position', 'top')}
-                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-                      (currentProfile.mediaCaptionStructure?.position || 'top') === 'top'
-                        ? 'bg-[#1d4ed8] text-white shadow-xs'
-                        : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-300'
-                    }`}
-                  >
-                    상단 (AI 친화 표준)
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isSystemProfile}
-                    onClick={() => updateMediaCaption('position', 'bottom')}
-                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-                      currentProfile.mediaCaptionStructure?.position === 'bottom'
-                        ? 'bg-[#1d4ed8] text-white shadow-xs'
-                        : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-300'
-                    }`}
-                  >
-                    하단 (전통 출판)
-                  </button>
-                </div>
+              <p className="text-[11.5px] text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                문서의 대표 활자체, 종이 판형(A4/B5 등), 0.5pt 활자 크기, 가로·세로 방향, 일반/그림책 문맥 배치 및{' '}
+                <strong>제목 개요 번호 체계 (1., Ⅰ., 가., 제1장 등)</strong>는 상단 <strong>[⚡ 간편 스타일링]</strong> 탭에서 원클릭으로 쉽게 지정할 수 있습니다.
+              </p>
+              <div className="pt-1 border-t border-blue-150 dark:border-blue-900/40 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
+                <span>
+                  현재 개요:{' '}
+                  <strong className="text-blue-700 dark:text-blue-300 font-semibold">{currentOutlineSummary}</strong>
+                </span>
               </div>
+            </div>
 
-              <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-                <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">표현 구문 포맷</span>
-                <select
-                  value={currentProfile.mediaCaptionStructure?.format || 'standard'}
-                  disabled={isSystemProfile}
-                  onChange={(e) => updateMediaCaption('format', e.target.value)}
-                  className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-                >
-                  <option value="standard">표준: **그림 1. 제목**</option>
-                  <option value="bracket">대괄호: **[그림 1] 제목**</option>
-                  <option value="angle">화살괄호: &lt;그림 1&gt; 제목</option>
-                  <option value="plain">일반: 그림 1. 제목</option>
-                  <option value="title-only">제목만: **제목**</option>
-                  <option value="custom">직접 정의 (커스텀 템플릿)</option>
-                </select>
-              </div>
-
-              {currentProfile.mediaCaptionStructure?.format === 'custom' && (
-                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60 space-y-2">
-                  <label className="text-xs font-bold text-zinc-600 dark:text-zinc-400 block">
-                    커스텀 표현 템플릿 ({'{kind}'}: 구분, {'{n}'}: 번호, {'{title}'}: 제목)
-                  </label>
+            {/* 🎯 [스크롤 방어 핵심] 상단 스티키(Sticky) 카테고리 내비게이션 바 */}
+            <div className="sticky top-0 z-20 -mx-4 px-4 py-2 bg-white/95 dark:bg-[#131519]/95 backdrop-blur-md border-y border-zinc-200 dark:border-zinc-800 shadow-sm space-y-2">
+              {/* 상단 검색창 및 직관 드롭다운 점프 */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
                   <input
                     type="text"
-                    disabled={isSystemProfile}
-                    value={currentProfile.mediaCaptionStructure?.customTemplate || '**{kind} {n}. {title}**'}
-                    onChange={(e) => updateMediaCaption('customTemplate', e.target.value)}
-                    placeholder="예: **{kind} {n}. {title}**"
-                    className="w-full text-xs px-2.5 py-1.5 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono"
+                    value={searchKeyword}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    placeholder="원하는 서식 빠른 검색 (예: 표, 코드, 링크, 각주, 이미지, 동영상, 수식...)"
+                    className="w-full pl-8.5 pr-8 py-1.5 rounded-lg text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:border-blue-500 transition-all font-medium"
                   />
+                  {searchKeyword && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchKeyword('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-xs font-bold p-0.5 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
+
+                {/* 원클릭 서식 빠른 점프 드롭다운 */}
+                <select
+                  value={activeCategory}
+                  onChange={(e) => handleCategoryClick(e.target.value as DetailCategory)}
+                  className="py-1.5 px-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-xs font-bold text-zinc-700 dark:text-zinc-300 outline-none cursor-pointer"
+                  title="서식 항목 바로가기"
+                >
+                  {CATEGORIES.map((c, i) => (
+                    <option key={c.id} value={c.id}>
+                      {i + 1}. {c.icon} {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 15대 카테고리 퀵 선택 탭 바 (스크롤 없이 바로 클릭) */}
+              <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto custom-scrollbar pt-0.5">
+                {CATEGORIES.map((cat) => {
+                  const active = activeCategory === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => handleCategoryClick(cat.id)}
+                      className={`px-2 py-1 rounded-md text-[11.5px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        active
+                          ? 'bg-[#1d4ed8] text-white shadow-xs scale-[1.02]'
+                          : 'bg-zinc-100 dark:bg-zinc-850 text-zinc-650 dark:text-zinc-350 hover:bg-zinc-200 dark:hover:bg-zinc-750'
+                      }`}
+                    >
+                      <span className="text-xs">{cat.icon}</span>
+                      <span>{cat.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 🎯 현재 선택된 단일 카테고리 뷰 컴포넌트 렌더링 */}
+            <div className="transition-all duration-200 min-h-[300px]">
+              {activeCategory === 'paragraph' && (
+                <DetailParagraphPanel
+                  currentProfile={currentProfile}
+                  isSystemProfile={isSystemProfile}
+                  onUpdateProfile={onUpdateProfile}
+                  triggerUpdate={triggerUpdate}
+                  handlePageStyleChange={handlePageStyleChange}
+                  updateCssRule={updateCssRule}
+                />
+              )}
+
+              {activeCategory === 'headings' && (
+                <DetailHeadingPanel
+                  currentProfile={currentProfile}
+                  isSystemProfile={isSystemProfile}
+                  currentOutlineSummary={currentOutlineSummary}
+                  onUpdateProfile={onUpdateProfile}
+                  triggerUpdate={triggerUpdate}
+                  handlePageStyleChange={handlePageStyleChange}
+                  updateCssRule={updateCssRule}
+                  onSwitchToQuickMode={() => setStyleMode('quick')}
+                />
+              )}
+
+              {activeCategory === 'table' && (
+                <DetailTablePanel
+                  currentProfile={currentProfile}
+                  isSystemProfile={isSystemProfile}
+                  baseFontSize={baseFontSize}
+                  onUpdateProfile={onUpdateProfile}
+                  triggerUpdate={triggerUpdate}
+                  updateCssRule={updateCssRule}
+                />
+              )}
+
+              {activeCategory === 'quote' && (
+                <DetailQuotePanel
+                  currentProfile={currentProfile}
+                  isSystemProfile={isSystemProfile}
+                  baseFontSize={baseFontSize}
+                  triggerUpdate={triggerUpdate}
+                  updateCssRule={updateCssRule}
+                />
+              )}
+
+              {activeCategory === 'codeblock' && (
+                <DetailCodePanel
+                  currentProfile={currentProfile}
+                  isSystemProfile={isSystemProfile}
+                  baseFontSize={baseFontSize}
+                  onUpdateProfile={onUpdateProfile}
+                  triggerUpdate={triggerUpdate}
+                  updateCssRule={updateCssRule}
+                />
+              )}
+
+              {activeCategory === 'inlinecode' && (
+                <DetailInlineCodePanel
+                  currentProfile={currentProfile}
+                  isSystemProfile={isSystemProfile}
+                  triggerUpdate={triggerUpdate}
+                  updateCssRule={updateCssRule}
+                />
+              )}
+
+              {activeCategory === 'link' && (
+                <DetailLinkPanel
+                  currentProfile={currentProfile}
+                  isSystemProfile={isSystemProfile}
+                  triggerUpdate={triggerUpdate}
+                  updateCssRule={updateCssRule}
+                />
+              )}
+
+              {activeCategory === 'footnote' && (
+                <DetailFootnotePanel
+                  currentProfile={currentProfile}
+                  isSystemProfile={isSystemProfile}
+                  triggerUpdate={triggerUpdate}
+                  updateCssRule={updateCssRule}
+                />
+              )}
+
+              {activeCategory === 'lists' && (
+                <DetailListPanel
+                  currentProfile={currentProfile}
+                  isSystemProfile={isSystemProfile}
+                  triggerUpdate={triggerUpdate}
+                  updateCssRule={updateCssRule}
+                />
+              )}
+
+              {activeCategory === 'hr' && (
+                <DetailHrPanel
+                  currentProfile={currentProfile}
+                  isSystemProfile={isSystemProfile}
+                  triggerUpdate={triggerUpdate}
+                  updateCssRule={updateCssRule}
+                />
+              )}
+
+              {activeCategory === 'image' && (
+                <DetailImagePanel
+                  currentProfile={currentProfile}
+                  isSystemProfile={isSystemProfile}
+                  triggerUpdate={triggerUpdate}
+                  updateCssRule={updateCssRule}
+                />
+              )}
+
+              {activeCategory === 'video' && (
+                <DetailVideoPanel
+                  currentProfile={currentProfile}
+                  isSystemProfile={isSystemProfile}
+                  triggerUpdate={triggerUpdate}
+                  updateCssRule={updateCssRule}
+                />
+              )}
+
+              {activeCategory === 'map' && (
+                <DetailMapPanel
+                  currentProfile={currentProfile}
+                  isSystemProfile={isSystemProfile}
+                  triggerUpdate={triggerUpdate}
+                  updateCssRule={updateCssRule}
+                />
+              )}
+
+              {activeCategory === 'math' && (
+                <DetailMathPanel
+                  currentProfile={currentProfile}
+                  isSystemProfile={isSystemProfile}
+                  baseFontSize={baseFontSize}
+                  triggerUpdate={triggerUpdate}
+                  updateCssRule={updateCssRule}
+                />
+              )}
+
+              {activeCategory === 'rules' && (
+                <DetailRulesPanel
+                  currentProfile={currentProfile}
+                  isSystemProfile={isSystemProfile}
+                  onUpdateProfile={onUpdateProfile}
+                  updateCssRule={updateCssRule}
+                  removeCssRule={removeCssRule}
+                />
               )}
             </div>
-          </div>
 
-          {/* 동영상 객체 (Video) 설정 */}
-          <div className="border-t border-zinc-200 dark:border-zinc-800/60 pt-4 space-y-3.5">
-            <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🎥 VIDEO - 동영상 객체 규격 조작</span>
-            <SliderWidget
-              label="동영상 가로 너비"
-              min={100}
-              max={800}
-              value={getNumValue(getTagRules('video')['width'], 560)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('video', 'width', v + 'px')}
-            />
-            <SliderWidget
-              label="동영상 세로 높이"
-              min={100}
-              max={600}
-              value={getNumValue(getTagRules('video')['height'], 315)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('video', 'height', v + 'px')}
-            />
-            <SliderWidget
-              label="동영상 상하 바깥 여백"
-              min={0}
-              max={80}
-              value={getNumValue(getTagRules('video')['margin-top'], 16)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => {
-                const px = v + 'px';
-                if (!isSystemProfile) {
-                  const cur = currentProfile.rules.video || {};
-                  const updated = {
-                    ...currentProfile,
-                    rules: {
-                      ...currentProfile.rules,
-                      video: {
-                        ...cur,
-                        'margin-top': px,
-                        'margin-bottom': px,
-                        'display': 'block',
-                        'margin-left': cur['margin-left'] || 'auto',
-                        'margin-right': cur['margin-right'] || 'auto'
-                      }
-                    }
-                  };
-                  triggerUpdate(updated, 'video', `동영상 상하 바깥 여백 (${v}px)`);
-                }
-              }}
-            />
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">동영상 정렬 방식</span>
-              <select
-                value={getMediaAlign('video')}
-                disabled={isSystemProfile}
-                onChange={(e) => updateMediaAlign('video', e.target.value)}
-                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+            {/* 🚨 기본 서식 복구 버튼 */}
+            {!isSystemProfile && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={resetToDefault}
+                  className="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/20 dark:hover:bg-red-950/40 dark:text-red-400 font-bold border border-red-200 dark:border-red-900/50 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 shadow-xs text-xs"
+                >
+                  <span>🔄</span>
+                  <span>기본 서식(Onrivi Default)으로 복원</span>
+                </button>
+              </div>
+            )}
+
+            {/* 🎯 [스크롤 방어 핵심] 하단 스티키(Sticky Bottom) 이전/다음 순환 탐색 바 */}
+            <div className="sticky bottom-0 z-20 -mx-4 px-4 py-2.5 bg-white/95 dark:bg-[#131519]/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 shadow-lg flex items-center justify-between">
+              <button
+                type="button"
+                onClick={handlePrevCategory}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-bold text-xs transition-all cursor-pointer shadow-2xs"
+                title="이전 서식 항목으로 이동"
               >
-                <option value="center">중앙 정렬</option>
-                <option value="left">왼쪽 정렬</option>
-                <option value="right">오른쪽 정렬</option>
-              </select>
-            </div>
-          </div>
+                <ChevronLeft size={14} />
+                <span>이전 서식</span>
+              </button>
 
-          {/* 지도 객체 (Map) 설정 */}
-          <div className="border-t border-zinc-200 dark:border-zinc-800/60 pt-4 space-y-3.5">
-            <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🗺️ MAP - 지도 객체 규격 조작</span>
-            <SliderWidget
-              label="지도 가로 너비"
-              min={100}
-              max={800}
-              value={getNumValue(getTagRules('map')['width'], 600)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('map', 'width', v + 'px')}
-            />
-            <SliderWidget
-              label="지도 세로 높이"
-              min={100}
-              max={600}
-              value={getNumValue(getTagRules('map')['height'], 450)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('map', 'height', v + 'px')}
-            />
-            <SliderWidget
-              label="지도 상하 바깥 여백"
-              min={0}
-              max={80}
-              value={getNumValue(getTagRules('map')['margin-top'], 16)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => {
-                const px = v + 'px';
-                if (!isSystemProfile) {
-                  const cur = currentProfile.rules.map || {};
-                  const updated = {
-                    ...currentProfile,
-                    rules: {
-                      ...currentProfile.rules,
-                      map: {
-                        ...cur,
-                        'margin-top': px,
-                        'margin-bottom': px,
-                        'display': 'block',
-                        'margin-left': cur['margin-left'] || 'auto',
-                        'margin-right': cur['margin-right'] || 'auto'
-                      }
-                    }
-                  };
-                  triggerUpdate(updated, 'map', `지도 상하 바깥 여백 (${v}px)`);
-                }
-              }}
-            />
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">지도 정렬 방식</span>
-              <select
-                value={getMediaAlign('map')}
-                disabled={isSystemProfile}
-                onChange={(e) => updateMediaAlign('map', e.target.value)}
-                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+              {/* 📑 서식 항목 팝업 리스트 선택기 */}
+              <div ref={bottomListRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsBottomListOpen(!isBottomListOpen)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-blue-700 dark:text-blue-400 bg-blue-50 hover:bg-blue-100/90 dark:bg-blue-950/40 dark:hover:bg-blue-900/60 px-3.5 py-1 rounded-full border border-blue-200 dark:border-blue-900/50 transition-all cursor-pointer shadow-xs active:scale-95 group"
+                  title="클릭하여 15대 전체 서식 리스트에서 선택"
+                >
+                  <span>{currentCategoryObj.icon}</span>
+                  <span>{currentCategoryObj.label}</span>
+                  <span className="text-[10px] text-blue-500 font-mono">
+                    ({currentIndex + 1}/{CATEGORIES.length})
+                  </span>
+                  <span className={`text-[9px] text-blue-500 transition-transform duration-200 ${isBottomListOpen ? 'rotate-180' : ''}`}>
+                    ▲
+                  </span>
+                </button>
+
+                {/* 위로 펼쳐지는 15대 서식 선택 팝업 리스트 */}
+                {isBottomListOpen && (
+                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-64 max-h-80 overflow-y-auto bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-1.5 z-50 space-y-0.5 custom-scrollbar animate-in slide-in-from-bottom-2">
+                    <div className="px-2.5 py-1.5 text-[11px] font-extrabold text-zinc-500 dark:text-zinc-400 border-b border-zinc-150 dark:border-zinc-800 mb-1 flex items-center justify-between">
+                      <span>📑 서식 항목 리스트</span>
+                      <span className="text-[10px] text-zinc-400">15개 항목</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {CATEGORIES.map((cat, idx) => {
+                        const isSelected = activeCategory === cat.id;
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => {
+                              handleCategoryClick(cat.id);
+                              setIsBottomListOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#1d4ed8] text-white shadow-xs'
+                                : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-mono opacity-60 w-4 text-right">
+                                {idx + 1}.
+                              </span>
+                              <span className="text-sm">{cat.icon}</span>
+                              <span>{cat.label}</span>
+                            </div>
+                            {isSelected && (
+                              <span className="text-[10px] font-bold text-blue-100">선택됨</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleNextCategory}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1d4ed8] hover:bg-blue-700 text-white font-bold text-xs transition-all cursor-pointer shadow-xs"
+                title="다음 서식 항목으로 이동"
               >
-                <option value="center">중앙 정렬</option>
-                <option value="left">왼쪽 정렬</option>
-                <option value="right">오른쪽 정렬</option>
-              </select>
+                <span>다음 서식</span>
+                <ChevronRight size={14} />
+              </button>
             </div>
-          </div>
-
-          {/* 수식 블록 (Math) 설정 */}
-          <div className="border-t border-zinc-200 dark:border-zinc-800/60 pt-4 space-y-3.5">
-            <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">📐 MATH - KaTeX 수식 블록 스타일</span>
-            <ColorPickerWidget
-              label="수식 글자 색상"
-              value={getTagRules('math')['color'] || ''}
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('math', 'color', v)}
-            />
-            <FontSizeControl
-              label="수식 글자 크기"
-              min={10}
-              max={32}
-              value={(currentProfile.rules.math || {})['font-size']}
-              baseFontSize={baseFontSize}
-              disabled={isSystemProfile}
-              onChange={(v) => {
-                const currentMath = currentProfile.rules.math || {};
-                if (!v) {
-                  const { 'font-size': _, ...rest } = currentMath;
-                  triggerUpdate({
-                    ...currentProfile,
-                    rules: { ...currentProfile.rules, math: { ...rest, 'font-size': 'inherit' } }
-                  }, 'math', '수식 기본 글자 크기 유지');
-                } else {
-                  updateCssRule('math', 'font-size', v);
-                }
-              }}
-            />
-            <SliderWidget
-              label="수식 상하 바깥 여백"
-              min={0}
-              max={80}
-              value={getNumValue((currentProfile.rules.math || {})['margin-top'], 16)}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => {
-                const px = v + 'px';
-                if (!isSystemProfile) {
-                  const { margin: _, ...currentMath } = (currentProfile.rules.math || {});
-                  const updated = {
-                    ...currentProfile,
-                    rules: {
-                      ...currentProfile.rules,
-                      math: {
-                        ...currentMath,
-                        'margin-top': px,
-                        'margin-bottom': px
-                      }
-                    }
-                  };
-                  triggerUpdate(updated, 'math', `수식 상하 바깥 여백 (${v}px)`);
-                }
-              }}
-            />
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">수식 정렬 방식</span>
-              <select
-                value={getTagRules('math')['text-align'] || 'center'}
-                disabled={isSystemProfile}
-                onChange={(e) => updateCssRule('math', 'text-align', e.target.value)}
-                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-              >
-                <option value="center">중앙 정렬</option>
-                <option value="left">왼쪽 정렬</option>
-                <option value="right">오른쪽 정렬</option>
-              </select>
-            </div>
-          </div>
-        </AccordionSection>
-
-        <AccordionSection
-          id="effective-rules"
-          title="🧩 쇼케이스에 적용되는 전체 태그 규칙"
-          isOpen={openAccordion === 'effective-rules'}
-          onToggle={() => handleAccordionToggle('effective-rules')}
-          sectionRef={(el) => { accordionRefs.current['effective-rules'] = el; }}
-        >
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            기본값을 포함해 현재 쇼케이스에 적용되는 태그별 설정입니다. 값 변경은 위의 서식 컨트롤에서 할 수 있습니다.
-          </p>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {Object.entries(currentProfile.rules).map(([tag, rule]) => {
-              if (!rule) return null;
-              const shownRules = /^h[1-6]$/.test(tag) && !rule['border-bottom']
-                ? { ...rule, 'border-bottom': 'none' }
-                : rule;
-              return <TagRuleEditor key={tag} tag={tag} label={tag.toUpperCase()}
-                rules={shownRules} isSystemProfile={true}
-                onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />;
-            })}
-          </div>
-          <div className="space-y-2 pt-3 border-t border-zinc-200 dark:border-zinc-800">
-            <label htmlFor="profile-custom-css" className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
-              추가 CSS {currentProfile.customCss?.trim() ? '(적용 중)' : '(없음)'}
-            </label>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              가져오거나 AI로 만든 서식의 추가 규칙도 쇼케이스에 적용됩니다. 같은 속성이 겹치면 위의 서식 컨트롤 값이 우선합니다.
-            </p>
-            <textarea id="profile-custom-css" value={currentProfile.customCss || ''}
-              disabled={isSystemProfile}
-              onChange={(event) => onUpdateProfile({ ...currentProfile, customCss: event.target.value })}
-              className="w-full min-h-36 p-3 font-mono text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 disabled:opacity-60"
-            />
-          </div>
-        </AccordionSection>
-
-        {/* ─── 접이식 아코디언 그룹 끝 ─── */}
-
-        {/* 🚨 기본 서식 복구 버튼 - DEFAULT 프로필이 아닐 때 하단에 배치 */}
-        {!isSystemProfile && (
-          <div className="pt-2 animate-fadeIn">
-            <button
-              type="button"
-              onClick={resetToDefault}
-              className="w-full py-3.5 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/20 dark:hover:bg-red-950/40 dark:text-red-400 font-bold border border-red-200 dark:border-red-900/50 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 shadow-sm text-base"
-            >
-              <span>🔄</span>
-              <span>기본 서식(Onrivi Default)으로 전환</span>
-            </button>
           </div>
         )}
-
       </div>
-
-      <FontSelectorModal
-        isOpen={isFontModalOpen}
-        onClose={() => setIsFontModalOpen(false)}
-        currentFont={currentProfile.pageStyle.fontFamily}
-        onSelectFont={(font) => {
-          handlePageStyleChange('fontFamily', '"' + font + '", serif');
-        }}
-        isDarkMode={isDarkMode || false}
-      />
 
       {/* ⚡ 실시간 알림 토스트 레이어 */}
       {toastMessage && (
@@ -3756,29 +1058,48 @@ ${guideContent}
         </div>
       )}
 
-      {/* 📥 외부 서식 가져오기 (JSON 직접 붙여넣기 및 파일 드래그) 모달 */}
+      {/* 📥 외부 서식 가져오기 모달 */}
       {showImportModal && (
         <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl w-[480px] max-w-full shadow-2xl p-5 space-y-4 animate-scaleUp text-left">
             <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
-              <span className="font-bold text-zinc-800 dark:text-zinc-200 text-base">📥 외부 서식 가져오기 / 업로드</span>
-              <button onClick={() => { setShowImportModal(false); setImportJsonText(''); }} className="text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-300 font-bold text-base leading-none">X</button>
+              <span className="font-bold text-zinc-800 dark:text-zinc-200 text-base">
+                📥 외부 서식 가져오기 / 업로드
+              </span>
+              <button
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportJsonText('');
+                }}
+                className="text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-300 font-bold text-base leading-none cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
 
             <div className="space-y-3.5">
-              {/* 파일 선택 방식 */}
               <div className="space-y-1.5">
-                <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block">방법 1: 서식 파일(.json) 업로드</span>
+                <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block">
+                  방법 1: 서식 파일(.json) 업로드
+                </span>
                 <div className="relative border-2 border-dashed border-zinc-200 dark:border-zinc-800 hover:border-blue-500 dark:hover:border-blue-500 rounded-xl p-4 text-center cursor-pointer transition-colors group">
-                  <input type="file" accept=".json" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
-                  <span className="text-zinc-500 dark:text-zinc-400 group-hover:text-blue-500 transition-colors text-sm font-bold block">📁 서식 JSON 파일 선택하기</span>
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleFileUpload}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                  <span className="text-zinc-500 dark:text-zinc-400 group-hover:text-blue-500 transition-colors text-sm font-bold block">
+                    📁 서식 JSON 파일 선택하기
+                  </span>
                   <span className="text-xs text-zinc-400 mt-1 block">AI가 저장해 준 서식 JSON 파일을 로드합니다.</span>
                 </div>
               </div>
 
-              {/* 텍스트 붙여넣기 방식 */}
               <div className="space-y-1.5">
-                <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block">방법 2: AI 생성 JSON 텍스트 붙여넣기</span>
+                <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block">
+                  방법 2: AI 생성 JSON 텍스트 붙여넣기
+                </span>
                 <textarea
                   value={importJsonText}
                   onChange={(e) => setImportJsonText(e.target.value)}
@@ -3790,21 +1111,23 @@ ${guideContent}
 
             <div className="flex gap-2.5 pt-2">
               <button
-                onClick={() => { setShowImportModal(false); setImportJsonText(''); }}
-                className="flex-1 py-2.5 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-bold text-sm hover:bg-zinc-50 dark:hover:bg-zinc-950 transition-colors"
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportJsonText('');
+                }}
+                className="flex-1 py-2.5 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-bold text-sm hover:bg-zinc-50 dark:hover:bg-zinc-950 transition-colors cursor-pointer"
               >
                 취소
               </button>
               <button
                 onClick={() => {
                   if (!importJsonText.trim()) {
-                    showToast("가져올 JSON 텍스트를 입력해 주세요!");
+                    showToast('가져올 JSON 텍스트를 입력해 주세요!');
                     return;
                   }
                   importProfileString(importJsonText);
                 }}
-                style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
-                className="flex-1 py-2.5 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl font-bold text-sm transition-colors cursor-pointer"
+                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-colors cursor-pointer"
               >
                 가져오기 실행
               </button>
@@ -3813,6 +1136,7 @@ ${guideContent}
         </div>
       )}
 
+      {/* 확인 모달 */}
       {confirmConfig && (
         <ConfirmModal
           isOpen={confirmConfig.isOpen}

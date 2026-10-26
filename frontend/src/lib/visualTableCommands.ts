@@ -12,6 +12,52 @@ export function tableContext(state: Parameters<Command>[0]) {
   }
   return null;
 }
+
+function selectedTableCellSpan(state: Parameters<Command>[0]) {
+  if (state.selection.empty) return null;
+  const endpoint = (position: typeof state.selection.$from) => {
+    let tablePos = -1, cellPos = -1;
+    for (let depth = 1; depth <= position.depth; depth++) {
+      const name = position.node(depth).type.name;
+      if (name === 'table') tablePos = position.before(depth);
+      if (name === 'table_cell' || name === 'table_header') cellPos = position.before(depth);
+    }
+    return { tablePos, cellPos };
+  };
+  const from = endpoint(state.selection.$from), to = endpoint(state.selection.$to);
+  return from.tablePos >= 0 && from.tablePos === to.tablePos && from.cellPos >= 0 && to.cellPos >= 0 && from.cellPos !== to.cellPos
+    ? { from: state.selection.from, to: state.selection.to } : null;
+}
+
+export function multiCellTableSelectionText(state: Parameters<Command>[0]): string | null {
+  const span = selectedTableCellSpan(state);
+  return span ? state.doc.textBetween(span.from, span.to, '\n', '\n') : null;
+}
+
+/** Clear selected text in each cell without deleting table rows or cell nodes. */
+export const clearMultiCellTableSelection: Command = (state, dispatch) => {
+  const span = selectedTableCellSpan(state);
+  if (!span) return false;
+  if (dispatch) {
+    const ranges: { from: number; to: number }[] = [];
+    state.doc.nodesBetween(span.from, span.to, (node, pos) => {
+      if (node.type.name !== 'table_cell' && node.type.name !== 'table_header') return true;
+      const start = pos + 2;
+      const end = start + (node.firstChild?.content.size || 0);
+      ranges.push({ from: Math.max(span.from, start), to: Math.min(span.to, end) });
+      return false;
+    });
+    let tr = state.tr;
+    for (let index = ranges.length - 1; index >= 0; index--) {
+      const range = ranges[index];
+      if (range.to > range.from) tr = tr.delete(range.from, range.to);
+    }
+    const anchor = ranges[0]?.from ?? span.from;
+    tr = tr.setSelection(TextSelection.near(tr.doc.resolve(tr.mapping.map(anchor, -1))));
+    dispatch(tr.scrollIntoView());
+  }
+  return true;
+};
 function rowsOf(table:DocumentNode) { const rows:DocumentNode[][]=[];table.forEach(row=>{const cells:DocumentNode[]=[];row.forEach(cell=>cells.push(cell));rows.push(cells);});return rows; }
 function cell(header:boolean,align='left') {return (header?visualSchema.nodes.table_header:visualSchema.nodes.table_cell).create({align},visualSchema.nodes.paragraph.create());}
 function textPosition(table:DocumentNode,pos:number,rowIndex:number,columnIndex:number) {

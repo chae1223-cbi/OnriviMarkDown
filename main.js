@@ -2,6 +2,7 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-10-26** — [단축코드 정의서(shortcodes.json) 리소스 폴더 IPC 입출력 신설]: shortcodes:load 및 shortcodes:save IPC 핸들러를 추가하여 환경설정의 단축키 및 슬래시 명령어를 리소스 폴더(settings/shortcodes.json)에 영구 보존 지원
 // 🚨 @PATCH : **2026-10-26** — [도움말 3중 미러 자동 동기화 및 읽기 시 frontend/public 최우선 탐색]:
 //             1) file:readFromPath에서 과거 정적 빌드 산출물(frontend/out) 대신 개발자가 수정한 소스 디렉터리(frontend/public)를 1순위로 탐색하여 도움말 수정 시 과거 빌드 내용으로 초기화되는 결함 해결
 //             2) file:save에서 도움말 문서(HELP-*.md, 00_시작하기.md) 저장 시 frontend/public/help, docs/help, frontend/out/help 3개 경로에 원자적 동시 기록하여 온리비어서에서 편집 후 재빌드 시 과거 파일로 덮어써져 초기화되는 현상 영구 박멸
@@ -4597,6 +4598,16 @@ async function initializeDesktopResourceFolder(resourceFolder, initialProfiles =
       fs.writeFileSync(templatesFile, '[]', 'utf-8');
     }
 
+    const shortcodesFile = path.join(resourceFolder, 'settings', 'shortcodes.json');
+    if (!fs.existsSync(shortcodesFile)) {
+      fs.writeFileSync(shortcodesFile, JSON.stringify({
+        version: "1.0.0",
+        lastUpdated: new Date().toISOString(),
+        hotkeys: {},
+        slashCommands: {}
+      }, null, 2), 'utf-8');
+    }
+
     const bibFile = path.join(resourceFolder, 'bible', 'references.bib');
     if (!fs.existsSync(bibFile)) {
       fs.writeFileSync(bibFile, '', 'utf-8');
@@ -4904,6 +4915,41 @@ ipcMain.handle('ai-credentials:save', async (event, cipherText, resourceFolder) 
     return { success: true };
   } catch (e) {
     console.error('AI 인증정보 저장 실패:', e);
+    return { success: false, error: e.message };
+  }
+});
+
+// --- Shortcodes & Hotkeys IPC Handlers ---
+ipcMain.handle('shortcodes:load', async (event, resourceFolder) => {
+  try {
+    if (!resourceFolder || resourceFolder.trim() === '' || !fs.existsSync(resourceFolder)) {
+      return null;
+    }
+    const shortcodesPath = path.join(resourceFolder, 'settings', 'shortcodes.json');
+    if (fs.existsSync(shortcodesPath)) {
+      return JSON.parse(fs.readFileSync(shortcodesPath, 'utf-8'));
+    }
+    return null;
+  } catch (e) {
+    console.error('단축코드 정의서 로드 실패:', e);
+    return null;
+  }
+});
+
+ipcMain.handle('shortcodes:save', async (event, data, resourceFolder) => {
+  try {
+    if (!resourceFolder || resourceFolder.trim() === '' || !fs.existsSync(resourceFolder)) {
+      return { success: false, error: 'NO_RESOURCE_FOLDER', receivedPath: resourceFolder };
+    }
+    const settingsDir = path.join(resourceFolder, 'settings');
+    if (!fs.existsSync(settingsDir)) {
+      fs.mkdirSync(settingsDir, { recursive: true });
+    }
+    const shortcodesPath = path.join(settingsDir, 'shortcodes.json');
+    fs.writeFileSync(shortcodesPath, JSON.stringify(data, null, 2), 'utf-8');
+    return { success: true };
+  } catch (e) {
+    console.error('단축코드 정의서 저장 실패:', e);
     return { success: false, error: e.message };
   }
 });

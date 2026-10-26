@@ -1,5 +1,8 @@
 // ====================================================================
 // 📊 [OMD-STYLE-CssProfile-0001] cssProfile.ts ➔ 서식 프로필 및 타이포그래피/미디어 타입 정의
+// 🚨 @PATCH : **2026-10-26** — [글머리 기호(불릿) 레벨별 계층 설정 구조체(BulletStructure) 신설]:
+//             1) 1단계/2단계/3단계별 불릿 기호 및 사용자 정의 커스텀 기호를 독립 저장 제어하는 BulletStructure 추가
+//             2) CssProfile에 bulletStructure 속성 연동
 // 🚨 @PATCH : **2026-10-22** — [미디어 종류별 캡션 개별 설정(kindOverrides) 신설]:
 //             1) 표·그림·지도·동영상별로 캡션 위치/표현 구문을 다르게 지정할 수 있도록 MediaCaptionStructure.kindOverrides 추가 (KS: 표 상단·그림 하단, KDI: <표 1> 상단·[그림 1] 하단)
 // 🚨 @PATCH : **2026-10-21** — [미디어 설명(캡션) 위치 및 표현 구문 구조체(MediaCaptionStructure) 신설]:
@@ -139,4 +142,13 @@ export interface CssProfile {
     colBorderWidth: string;   // 열(세로선) 두께 (예: '1px')
   };
   mediaCaptionStructure?: MediaCaptionStructure;
+  /** 글머리 기호(불릿) 1~3단계 레벨별 서식 구조체 */
+  bulletStructure?: {
+    level1?: string;   // 1단계 (기본 'disc')
+    level2?: string;   // 2단계 (기본 'circle')
+    level3?: string;   // 3단계 (기본 'square')
+    custom1?: string;  // 1단계 직접 입력 기호
+    custom2?: string;  // 2단계 직접 입력 기호
+    custom3?: string;  // 3단계 직접 입력 기호
+  };
 }

@@ -270,8 +270,8 @@ import LinkModal from '@/components/LinkModal';
 import CalendarModal from '@/components/CalendarModal';
 import DateTimeInsertPicker from '@/components/DateTimeInsertPicker';
 import { selectedList, removeListMarkerAtStart, moveUpFromEmptyOrderedItem, exitEmptyListItem, joinOrderedListsAcrossEmptyParagraph, extendSelectionToListEnd, deleteNextListBoundary, deleteEmptyParagraphBeforeList, independentIndentListItem, independentLiftListItem, indentWholeList, outdentWholeList, moveUpAcrossListBoundary, moveDownAcrossListBoundary, deleteAtEndOfList } from '@/lib/visualListCommands';
-import DocumentPageGuides from '@/components/DocumentPageGuides';
-import { resolvePageGeometry } from '@/lib/pageGeometry';
+import PrintPaginationPreview from '@/components/PrintPaginationPreview';
+import { readPaginationSettings, writePaginationSettings, type PrintBreakAnchor } from '@/lib/documentPaginationSettings';
 import { browserAccountStorage as pageStorage } from '@/lib/browserAccountStorage';
 import { bulletNumbersAsText } from '@/lib/bulletNumberText';
 import { tableContext, tableAction, moveTableCell, tableEnter } from '@/lib/visualTableCommands';
@@ -284,7 +284,7 @@ import { mediaDetails, copyMediaSource, copyImageToClipboard, type MediaKind } f
 import BibliographySummary from '@/components/BibliographySummary';
 import {parseBibliography,citationPattern,citationLabel} from '@/lib/bibliography';
 import { desktopClipboardImage } from '@/lib/desktopClipboard';
-import { markdownPasteTransaction } from '@/lib/visualMarkdownPaste';
+import { markdownPasteInTableCellTransaction, markdownPasteTransaction } from '@/lib/visualMarkdownPaste';
 import { htmlToImportMarkdown, importHtmlWithImages } from '@/lib/importHtmlMarkdown';
 import { sanitizePastedText } from '@/utils/pasteHandlers';
 import { baseKeymap, chainCommands, exitCode, lift, setBlockType, toggleMark, wrapIn } from 'prosemirror-commands';
@@ -629,6 +629,7 @@ const exitQuote=(emptyOnly=false):Command=>(state,dispatch)=>{
   return true;
 };
 const ATOM_BLOCK_TYPES = new Set(['visual_image', 'visual_media', 'visual_math', 'source_block', 'page_break']);
+ const FIRST_BLOCK_INSERT_TYPES = new Set(['table', 'code_block', 'visual_image', 'visual_media', 'visual_math', 'source_block', 'horizontal_rule', 'page_break']);
 const exitMediaBlock = (requireSelected = false): Command => (state, dispatch, currentView) => {
   let end = -1;
   if (state.selection instanceof NodeSelection && ATOM_BLOCK_TYPES.has(state.selection.node.type.name)) {
@@ -1020,6 +1021,7 @@ type Props = { content: string; onChange: (markdown: string) => void; readOnly?:
   onSourceScroll?: (offset:number)=>void;
   tabSize?:number;
   pageStyle?:any;
+  onPdfPagePreview?: (signal: AbortSignal) => Promise<string | void>;
   spellCheck?:boolean;
   onSourceCursor?: (offset:number,reveal?:boolean)=>void;
   documentId?: string; commandRef?: React.MutableRefObject<((command: string) => boolean) | null>;
@@ -1045,7 +1047,7 @@ type Props = { content: string; onChange: (markdown: string) => void; readOnly?:
   showBibliography?: boolean;
 };
 
-export default function VisualDocumentEditor({ content, onChange, readOnly = false, headingNumbering = [], tabSize=4, spellCheck=false, pageStyle, onSourceScroll, onSourceCursor, documentId, commandRef, aiTargetRef, customCommands = {}, customHotkeys = {}, onSourceAction, onFloatingToolbar, floatingToolbarVisible, renderImage, onImageFile, onImageDialog, onMediaDialog, onDocLinkDialog, onFormulaDialog, currentFilePath, onFileOpen, onToast, onStyleSettings, onReferenceSettings, onCitation, bibContent='', showBibliography=true }: Props) {
+export default function VisualDocumentEditor({ content, onChange, readOnly = false, headingNumbering = [], tabSize=4, spellCheck=false, pageStyle, onPdfPagePreview, onSourceScroll, onSourceCursor, documentId, commandRef, aiTargetRef, customCommands = {}, customHotkeys = {}, onSourceAction, onFloatingToolbar, floatingToolbarVisible, renderImage, onImageFile, onImageDialog, onMediaDialog, onDocLinkDialog, onFormulaDialog, currentFilePath, onFileOpen, onToast, onStyleSettings, onReferenceSettings, onCitation, bibContent='', showBibliography=true }: Props) {
   const citationEntries=React.useMemo(()=>{
     const parsed=parseBibliography(bibContent);
     return new Map(parsed.entries.filter(e=>!parsed.duplicates.some(k=>k.toLowerCase()===e.key.toLowerCase())).map(e=>[e.key.toLowerCase(),e]));
@@ -1154,6 +1156,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   hotkeysRef.current = customHotkeys;
   const emitted = useRef(content);
   const [inTable,setInTable] = useState(false);
+  const [firstBlockNeedsParagraph,setFirstBlockNeedsParagraph] = useState(false);
   const [tableToolPosition,setTableToolPosition] = useState({top:8,left:8,width:700});
   useEffect(() => {
     if (!inTable || readOnly) return;
@@ -1224,6 +1227,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     const cached = documentId ? sessions.get(documentId) : undefined;
     let codec = cached?.source === content ? cached.codec : createVisualDocumentCodec(content);
     codecRef.current = codec;
+    setFirstBlockNeedsParagraph(FIRST_BLOCK_INSERT_TYPES.has(codec.doc.firstChild?.type.name || ''));
     emitted.current = content;
     const mediaNodeView: NonNullable<import('prosemirror-view').EditorProps['nodeViews']>[string] = (node, _view, getPos) => {
           const dom = document.createElement('figure');
@@ -2600,6 +2604,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         const leftBefore=viewport?.scrollLeft;
         const preserveViewport=transaction.getMeta('onrivi:preserve-viewport') === true;
         view.updateState(view.state.apply(transaction));
+        if (transaction.docChanged) setFirstBlockNeedsParagraph(FIRST_BLOCK_INSERT_TYPES.has(view.state.doc.firstChild?.type.name || ''));
         if(preserveViewport && viewport && topBefore!==undefined){
           viewport.scrollTop=topBefore; viewport.scrollLeft=leftBefore || 0;
         }
@@ -2972,6 +2977,20 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         const hasRichHtml = !!html && /<(?:table|tbody|tr|th|td|h[1-6]|ul|ol|li|b|strong|i|em|del|s|blockquote|pre|figure|figcaption|a\s+[^>]*href)\b/i.test(html);
         // 순수 마크다운 파일(Frontmatter 시작)이거나 이미 완성된 마크다운 표(|---|)를 지닌 소스 복사인지 검증
         const isExplicitPureMarkdown = /^(?:\uFEFF)?---[^\S\r\n]*\r?\n/.test(text) || (!/<table\b/i.test(html) && /\|[\s\t]*:?---*:?[\s\t]*\|/.test(text));
+
+        // Document slices can split a table. Paste formatted text as inline
+        // content when the selection is inside one cell.
+        if (tableContext(currentView.state) && currentView.state.selection.$from.parent.isTextblock) {
+          const cellSource = hasRichHtml && !isExplicitPureMarkdown
+            ? sanitizePastedText(htmlToImportMarkdown(html))
+            : text;
+          if (cellSource) {
+            event.preventDefault();
+            event.stopPropagation();
+            currentView.dispatch(markdownPasteInTableCellTransaction(currentView.state, cellSource));
+            return true;
+          }
+        }
 
         if (hasRichHtml && !isExplicitPureMarkdown && codecRef.current) {
           event.preventDefault();
@@ -3365,6 +3384,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         nextCodec.adopt({doc:view.state.doc,originalSource:node=>preserved.get(node)});
       }
       codec=nextCodec;codecRef.current=codec;emitted.current=source;
+      setFirstBlockNeedsParagraph(FIRST_BLOCK_INSERT_TYPES.has(view.state.doc.firstChild?.type.name || ''));
       if(scrollContainer && top!==undefined){scrollContainer.scrollTop=top;scrollContainer.scrollLeft=left || 0;}
       setInTable(Boolean(tableContext(view.state)));
       setActiveMarks(view.state.selection.$from.marks().map(mark=>mark.type.name));
@@ -3482,6 +3502,14 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     }
     command(view.state, view.dispatch, view);
     view.focus();
+  };
+  const insertParagraphBeforeFirstBlock = () => {
+    const view = viewRef.current;
+    if (!view || !view.editable || !FIRST_BLOCK_INSERT_TYPES.has(view.state.doc.firstChild?.type.name || '')) return;
+    const tr = view.state.tr.insert(0, visualSchema.nodes.paragraph.create());
+    view.dispatch(closeHistory(tr.setSelection(TextSelection.create(tr.doc, 1)).scrollIntoView()));
+    view.focus();
+    caretRef.current?.schedule();
   };
   const setQuote = (alertType:string|null):Command => (state,dispatch,view) => {
     const position=state.selection.$from;
@@ -4312,6 +4340,40 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commandRef, readOnly]);
   const [pageGuides,setPageGuides]=useState(false);
+  const [pdfPageHtml,setPdfPageHtml]=useState('');
+  const [pdfPageBusy,setPdfPageBusy]=useState(false);
+  const [pdfPageError,setPdfPageError]=useState('');
+  const previewRequest=useRef(onPdfPagePreview);
+  previewRequest.current=onPdfPagePreview;
+  const pageStyleKey=JSON.stringify(pageStyle);
+  const togglePdfBreak=(anchor:PrintBreakAnchor,existingId?:string)=>{
+    if(readOnly)return;
+    const current=readPaginationSettings(content);
+    const breaks=existingId
+      ? current.breaks.filter(item=>item.id!==existingId)
+      : current.breaks.some(item=>item.id===anchor.id)?current.breaks:[...current.breaks,anchor];
+    onChange(writePaginationSettings(content,{version:1,breaks}));
+  };
+  const closePdfPages=()=>{
+    pageStorage.setItem('onrivi_tabs_page_guides','false');
+    window.dispatchEvent(new CustomEvent('onrivi:toggle-page-guides',{detail:false}));
+  };
+  useEffect(()=>{
+    if(!pageGuides || !pageStyle || !previewRequest.current)return;
+    const controller=new AbortController();
+    setPdfPageBusy(true);
+    setPdfPageError('');
+    const timer=setTimeout(()=>{
+      void previewRequest.current?.(controller.signal).then(html=>{
+        if(controller.signal.aborted)return;
+        if(!html || !html.includes('data-onrivi-pages='))throw new Error('PDF 페이지를 계산하지 못했습니다.');
+        setPdfPageHtml(html);
+      }).catch(error=>{
+        if(!controller.signal.aborted)setPdfPageError(error instanceof Error?error.message:String(error));
+      }).finally(()=>{if(!controller.signal.aborted)setPdfPageBusy(false);});
+    },600);
+    return()=>{clearTimeout(timer);controller.abort();};
+  },[pageGuides,pageStyleKey,content]);
   useEffect(()=>{
     setPageGuides(pageStorage.getItem('onrivi_tabs_page_guides')==='true');
     const handleToggle = (e: any) => {
@@ -4394,8 +4456,11 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         )}
       </div>
     </div>
-    {inTable && !readOnly && createPortal(<div style={tableToolPosition} className="no-print fixed z-[100000] flex flex-wrap gap-1 rounded-lg border border-blue-200 bg-blue-50 p-2 text-zinc-800 shadow-lg" data-editor-controls aria-label="표 편집 도구">
+    {inTable && !readOnly && createPortal(<div style={tableToolPosition} className="no-print fixed z-[150] flex flex-wrap gap-1 rounded-lg border border-blue-200 bg-blue-50 p-2 text-zinc-800 shadow-lg" data-editor-controls aria-label="표 편집 도구">
       <strong className="self-center px-2 text-sm">표 편집 도구</strong>
+      {firstBlockNeedsParagraph && viewRef.current?.state.doc.firstChild?.type === visualSchema.nodes.table &&
+        <button type="button" className="rounded border border-blue-300 bg-white px-2 py-1 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+          onMouseDown={e=>e.preventDefault()} onClick={insertParagraphBeforeFirstBlock}>표 위에 본문</button>}
       <button type="button" className="onrivi-media-control" aria-label="표 복사" onMouseDown={e=>e.preventDefault()} onClick={async()=>{
         const view=viewRef.current,codec=codecRef.current;
         const context=view && tableContext(view.state);
@@ -4498,53 +4563,21 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       </button>)}
       {!filtered.length && <span className="p-2 text-sm text-zinc-500">No commands</span>}
     </div>, document.body)}
-    <div className="relative"><div ref={host} />{pageGuides&&pageStyle&&<DocumentPageGuides host={host} style={pageStyle} source={content}/>}</div>
-    {(() => {
-      if (!pageGuides || !pageStyle) return null;
-      try {
-        const geom = resolvePageGeometry(pageStyle);
-        return (
-          <style>{`
-            .custom-preview-container:has(.visual-document-surface) {
-              background-color: #f1f5f9 !important;
-              padding-top: 24px !important;
-              padding-bottom: 60px !important;
-            }
-            .dark .custom-preview-container:has(.visual-document-surface) {
-              background-color: #09090b !important;
-            }
-            .preview-page-sheet:has(.visual-document-editor) {
-              padding-bottom: 0 !important;
-              border: 0 !important;
-              border-radius: 0 !important;
-              box-shadow: none !important;
-              background: transparent !important;
-              overflow-x: auto !important;
-            }
-            .visual-document-surface {
-              width: ${geom.width}mm !important;
-              min-height: var(--onrivi-sheet-min-height, ${geom.height}mm) !important;
-              max-width: none !important;
-              margin-left: auto !important;
-              margin-right: auto !important;
-              padding: ${geom.top}mm ${geom.right}mm ${geom.bottom}mm ${geom.left}mm !important;
-              box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08) !important;
-              background-color: #ffffff !important;
-              border: 1px solid #e2e8f0 !important;
-              border-radius: 4px !important;
-              box-sizing: border-box !important;
-            }
-            .dark .visual-document-surface {
-              background-color: #18181b !important;
-              border-color: #27272a !important;
-              box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4) !important;
-            }
-          `}</style>
-        );
-      } catch {
-        return null;
-      }
-    })()}
+    <div className="relative">
+      {!pageGuides && !readOnly && firstBlockNeedsParagraph && !(inTable && viewRef.current?.state.doc.firstChild?.type === visualSchema.nodes.table) && <button type="button" data-editor-controls
+        className="ml-7 mb-1 rounded border border-blue-200 bg-white px-2 py-1 text-xs text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:bg-zinc-900 dark:text-blue-300"
+        onMouseDown={event=>event.preventDefault()} onClick={insertParagraphBeforeFirstBlock}
+        aria-label="첫 블록 앞에 문단 추가">+ 첫 블록 앞에 문단 추가</button>}
+      <div ref={host} data-onrivi-editor-host style={pageGuides ? {position:'absolute',opacity:0,pointerEvents:'none',width:'100%'} : undefined} />
+      {pageGuides && <div className="onrivi-pdf-page-preview flex flex-col gap-2" data-editor-controls>
+        <p className="text-xs text-slate-600 dark:text-zinc-300">PDF 출력 기준 페이지입니다. +로 출력용 페이지 나누기를 지정하고, 본문 편집은 상태 표시줄의 페이지 보기 버튼을 다시 눌러 진행하세요.</p>
+        {pdfPageBusy && <p role="status" className="text-xs text-blue-600">PDF 페이지 계산 중...</p>}
+        {pdfPageError && <p role="alert" className="text-xs text-red-600">PDF 페이지를 표시하지 못했습니다: {pdfPageError}</p>}
+        {pdfPageHtml && !pdfPageError && <div style={{height:'min(80vh, 900px)',display:'flex'}}>
+          <PrintPaginationPreview html={pdfPageHtml} editing={!readOnly} busy={pdfPageBusy} onToggle={togglePdfBreak} onEscape={closePdfPages} />
+        </div>}
+      </div>}
+    </div>
     {showBibliography&&<BibliographySummary source={content} content={bibContent}/>}
     {imageMounts.map(item => createPortal(renderImage?.(item.source) || <VisualReadOnlyMarkdownBlock source={item.source} />, item.element, String(item.id)))}
     <style>{`

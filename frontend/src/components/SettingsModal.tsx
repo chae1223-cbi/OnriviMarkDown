@@ -1,5 +1,7 @@
 // ====================================================================
 // 📊 [OMD-EDIT-SettingsModal-0006 ✅ FIXED] SettingsModal.tsx ➔ SettingsModal
+// 🚨 @PATCH : **2026-10-26** — [단축코드/단축키 정의서 리소스 폴더(settings/shortcodes.json) 원자적 자동 동기화 연동]:
+//             1) 단축키 및 슬래시 명령어 변경/초기화 시 writeResourceShortcodes를 호출하여 리소스 폴더에 즉시 영구 저장
 // 🚨 @PATCH : **2026-10-21** — [환경설정 오픈 시 현재 연결된 리소스 폴더 기반 AI 설정정보 즉시 강제 세팅]:
 //             1) 모달 열림 즉시 loadResourceAICredentials 실행으로 리소스 폴더의 최신 키/모델을 화면에 즉각 동기화
 // 🚨 @PATCH : **2026-10-21** — [리소스 폴더 변경 시 환경설정 모달 내부 AI 환경정보 실시간 자동 갱신]:
@@ -47,6 +49,7 @@ import { ResourceFolderLocation } from '@/components/ResourceFolderLocation';
 import { getResourceEnvironment } from '@/lib/resourceSettings';
 import { Icon } from '@/components/icons/Icon';
 import { TOOLBAR_ITEMS, getDefaultHotkeys, getDefaultCommands } from '@/lib/toolbarConfig';
+import { writeResourceShortcodes } from '@/lib/resourceJson';
 import { testGeminiConnection, ONRIVI_AI_MODELS, getCachedAIModels, fetchGoogleAIStudioModels, normalizeAIModelName, OnriviAIModelItem } from '@/lib/gemini';
 import { supabase } from '@/lib/supabaseClient';
 import { saveSecureData, loadSecureData } from '@/lib/secureStorage';

@@ -1,6 +1,6 @@
-import { createVisualDocumentCodec } from '@/lib/visualDocumentCodec';
+import { createVisualDocumentCodec, visualSchema } from '@/lib/visualDocumentCodec';
 import { EditorState, TextSelection } from 'prosemirror-state';
-import { Slice } from 'prosemirror-model';
+import { Fragment, Node as DocumentNode, Slice } from 'prosemirror-model';
 import { bulletNumbersAsText } from './bulletNumberText';
 
 type Codec = ReturnType<typeof createVisualDocumentCodec>;
@@ -43,4 +43,22 @@ export function markdownPasteTransaction(state: EditorState, codec: Codec, sourc
   transaction.setStoredMarks([]);
   transaction.setSelection(TextSelection.near(transaction.doc.resolve(transaction.mapping.map(state.selection.to)), 1));
   return transaction.scrollIntoView();
+}
+
+// A table cell accepts inline content. Inserting a document slice here can split
+// the surrounding table, so keep Markdown marks while flattening block boundaries.
+export function markdownPasteInTableCellTransaction(state: EditorState, source: string) {
+  const parsed = createVisualDocumentCodec(source).doc;
+  const inline: DocumentNode[] = [];
+  const textBlocks = Array.from({ length: parsed.childCount }, (_, index) => parsed.child(index));
+  if (textBlocks.every(node => node.type === visualSchema.nodes.paragraph || node.type === visualSchema.nodes.heading)) {
+    textBlocks.forEach((node, index) => {
+      if (index) inline.push(visualSchema.nodes.hard_break.create());
+      node.content.forEach(child => inline.push(child));
+    });
+  } else {
+    const plain = source.replace(/\s*\r?\n\s*/g, ' ');
+    if (plain) inline.push(visualSchema.text(plain));
+  }
+  return state.tr.replaceSelection(new Slice(Fragment.fromArray(inline), 0, 0)).scrollIntoView();
 }

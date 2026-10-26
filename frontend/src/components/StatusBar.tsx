@@ -493,8 +493,8 @@ function StatusBar() {
               ? 'text-blue-600 dark:text-blue-400 bg-blue-500/15 font-bold shadow-2xs'
               : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
           }`}
-          title={pageGuides ? "예상 페이지 경계 끄기" : "예상 페이지 경계 켜기"}
-          aria-label={pageGuides ? "예상 페이지 경계 끄기" : "예상 페이지 경계 켜기"}
+          title={pageGuides ? "PDF 기준 페이지 보기 끄기" : "PDF 기준 페이지 보기 켜기"}
+          aria-label={pageGuides ? "PDF 기준 페이지 보기 끄기" : "PDF 기준 페이지 보기 켜기"}
         >
           <Icon name="Book" size={15} />
         </button>

@@ -4,6 +4,12 @@ import { normalizeBookLayout } from '../lib/picturebook';
 // ====================================================================
 // 📊 [OMD-CORE-cssProfile-0006] cssProfile ➔ SYSTEM_PROFILE_IDS
 // 🎯 @KICK  : 시스템 프로필 식별자 목록을 정의한다
+// 🚨 @PATCH : **2026-10-26** — [글머리 기호(불릿) 레벨별 계층 설정(bulletStructure) 프로필 연동 및 정규화]:
+//             1) DEFAULT_PROFILE 및 SYSTEM_PROFILES에 bulletStructure(level1: 'disc', level2: 'circle', level3: 'square') 탑재
+//             2) normalizeCssProfile에서 bulletStructure 누락 시 자동 하이드레이션 병합 보장
+// 🚨 @PATCH : **2026-10-26** — [인용구(blockquote) 테두리 형태 및 두께 정규화 무결성 보장]:
+//             1) 전체 박스형 또는 부드러운 그림자 선택 시 DEFAULT_PROFILE의 border-left가 부활하여 선택 표시가 왜곡되던 정규화 결함 해결
+//             2) border-width 조절 시 border 단축 속성이 강제 삭제되어 테두리가 실종되던 문제 해결 및 border-left: none/border: none 명시적 보존
 // 🚨 @PATCH : **2026-10-25** — [이미지와 캡션 간격 초밀착(4px) 정돈]:
 //             1) 시스템 서식 프로필 customCss 내 figcaption 상하 마진을 8px에서 4px로 단정히 축소하여 캡션과 이미지 간격 밀착화
 // 🚨 @PATCH : **2026-10-22** — [4대 문서 표준 규격 시스템 서식 프로필(CSS Profile) 신설 탑재]:
@@ -409,6 +415,11 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "position": "top",
       "format": "standard",
       "customTemplate": "**{kind} {n}. {title}**"
+    },
+    "bulletStructure": {
+      "level1": "disc",
+      "level2": "circle",
+      "level3": "square"
     },
     "customCss": ""
   },
@@ -3196,6 +3207,11 @@ export function createEmptyProfile(): CssProfile {
       outerBorderWidth: '1px',
       rowBorderWidth: '1px',
       colBorderWidth: '0px'
+    },
+    bulletStructure: {
+      level1: 'disc',
+      level2: 'circle',
+      level3: 'square'
     }
   };
 }
@@ -3296,14 +3312,17 @@ export function normalizeCssProfile(
   // 3-2. blockquote 테두리 중복 속성 살균
   if (incomingRules.blockquote) {
     const bq = incomingRules.blockquote;
-    if (bq['border-left'] === 'none') {
-      delete bq['border-left'];
+    if (bq['border'] && bq['border'] !== 'none') {
+      bq['border-left'] = 'none';
+      delete bq['border-left-width'];
+      delete bq['border-left-color'];
+    } else if (bq['box-shadow'] && bq['box-shadow'] !== 'none' && (!bq['border-left'] || bq['border-left'] === 'none')) {
+      bq['border-left'] = 'none';
+      delete bq['border-left-width'];
+      delete bq['border-left-color'];
     }
     if (bq['border-left'] && bq['border-left'] !== 'none' && bq['border-width']) {
       delete bq['border-width'];
-    }
-    if (bq['border'] && bq['border'] !== 'none' && bq['border-left-width']) {
-      delete bq['border-left-width'];
     }
   }
 
@@ -3313,7 +3332,7 @@ export function normalizeCssProfile(
   }
 
   // 3-4. 표(table, th, td) 단축 속성과 개별 속성 중복 제거 및 세로선 방해 레거시 방향별 테두리 살균
-  ['table', 'th', 'td', 'blockquote', 'codeBlock', 'math'].forEach(tag => {
+  ['table', 'th', 'td', 'codeBlock', 'math'].forEach(tag => {
     if (incomingRules[tag] && incomingRules[tag]['border-width'] && incomingRules[tag]['border']) {
       delete incomingRules[tag]['border'];
     }
@@ -3340,6 +3359,20 @@ export function normalizeCssProfile(
       ...(cleanRules[tag] as object || {}),
     };
   });
+
+  // 4-1. blockquote 전체 박스형 및 그림자형에서 DEFAULT_PROFILE의 border-left 부활 원천 차단
+  if (deeplyMergedRules.blockquote) {
+    const bq = deeplyMergedRules.blockquote;
+    if (bq['border'] && bq['border'] !== 'none') {
+      bq['border-left'] = 'none';
+    }
+    if (cleanRules.blockquote && (cleanRules.blockquote as any)['border-left'] === 'none') {
+      bq['border-left'] = 'none';
+    }
+    if (cleanRules.blockquote && (cleanRules.blockquote as any)['border'] === 'none') {
+      bq['border'] = 'none';
+    }
+  }
 
   // Controls with a base-size mode must not regain a fixed size during normalization.
   ['table', 'th', 'td', 'blockquote', 'codeBlock', 'math'].forEach(tag => {
@@ -3387,6 +3420,14 @@ export function normalizeCssProfile(
       : {}),
   };
 
+  const mergedBulletStructure = {
+    level1: 'disc',
+    level2: 'circle',
+    level3: 'square',
+    ...(DEFAULT_PROFILE.bulletStructure || {}),
+    ...(imported?.bulletStructure || {}),
+  };
+
   // 6. 최종 서식 객체 조립
   return {
     ...DEFAULT_PROFILE,
@@ -3401,6 +3442,7 @@ export function normalizeCssProfile(
     checkboxStructure: mergedCheckboxStructure,
     tableStructure: mergedTableStructure,
     mediaCaptionStructure: mergedMediaCaptionStructure,
+    bulletStructure: mergedBulletStructure,
     layout: normalizeBookLayout(imported?.layout),
   };
 }

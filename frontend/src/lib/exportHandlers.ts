@@ -1,9 +1,15 @@
 import { headingNumberingCss, materializeHeadingNumbers } from './headingNumbering';
-import { reportNumberingCss, materializeReportNumbers } from './reportNumbering';
+import { reportNumberingCss, materializeReportNumbers, CIRCLED_DECIMAL_LIST_STYLE, CIRCLED_NUMBERS, getBulletSymbolValue } from './reportNumbering';
 import { embedExportFonts } from './exportFonts';
 import { startExportProgress } from './exportProgress';
 // PDF and print share the preview pagination engine on web and desktop.
 // A failed calculation must not silently discard the user's output boundaries.
+// 🚨 @PATCH : **2026-10-26** — [원문자(①, ②, ③) 및 글머리 불릿 레벨별(1~3단계) 내보내기 마커 동기화]:
+//             1) fixListMarkers에 프로필 연동 및 원문자(①, ②, ③) 리스트 마커 사출 지원
+//             2) 1단계/2단계/3단계 깊이(depth)별 불릿 기호(•, ○, ■, ◆, -, ▶ 등)를 판별하여 PDF/HTML/인쇄 시 1:1 일치 반영
+// 🚨 @PATCH : **2026-10-26** — [동영상·지도 설명(캡션) 이미지 규격 동기화(중앙 정렬 및 0.88em 글자 크기)]:
+//             1) .onrivi-video-figure figcaption 및 .onrivi-map-figure figcaption에 text-align: center, font-size: 0.88em, font-weight: 500 주입
+//             2) 동영상/지도 래퍼 인접 캡션 문단에도 중앙 정렬 및 0.88em 글자 크기를 동기화하여 이미지 캡션과 100% 동일한 내보내기 조판 완성
 // 🚨 @PATCH : **2026-10-25** — [이미지와 캡션 간격 초밀착(4px) 정돈 및 인접 마진 중복 상쇄]:
 //             1) .onrivi-image-figure[data-caption-position="top"] 내 img 상단 마진을 0으로 강제 초기화하고 figcaption 하단 마진을 4px로 단정히 축소
 //             2) .onrivi-image-figure[data-caption-position="bottom"] 내 img 하단 마진 및 figcaption 상단 마진도 4px로 일체화
@@ -22,6 +28,10 @@ import { startExportProgress } from './exportProgress';
 //             1) exportPDF 내 복제 DOM에서 모든 페이지 나누기 마커([data-onrivi-page-break], .onrivi-page-break, .page-break, hr.page-break)를 data-onrivi-page-break='true'로 정규화
 //             2) HTML 주석(<!-- onrivi:page-break -->) 노드를 실제 data-onrivi-page-break 블록 엘리먼트로 변환하여 PagedJS/인쇄 엔진 분할 100% 반영
 //             3) 인쇄 CSS에 .onrivi-page-break, .page-break, hr.page-break의 break-before: page !important 및 content: none !important 주입
+// 🚨 @PATCH : **2026-10-26** — [확장 리스트(Loose List) 내부 p 및 .onrivi-line 인라인 일원화]:
+//             1) generateExportCss에 .custom-preview-container li p 및 .onrivi-line의 display: inline !important 및 width: auto를 주입하여 Loose List 출력 시에도 불릿/숫자 마커와 글자 간격 밀착 유지
+// 🚨 @PATCH : **2026-10-26** — [인용구 내부 목록(blockquote ul/ol) 패딩 서식 동기화 및 마커 간격 연동]:
+//             1) generateExportCss에서 인용구 내부 ul/ol의 padding-left를 var(--list-indent, 1.4em)으로 일원화
 // 🚨 @PATCH : **2026-10-20** — [PDF/인쇄 시 워터마크 이미지 로드 실패 안전 폴백(DEFAULT_WATERMARK_IMAGE) 및 리소스 직접 로드 지원]:
 //             1) exportPDF 시 워터마크 이미지가 리소스 경로(/media/watermark_xxx.png)인 경우 listWatermarkResources를 통해 브라우저 FileSystemHandle/Electron/Drive에서 직접 바이너리를 로드하여 인라인화
 //             2) 파일 누락, 권한 오류 또는 404/400 실패 시 PDF 내보내기 전체가 중단되는 현상을 방지하고 공식 기본 엠블럼(DEFAULT_WATERMARK_IMAGE)으로 안전 대체
@@ -498,7 +508,7 @@ blockquote ul,
 blockquote ol {
   margin-top: 4px !important;
   margin-bottom: 4px !important;
-  padding-left: 1.4em !important;
+  padding-left: var(--list-indent, 1.4em) !important;
 }
 .custom-preview-container blockquote li,
 .onrivi-content-root blockquote li,
@@ -607,6 +617,26 @@ blockquote li p {
   text-align: ${textAlign} !important;
   width: 100% !important;
 }
+.custom-preview-container .onrivi-video-figure figcaption,
+.onrivi-content-root .onrivi-video-figure figcaption {
+  text-align: ${textAlign} !important;
+  align-self: ${alignSelf} !important;
+  font-size: 0.88em !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.01em !important;
+}
+.custom-preview-container .onrivi-video-figure[data-caption-position="top"] figcaption,
+.onrivi-content-root .onrivi-video-figure[data-caption-position="top"] figcaption {
+  order: -1 !important;
+  margin-top: 0 !important;
+  margin-bottom: 6px !important;
+}
+.custom-preview-container .onrivi-video-figure[data-caption-position="bottom"] figcaption,
+.onrivi-content-root .onrivi-video-figure[data-caption-position="bottom"] figcaption {
+  order: 1 !important;
+  margin-top: 6px !important;
+  margin-bottom: 0 !important;
+}
 `;
     } else if (tag === 'map') {
       const ml = (ruleObj as any)['margin-left'] || 'auto';
@@ -642,9 +672,45 @@ blockquote li p {
   text-align: ${textAlign} !important;
   width: 100% !important;
 }
+.custom-preview-container .onrivi-map-figure figcaption,
+.onrivi-content-root .onrivi-map-figure figcaption {
+  text-align: ${textAlign} !important;
+  align-self: ${alignSelf} !important;
+  font-size: 0.88em !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.01em !important;
+}
+.custom-preview-container .onrivi-map-figure[data-caption-position="top"] figcaption,
+.onrivi-content-root .onrivi-map-figure[data-caption-position="top"] figcaption {
+  order: -1 !important;
+  margin-top: 0 !important;
+  margin-bottom: 6px !important;
+}
+.custom-preview-container .onrivi-map-figure[data-caption-position="bottom"] figcaption,
+.onrivi-content-root .onrivi-map-figure[data-caption-position="bottom"] figcaption {
+  order: 1 !important;
+  margin-top: 6px !important;
+  margin-bottom: 0 !important;
+}
 `;
     }
   });
+
+  // 💡 동영상·지도 인접 단독 문단 캡션도 이미지 캡션과 동일하게 중앙 정렬 및 0.88em 폰트 크기 보장
+  css += `
+.custom-preview-container .onrivi-video-wrapper + p,
+.custom-preview-container p:has(+ .onrivi-video-wrapper),
+.custom-preview-container .onrivi-map-wrapper + p,
+.custom-preview-container p:has(+ .onrivi-map-wrapper),
+.onrivi-content-root .onrivi-video-wrapper + p,
+.onrivi-content-root p:has(+ .onrivi-video-wrapper),
+.onrivi-content-root .onrivi-map-wrapper + p,
+.onrivi-content-root p:has(+ .onrivi-map-wrapper) {
+  text-align: center !important;
+  font-size: 0.88em !important;
+  font-weight: 500 !important;
+}
+`;
 
   // Resolve base-size controls against the document, even inside fixed-size wrappers.
   const baseSizeSelectors = {
@@ -1072,6 +1138,27 @@ pre {
   list-style: none !important;
   list-style-type: none !important;
   padding-left: 0 !important;
+}
+.custom-preview-container li > p,
+.custom-preview-container li p,
+.onrivi-content-root li > p,
+.onrivi-content-root li p {
+  display: inline !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+.custom-preview-container li p .onrivi-line,
+.onrivi-content-root li p .onrivi-line {
+  display: inline !important;
+  width: auto !important;
+  min-height: 0 !important;
+}
+.custom-preview-container li p + p,
+.onrivi-content-root li p + p {
+  display: block !important;
+  margin-top: 0.45em !important;
 }
 `;
 
@@ -1883,7 +1970,7 @@ function clonePreview(previewEl: HTMLElement, captureWordLayout = false): HTMLEl
 // 🚨 @PATCH : export-style-element 클래스로 스타일 및 마커 일괄 관리
 // 🔗 @CALLS : 없음
 // ====================================================================
-function fixListMarkers(clone: HTMLElement): void {
+function fixListMarkers(clone: HTMLElement, profile?: CssProfile): void {
   const style = document.createElement('style');
   style.className = 'export-style-element';
   style.textContent = `
@@ -1893,6 +1980,8 @@ function fixListMarkers(clone: HTMLElement): void {
   display: none !important; content: none !important; width: 0 !important; height: 0 !important;
 }`;
   clone.appendChild(style);
+
+  const isCircledOl = profile?.rules?.ol?.['list-style-type'] === CIRCLED_DECIMAL_LIST_STYLE;
 
   clone.querySelectorAll('ol').forEach((ol) => {
     const start = parseInt(ol.getAttribute('start') || '1', 10);
@@ -1905,24 +1994,41 @@ function fixListMarkers(clone: HTMLElement): void {
       if (el.querySelector('.export-list-marker')) return;
       const marker = document.createElement('span');
       marker.className = 'export-list-marker';
-      marker.textContent = num + '. ';
+      marker.textContent = isCircledOl ? ((CIRCLED_NUMBERS[num - 1] || `${num}.`) + ' ') : (num + '. ');
       marker.style.cssText = 'display:inline;font-weight:400;margin-right:4px;user-select:none;-webkit-user-select:none;';
-      const textBlock=el.querySelector(':scope > p, :scope > div > p') || el;
+      const textBlock = el.querySelector(':scope > p, :scope > div > p') || el;
       textBlock.insertBefore(marker, textBlock.firstChild);
     });
   });
 
+  const bs = profile?.bulletStructure;
+  const l1Type = bs?.level1 || profile?.rules?.ul?.['list-style-type'] || 'disc';
+  const l2Type = bs?.level2 || 'circle';
+  const l3Type = bs?.level3 || 'square';
+  const l1Text = getBulletSymbolValue(l1Type, bs?.custom1).text;
+  const l2Text = getBulletSymbolValue(l2Type, bs?.custom2).text;
+  const l3Text = getBulletSymbolValue(l3Type, bs?.custom3).text;
+
   clone.querySelectorAll('ul').forEach((ul) => {
+    let depth = 1;
+    let parent = ul.parentElement;
+    while (parent && parent !== clone) {
+      if (parent.tagName === 'UL') depth++;
+      parent = parent.parentElement;
+    }
+    const bulletChar = depth === 1 ? l1Text : depth === 2 ? l2Text : l3Text;
+
     ul.querySelectorAll(':scope > li').forEach((li) => {
       const el = li as HTMLElement;
       if (el.classList.contains('onrivi-empty-list-row') || el.classList.contains('task-list-item')) return;
       el.style.listStyleType = 'none';
       if (el.querySelector('.export-list-marker')) return;
+      if (!bulletChar) return;
       const marker = document.createElement('span');
       marker.className = 'export-list-marker';
-      marker.textContent = '• ';
+      marker.textContent = bulletChar;
       marker.style.cssText = 'display:inline;font-weight:400;margin-right:4px;user-select:none;-webkit-user-select:none;';
-      const textBlock=el.querySelector(':scope > p, :scope > div > p') || el;
+      const textBlock = el.querySelector(':scope > p, :scope > div > p') || el;
       textBlock.insertBefore(marker, textBlock.firstChild);
     });
   });
@@ -2269,6 +2375,9 @@ export async function exportPDF({
       }
     }
     const clone = clonePreview(targetEl);
+    // PDF page mode keeps the editable surface visually hidden. Restore its
+    // layout in the print clone before Paged.js measures and splits pages.
+    clone.querySelectorAll<HTMLElement>('[data-onrivi-editor-host]').forEach(host => host.removeAttribute('style'));
     // Editor controls and guides are UI, not document content. Keep the live editor mounted.
     clone.querySelectorAll('[data-editor-controls], .onrivi-page-guides, .onrivi-print-tools').forEach(el => el.remove());
     markLeadExportFigure(clone);
@@ -3486,8 +3595,8 @@ export async function exportPNG({
     await waitForExportResources(targetEl);
     await new Promise(r => setTimeout(r, 300));
 
-    // 🎯 html2canvas가 ::before/counter() 미지원 → 목록 마커 DOM 직접 주입
-    fixListMarkers(clone);
+    // 🎯 html2canvas가 ::before/counter() 미지원 → 목록 마커 DOM 직접 주입 (원문자 및 1~3단계 불릿 동기화)
+    fixListMarkers(clone, activeProfile);
     // 🌟 html2canvas 한계 보완: 테이블/인라인코드 inline style 강제 적용 (미리보기 실제 DOM과 1:1 동기화)
     applyExportInlineStyles(clone, activeProfile, targetEl);
 
