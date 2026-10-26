@@ -7,6 +7,8 @@
  * 2. next build 실행
  * 3. 임시 이동한 폴더 원위치 복원
  * 
+ * 🚨 @PATCH : **2026-10-26** — [빌드 시 public/help -> out/help 및 docs/help 미러 자동 동기화 보강]:
+ *             1) 데스크톱 정적 빌드 완료 후 public/help 최신 문서를 out/help 및 docs/help에 자동 동기화하여 온리비어서에서 편집한 도움말이 재빌드 시 초기화되는 결함 영구 방어
  * 🚨 @PATCH : **2026-10-25** — [이전 빌드 잔여 청크(Ghost Chunks) 자동 소탕 파이프라인 신설]:
  *             1) Next.js 빌드 시 해시가 변경되어 out/_next/static/chunks에 이전 빌드 파일들이 끝없이 누적되던 결함(254개 파일, 약 98.6MB) 해결
  *             2) .next-desktop 정적 번들을 out으로 동기화한 직후, 최신 빌드에 존재하지 않는 과거 청크 및 이전 빌드 디렉터리를 자동 비교·소탕하여 패키징 용량 대폭 절감
@@ -182,6 +184,25 @@ if (buildSuccess) {
     }
   } catch (copyErr) {
     console.warn('[desktop-build] out/icons 동기화 경고:', copyErr.message);
+  }
+
+  try {
+    const publicHelpDir = path.join(__dirname, 'public', 'help');
+    const outHelpDir = path.join(__dirname, 'out', 'help');
+    const docsHelpDir = path.join(__dirname, '..', 'docs', 'help');
+    if (fs.existsSync(publicHelpDir)) {
+      if (fs.existsSync(path.join(__dirname, 'out'))) {
+        if (!fs.existsSync(outHelpDir)) fs.mkdirSync(outHelpDir, { recursive: true });
+        fs.cpSync(publicHelpDir, outHelpDir, { recursive: true, force: true });
+        console.log('[desktop-build] public/help -> out/help 동기화 완료');
+      }
+      if (fs.existsSync(docsHelpDir)) {
+        fs.cpSync(publicHelpDir, docsHelpDir, { recursive: true, force: true });
+        console.log('[desktop-build] public/help -> docs/help 미러 동기화 완료');
+      }
+    }
+  } catch (helpCopyErr) {
+    console.warn('[desktop-build] out/help 동기화 경고:', helpCopyErr.message);
   }
 
   // 🛡️ [용량 최적화 및 보안] out 디렉터리 내 불필요한 .map, 테스트 파일, 임시 에셋 자동 소탕

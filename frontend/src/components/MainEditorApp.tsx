@@ -1,5 +1,9 @@
 /**
  * 프로그램명 : OnriviAuthor 
+// 🚨 @PATCH : **2026-10-26** — [플로팅 서식 툴바 탭오더(Tab/Arrow) 키보드 탐색 및 Enter 적용 후 자동 닫힘(사라짐) 연동]:
+//             1) 플로팅 툴바 활성화 시 에디터에서 Tab 입력 시 툴바 첫 번째 버튼으로 포커스 진입 지원 및 툴바 내부 Tab/Shift+Tab, Arrow 방향키 순환 탐색 연동
+//             2) 모든 버튼에 tabIndex={0}, 고대비 포커스 링(focus:ring-2 focus:ring-blue-500) 및 onClick/Enter/Space 이벤트 연동
+//             3) 서식 및 블록 태그 버튼 선택/클릭/Enter 적용 즉시 플로팅 툴바가 자동으로 닫히고 에디터 본문으로 커서 포커스 복귀
 // 🚨 @PATCH : **2026-10-25** — [문서 연결(DocLinkPicker) scratch 임시 폴더 스캔 차단 및 도움말 중복 표시 제거]:
 //             1) fetchAllMdFiles 및 DocLinkPicker 제외 목록에 scratch 폴더를 추가하여 임시·테스트 파일 유출을 방지
 //             2) 일반 문서 작성 시 모든 도움말 경로(docs/help, public/help)를 완벽 차단하고, 도움말 문서 편집 시 정적 웹 미러(public/help)를 배제하여 단일 정식 문서(docs/help)만 표시되도록 정돈
@@ -4155,6 +4159,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const docLinkFilesRef = useRef<FileNode[]>([]);
   const [floatingToolbar, setFloatingToolbar] = useState<{ visible: boolean, top: number, left: number }>({ visible: false, top: 0, left: 0 });
   const floatingToolbarRef = useRef<HTMLDivElement>(null);
+  const lastFloatingActionRef = useRef<number>(0);
+  const executeFloatingItem = useCallback((action: () => void) => {
+    const now = Date.now();
+    if (now - lastFloatingActionRef.current < 150) return;
+    lastFloatingActionRef.current = now;
+    action();
+    setFloatingToolbar(prev => ({ ...prev, visible: false }));
+    if (!visualFloatingOriginRef.current || !visualCommandRef.current?.('FOCUS')) {
+      editorRef.current?.focus();
+    }
+  }, []);
   const aiDecorationsRef = useRef<string[]>([]);
   const generationIdRef = useRef<number>(0);
   const readFileTextRef = useRef<(node: FileNode) => Promise<string>>(null!);
@@ -8921,6 +8936,21 @@ blockquote li p {
         }
       }
 
+      // Tab: 플로팅 툴바가 활성화된 상태에서 Tab 입력 시 플로팅 툴바 내부 버튼으로 포커스 진입
+      if (e.key === 'Tab' && floatingToolbar.visible && !isCtrl && !isAlt && !e.metaKey) {
+        const toolbarEl = floatingToolbarRef.current || document.getElementById('floating-toolbar');
+        if (toolbarEl && !toolbarEl.contains(document.activeElement)) {
+          const buttons = Array.from(toolbarEl.querySelectorAll('button:not([disabled])')) as HTMLButtonElement[];
+          if (buttons.length > 0) {
+            e.preventDefault();
+            e.stopPropagation();
+            const targetBtn = isShift ? buttons[buttons.length - 1] : buttons[0];
+            targetBtn?.focus();
+            return;
+          }
+        }
+      }
+
       // Escape: 인용구 드롭다운, 이모지 패널 또는 플로팅 툴바 숨김 (에디터 포커스 무관)
       if (e.key === 'Escape') {
         if (floatingQuoteDropdown.open) {
@@ -10181,17 +10211,28 @@ blockquote li p {
                             tabIndex={-1}
                             onKeyDown={(e) => {
                               e.stopPropagation();
-                              const buttons = Array.from(e.currentTarget.querySelectorAll('button')) as HTMLButtonElement[];
+                              const buttons = Array.from(e.currentTarget.querySelectorAll('button:not([disabled])')) as HTMLButtonElement[];
                               const activeEl = document.activeElement as HTMLButtonElement;
                               const currentIndex = buttons.indexOf(activeEl);
-                              if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                              if (e.key === 'Tab') {
                                 e.preventDefault();
-                                const nextIndex = (currentIndex + 1) % buttons.length;
+                                const nextIndex = currentIndex === -1
+                                  ? (e.shiftKey ? buttons.length - 1 : 0)
+                                  : (e.shiftKey ? (currentIndex - 1 + buttons.length) % buttons.length : (currentIndex + 1) % buttons.length);
+                                buttons[nextIndex]?.focus();
+                              } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % buttons.length;
                                 buttons[nextIndex]?.focus();
                               } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
                                 e.preventDefault();
-                                const prevIndex = (currentIndex - 1 + buttons.length) % buttons.length;
+                                const prevIndex = currentIndex === -1 ? buttons.length - 1 : (currentIndex - 1 + buttons.length) % buttons.length;
                                 buttons[prevIndex]?.focus();
+                              } else if (e.key === 'Enter' || e.key === ' ') {
+                                if (activeEl && buttons.includes(activeEl)) {
+                                  e.preventDefault();
+                                  activeEl.click();
+                                }
                               } else if (e.key === 'Escape') {
                                 e.preventDefault();
                                 setFloatingToolbar(prev => ({ ...prev, visible: false }));
@@ -10212,107 +10253,125 @@ blockquote li p {
                                 <div className="flex flex-row items-center gap-3.5 min-w-max">
                                   {/* 서식 */}
                                   <div className="flex flex-row items-center gap-1 text-zinc-800 dark:text-zinc-100">
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('BOLD'); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] font-black cursor-pointer" title="굵게">B</button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('ITALIC'); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] italic font-serif cursor-pointer" title="기울임">I</button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('INLINE_CODE'); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center cursor-pointer" title="인라인 코드">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('BOLD')); }} onClick={() => executeFloatingItem(() => dispatchCommand('BOLD'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] font-black cursor-pointer" title="굵게 (Enter)">B</button>
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('ITALIC')); }} onClick={() => executeFloatingItem(() => dispatchCommand('ITALIC'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] italic font-serif cursor-pointer" title="기울임 (Enter)">I</button>
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('INLINE_CODE')); }} onClick={() => executeFloatingItem(() => dispatchCommand('INLINE_CODE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center cursor-pointer" title="인라인 코드 (Enter)">
                                       <img src="/icons/Password.png" alt="인라인 코드" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('UNDERLINE'); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] underline font-bold cursor-pointer" title="밑줄">U</button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('STRIKETHROUGH'); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] font-bold cursor-pointer" title="취소선"><span className="line-through">S</span></button>
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('UNDERLINE')); }} onClick={() => executeFloatingItem(() => dispatchCommand('UNDERLINE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] underline font-bold cursor-pointer" title="밑줄 (Enter)">U</button>
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('STRIKETHROUGH')); }} onClick={() => executeFloatingItem(() => dispatchCommand('STRIKETHROUGH'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] font-bold cursor-pointer" title="취소선 (Enter)"><span className="line-through">S</span></button>
                                   </div>
                                   <div className="w-px h-7 bg-black/15 dark:bg-white/15" />
                                   {/* 제목 */}
                                   <div className="flex flex-row items-center gap-1">
                                     <div className="flex items-center border border-emerald-600/30 dark:border-emerald-500/40 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/15 py-0.5 px-1.5 gap-1.5 text-emerald-800 dark:text-emerald-300">
-                                      <button onMouseDown={(e) => { e.preventDefault(); setFloatingHeadingLevel(Math.max(1, floatingHeadingLevel - 1)); }} disabled={floatingHeadingLevel === 1} className="w-6 h-7 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 text-[10px] font-bold" title="제목 크기 키우기 (H1 방향)">▲</button>
-                                      <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand(`H${floatingHeadingLevel}`); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-8 h-7 flex items-center justify-center font-extrabold text-[13px] hover:bg-black/10 dark:hover:bg-white/10 rounded shrink-0" title={`제목 ${floatingHeadingLevel} 적용`}>H{floatingHeadingLevel}</button>
-                                      <button onMouseDown={(e) => { e.preventDefault(); setFloatingHeadingLevel(Math.min(6, floatingHeadingLevel + 1)); }} disabled={floatingHeadingLevel === 6} className="w-6 h-7 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 text-[10px] font-bold" title="제목 크기 줄이기 (H6 방향)">▼</button>
+                                      <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); setFloatingHeadingLevel(Math.max(1, floatingHeadingLevel - 1)); }} onClick={() => setFloatingHeadingLevel(Math.max(1, floatingHeadingLevel - 1))} disabled={floatingHeadingLevel === 1} className="w-6 h-7 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-30 text-[10px] font-bold" title="제목 크기 키우기 (H1 방향)">▲</button>
+                                      <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand(`H${floatingHeadingLevel}`)); }} onClick={() => executeFloatingItem(() => dispatchCommand(`H${floatingHeadingLevel}`))} className="w-8 h-7 flex items-center justify-center font-extrabold text-[13px] hover:bg-black/10 dark:hover:bg-white/10 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded shrink-0" title={`제목 ${floatingHeadingLevel} 적용 (Enter)`}>H{floatingHeadingLevel}</button>
+                                      <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); setFloatingHeadingLevel(Math.min(6, floatingHeadingLevel + 1)); }} onClick={() => setFloatingHeadingLevel(Math.min(6, floatingHeadingLevel + 1))} disabled={floatingHeadingLevel === 6} className="w-6 h-7 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-30 text-[10px] font-bold" title="제목 크기 줄이기 (H6 방향)">▼</button>
                                     </div>
                                   </div>
                                   <div className="w-px h-7 bg-black/15 dark:bg-white/15" />
                                   {/* 문단 */}
                                   <div className="flex flex-row items-center gap-1 text-zinc-800 dark:text-zinc-100">
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('HR'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] font-bold" title="구분선">—</button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('ORDERED_LIST'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="숫자 목록">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('HR')); }} onClick={() => executeFloatingItem(() => dispatchCommand('HR'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] font-bold" title="구분선 (Enter)">—</button>
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('ORDERED_LIST')); }} onClick={() => executeFloatingItem(() => dispatchCommand('ORDERED_LIST'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="숫자 목록 (Enter)">
                                       <img src="/icons/ListNumbers.png" alt="숫자 목록" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LIST'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="글머리 기호">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('LIST')); }} onClick={() => executeFloatingItem(() => dispatchCommand('LIST'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="글머리 기호 (Enter)">
                                       <img src="/icons/ListBullets.png" alt="글머리 기호" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                      <div id="floating-quote-dropdown-container" className="relative inline-flex items-center rounded-lg border border-zinc-400 dark:border-zinc-600 bg-white/70 dark:bg-zinc-800/70">
-                                        <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('QUOTE'); setFloatingQuoteDropdown(prev => ({ ...prev, open: false })); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-8 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-l-lg transition-all flex items-center justify-center" title="인용구 (기본)">
-                                          <img src="/icons/WechatLogo.png" alt="인용구" className="w-5 h-5 object-contain dark:invert" />
-                                        </button>
-                                        <button
-                                          onMouseDown={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            const rect = e.currentTarget.getBoundingClientRect();
-                                            const winH = window.innerHeight;
-                                            // 드롭다운 예상 높이 ~200px, 하단 여유 부족 시 위쪽으로 반전
-                                            const spaceBelow = winH - rect.bottom;
-                                            const dropUp = spaceBelow < 210;
-                                            setFloatingQuoteDropdown(prev => ({
-                                              open: !prev.open,
-                                              x: rect.left,
-                                              y: dropUp ? rect.top : rect.bottom,
-                                              dropUp,
-                                            }));
-                                          }}
-                                          className="w-4 h-9 hover:bg-black/10 dark:hover:bg-white/10 rounded-r-lg transition-all flex items-center justify-center text-[8px] text-zinc-700 dark:text-zinc-200 font-bold"
-                                          title="인용구 스타일/Alert 태그 선택"
-                                        >▼</button>
-                                      </div>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CHECK'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="체크리스트">
+                                    <div id="floating-quote-dropdown-container" className="relative inline-flex items-center rounded-lg border border-zinc-400 dark:border-zinc-600 bg-white/70 dark:bg-zinc-800/70">
+                                      <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => { dispatchCommand('QUOTE'); setFloatingQuoteDropdown(prev => ({ ...prev, open: false })); }); }} onClick={() => executeFloatingItem(() => { dispatchCommand('QUOTE'); setFloatingQuoteDropdown(prev => ({ ...prev, open: false })); })} className="w-8 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-l-lg transition-all flex items-center justify-center" title="인용구 (기본) (Enter)">
+                                        <img src="/icons/WechatLogo.png" alt="인용구" className="w-5 h-5 object-contain dark:invert" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        tabIndex={0}
+                                        onMouseDown={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          const rect = e.currentTarget.getBoundingClientRect();
+                                          const winH = window.innerHeight;
+                                          const spaceBelow = winH - rect.bottom;
+                                          const dropUp = spaceBelow < 210;
+                                          setFloatingQuoteDropdown(prev => ({
+                                            open: !prev.open,
+                                            x: rect.left,
+                                            y: dropUp ? rect.top : rect.bottom,
+                                            dropUp,
+                                          }));
+                                        }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const rect = e.currentTarget.getBoundingClientRect();
+                                          const winH = window.innerHeight;
+                                          const spaceBelow = winH - rect.bottom;
+                                          const dropUp = spaceBelow < 210;
+                                          setFloatingQuoteDropdown(prev => ({
+                                            open: !prev.open,
+                                            x: rect.left,
+                                            y: dropUp ? rect.top : rect.bottom,
+                                            dropUp,
+                                          }));
+                                        }}
+                                        className="w-4 h-9 hover:bg-black/10 dark:hover:bg-white/10 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-r-lg transition-all flex items-center justify-center text-[8px] text-zinc-700 dark:text-zinc-200 font-bold"
+                                        title="인용구 스타일/Alert 태그 선택 (Enter)"
+                                      >▼</button>
+                                    </div>
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('CHECK')); }} onClick={() => executeFloatingItem(() => dispatchCommand('CHECK'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="체크리스트 (Enter)">
                                       <img src="/icons/ListChecks.png" alt="체크리스트" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('REMOVE_PREFIX'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="태그 취소">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('REMOVE_PREFIX')); }} onClick={() => executeFloatingItem(() => dispatchCommand('REMOVE_PREFIX'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="태그 취소 (Enter)">
                                       <img src="/icons/Eraser.png" alt="태그 취소" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CLEAN_DOC'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="문서 서식 일괄 정리">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('CLEAN_DOC')); }} onClick={() => executeFloatingItem(() => dispatchCommand('CLEAN_DOC'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="문서 서식 일괄 정리 (Enter)">
                                       <img src="/icons/MagicWand.png" alt="문서 서식 일괄 정리" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                   </div>
                                   <div className="w-px h-7 bg-black/15 dark:bg-white/15" />
                                   {/* 삽입 */}
                                   <div className="flex flex-row items-center gap-1 text-zinc-800 dark:text-zinc-100">
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LINK'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="링크">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('LINK')); }} onClick={() => executeFloatingItem(() => dispatchCommand('LINK'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="링크 (Enter)">
                                       <img src="/icons/Link.png" alt="링크" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('DOCLINK'); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="문서 연결">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('DOCLINK')); }} onClick={() => executeFloatingItem(() => dispatchCommand('DOCLINK'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="문서 연결 (Enter)">
                                       <img src="/icons/BookBookmark.png" alt="문서 연결" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CITE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="인용(참조문헌)">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('CITE')); }} onClick={() => executeFloatingItem(() => dispatchCommand('CITE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="인용(참조문헌) (Enter)">
                                       <Icon name="NewspaperClipping" size={20} className="text-zinc-800 dark:text-zinc-100" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('FOOTNOTE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[14px] font-black font-serif" title="각주">fn</button>
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('FOOTNOTE')); }} onClick={() => executeFloatingItem(() => dispatchCommand('FOOTNOTE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[14px] font-black font-serif" title="각주 (Enter)">fn</button>
                                     <div className="w-px h-5 mx-0.5 bg-black/15 dark:bg-white/15 shrink-0" />
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('IMAGE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="이미지">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('IMAGE')); }} onClick={() => executeFloatingItem(() => dispatchCommand('IMAGE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="이미지 (Enter)">
                                       <img src="/icons/Farm.png" alt="이미지" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('YOUTUBE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="동영상삽입">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('YOUTUBE')); }} onClick={() => executeFloatingItem(() => dispatchCommand('YOUTUBE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="동영상삽입 (Enter)">
                                       <img src="/icons/FilmReel.png" alt="동영상삽입" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                     <button
+                                      type="button"
+                                      tabIndex={0}
                                       id="datetime-format-trigger"
                                       onMouseDown={(e) => {
                                         e.preventDefault();
-                                        setFloatingToolbar(prev => ({ ...prev, visible: false }));
-                                        dispatchCommand('NOW');
+                                        executeFloatingItem(() => dispatchCommand('NOW'));
                                       }}
-                                      className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center"
-                                      title="달력 및 날짜/시간 삽입"
+                                      onClick={() => executeFloatingItem(() => dispatchCommand('NOW'))}
+                                      className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center"
+                                      title="달력 및 날짜/시간 삽입 (Enter)"
                                     >
                                       <img src="/icons/Calendar.png" alt="달력 및 날짜/시간 삽입" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                     <button
+                                      type="button"
+                                      tabIndex={0}
                                       onMouseDown={(e) => {
                                         e.preventDefault();
-                                        dispatchCommand('SIGNATURE');
-                                        setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                                        executeFloatingItem(() => dispatchCommand('SIGNATURE'));
                                       }}
-                                      className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-zinc-800 dark:text-zinc-100"
-                                      title="서명/발신인 (왼쪽 정렬) (Ctrl+Alt+R)"
+                                      onClick={() => executeFloatingItem(() => dispatchCommand('SIGNATURE'))}
+                                      className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-zinc-800 dark:text-zinc-100"
+                                      title="서명/발신인 (왼쪽 정렬) (Ctrl+Alt+R) (Enter)"
                                     >
                                       <Icon name="Signature" size={19} className="text-zinc-800 dark:text-zinc-100" />
                                     </button>
@@ -10320,59 +10379,89 @@ blockquote li p {
                                   <div className="w-px h-7 bg-black/15 dark:bg-white/15" />
                                   {/* 고급 및 표 열 정렬 */}
                                   <div className="flex flex-row items-center gap-1 text-zinc-800 dark:text-zinc-100">
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('MAP'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="지도 삽입">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('MAP')); }} onClick={() => executeFloatingItem(() => dispatchCommand('MAP'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="지도 삽입 (Enter)">
                                       <img src="/icons/MapTrifold.png" alt="지도 삽입" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('TABLE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="표 생성">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('TABLE')); }} onClick={() => executeFloatingItem(() => dispatchCommand('TABLE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="표 생성 (Enter)">
                                       <img src="/icons/Table.png" alt="표 생성" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                     {isInTable && (
                                       <>
                                         <button
+                                          type="button"
+                                          tabIndex={0}
                                           onMouseDown={(e) => {
                                             e.preventDefault();
-                                            if (typeof window !== 'undefined' && (window as any).setTableColumnAlign) {
-                                              (window as any).setTableColumnAlign('left');
-                                            }
-                                            setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                                            executeFloatingItem(() => {
+                                              if (typeof window !== 'undefined' && (window as any).setTableColumnAlign) {
+                                                (window as any).setTableColumnAlign('left');
+                                              }
+                                            });
                                           }}
-                                          className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] font-bold text-blue-600 dark:text-blue-400"
-                                          title="현재 열 왼쪽 정렬 (Alt+Shift+L)"
+                                          onClick={() => {
+                                            executeFloatingItem(() => {
+                                              if (typeof window !== 'undefined' && (window as any).setTableColumnAlign) {
+                                                (window as any).setTableColumnAlign('left');
+                                              }
+                                            });
+                                          }}
+                                          className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] font-bold text-blue-600 dark:text-blue-400"
+                                          title="현재 열 왼쪽 정렬 (Alt+Shift+L) (Enter)"
                                         >
                                           ⇤
                                         </button>
                                         <button
+                                          type="button"
+                                          tabIndex={0}
                                           onMouseDown={(e) => {
                                             e.preventDefault();
-                                            if (typeof window !== 'undefined' && (window as any).setTableColumnAlign) {
-                                              (window as any).setTableColumnAlign('center');
-                                            }
-                                            setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                                            executeFloatingItem(() => {
+                                              if (typeof window !== 'undefined' && (window as any).setTableColumnAlign) {
+                                                (window as any).setTableColumnAlign('center');
+                                              }
+                                            });
                                           }}
-                                          className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] font-bold text-blue-600 dark:text-blue-400"
-                                          title="현재 열 가운데 정렬 (Alt+Shift+C)"
+                                          onClick={() => {
+                                            executeFloatingItem(() => {
+                                              if (typeof window !== 'undefined' && (window as any).setTableColumnAlign) {
+                                                (window as any).setTableColumnAlign('center');
+                                              }
+                                            });
+                                          }}
+                                          className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] font-bold text-blue-600 dark:text-blue-400"
+                                          title="현재 열 가운데 정렬 (Alt+Shift+C) (Enter)"
                                         >
                                           ↔
                                         </button>
                                         <button
+                                          type="button"
+                                          tabIndex={0}
                                           onMouseDown={(e) => {
                                             e.preventDefault();
-                                            if (typeof window !== 'undefined' && (window as any).setTableColumnAlign) {
-                                              (window as any).setTableColumnAlign('right');
-                                            }
-                                            setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                                            executeFloatingItem(() => {
+                                              if (typeof window !== 'undefined' && (window as any).setTableColumnAlign) {
+                                                (window as any).setTableColumnAlign('right');
+                                              }
+                                            });
                                           }}
-                                          className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] font-bold text-blue-600 dark:text-blue-400"
-                                          title="현재 열 오른쪽 정렬 (Alt+Shift+R)"
+                                          onClick={() => {
+                                            executeFloatingItem(() => {
+                                              if (typeof window !== 'undefined' && (window as any).setTableColumnAlign) {
+                                                (window as any).setTableColumnAlign('right');
+                                              }
+                                            });
+                                          }}
+                                          className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] font-bold text-blue-600 dark:text-blue-400"
+                                          title="현재 열 오른쪽 정렬 (Alt+Shift+R) (Enter)"
                                         >
                                           ⇥
                                         </button>
                                       </>
                                     )}
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CODE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="코드 블록">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('CODE')); }} onClick={() => executeFloatingItem(() => dispatchCommand('CODE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="코드 블록 (Enter)">
                                       <img src="/icons/FileCode.png" alt="코드 블록" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LATEX'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="수식(LaTeX)">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('LATEX')); }} onClick={() => executeFloatingItem(() => dispatchCommand('LATEX'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="수식(LaTeX) (Enter)">
                                       <img src="/icons/PlusMinus.png" alt="수식(LaTeX)" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                   </div>
@@ -11613,7 +11702,33 @@ blockquote li p {
           {floatingQuoteDropdown.open && (
             <div
               id="floating-quote-dropdown-fixed"
+              tabIndex={-1}
               onMouseDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                const buttons = Array.from(e.currentTarget.querySelectorAll('button:not([disabled])')) as HTMLButtonElement[];
+                const activeEl = document.activeElement as HTMLButtonElement;
+                const currentIndex = buttons.indexOf(activeEl);
+                if (e.key === 'Tab' || e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % buttons.length;
+                  buttons[nextIndex]?.focus();
+                } else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
+                  e.preventDefault();
+                  const prevIndex = currentIndex === -1 ? buttons.length - 1 : (currentIndex - 1 + buttons.length) % buttons.length;
+                  buttons[prevIndex]?.focus();
+                } else if (e.key === 'Enter' || e.key === ' ') {
+                  if (activeEl && buttons.includes(activeEl)) {
+                    e.preventDefault();
+                    activeEl.click();
+                  }
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setFloatingQuoteDropdown(prev => ({ ...prev, open: false }));
+                  const trigger = document.getElementById('floating-quote-dropdown-container')?.querySelector('button');
+                  trigger?.focus();
+                }
+              }}
               style={{
                 position: 'fixed',
                 zIndex: 2147483647,
@@ -11623,7 +11738,7 @@ blockquote li p {
                   : { top: floatingQuoteDropdown.y + 4 }),
                 minWidth: '230px',
               }}
-              className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-2xl py-1 flex flex-col overflow-y-auto"
+              className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-2xl py-1 flex flex-col overflow-y-auto outline-none"
             >
               {[
                 { id: 'QUOTE', label: '일반 인용구', icon: '❝', tag: '> ' },
@@ -11635,13 +11750,22 @@ blockquote li p {
               ].map((opt) => (
                 <button
                   key={opt.id}
+                  type="button"
+                  tabIndex={0}
                   onMouseDown={(e) => {
                     e.preventDefault();
-                    dispatchCommand(opt.id as any);
-                    setFloatingQuoteDropdown(prev => ({ ...prev, open: false }));
-                    setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                    executeFloatingItem(() => {
+                      dispatchCommand(opt.id as any);
+                      setFloatingQuoteDropdown(prev => ({ ...prev, open: false }));
+                    });
                   }}
-                  className="w-full px-3 py-1.5 text-left text-xs hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center justify-between gap-3 transition-colors cursor-pointer"
+                  onClick={() => {
+                    executeFloatingItem(() => {
+                      dispatchCommand(opt.id as any);
+                      setFloatingQuoteDropdown(prev => ({ ...prev, open: false }));
+                    });
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-xs hover:bg-blue-50 dark:hover:bg-blue-900/30 focus:bg-blue-100 dark:focus:bg-blue-900/50 focus:outline-none flex items-center justify-between gap-3 transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-[14px]">{opt.icon}</span>

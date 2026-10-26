@@ -2,6 +2,9 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-10-26** — [도움말 3중 미러 자동 동기화 및 읽기 시 frontend/public 최우선 탐색]:
+//             1) file:readFromPath에서 과거 정적 빌드 산출물(frontend/out) 대신 개발자가 수정한 소스 디렉터리(frontend/public)를 1순위로 탐색하여 도움말 수정 시 과거 빌드 내용으로 초기화되는 결함 해결
+//             2) file:save에서 도움말 문서(HELP-*.md, 00_시작하기.md) 저장 시 frontend/public/help, docs/help, frontend/out/help 3개 경로에 원자적 동시 기록하여 온리비어서에서 편집 후 재빌드 시 과거 파일로 덮어써져 초기화되는 현상 영구 박멸
 // 🚨 @PATCH : **2026-10-24** — [클립보드 HTML 서식 및 텍스트 동시 복사(clipboard:writeHtml) IPC 탑재]:
 //             1) clipboard.write({ html, text })를 연동하여 OS 시스템 클립보드에 인라인 CSS가 적용된 서식 HTML과 일반 텍스트를 원자적으로 동시 기록
 // 🚨 @PATCH : **2026-10-21** — [AI API 키 리소스 폴더 암호화(AES-256) 전용 격리 및 다중 기기/드라이브 자동 구분 관리]:
@@ -2955,6 +2958,31 @@ ipcMain.handle('file:save', async (event, filePath, content) => {
       cleanPath = path.resolve(cleanPath);
     }
     fs.writeFileSync(cleanPath, content, 'utf-8');
+
+    // 🛡️ [도움말 3중 미러 자동 동기화 - 재빌드 시 초기화 영구 방어]
+    const isHelpDoc = /(?:^|\/)help\/[^/]+\.md$/i.test(normalized) || /^(?:HELP-[^/]+|00_시작하기)\.md$/i.test(path.basename(cleanPath));
+    if (isHelpDoc) {
+      const helpFileName = path.basename(cleanPath);
+      const projectRoot = app.getAppPath();
+      const mirrorPaths = [
+        path.join(projectRoot, 'frontend/public/help', helpFileName),
+        path.join(projectRoot, 'docs/help', helpFileName),
+        path.join(projectRoot, 'frontend/out/help', helpFileName)
+      ];
+      for (const mPath of mirrorPaths) {
+        try {
+          const normMPath = path.resolve(mPath.normalize('NFC'));
+          if (normMPath !== cleanPath) {
+            const dir = path.dirname(normMPath);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(normMPath, content, 'utf-8');
+          }
+        } catch (mirrorErr) {
+          console.warn('[file:save] 도움말 미러 동기화 경고:', mPath, mirrorErr.message);
+        }
+      }
+    }
+
     return true;
   } catch (e) {
     console.error('로컬 파일 덮어쓰기 저장 실패:', e);
@@ -3178,12 +3206,12 @@ ipcMain.handle('file:readFromPath', async (event, filePath) => {
       } else if (canUseBundledHelp) {
         // 명시적인 도움말 요청만 앱 리소스에서 탐색
         const pathsToTry = [
+          path.join(app.getAppPath(), 'frontend/public', filePath),
           path.join(app.getAppPath(), 'frontend/out', filePath),
           path.join(app.getAppPath(), filePath),
-          path.join(app.getAppPath(), 'frontend/public', filePath),
+          path.join(process.resourcesPath, 'frontend/public', filePath),
           path.join(process.resourcesPath, 'frontend/out', filePath),
-          path.join(process.resourcesPath, filePath),
-          path.join(process.resourcesPath, 'frontend/public', filePath)
+          path.join(process.resourcesPath, filePath)
         ];
         
         for (const p of pathsToTry) {

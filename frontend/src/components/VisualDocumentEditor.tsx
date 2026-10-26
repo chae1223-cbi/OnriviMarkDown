@@ -1,6 +1,14 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
+ * 🚨 @PATCH : **2026-10-26** — [플로팅 서식 툴바 탭오더(Tab/Arrow) 키보드 탐색 및 Enter 적용 후 자동 닫힘(사라짐) 연동]:
+ *             1) 플로팅 툴바 및 서식 버튼에 tabIndex={0}, focus:ring-2 focus:ring-blue-500 고대비 포커스 링 부여 및 Tab/Shift+Tab, Arrow 방향키 순환 탐색 연동
+ *             2) Enter/Space 키로 태그 및 서식 컨트롤 즉각 적용 및 선택 완료 시 플로팅 툴바 자동 닫힘(setSelection(false)) 연동
+ * 🚨 @PATCH : **2026-10-26** — [각주(Footnote) 생성 및 클릭 시 입력란 전체 포커스(Focus + Select All) 및 Enter 본문 복귀 연동]:
+ *             1) insertFootnote 실행 시 생성된 각주 설명 입력란(.visual-footnote-text)으로 자동 스크롤 및 전체 포커스(텍스트 전체 선택: selectAll) 즉각 부여
+ *             2) 초기 기본 안내문구('각주 내용을 입력하세요') 상태에서 클릭/포커스 시 텍스트 전체 선택을 유지하여 사용자가 타이핑 시 기존 문구 사이에 글자가 끼어드는 결함(입rlrlemf력) 원천 방지
+ *             3) 각주 입력란에서 Enter 키 입력 시 본문 각주 번호([^N])로 즉시 스크롤 및 커서 포커스 자동 복귀 연동 (Shift+Enter는 줄바꿈 유지)
+ *             4) 본문 각주 뱃지([^N]) 클릭 시에도 해당 각주 설명란으로 부드럽게 이동하여 전체 포커스 부여
  * 🚨 @PATCH : **2026-10-26** — [HWP/문서 가져오기 체크박스(<input type="checkbox">) 위지윅 nodeView 및 인터랙티브 토글 연동]:
  *             1) visual_checkbox nodeView 신설: 표 내부 및 본문 인라인 체크박스를 네이티브 체크박스 UI로 렌더링하고 stopEvent를 통해 캐럿 드래그 충돌 차단
  *             2) 체크박스 change 이벤트 시 ProseMirror setNodeMarkup 트랜잭션을 디스패치하여 체크 상태 실시간 동기화 및 마크다운 무손실 반영
@@ -2133,6 +2141,20 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
               targetDef.scrollIntoView({ behavior: 'smooth', block: 'center' });
               targetDef.classList.add('ring-2', 'ring-blue-500');
               setTimeout(() => targetDef.classList.remove('ring-2', 'ring-blue-500'), 1500);
+              const inputEl = targetDef.querySelector('.visual-footnote-text') as HTMLElement | null;
+              if (inputEl && currentView.editable) {
+                inputEl.focus();
+                const isDefault = inputEl.textContent?.trim() === '각주 내용을 입력하세요' || inputEl.textContent?.trim() === '각주 설명을 입력하세요';
+                if (isDefault) {
+                  const sel = window.getSelection();
+                  if (sel) {
+                    const range = document.createRange();
+                    range.selectNodeContents(inputEl);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                  }
+                }
+              }
             }
           });
           return {
@@ -2166,9 +2188,58 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           input.textContent = node.attrs.content || '';
           input.setAttribute('data-placeholder', '각주 설명을 입력하세요...');
 
+          const isDefaultText = () => {
+            const txt = (input.textContent || '').trim();
+            return txt === '각주 내용을 입력하세요' || txt === '각주 설명을 입력하세요';
+          };
+
+          const selectAllText = () => {
+            const sel = window.getSelection();
+            if (sel) {
+              const range = document.createRange();
+              range.selectNodeContents(input);
+              sel.removeAllRanges();
+              sel.addRange(range);
+            }
+          };
+
+          input.addEventListener('focus', () => {
+            if (isDefaultText()) {
+              setTimeout(selectAllText, 10);
+            }
+          });
+
+          input.addEventListener('mouseup', (e) => {
+            if (isDefaultText()) {
+              e.preventDefault();
+              selectAllText();
+            }
+          });
+
+          input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              e.stopPropagation();
+              const targetRef = currentView.dom.querySelector(`[data-footnote-ref="${node.attrs.label}"]`);
+              if (targetRef) {
+                targetRef.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetRef.classList.add('ring-2', 'ring-blue-500');
+                setTimeout(() => targetRef.classList.remove('ring-2', 'ring-blue-500'), 1500);
+              }
+              currentView.focus();
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              e.stopPropagation();
+              currentView.focus();
+            }
+          });
+
           dom.addEventListener('click', (e) => {
             if (e.target === dom) {
               input.focus();
+              if (isDefaultText()) {
+                setTimeout(selectAllText, 10);
+              }
             }
           });
 
@@ -3650,7 +3721,32 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     const nextPos = from + refNode.nodeSize;
     tr = tr.setSelection(TextSelection.create(tr.doc, nextPos));
     view.dispatch(closeHistory(tr).scrollIntoView());
-    view.focus();
+
+    const focusFootnoteInput = () => {
+      const defEl = view.dom.querySelector(`[data-footnote-def="${label}"]`);
+      if (defEl) {
+        defEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const inputEl = defEl.querySelector('.visual-footnote-text') as HTMLElement | null;
+        if (inputEl) {
+          inputEl.focus();
+          const sel = window.getSelection();
+          if (sel) {
+            const range = document.createRange();
+            range.selectNodeContents(inputEl);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+          return true;
+        }
+      }
+      return false;
+    };
+
+    requestAnimationFrame(() => {
+      if (!focusFootnoteInput()) {
+        setTimeout(focusFootnoteInput, 50);
+      }
+    });
   };
   insertFootnoteRef.current = insertFootnote;
 
@@ -4235,9 +4331,12 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
   const filtered = filterVisualCommands(catalog, query);
   menuItemsRef.current = filtered;
   const itemButton = (id: string, label: string, removeSlash = false) => <button key={id} type="button"
+    tabIndex={0}
     aria-label={id === 'inlineCode' ? 'inlinecode' : id}
-    disabled={readOnly} onMouseDown={event => event.preventDefault()} onClick={() => executeItem(id, removeSlash)}
-    className={`rounded px-3 py-2 text-sm hover:bg-blue-50 ${activeMarks.includes(({ bold: 'strong', italic: 'em', inlineCode: 'code', link: 'link', strikethrough:'strike', underline: 'underline' } as Record<string, string>)[id]) ? 'bg-blue-100 ring-1 ring-blue-400 font-bold text-blue-700' : ''}`}
+    disabled={readOnly}
+    onMouseDown={event => { event.preventDefault(); executeItem(id, removeSlash); setSelection(false); manualFloatingRef.current = false; }}
+    onClick={() => { executeItem(id, removeSlash); setSelection(false); manualFloatingRef.current = false; }}
+    className={`rounded px-3 py-2 text-sm hover:bg-blue-50 focus:bg-blue-100 focus:ring-2 focus:ring-blue-500 focus:outline-none ${activeMarks.includes(({ bold: 'strong', italic: 'em', inlineCode: 'code', link: 'link', strikethrough:'strike', underline: 'underline' } as Record<string, string>)[id]) ? 'bg-blue-100 ring-1 ring-blue-400 font-bold text-blue-700' : ''}`}
     aria-pressed={['bold', 'italic', 'inlineCode', 'link', 'strikethrough', 'underline'].includes(id) ? activeMarks.includes(({ bold: 'strong', italic: 'em', inlineCode: 'code', link: 'link', strikethrough:'strike', underline: 'underline' } as Record<string, string>)[id]) : undefined}>{label}</button>;
 
   return <section style={{tabSize}} className="visual-document-editor relative" aria-label="기본 직접 편집기"
@@ -4352,9 +4451,39 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       isDarkMode={false}
     />
     {notice && <div role="status" className="flex justify-between bg-amber-50 px-4 py-2 text-sm text-amber-900" data-editor-controls>{notice}<button type="button" onClick={() => setNotice('')}>닫기</button></div>}
-    {selection && !readOnly && !onFloatingToolbar && createPortal(<div role="toolbar" aria-label="선택한 글 서식" style={{ ...popup,
+    {selection && !readOnly && !onFloatingToolbar && createPortal(<div role="toolbar" tabIndex={-1} aria-label="선택한 글 서식"
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        const buttons = Array.from(e.currentTarget.querySelectorAll('button:not([disabled])')) as HTMLButtonElement[];
+        const activeEl = document.activeElement as HTMLButtonElement;
+        const currentIndex = buttons.indexOf(activeEl);
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          const nextIndex = currentIndex === -1
+            ? (e.shiftKey ? buttons.length - 1 : 0)
+            : (e.shiftKey ? (currentIndex - 1 + buttons.length) % buttons.length : (currentIndex + 1) % buttons.length);
+          buttons[nextIndex]?.focus();
+        } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % buttons.length;
+          buttons[nextIndex]?.focus();
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const prevIndex = currentIndex === -1 ? buttons.length - 1 : (currentIndex - 1 + buttons.length) % buttons.length;
+          buttons[prevIndex]?.focus();
+        } else if (e.key === 'Enter' || e.key === ' ') {
+          if (activeEl && buttons.includes(activeEl)) {
+            e.preventDefault();
+            activeEl.click();
+          }
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          setSelection(false); manualFloatingRef.current = false; viewRef.current?.focus();
+        }
+      }}
+      style={{ ...popup,
       left: Math.max(8, Math.min(popup.left, window.innerWidth - 916)), width: 'min(900px, calc(100vw - 16px))',
-      maxHeight: Math.min(window.innerHeight * 0.4, window.innerHeight - popup.top - 8), overflow:'auto' }} className="fixed z-[1000] flex flex-wrap rounded-xl border bg-white text-zinc-800 shadow-lg" data-editor-controls>
+      maxHeight: Math.min(window.innerHeight * 0.4, window.innerHeight - popup.top - 8), overflow:'auto' }} className="fixed z-[1000] flex flex-wrap rounded-xl border bg-white text-zinc-800 shadow-lg outline-none" data-editor-controls>
       {([['bold','B'], ['italic','I'], ['inlineCode','</>'], ['link','🔗'], ['orderedList','1.'], ['list','•'], ['checklist','☑'], ['clear','⌫']] as [string,string][]).map(([id,label]) => itemButton(id,label))}
     </div>, document.body)}
     {slash && !readOnly && createPortal(<div id="visual-slash-menu" role="menu" aria-label="슬래시 명령어" style={{ ...popup, width: 'min(650px, calc(100vw - 16px))',
