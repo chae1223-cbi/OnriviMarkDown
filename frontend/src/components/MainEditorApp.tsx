@@ -1,8 +1,9 @@
 /**
  * 프로그램명 : OnriviAuthor 
-// 🚨 @PATCH : **2026-10-27** — [문서보기 텍스트 선택 네이티브 ::selection 스타일 및 빈 문단 서식 일원화]:
+// 🚨 @PATCH : **2026-10-27** — [문서보기 텍스트 선택 네이티브 ::selection 스타일, 빈 문단 서식 일원화 및 제목 감소폭/좌측 색깔바 동기화]:
 //             1) dynamicCssString에 .visual-document-surface ::selection 코발트 블루(#2563eb / 다크 #3b82f6) 고대비 서식을 주입하여 DOM 변조 없이 매끄러운 다중 행/문단 선택 보장
 //             2) dynamicCssString의 빈 문단(.visual-document-surface > p:empty 등) 스타일을 서식 프로필의 기본 문단 여백 및 행간과 일원화하여, 엔터 입력 후 텍스트 타이핑 시 문단 크기가 변하거나 위로 튀지 않고 캐럿 위치에서 1:1로 자연스럽게 작성되도록 연동
+//             3) H2~H6 단계별 크기 감소폭(headingSizeOffset)의 pt/px 상호 단위 변환 정합화(초기 '0px' 시 3pt/4px, 사용자 '0pt' 시 0pt 반영) 및 제목 태그(h1~h6) border-left 미지정 시 'none' 명시 출력
 // 🚨 @PATCH : **2026-10-26** — [확장 리스트(Loose List) 내부 p 및 .onrivi-line 인라인 일원화]:
 //             1) .custom-preview-container li p 및 .onrivi-line에 display: inline !important 및 width: auto를 지정하여 Loose List(빈 줄 포함 목록)에서도 Tight List(쇼케이스)와 100% 동일하게 불릿/숫자 마커와 글자 간격이 밀착되도록 결함 해결
 // 🚨 @PATCH : **2026-10-26** — [목록 기호 마커-텍스트 간격(padding-inline-start) 동적 CSS 주입 및 인용구 목록 패딩 정규화]:
@@ -6772,13 +6773,21 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   -moz-tab-size: ${ps.tabSize || '2'} !important;
 }
 `;
-    /* H2~H6 자동 크기 계산 (headingSizeOffset 기반, pt/px 단위 대응) */
+    /* H2~H6 자동 크기 계산 (headingSizeOffset 기반, pt/px 단위 상호 변환 및 '0pt' 명시 지원) */
     const h1SizeVal = (prof.rules.h1 && prof.rules.h1['font-size']) || '21pt';
     const isPt = h1SizeVal.endsWith('pt') || (!h1SizeVal.endsWith('px') && !h1SizeVal.endsWith('rem') && !h1SizeVal.endsWith('em'));
     const h1Unit = isPt ? 'pt' : (h1SizeVal.endsWith('px') ? 'px' : 'pt');
     const h1Size = parseFloat(h1SizeVal) || (isPt ? 21 : 28);
-    const offsetVal = ps.headingSizeOffset || (isPt ? '3pt' : '4px');
-    const offset = parseFloat(offsetVal) || (isPt ? 3 : 4);
+    const rawOffsetStr = (ps.headingSizeOffset || '').trim();
+    const offset = (() => {
+      if (!rawOffsetStr || rawOffsetStr === '0px') return isPt ? 3 : 4;
+      if (rawOffsetStr === '0pt' || rawOffsetStr === '0') return 0;
+      const num = parseFloat(rawOffsetStr);
+      if (isNaN(num)) return isPt ? 3 : 4;
+      if (rawOffsetStr.endsWith('pt') && !isPt) return Math.round((num / 0.75) * 10) / 10;
+      if (rawOffsetStr.endsWith('px') && isPt) return Math.round((num * 0.75) * 10) / 10;
+      return num;
+    })();
     for (let level = 2; level <= 6; level++) {
       const calcSize = Math.max(isPt ? 8 : 10, Math.round((h1Size - (level - 1) * offset) * 10) / 10);
       css += `.custom-preview-container h${level}, .onrivi-content-root h${level} {\n  font-size: ${calcSize}${h1Unit} !important;\n}\n`;
@@ -6806,9 +6815,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (tag === 'hr') return;
       /* h2~h6의 font-size는 headingSizeOffset 자동 계산으로 대체 */
       const skipFontSize = ['h2', 'h3', 'h4', 'h5', 'h6'].includes(tag);
-      // 빈 값도 '선 없음'으로 출력해야 다른 서식의 제목 장식선이 남지 않는다.
+      // 빈 값도 '선 없음'으로 출력해야 다른 서식의 제목 장식선(하단 밑줄·좌측 색깔바)이 남지 않는다.
       const effectiveRules = /^h[1-6]$/.test(tag)
-        ? { ...ruleObj, 'border-bottom': ruleObj['border-bottom']?.trim() || 'none' }
+        ? {
+            ...ruleObj,
+            'border-bottom': ruleObj['border-bottom']?.trim() || 'none',
+            'border-left': ruleObj['border-left']?.trim() || 'none',
+          }
         : ruleObj;
       const entries = Object.entries(effectiveRules).map(([prop, v]) => {
         // 💡 [OMD-PATCH] 구버전 유저 프로필에 저장된 keep-all이 불러와지면서 거대 공백 버그를 유발하는 것을 막기 위해 강제 마이그레이션

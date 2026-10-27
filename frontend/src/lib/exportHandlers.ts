@@ -4,6 +4,8 @@ import { embedExportFonts } from './exportFonts';
 import { startExportProgress } from './exportProgress';
 // PDF and print share the preview pagination engine on web and desktop.
 // A failed calculation must not silently discard the user's output boundaries.
+// 🚨 @PATCH : **2026-10-27** — [제목 단계별 크기 감소폭(headingSizeOffset) pt/px 상호 단위 변환 및 제목 좌측 색깔바(border-left) 내보내기 동기화]:
+//             1) H2~H6 크기 계산 시 pt/px 단위 상호 변환 및 '0pt' 명시 설정 지원, 제목 태그(h1~h6) border-left 미지정 시 'none' 명시 출력
 // 🚨 @PATCH : **2026-10-26** — [원문자(①, ②, ③) 및 글머리 불릿 레벨별(1~3단계) 내보내기 마커 동기화]:
 //             1) fixListMarkers에 프로필 연동 및 원문자(①, ②, ③) 리스트 마커 사출 지원
 //             2) 1단계/2단계/3단계 깊이(depth)별 불릿 기호(•, ○, ■, ◆, -, ▶ 등)를 판별하여 PDF/HTML/인쇄 시 1:1 일치 반영
@@ -172,13 +174,24 @@ export function generateExportCss(rawProfile: any): string {
 }
 `;
 
-  /* H2~H6 자동 크기 계산 (headingSizeOffset 기반) */
-  const h1SizeVal = (profile.rules.h1 && profile.rules.h1['font-size']) || '28px';
-  const h1Size = parseFloat(h1SizeVal) || 28;
-  const offset = parseFloat(ps.headingSizeOffset) || 4;
+  /* H2~H6 자동 크기 계산 (headingSizeOffset 기반, pt/px 단위 상호 변환 및 '0pt' 명시 지원) */
+  const h1SizeVal = (profile.rules.h1 && profile.rules.h1['font-size']) || '21pt';
+  const isPt = h1SizeVal.endsWith('pt') || (!h1SizeVal.endsWith('px') && !h1SizeVal.endsWith('rem') && !h1SizeVal.endsWith('em'));
+  const h1Unit = isPt ? 'pt' : (h1SizeVal.endsWith('px') ? 'px' : 'pt');
+  const h1Size = parseFloat(h1SizeVal) || (isPt ? 21 : 28);
+  const rawOffsetStr = (ps.headingSizeOffset || '').trim();
+  const offset = (() => {
+    if (!rawOffsetStr || rawOffsetStr === '0px') return isPt ? 3 : 4;
+    if (rawOffsetStr === '0pt' || rawOffsetStr === '0') return 0;
+    const num = parseFloat(rawOffsetStr);
+    if (isNaN(num)) return isPt ? 3 : 4;
+    if (rawOffsetStr.endsWith('pt') && !isPt) return Math.round((num / 0.75) * 10) / 10;
+    if (rawOffsetStr.endsWith('px') && isPt) return Math.round((num * 0.75) * 10) / 10;
+    return num;
+  })();
   for (let level = 2; level <= 6; level++) {
-    const calcSize = Math.max(10, h1Size - (level - 1) * offset);
-    css += `.custom-preview-container h${level} {\n  font-size: ${calcSize}px !important;\n}\n`;
+    const calcSize = Math.max(isPt ? 8 : 10, Math.round((h1Size - (level - 1) * offset) * 10) / 10);
+    css += `.custom-preview-container h${level} {\n  font-size: ${calcSize}${h1Unit} !important;\n}\n`;
   }
 
   // 💡 CSS 속성 우선순위 정렬기: 단축 속성(border-style/width 등)이 방향별 속성(border-left/right 등)보다 항상 먼저 선언되도록 보장
@@ -200,9 +213,13 @@ export function generateExportCss(rawProfile: any): string {
 
   Object.entries(profile.rules || {}).forEach(([tag, ruleObj]: [string, any]) => {
     const skipFontSize = ['h2','h3','h4','h5','h6'].includes(tag);
-    // 미리보기와 동일하게 기존 빈 제목 밑줄 설정도 명시적으로 제거한다.
+    // 미리보기와 동일하게 기존 빈 제목 밑줄/좌측 색깔바 설정도 명시적으로 제거한다.
     const effectiveRules = /^h[1-6]$/.test(tag)
-      ? { ...ruleObj, 'border-bottom': ruleObj['border-bottom']?.trim() || 'none' }
+      ? {
+          ...ruleObj,
+          'border-bottom': ruleObj['border-bottom']?.trim() || 'none',
+          'border-left': ruleObj['border-left']?.trim() || 'none',
+        }
       : ruleObj;
     const entries = Object.entries(effectiveRules).map(([prop, v]) => {
       if (prop === 'word-break' && v === 'keep-all') return [prop, 'break-all'];

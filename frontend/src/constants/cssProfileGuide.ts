@@ -1,43 +1,285 @@
 /**
  * cssProfileGuide.ts
- * 온리비 어서(Onrivi Author) 서식 프로필 명세서 및 작성 가이드 마크다운 정의
+ * 온리비 어서(Onrivi Author) 최신 서식 프로필(CSS Profile) 명세서 및 AI 서식 생성 가이드 마크다운 정의
+ * 🚨 @PATCH : **2026-10-27** — [15대 서식 카테고리 전수 점검 및 최신 스키마 100% 완전 반영 (bulletStructure 13종, ol 특수 마커, 인라인 4종 세부 속성, 미디어 프리셋·정렬, 캡션 4종 오버라이드 등)]:
+ *             1) 에디터 상세 서식 편집기 15개 전 카테고리(본문·여백, 제목, 표, 인용구, 코드블록, 인라인코드, 하이퍼링크, 각주, 목록·체크, 구분선, 이미지, 비디오, 지도, 수식, 고급 CSS)의 모든 속성·프리셋·옵션값을 누락 없이 가이드 및 마스터 프롬프트에 100% 수록
+ *             2) 순서 있는 목록(ol)의 온리비 전용 특수 체계('onrivi-circled-decimal' 원문자 ①②③, 'onrivi-report' 한국형 보고서 Ⅰ.→1.→가.→1)→가)) 및 글머리 기호(bulletStructure) 13종 전체 기호 명세 추가
+ *             3) 인라인 강조 4종(strong 배경 형광펜, u 밑줄 모양·간격, del 취소선 색상·두께·투명도), 이미지 3대 액자 프리셋(기본/폴라로이드/둥근 썸네일) 및 미디어 좌·중·우 정렬(margin-left/right auto) 규칙 명세 추가
+ *             4) 코드블록 3대 테마 프리셋(라이트/Mac OS/다크), 구분선(hrStructure) 너비 비율(100%/75%/50%/30%), 미디어·표 캡션(mediaCaptionStructure) 4종(table/image/video/map) 개별 오버라이드 및 그림책(layout) 고정 레이아웃 명세 완비
  * 🚨 @PATCH : **2026-10-01** — [PDF/EPUB 내보내기 페이지 나누기 기준 기본값 'none' 명세 동기화]: 가이드 내 JSON 스펙의 exportPageBreakLevel을 'none'으로 변경
  * 🚨 @PATCH : **2026-09-26** — [표 모든 테두리(Grid) 세로선 및 프리셋 가이드·프롬프트 동기화]: th/td 레거시 border-left/right: none 소거, tableStructure(outerBorderWidth, rowBorderWidth, colBorderWidth) 격자/가로선/미니멀 프리셋 명세 및 AI 생성 프롬프트 정합화
- * 🚨 @PATCH : **2026-09-25** — [한컴 테크 블로그 프리미엄 서식 분석 및 가이드 명세 추가]: 이미지(한컴 공식 블로그) 기반 서식 분석을 통해 H2 오렌지 하단선, H3 오렌지 좌측 버티컬 바, 1.8배 본문 줄간격 및 8px 문장 사이 간격(sentence-gap), 가로선 중심 비교표, 와이드 라운드 미디어 규격을 가이드라인에 공식 추가
- * 🚨 @PATCH : **2026-09-25** — [문서 표준 용지 여백(상하 18mm, 좌우 12mm) 가이드 명세 일원화]: 대표 서식 JSON, 고급 레이아웃 Card 6 명세, AI 프롬프트 지시문의 pageStyle 여백을 상하 18mm, 좌우 12mm(marginTop: 18mm, marginBottom: 18mm, marginLeft: 12mm, marginRight: 12mm)로 전면 일원화
- * 🚨 @PATCH : **2026-09-25** — [체크박스 및 체크리스트 글자색 본문 기본색(#2f2f2f) 가이드 동기화]: 예시 JSON(rules.taskList, checkboxStructure) 및 명세의 color를 본문 글자색(#2f2f2f)으로 일원화하여 별도 색상 분리 방지
- * 🚨 @PATCH : **2026-09-25** — [체크리스트 완료 항목 스타일 '효과없음(none)' 가이드/명세 기본값 통일]: 예시 JSON(rules.taskList, checkboxStructure) 및 7대 쇼케이스 명세, AI 프롬프트 지시문에서 체크박스 완료 효과 기본값을 무조건 'none'(효과 없음)으로 일원화
- * 🚨 @PATCH : **2026-09-24** — [서식 설정 가이드 'Onrivi 기본서식' 100% 완전 동기화 및 누락 태그 상속 규칙 명시]: 가이드 내 JSON 스펙, 7대 쇼케이스 기본값(체크리스트, 미디어 100%, 각주, 수식 등) 및 AI 프롬프트를 'Onrivi 기본서식' 기준으로 전면 통일하고 누락 태그의 Onrivi 기본서식 자동 상속 정책 안내 수록
- * 🚨 @PATCH : **2026-09-24** — [기본 서식 명칭 'Onrivi 기본서식' 표준화]: 가이드 명세서 및 대표 서식 예시 JSON의 이름을 'Onrivi 기본서식'으로 일원화
- * 🚨 @PATCH : **2026-09-24** — [기본 서식 'ChatGPT 스타일 콘텐츠' 전환 가이드 명세 최신화]: 기본 대표 서식 예시 JSON 및 용지 여백(상하 22mm, 좌 19mm, 우 20mm) 전면 동기화
- * 🚨 @PATCH : **2026-09-24** — [문서 표준 용지 여백(상하 18mm, 좌우 12mm) 가이드 명세 반영]: pageStyle JSON 예시 및 설명에 상하 18mm, 좌우 12mm 기본 규격 반영
- * 🚨 @PATCH : **2026-09-24** — [표 외곽 테두리·행·열 두께 개별 선언(tableStructure) 명세 반영]: tableStructure(outerBorderWidth, rowBorderWidth, colBorderWidth) 스키마 및 표 형태 프리셋 가이드 최신화
- * 🚨 @PATCH : **2026-09-24** — [서식 명세서 예시 안내 강화]: AI 프롬프트 및 JSON 수치가 고정값이 아닌 자유롭게 변경 가능한 예시(Sample)임을 명확히 강조 표기
- * 🚨 @PATCH : **2026-09-24** — [서식 프로필 명세서 최신 전면 재작성]:
- *             1) 7대 서식 쇼케이스(타이포그래피, 제목, 목록, 표/인용구/코드, 미디어/수식/구분선, 고급 레이아웃, 각주) 규격 완벽 반영
- *             2) 본문 문단 양끝 정렬, 첫 줄 들여쓰기, 문단 상하여백, 문장 사이 간격(sentence-gap) 명세 추가
- *             3) 미디어(이미지·비디오·지도) 좌/중/우 정렬 및 규격 명세 추가
- *             4) KaTeX 수식(math) 및 각주(footnote) 단일 슬라이더 규격 반영
- *             5) 인용구·표 형태별 프리셋 JSON 예시 및 AI 생성 프롬프트 고도화
+ * 🚨 @PATCH : **2026-09-25** — [한컴 테크 블로그 프리미엄 서식 분석 및 가이드 명세 추가]
+ * 🚨 @PATCH : **2026-09-25** — [문서 표준 용지 여백(상하 18mm, 좌우 12mm) 가이드 명세 일원화]
+ * 🚨 @PATCH : **2026-09-25** — [체크박스 및 체크리스트 글자색 본문 기본색(#2f2f2f) 가이드 동기화]
+ * 🚨 @PATCH : **2026-09-25** — [체크리스트 완료 항목 스타일 '효과없음(none)' 가이드/명세 기본값 통일]
+ * 🚨 @PATCH : **2026-09-24** — [서식 설정 가이드 'Onrivi 기본서식' 100% 완전 동기화 및 누락 태그 상속 규칙 명시]
  */
 
-export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서식 프로필 CSS 작성 가이드
+export interface AiStylePresetItem {
+  id: string;
+  label: string;
+  badge: string;
+  summary: string;
+  prompt: string;
+}
 
-이 문서는 외부에서 온리비 어서 전용 서식 테마(CSS Profile)를 직접 설계하거나, AI(ChatGPT, Claude 등)에게 서식 생성을 요청할 때 사용하는 **표준 명세서(Specification)**입니다.  
-이 가이드라인을 참조하여 JSON 형태로 서식을 작성한 후, 에디터 상단 **[🎨 서식 테마 설정]** ➔ **[서식 관리]** 모달에서 **[📥 테마 가져오기]**를 통해 즉시 등록하고 적용할 수 있습니다.
+/** 서식 관리 센터 AI 생성기 및 가이드 탭에서 공유하는 5대 최신 표준 서식 프리셋 */
+export const AI_STANDARD_PRESETS: AiStylePresetItem[] = [
+  {
+    id: 'ks-tech-standard',
+    label: '📐 KS 기술표준 명세서',
+    badge: '십진분류 1.➔1.1 · 격자표',
+    summary: '계층형 십진 제목 번호(1. ➔ 1.1 ➔ 1.1.1), 표 상단·그림 하단 캡션, 정밀 1px 격자 표 규격',
+    prompt:
+      'Pretendard 고딕체 15.5px, 화이트 배경(#FFFFFF), 줄간격 1.7, 표준 여백(상하 18mm/좌우 12mm), 제목 번호는 계층형 십진 분류(headingNumbering: H1~H4 모두 "decimal-outline" 1. ➔ 1.1 ➔ 1.1.1), 표는 1px 모든 테두리 격자형(outer 1px, row 1px, col 1px), 미디어 캡션은 표 상단(top)·그림 하단(bottom) 표준 형식으로 만들어줘.',
+  },
+  {
+    id: 'corp-strategy-report',
+    label: '🏢 대기업 전략기획서 (삼성/현대)',
+    badge: '개조식 □➔○➔-➔ㆍ',
+    summary: '핵심 요약 박스형 인용구, □ ➔ ○ ➔ - ➔ ㆍ 개조식 제목/불릿 기호, 15px 고밀도 레이아웃',
+    prompt:
+      'Pretendard 15px, 줄간격 1.65, 표준 여백(상하 18mm/좌우 12mm), 네이비 포인트(#1d4ed8), 제목 기호는 대기업 개조식(H1: □, H2: ○, H3: -, H4: ㆍ), 글머리 기호(bulletStructure)도 1단계 □, 2단계 ○, 3단계 - 적용, 표는 가로선 강조형(outer 1px, row 1px, col 0px), 인용구는 좌측 4px 코발트 바(#1d4ed8)와 연회색 배경(#f8fafc) 요약 박스로 설계해줘.',
+  },
+  {
+    id: 'academic-kdi-report',
+    label: '🎓 KDI 학술·정책 연구보고서',
+    badge: '제1장➔제1절 · <표 1>',
+    summary: '바탕/명조 서체, 장·절 제목 체계(제1장 ➔ 제1절 ➔ 1. ➔ 가.), 표 상단 <표 1> · 그림 하단 [그림 1]',
+    prompt:
+      'KoPubWorldBatang 또는 Noto Serif KR 명조체 16px, 줄간격 1.85, 표준 여백(상하 18mm/좌우 12mm), 제목 번호는 학술 장절 체계(H1: 제N장, H2: 제N절, H3: decimal 1., H4: hangul 가.), 논문형 표 테두리(outer 1.5px, row 1px, col 0px 세로선 없음), 캡션(mediaCaptionStructure)은 표 상단 angle(<표 1>) 및 그림/비디오/지도는 하단 bracket([그림 1])으로 만들어줘.',
+  },
+  {
+    id: 'hancom-tech-blog',
+    label: '🔥 모던 테크 블로그 (오렌지 포인트)',
+    badge: 'H2 하단선 · H3 좌측바',
+    summary: 'H2 오렌지 하단 언더라인, H3 오렌지 좌측 수직 바, 1.8배 본문 줄간격 및 8px 문장 간격',
+    prompt:
+      'Pretendard 16px, 본문 줄간격 1.8, 문단 하단 여백 20px, 문장 간격(sentence-gap) 8px, H2는 하단 오렌지 포인트선(2px solid #ff5a00), H3는 좌측 오렌지 수직 바(4px solid #ff5a00, padding-left 12px), 인용구는 좌측 4px 오렌지 바와 #f8fafc 배경, 표는 세로선 없는 가로선 강조형(outer 1px, row 1px, col 0px)으로 만들어줘.',
+  },
+  {
+    id: 'editorial-essay-book',
+    label: '📖 감성 출판 에세이 & 북디자인',
+    badge: '미색 용지 · 양끝정렬',
+    summary: '눈이 편안한 아이보리 미색 배경(#FAF6ED), 명조체 16.5px, 첫 줄 들여쓰기 및 감성 인용구',
+    prompt:
+      'Noto Serif KR 명조체 16.5px, 따뜻한 아이보리 미색 배경(#FAF6ED), 넓은 줄간격 1.85, 본문 양끝 정렬(justify), 표준 여백(상하 18mm/좌우 12mm), 미니멀 표 서식(outer 0px, row 1px, col 0px), 부드러운 박스형 인용구 스타일로 만들어줘.',
+  },
+];
 
-> 💡 **사용자 필수 안내**:  
-> 본 문서에 기재된 모든 속성값(글자 크기, 줄 간격, 여백, 색상 등)은 이해를 돕기 위한 **'예시(Sample)'**입니다.  
-> 사용자가 직접 코드를 작성하실 필요가 없으며, 에디터 화면의 **슬라이더와 버튼만 마우스로 조작**하셔도 모든 서식을 자유자재로 설정하실 수 있습니다.  
-> 
-> 🛡️ **누락 태그 자동 상속 규칙**:  
-> 서식 프로필에 특정 태그(예: \`video\`, \`map\`, \`footnote\`, \`taskList\` 등)나 구조체가 생략되어 있거나 정의되지 않은 경우, 온리비 어서 렌더러와 내보내기 엔진은 자동으로 **'Onrivi 기본서식'의 표준 규칙을 100% 기준으로 보완(하이드레이션)**하여 안전하게 적용합니다.
+/** 서식 편집기 15대 상세 카테고리 요약 사양 (모달 가이드 탭 및 문서 공용) */
+export interface StyleCategorySpecItem {
+  no: number;
+  category: string;
+  targetKeys: string;
+  properties: string;
+  presetsAndNotes: string;
+}
+
+export const STYLE_15_CATEGORY_SPECS: StyleCategorySpecItem[] = [
+  {
+    no: 1,
+    category: '본문·여백 (용지 & 인라인 강조)',
+    targetKeys: 'pageStyle, rules.p, strong, em, u, del',
+    properties:
+      'pageStyle(fontFamily, fontUrl, fontSize[pt/px], lineHeight, letterSpacing, backgroundColor, paperSize[a4/b5/letter], orientation[portrait/landscape], marginTop/Bottom[18mm], marginLeft/Right[12mm], headingSizeOffset, tabSize, exportPageBreakLevel[none/h1/h2]) / p(margin-top, margin-bottom, line-height, color, text-align[left/center/right/justify], text-indent, letter-spacing, sentence-gap) / strong(font-weight, color, background-color) / em(font-style, color) / u(text-decoration, text-decoration-style[solid/dashed/dotted/wavy], text-decoration-color, text-underline-offset) / del(text-decoration, color, text-decoration-color, text-decoration-thickness, opacity)',
+    presetsAndNotes:
+      '용지 표준 여백은 상하 18mm·좌우 12mm 권장. strong에 background-color 지정 시 형광펜 하이라이트 효과 적용.',
+  },
+  {
+    no: 2,
+    category: '제목 (H1~H6 & 자동 번호 체계)',
+    targetKeys: 'rules.h1~h6, headingNumbering',
+    properties:
+      'h1~h6(font-size, font-weight, font-style, text-decoration, color, text-align[left/center/right], border-bottom[none/1px solid/2px solid/3px double], border-left[좌측 수직 강조바], padding-left, padding-bottom, margin-top, margin-bottom, line-height, letter-spacing) / headingNumbering(길이 6 배열)',
+    presetsAndNotes:
+      'headingNumbering 포맷: "none", "decimal"(1.), "decimal-outline"(1.➔1.1➔1.1.1), "roman"(Ⅰ.), "hangul"(가.), "decimal-paren"(1)), "hangul-paren"(가)), 또는 custom 객체({ type:"custom", number:"decimal"|"bullet", prefix, suffix, bullet }).',
+  },
+  {
+    no: 3,
+    category: '표 (테이블 & 셀 테두리 구조)',
+    targetKeys: 'rules.table, th, td, tableStructure',
+    properties:
+      'table(width, border-collapse, border-style, border-width, border-color, margin-top, margin-bottom, font-size, border-radius, overflow) / th(background-color, padding, border-style/width/color, font-weight, text-align, color) / td(padding, border-style/width/color, text-align, color, background-color) / tableStructure(outerBorderWidth, rowBorderWidth, colBorderWidth)',
+    presetsAndNotes:
+      '3대 프리셋: ① 가로선 강조형(outer 1~2px, row 1px, col 0px) ② 모든 테두리 격자형(outer 1px, row 1px, col 1px) ③ 미니멀형(outer 0px, row 1px, col 0px). 주의: th/td에 border-left: none 금지.',
+  },
+  {
+    no: 4,
+    category: '인용구 (Blockquote & 콜아웃)',
+    targetKeys: 'rules.blockquote',
+    properties:
+      'color, background-color, font-size, font-weight(normal/bold), font-style(normal/italic), padding, border-left, border, border-radius, box-shadow, margin-top, margin-bottom',
+    presetsAndNotes:
+      '3대 배타 형태: ① 왼쪽 띠형(border-left 지정, border 생략) ② 전체 박스형(border 지정, border-left: "none") ③ 그림자 박스형(border: "none", border-left: "none", box-shadow 지정).',
+  },
+  {
+    no: 5,
+    category: '코드블록 (CodeBlock & 타이틀바)',
+    targetKeys: 'rules.codeBlock, rules.codeBlockTitle',
+    properties:
+      'codeBlock(background-color, color, font-size[inherit/13.5px], line-height[1.35], padding, border-radius, border) / codeBlockTitle(background-color, color, padding, border-radius, border)',
+    presetsAndNotes:
+      '3대 테마 프리셋: ① 라이트 기본 박스(#f7f7f8 / 타이틀 #ececec) ② Mac OS 테마(#282c34 / 타이틀 #21252b) ③ 다크 테마 고정(#0f172a / 타이틀 #1e293b).',
+  },
+  {
+    no: 6,
+    category: '인라인코드 (Inline Code)',
+    targetKeys: 'rules.code',
+    properties:
+      'color, background-color, font-weight(normal/bold), border-radius(4px~8px), padding(2px 6px), padding-left, padding-right, border',
+    presetsAndNotes:
+      '문장 내 기술 용어·단축키 강조용 배지 스타일. 기본 배경 #f7f7f8, 테두리 1px solid #e5e5e5.',
+  },
+  {
+    no: 7,
+    category: '하이퍼링크 (Anchor Link)',
+    targetKeys: 'rules.a',
+    properties:
+      'color(기본 #2563eb), text-decoration("underline" | "none"), font-weight("normal" | "bold")',
+    presetsAndNotes:
+      '본문 내 외부 URL 및 문서 내부 참조 링크의 색상·밑줄·굵기 제어.',
+  },
+  {
+    no: 8,
+    category: '각주 (Footnote)',
+    targetKeys: 'rules.footnote',
+    properties:
+      'color(기본 #6b6b6b), font-weight("normal" | "bold"), font-size(9pt / 13px), line-height(1.5~1.6), margin-top(12px), margin-bottom(12px)',
+    presetsAndNotes:
+      '문서 하단 각주 영역의 타이포그래피 및 상하 간격 제어.',
+  },
+  {
+    no: 9,
+    category: '목록·체크 (UL/OL/LI & 3단계 불릿·체크박스)',
+    targetKeys: 'rules.ul, ol, li, taskList, bulletStructure, checkboxStructure',
+    properties:
+      'ul/ol(padding-left[28px], list-style-type, color) / li(margin-bottom[5px], padding-inline-start[3px], line-height[1.7]) / bulletStructure(level1~3, custom1~3) / checkboxStructure & taskList(boxSize[16px], checkedEffect["none"|"line-through-and-dim"|"dim-only"], textGap[9px], color[#2f2f2f])',
+    presetsAndNotes:
+      'ol 전용 마커: "decimal"(1,2,3), "onrivi-circled-decimal"(①,②,③), "onrivi-report"(Ⅰ.→1.→가.→1)→가)), "decimal-leading-zero"(01,02), "lower-roman", "upper-roman", "none". bulletStructure 13종: disc, circle, square, white-square, diamond, white-diamond, dash, hyphen, arrow, check, star, dot, custom, none.',
+  },
+  {
+    no: 10,
+    category: '구분선 (Horizontal Rule)',
+    targetKeys: 'rules.hr, hrStructure',
+    properties:
+      'hr(border-top-color, border-top-width, border-top-style, margin-top, margin-bottom, width) / hrStructure(borderTopStyle["solid"|"dotted"|"dashed"|"double"], borderTopWidth["1px"~"10px"], marginTopBottom["28px"], lineWidth["100%"|"75%"|"50%"|"30%"])',
+    presetsAndNotes:
+      '실선(solid), 점선(dotted), 파선(dashed), 이중선(double) 및 가로 폭 비율(100%/75%/50%/30%) 지원.',
+  },
+  {
+    no: 11,
+    category: '이미지 (Image & 액자 프리셋)',
+    targetKeys: 'rules.img, mediaCaptionStructure',
+    properties:
+      'width(100%/75%/50%), border-radius, box-shadow, border, border-bottom-width, background-color, padding, margin-top, margin-bottom, margin-left, margin-right',
+    presetsAndNotes:
+      '3대 액자 프리셋: ① 기본형 ② 폴라로이드 액자(border: 10px solid white, border-bottom-width: 32px, box-shadow) ③ 둥근 썸네일(border-radius: 16px, box-shadow). 정렬: 중앙(margin-left/right: auto), 좌측(0px / auto), 우측(auto / 0px).',
+  },
+  {
+    no: 12,
+    category: '비디오 (Video 플레이어)',
+    targetKeys: 'rules.video, mediaCaptionStructure',
+    properties:
+      'width(100%), height(315px), border-radius(8px), box-shadow, display("block"), margin-top, margin-bottom, margin-left, margin-right',
+    presetsAndNotes:
+      '유튜브/비디오 임베드 프레임 크기, 모서리 곡률, 그림자 및 좌·중·우 정렬 제어.',
+  },
+  {
+    no: 13,
+    category: '지도 (Map 임베드)',
+    targetKeys: 'rules.map, mediaCaptionStructure',
+    properties:
+      'width(100%), height(400px), border-radius(8px), box-shadow, margin-top, margin-bottom, margin-left, margin-right',
+    presetsAndNotes:
+      '지도 임베드 컨테이너 크기, 곡률, 그림자 및 좌·중·우 정렬 제어.',
+  },
+  {
+    no: 14,
+    category: '수식 (KaTeX Math 블록)',
+    targetKeys: 'rules.math',
+    properties:
+      'color(#2f2f2f), font-size(inherit 또는 16px), text-align("center" | "left" | "right"), margin-top(20px), margin-bottom(20px)',
+    presetsAndNotes:
+      '수식 블록의 글자색, 크기, 좌·중·우 정렬 및 상하 여백 제어.',
+  },
+  {
+    no: 15,
+    category: '고급 CSS & 캡션·그림책 확장 구조체',
+    targetKeys: 'customCss, mediaCaptionStructure.kindOverrides, layout',
+    properties:
+      'customCss(자유 CSS 문자열) / mediaCaptionStructure(position["top"|"bottom"], format["standard"|"bracket"|"angle"|"plain"|"title-only"|"custom"], customTemplate, kindOverrides.{table,image,video,map}) / layout(type:"picturebook", cover:"full-image"|"image-right", imageRatio, imageFit, gap, pageNumbers)',
+    presetsAndNotes:
+      'kindOverrides로 표(table), 그림(image), 비디오(video), 지도(map) 4종의 캡션 위치·포맷을 각각 독립 제어 가능.',
+  },
+];
+
+/** 외부 AI(ChatGPT, Claude, Gemini 등)에 복사해 바로 사용할 수 있는 최신 만능 마스터 프롬프트 */
+export const AI_MASTER_PROMPT_TEMPLATE = `당신은 최고급 출판·문서 조판 전문 CSS 디자이너입니다. 아래 온리비 어서(Onrivi Author) 최신 서식 스키마(v2026.10, 15대 서식 카테고리 전수 반영)에 맞추어 완성도 높은 서식 프로필 JSON 1개를 생성해 주세요.
+
+[내가 원하는 서식 컨셉]:
+"여기에 원하는 분위기, 글꼴, 색상, 표 스타일, 제목 번호 체계를 적어주세요 (예: 깔끔한 공공기관 보고서 스타일, 네이비 포인트, 표는 가로선 강조형)"
+
+[필수 준수 스키마 및 15대 카테고리 상세 규격]:
+1. 최상위 JSON 키 구조:
+   "id", "name", "description", "pageStyle", "rules", "hrStructure", "checkboxStructure", "tableStructure", "bulletStructure", "mediaCaptionStructure", "headingNumbering", "customCss" (그림책 요청 시 "layout" 추가)
+2. 용지 및 기본 타이포그래피 (pageStyle):
+   - paperSize: "a4" ("b5", "letter" 가능), orientation: "portrait" (가로형은 "landscape")
+   - 표준 여백: marginTop: "18mm", marginBottom: "18mm", marginLeft: "12mm", marginRight: "12mm"
+   - fontFamily: 본문 기본 글꼴 (선택사항으로 웹폰트 URL은 fontUrl에 지정)
+   - fontSize: "15px"~"16.5px" (또는 "10pt"~"12pt"), lineHeight: "1.65"~"1.85", letterSpacing: "-0.01em"
+   - headingSizeOffset: "0px", tabSize: "2", exportPageBreakLevel: "none" (절대 인위적 분할 금지, 특별 요청 시에만 "h1"|"h2")
+3. 본문 및 인라인 강조 4종 (rules.p, strong, em, u, del):
+   - p: margin-top("0px"), margin-bottom("16px"), line-height("1.75"), color("#2f2f2f"), text-align("left"|"center"|"right"|"justify"), text-indent("0px"|"16px"), letter-spacing("-0.01em"), sentence-gap("4px"~"8px")
+   - strong: font-weight("700"), color("#202123"), 필요 시 형광펜 효과는 background-color 지정
+   - em: font-style("italic"), color("#2f2f2f")
+   - u: text-decoration("underline"), text-decoration-style("solid"|"dashed"|"dotted"|"wavy"), text-decoration-color("#0d0d0d"), text-underline-offset("3px")
+   - del: text-decoration("line-through"), color("#6b6b6b"), 필요 시 text-decoration-color, text-decoration-thickness("1px"), opacity("0.8")
+4. 제목 H1~H6 및 자동 번호 체계 (rules.h1~h6, headingNumbering):
+   - h1~h6: font-size, font-weight, color, margin-top, margin-bottom, line-height, letter-spacing, text-align, border-bottom(하단선) 또는 border-left(좌측 수직 강조 바) + padding-left/padding-bottom
+   - headingNumbering (길이 6 배열, H1~H6 순서):
+     · 번호 없음: []
+     · 십진 분류(1. ➔ 1.1): ["decimal-outline", "decimal-outline", "decimal-outline", "decimal-outline", "none", "none"]
+     · 장절 체계(제1장 ➔ 제1절): [{ "type": "custom", "number": "decimal", "prefix": "제", "suffix": "장" }, { "type": "custom", "number": "decimal", "prefix": "제", "suffix": "절" }, "decimal", "hangul", "none", "none"]
+     · 대기업 개조식(□ ➔ ○ ➔ - ➔ ㆍ): [{ "type": "custom", "number": "bullet", "prefix": "", "suffix": "", "bullet": "□" }, { "type": "custom", "number": "bullet", "prefix": "", "suffix": "", "bullet": "○" }, { "type": "custom", "number": "bullet", "prefix": "", "suffix": "", "bullet": "-" }, { "type": "custom", "number": "bullet", "prefix": "", "suffix": "", "bullet": "ㆍ" }, "none", "none"]
+5. 목록·체크리스트 및 3단계 글머리 기호 (rules.ul, ol, li, taskList, bulletStructure, checkboxStructure):
+   - ul/ol: padding-left("28px"), color("#2f2f2f")
+   - ol['list-style-type'] 지원값: "decimal"(1,2,3), "onrivi-circled-decimal"(①,②,③ 원문자), "onrivi-report"(Ⅰ.→1.→가.→1)→가) 한국형 보고서 다단계), "decimal-leading-zero"(01,02), "lower-roman", "upper-roman", "none"
+   - li: margin-bottom("5px"), padding-inline-start("3px"), line-height("1.7")
+   - bulletStructure: { "level1": "disc", "level2": "circle", "level3": "square" }
+     · 지원 기호 13종: "disc"(•), "circle"(○), "square"(■), "white-square"(▫), "diamond"(◆), "white-diamond"(◇), "dash"(-), "hyphen"(–), "arrow"(▶), "check"(✓), "star"(★), "dot"(·), "custom"(custom1~3에 직접 기호 입력), "none"
+   - checkboxStructure & rules.taskList: { "boxSize": "16px", "checkedEffect": "none", "textGap": "9px", "color": "#2f2f2f" } (checkedEffect는 "none" | "line-through-and-dim" | "dim-only")
+6. 표 및 테두리 구조체 (rules.table, th, td, tableStructure):
+   - 절대 th/td에 border-left: none 같은 방향별 속성을 넣지 말고, 테두리 두께는 tableStructure로 제어하세요.
+   - tableStructure: 가로선 강조형은 { "outerBorderWidth": "1px", "rowBorderWidth": "1px", "colBorderWidth": "0px" }, 모든 테두리 격자형은 { "outerBorderWidth": "1px", "rowBorderWidth": "1px", "colBorderWidth": "1px" }, 미니멀형은 { "outerBorderWidth": "0px", "rowBorderWidth": "1px", "colBorderWidth": "0px" }
+7. 인용구, 코드블록, 인라인코드, 링크, 구분선, 각주:
+   - blockquote: 왼쪽 띠형이면 border-left만 지정하고 border는 생략; 전체 박스형이면 border만 지정하고 border-left: "none"; 그림자형이면 border: "none", border-left: "none", box-shadow 지정
+   - codeBlock & codeBlockTitle: 라이트(#f7f7f8/#ececec), Mac OS(#282c34/#21252b), 다크(#0f172a/#1e293b) 중 컨셉에 맞게 선택
+   - code (인라인코드): background-color, color, padding("2px 6px"), border-radius("5px"), border
+   - a (하이퍼링크): color, text-decoration("underline"|"none"), font-weight("bold"|"normal")
+   - hr & hrStructure: { "borderTopStyle": "solid"|"dotted"|"dashed"|"double", "borderTopWidth": "1px", "marginTopBottom": "28px", "lineWidth": "100%"|"75%"|"50%"|"30%" }
+   - footnote (각주): font-size("13px"), color("#6b6b6b"), line-height("1.5"), margin-top("12px"), margin-bottom("12px"), font-weight("normal")
+8. 미디어 4종(img, video, map, math) 및 캡션 구조체(mediaCaptionStructure):
+   - img, video, map 정렬: 중앙 정렬은 margin-left: "auto", margin-right: "auto" / 좌측 정렬은 margin-left: "0px", margin-right: "auto" / 우측 정렬은 margin-left: "auto", margin-right: "0px"
+   - math: color, font-size("16px"), text-align("center"|"left"|"right"), margin-top("20px"), margin-bottom("20px")
+   - mediaCaptionStructure: { "position": "top"|"bottom", "format": "standard"|"bracket"|"angle"|"plain"|"title-only"|"custom", "customTemplate": "**{kind} {n}. {title}**" }
+     · 표는 상단, 그림/비디오/지도는 하단으로 분리할 때는 "kindOverrides": { "table": { "position": "top", "format": "angle" }, "image": { "position": "bottom", "format": "bracket" }, "video": { "position": "bottom", "format": "bracket" }, "map": { "position": "bottom", "format": "bracket" } } 사용
+9. 마크다운 코드블록이나 부연 설명 없이 오직 순수 JSON 객체({ ... })만 출력하세요.`;
+
+export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 최신 서식 프로필(CSS Profile) 작성 및 생성 가이드 (v2026.10 · 15대 카테고리 전수 수록)
+
+이 문서는 **온리비 어서(Onrivi Author)** 전용 서식 프로필(\`.json\`)의 공식 최신 스키마 명세서이자, 서식 편집기의 **15대 상세 카테고리(본문·여백, 제목, 표, 인용구, 코드블록, 인라인코드, 하이퍼링크, 각주, 목록·체크, 구분선, 이미지, 비디오, 지도, 수식, 고급 CSS)** 모든 속성을 100% 수록한 **완전판 레퍼런스 가이드**입니다.
+
+> 💡 **핵심 요약 안내**
+> 1. **서식 관리 센터 원클릭 지원**: 서식 파일(\`.json\`)을 마우스로 **드래그 앤 드롭(Drag & Drop)**하거나, 클립보드 JSON 텍스트를 **원클릭 붙여넣기**하여 즉시 등록할 수 있습니다.
+> 2. **단일 서식 및 다중 서식 백업 호환**: 단일 서식 객체(\`{ ... }\`)뿐만 아니라 여러 서식이 담긴 배열(\`[ { ... }, { ... } ]\`) 형태의 백업 파일도 자동으로 인식하여 일괄 등록합니다.
+> 3. **누락 속성 100% 자동 정규화 (\`normalizeCssProfile\`)**: AI가 생성한 JSON에 일부 태그나 구조체가 생략되어 있더라도, 온리비 어서가 **'Onrivi 기본서식'** 표준 규격을 바탕으로 누락된 필드를 자동 보완(Hydration)합니다.
 
 ---
 
-## 📌 1. 서식 프로필(JSON) 기본 구조 (작성 예시)
+## 📌 1. 최신 서식 프로필(JSON) 전체 구조 명세
 
-> 💡 **참고**: 아래 JSON은 온리비 어서의 공식 기본 서식인 **'Onrivi 기본서식'** 대표 명세입니다. 각 수치는 사용자가 원하는 값으로 얼마든지 자유롭게 변경할 수 있습니다.
+아래 JSON은 최신 버전의 모든 구조체(\`pageStyle\`, \`rules\`, \`tableStructure\`, \`bulletStructure\`, \`mediaCaptionStructure\`, \`headingNumbering\`, \`hrStructure\`, \`checkboxStructure\`, \`customCss\`)가 포함된 완전체 표준 예시입니다.
 
 \`\`\`json
 {
@@ -45,7 +287,7 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서�
   "name": "Onrivi 기본서식",
   "description": "온리비 어서(Onrivi Author)의 공식 기본 서식 테마입니다. 정갈한 텍스트 배치와 최적화된 용지 규격을 제공합니다.",
   "pageStyle": {
-    "fontFamily": "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', 'Noto Sans', Arial, sans-serif",
+    "fontFamily": "'Times New Roman', 'Georgia', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', Arial, sans-serif",
     "fontSize": "16px",
     "lineHeight": "1.75",
     "letterSpacing": "-0.01em",
@@ -66,12 +308,10 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서�
       "font-weight": "700",
       "color": "#202123",
       "padding-left": "0px",
+      "margin-top": "32px",
       "margin-bottom": "18px",
       "border-bottom": "",
-      "margin-top": "32px",
       "text-align": "left",
-      "text-decoration": "none",
-      "font-style": "normal",
       "line-height": "1.25",
       "letter-spacing": "-0.025em"
     },
@@ -82,56 +322,50 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서�
       "border-bottom": "",
       "padding-bottom": "8px",
       "margin-top": "28px",
-      "text-decoration": "none",
-      "font-style": "normal",
       "margin-bottom": "14px",
       "text-align": "left",
       "line-height": "1.35",
       "letter-spacing": "-0.02em"
     },
     "h3": {
-      "text-align": "left",
-      "font-weight": "650",
       "font-size": "20px",
+      "font-weight": "650",
+      "color": "#202123",
       "margin-top": "24px",
       "margin-bottom": "12px",
-      "color": "#202123",
-      "border-bottom": "",
+      "text-align": "left",
       "line-height": "1.4"
     },
     "h4": {
-      "text-align": "left",
-      "font-weight": "650",
       "font-size": "18px",
+      "font-weight": "650",
+      "color": "#202123",
       "margin-top": "20px",
       "margin-bottom": "10px",
-      "color": "#202123",
-      "border-bottom": "",
+      "text-align": "left",
       "line-height": "1.5"
     },
     "h5": {
-      "text-align": "left",
-      "font-weight": "650",
       "font-size": "16px",
+      "font-weight": "650",
+      "color": "#202123",
       "margin-top": "18px",
       "margin-bottom": "8px",
-      "color": "#202123",
-      "border-bottom": "",
+      "text-align": "left",
       "line-height": "1.55"
     },
     "h6": {
-      "text-align": "left",
-      "font-weight": "650",
       "font-size": "15px",
+      "font-weight": "650",
+      "color": "#6b6b6b",
       "margin-top": "16px",
       "margin-bottom": "8px",
-      "color": "#6b6b6b",
-      "border-bottom": "",
+      "text-align": "left",
       "line-height": "1.55"
     },
     "p": {
-      "margin-bottom": "16px",
       "margin-top": "0px",
+      "margin-bottom": "16px",
       "line-height": "1.75",
       "color": "#2f2f2f",
       "text-align": "left",
@@ -139,45 +373,19 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서�
       "letter-spacing": "-0.01em",
       "sentence-gap": "4px"
     },
-    "strong": {
-      "font-weight": "700",
-      "color": "#202123"
-    },
-    "em": {
-      "font-style": "italic",
-      "color": "#2f2f2f"
-    },
+    "strong": { "font-weight": "700", "color": "#202123" },
+    "em": { "font-style": "italic", "color": "#2f2f2f" },
     "u": {
+      "text-decoration": "underline",
       "text-decoration-color": "#0d0d0d",
       "text-decoration-style": "solid",
-      "text-underline-offset": "3px",
-      "text-decoration": "underline"
+      "text-underline-offset": "3px"
     },
-    "del": {
-      "text-decoration": "line-through",
-      "color": "#6b6b6b"
-    },
-    "ul": {
-      "padding-left": "28px",
-      "list-style-type": "disc",
-      "color": "#2f2f2f"
-    },
-    "ol": {
-      "padding-left": "28px",
-      "color": "#2f2f2f",
-      "list-style-type": "decimal"
-    },
-    "li": {
-      "margin-bottom": "5px",
-      "padding-inline-start": "3px",
-      "line-height": "1.7"
-    },
-    "taskList": {
-      "boxSize": "16px",
-      "checkedEffect": "none",
-      "textGap": "9px",
-      "color": "#2f2f2f"
-    },
+    "del": { "text-decoration": "line-through", "color": "#6b6b6b" },
+    "ul": { "padding-left": "28px", "list-style-type": "disc", "color": "#2f2f2f" },
+    "ol": { "padding-left": "28px", "list-style-type": "decimal", "color": "#2f2f2f" },
+    "li": { "margin-bottom": "5px", "padding-inline-start": "3px", "line-height": "1.7" },
+    "taskList": { "boxSize": "16px", "checkedEffect": "none", "textGap": "9px", "color": "#2f2f2f" },
     "hr": {
       "border-top-color": "#e5e5e5",
       "border-top-width": "1px",
@@ -200,19 +408,19 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서�
     },
     "th": {
       "background-color": "#f7f7f8",
-      "padding": "10px 12px",
+      "padding": "5px 8px",
       "border-style": "solid",
       "border-width": "1px",
-      "border-color": "#9ca3af",
+      "border-color": "#cbd5e1",
       "font-weight": "650",
       "text-align": "left",
       "color": "#202123"
     },
     "td": {
-      "padding": "10px 12px",
+      "padding": "5px 8px",
       "border-style": "solid",
       "border-width": "1px",
-      "border-color": "#9ca3af",
+      "border-color": "#cbd5e1",
       "color": "#2f2f2f"
     },
     "blockquote": {
@@ -241,11 +449,7 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서�
       "border-radius": "8px 8px 0 0",
       "border": "1px solid #e5e5e5"
     },
-    "a": {
-      "color": "#2563eb",
-      "text-decoration": "underline",
-      "font-weight": "bold"
-    },
+    "a": { "color": "#2563eb", "text-decoration": "underline", "font-weight": "bold" },
     "img": {
       "width": "100%",
       "border-radius": "8px",
@@ -274,8 +478,7 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서�
       "margin-bottom": "20px",
       "margin-left": "auto",
       "margin-right": "auto",
-      "display": "block",
-      "float": "none"
+      "display": "block"
     },
     "math": {
       "color": "#2f2f2f",
@@ -318,162 +521,207 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서�
   "tableStructure": {
     "outerBorderWidth": "1px",
     "rowBorderWidth": "1px",
-    "colBorderWidth": "1px"
+    "colBorderWidth": "0px"
   },
+  "bulletStructure": {
+    "level1": "disc",
+    "level2": "circle",
+    "level3": "square"
+  },
+  "mediaCaptionStructure": {
+    "position": "top",
+    "format": "standard",
+    "customTemplate": "**{kind} {n}. {title}**"
+  },
+  "headingNumbering": [],
   "customCss": ""
 }
 \`\`\`
 
 ---
 
-## 📌 2. 7대 서식 쇼케이스 영역별 상세 명세
+## 📌 2. 15대 서식 카테고리별 전체 속성 사전 (100% 전수 명세)
 
-온리비 어서는 서식 관리 모달 우측의 **7대 쇼케이스 모듈(Showcase Cards)**과 1:1로 정확히 동기화됩니다.
+온리비 어서 서식 편집기(\`CssStyleForm\`)의 15개 상세 탭에 존재하는 **모든 설정 항목과 CSS 속성·구조체 매핑 사전**입니다.
 
-### 🎴 Card 1. 본문 및 기본 타이포그래피 (\`pageStyle\`, \`p\`, \`strong\`, \`em\`, \`u\`, \`del\`, \`code\`, \`a\`)
-- **pageStyle.fontFamily**: 문서 기본 폰트 패밀리 (\`'KoPubBatang'\`, \`'KoPubDotum'\`, \`'Pretendard'\`, \`'Noto Sans KR'\`, \`'D2Coding'\` 등)
-- **pageStyle.fontSize**: 본문 기준 글자 크기 (기본값: \`"16px"\`)
-- **pageStyle.lineHeight**: 본문 기준 줄 간격 (배율 단위, 기본값: \`"1.75"\`)
-- **pageStyle.letterSpacing**: 본문 기준 자간 (기본값: \`"-0.01em"\`)
-- **pageStyle.paperSize**: 인쇄/출판 표준 용지 규격 (\`"a4"\`, \`"a3"\`, \`"b4"\`, \`"b5"\`, \`"letter"\`)
-- **pageStyle.orientation**: 용지 방향 (\`"portrait"\`: 세로형, \`"landscape"\`: 가로형)
-- **pageStyle.backgroundColor**: 문서 배경색 (\`"#ffffff"\`, 미색 \`"#fcfbf9"\`, 다크 \`"#0f172a"\` 등)
-- **pageStyle.margins**: 상/하/좌/우 인쇄 안전 여백 (\`marginTop\`, \`marginBottom\`: 기본값 \`"18mm"\`, \`marginLeft\`: 기본값 \`"12mm"\`, \`marginRight\`: 기본값 \`"12mm"\`)
-- **인라인 스타일**:
-  - \`strong\`: 굵게 (\`font-weight\`, \`color\`)
-  - \`em\`: 기울임 (\`font-style: italic\`, \`color\`)
-  - \`u\`: 밑줄 (\`text-decoration: underline\`)
-  - \`del\`: 취소선 (\`text-decoration: line-through\`, \`color\`)
-  - \`code\`: 인라인 코드 (\`background-color\`, \`color\`, \`border-radius\`, \`font-weight\`)
-  - \`a\`: 하이퍼링크 (\`color\`, \`text-decoration\`)
+### 1️⃣ 카테고리 1: 본문·여백 (\`pageStyle\`, \`rules.p\`, \`strong\`, \`em\`, \`u\`, \`del\`)
+- **용지 및 전역 타이포그래피 (\`pageStyle\`)**:
+  - \`fontFamily\`: 본문 기본 폰트 패밀리 문자열
+  - \`fontUrl\`: (선택) 외부 웹 폰트 CSS URL
+  - \`fontSize\`: 출판 포인트(\`"10pt"\`, \`"10.5pt"\`, \`"11pt"\`, \`"12pt"\`) 또는 픽셀(\`"15px"\`~\`"16.5px"\`)
+  - \`lineHeight\`: 기본 줄간격 (\`"1.65"\`~\`"1.85"\`)
+  - \`letterSpacing\`: 기본 자간 (\`"-0.01em"\`, \`"0em"\` 등)
+  - \`backgroundColor\`: 용지 배경색 (기본 \`"#ffffff"\`, 미색 에세이 \`"#FAF6ED"\` 등)
+  - \`paperSize\`: \`"a4"\` (기본) | \`"b5"\` | \`"letter"\`
+  - \`orientation\`: \`"portrait"\` (세로형) | \`"landscape"\` (가로형)
+  - \`marginTop\`, \`marginBottom\`: 상하 여백 (표준 \`"18mm"\`)
+  - \`marginLeft\`, \`marginRight\`: 좌우 여백 (표준 \`"12mm"\`)
+  - \`headingSizeOffset\`: H1→H6 단계별 크기 자동 감소폭 (기본 \`"0px"\`, 또는 \`"3pt"\` 등)
+  - \`tabSize\`: 탭 문자 너비 (기본 \`"2"\` 또는 \`"4"\`)
+  - \`exportPageBreakLevel\`: PDF/EPUB 내보내기 시 페이지 나누기 기준 (\`"none"\` 기본 | \`"h1"\` | \`"h2"\`)
+- **문단 스타일 (\`rules.p\`)**:
+  - \`margin-top\` (\`"0px"\`), \`margin-bottom\` (\`"16px"\`~\`"20px"\`), \`line-height\` (\`"1.75"\`), \`color\` (\`"#2f2f2f"\`)
+  - \`text-align\`: \`"left"\` (좌측 정렬) | \`"center"\` | \`"right"\` | \`"justify"\` (출판물 양끝 정렬)
+  - \`text-indent\`: 문단 첫 줄 들여쓰기 (\`"0px"\`, \`"16px"\`, \`"32px"\`)
+  - \`letter-spacing\`: 문단 자간 (\`"-0.01em"\`)
+  - \`sentence-gap\`: 문단 내 줄바꿈(\`Shift+Enter\`) 문장 간 간격 (\`"0px"\`~\`"32px"\`, 기본 \`"4px"\`, 테크 블로그 \`"8px"\`)
+- **인라인 강조 4종 세부 속성**:
+  - **굵게 (\`rules.strong\`)**: \`font-weight\` (\`"700"\` | \`"bold"\` | \`"900"\`), \`color\` (\`"#202123"\`), \`background-color\` (형광펜 하이라이트 배경색, 선택사항)
+  - **기울임 (\`rules.em\`)**: \`font-style\` (\`"italic"\` | \`"normal"\`), \`color\` (\`"#2f2f2f"\`)
+  - **밑줄 (\`rules.u\`)**: \`text-decoration\` (\`"underline"\`), \`text-decoration-style\` (\`"solid"\` 실선 | \`"dashed"\` 파선 | \`"dotted"\` 점선 | \`"wavy"\` 물결선), \`text-decoration-color\` (\`"#0d0d0d"\`), \`text-underline-offset\` (\`"3px"\`, \`0px\`~\`12px\`)
+  - **취소선 (\`rules.del\`)**: \`text-decoration\` (\`"line-through"\`), \`color\` (\`"#6b6b6b"\`), \`text-decoration-color\` (취소선 색상), \`text-decoration-thickness\` (\`"1px"\`~\`"8px"\`), \`opacity\` (\`"0.1"\`~\`"1.0"\`)
 
-### 🎴 Card 2. 제목 위계 스타일 (\`h1\` ~ \`h6\`)
-- **글자 크기 배율(\`font-size\`)**: H1(대분류)부터 H6(최소단위)까지 위계 질서에 맞는 크기 지정
-- **굵기(\`font-weight\`)**: \`"700"\`, \`"800"\`, \`"900"\`, \`"bold"\`
-- **정렬(\`text-align\`)**: \`"left"\`, \`"center"\`, \`"right"\`
-- **구분선(\`border-bottom\`)**: 대제목 및 중제목 하단 장식선 (예: \`"2px solid #ff5a00"\`, \`"1px solid #e2e8f0"\`)
-- **세로 바(\`border-left\`)**: 중제목 및 소제목 좌측 포인트 바 (예: \`"4px solid #ff5a00"\`, \`padding-left: "12px"\`)
-- **여백(\`margin-top\`, \`margin-bottom\`)**: 상하 간격을 통해 문단과의 호흡 조절
-- **🌟 모던 테크 블로그 시그니처 위계 (한컴 테크 블로그 표준 규격)**:
-  - **H1 (아티클 메인 타이틀)**: \`32px\`, \`font-weight: 800\`, \`margin-top: 36px\`, \`margin-bottom: 24px\`, \`line-height: 1.35\`
-  - **H2 (대섹션 제목)**: \`23px\`, \`font-weight: 700\`, **하단 오렌지 포인트 라인(\`border-bottom: "2px solid #ff5a00"\`)**, 패딩 \`padding-bottom: "10px"\`, 넉넉한 섹션 분리 여백(\`margin-top: "52px"\`, \`margin-bottom: "20px"\`)
-  - **H3 (중섹션 소제목)**: \`18.5px\`, \`font-weight: 700\`, **좌측 오렌지 버티컬 바(\`border-left: "4px solid #ff5a00"\`)**, 좌측 여백 \`padding-left: "12px"\`, 상하 여백(\`margin-top: "34px"\`, \`margin-bottom: "14px"\`)
-  - **H4 (세부 항목)**: \`16px\`, \`font-weight: 700\`, \`margin-top: 24px\`, \`margin-bottom: 10px\`
+### 2️⃣ 카테고리 2: 제목 (\`rules.h1\`~\`h6\` & \`headingNumbering\`)
+- **제목 태그 (\`h1\` ~ \`h6\`) 지원 속성**:
+  - \`font-size\`, \`font-weight\`, \`font-style\`, \`text-decoration\`, \`color\`, \`text-align\` (\`"left"\` | \`"center"\` | \`"right"\`)
+  - \`border-bottom\`: 하단 밑줄 장식 (예: \`""\`, \`"1px solid #e2e8f0"\`, \`"2px solid #ff5a00"\`, \`"3px double #1e293b"\`)
+  - \`border-left\`: 좌측 수직 강조 바 (예: \`"4px solid #ff5a00"\` — 지정 시 \`padding-left: "12px"\` 함께 설정)
+  - \`padding-left\`, \`padding-bottom\`, \`margin-top\`, \`margin-bottom\`, \`line-height\`, \`letter-spacing\`
+- **제목 자동 번호/기호 체계 (\`headingNumbering\` — 길이 6 배열, H1~H6 순서)**:
+  - 기본 문자열 포맷:
+    - \`"none"\`: 번호 없음
+    - \`"decimal"\`: \`1.\`, \`2.\`, \`3.\`
+    - \`"decimal-outline"\`: 계층형 십진 분류 (\`1.\` ➔ \`1.1\` ➔ \`1.1.1\` ➔ \`1.1.1.1\` — KS/ISO 기술표준)
+    - \`"roman"\`: \`Ⅰ.\`, \`Ⅱ.\`, \`Ⅲ.\`
+    - \`"hangul"\`: \`가.\`, \`나.\`, \`다.\`
+    - \`"decimal-paren"\` / \`"hangul-paren"\`: \`1)\`, \`2)\` / \`가)\`, \`나)\`
+  - 사용자 정의 객체 (\`custom\`):
+    - **학술 장·절 체계**: \`{ "type": "custom", "number": "decimal", "prefix": "제", "suffix": "장" }\`
+    - **대기업 개조식 기호**: \`{ "type": "custom", "number": "bullet", "prefix": "", "suffix": "", "bullet": "□" }\`
 
-### 🎴 Card 3. 목록 및 체크리스트 (\`ul\`, \`ol\`, \`li\`, \`taskList\`)
-- **순서 없는 목록(\`ul\`)**: \`"list-style-type": "disc"\` (원형), \`"circle"\` (속 빈 원), \`"square"\` (사각형)
-- **순서 있는 목록(\`ol\`)**: \`"list-style-type": "decimal"\` (1, 2, 3), \`"upper-roman"\` (I, II, III), \`"lower-alpha"\` (a, b, c)
-- **항목 여백(\`li\`)**: \`"margin-bottom": "5px"\`, \`"line-height": "1.7"\`
-- **체크리스트(\`taskList\`, \`checkboxStructure\`)**:
-  - \`boxSize\`: 체크박스 크기 (\`"16px"\`)
-  - \`textGap\`: 체크박스와 텍스트 사이 간격 (\`"9px"\`)
-  - \`color\`: 체크박스 테두리, 체크 마크 및 텍스트 기본 색상 (본문 글자색과 동일한 \`"#2f2f2f"\`)
-  - \`checkedEffect\`: 완료 항목 스타일 (**기본값: \`"none"\` - 효과 없음**, \`"line-through-and-dim"\`: 취소선+반투명, \`"dim-only"\`: 반투명만)
+### 3️⃣ 카테고리 3: 표 (\`rules.table\`, \`th\`, \`td\` & \`tableStructure\`)
+- **표 테두리 구조체 (\`tableStructure\`) 3대 프리셋**:
+  1. **가로선 강조형 (기본/논문/보고서)**: \`outerBorderWidth: "1px"\` (또는 \`"2px"\`), \`rowBorderWidth: "1px"\`, \`colBorderWidth: "0px"\` (세로선 없음)
+  2. **모든 테두리 격자형 (KS/엑셀)**: \`outerBorderWidth: "1px"\`, \`rowBorderWidth: "1px"\`, \`colBorderWidth: "1px"\`
+  3. **미니멀형**: \`outerBorderWidth: "0px"\`, \`rowBorderWidth: "1px"\`, \`colBorderWidth: "0px"\`
+- **표 세부 속성 (\`table\`, \`th\`, \`td\`)**:
+  - \`table\`: \`width\` (\`"100%"\`), \`border-collapse\` (\`"collapse"\`), \`border-color\` (\`"#9ca3af"\`), \`font-size\` (\`"15px"\`), \`margin-top\`, \`margin-bottom\`, \`border-radius\` (\`"8px"\`), \`overflow\` (\`"hidden"\`)
+  - \`th\`: \`background-color\` (\`"#f7f7f8"\`), \`color\` (\`"#202123"\`), \`font-weight\` (\`"650"\`), \`text-align\` (\`"left"\`|\`"center"\`|\`"right"\`), \`padding\` (\`"5px 8px"\`), \`border-color\` (\`"#cbd5e1"\`)
+  - \`td\`: \`background-color\`, \`color\` (\`"#2f2f2f"\`), \`text-align\`, \`padding\` (\`"5px 8px"\`), \`border-color\` (\`"#cbd5e1"\`)
+  - ⚠️ **주의**: \`th\`, \`td\` 내부에 \`border-left: none\` 같은 방향별 테두리 속성을 직접 넣지 마세요.
 
-### 🎴 Card 4. 표(Table) · 인용구 · 소스코드 블록
-- **인용구(\`blockquote\`) 형태 프리셋**:
-  1. **왼쪽 띠형 (Left Stripe)**: \`"border-left": "3px solid #d9d9d9"\`, \`"border-radius": "0"\`
-  2. **전체 박스형 (Full Box)**: \`"border": "1px solid #cbd5e1"\`, \`"border-radius": "8px"\`
-  3. **그림자 박스형 (Shadow Box)**: \`"border": "none"\`, \`"box-shadow": "0 8px 24px rgba(0,0,0,0.12)"\`, \`"border-radius": "8px"\`
-  - 공통 속성: \`background-color\`, \`padding\`, \`margin-top\`, \`margin-bottom\`, \`font-size\`, \`font-weight\`
-- **표(\`table\`, \`th\`, \`td\`, \`tableStructure\`) 형태 프리셋 및 개별 두께**:
-  - **\`tableStructure\` 구조체 (외곽/행/열 두께 독립 제어)**:
-    - \`outerBorderWidth\`: 표 외곽 테두리 두께 (기본값: \`"1px"\`)
-    - \`rowBorderWidth\`: 표 행(가로선) 구분선 두께 (기본값: \`"1px"\`)
-    - \`colBorderWidth\`: 표 열(세로선) 구분선 두께 (기본값: \`"1px"\`)
-  - **프리셋별 기본값**:
-    1. **엑셀 격자(Grid)**: 사방 실선 (\`outerBorderWidth: "1px"\`, \`rowBorderWidth: "1px"\`, \`colBorderWidth: "1px"\`)
-    2. **논문/관보 가로선 강조(Horizontal)**: 세로선 제거 (\`colBorderWidth: "0px"\`), 상하 외곽 굵은선 강조 (\`outerBorderWidth: "2px"\`, \`rowBorderWidth: "1px"\`)
-    3. **미니멀(Minimal)**: 모든 테두리 제거 (\`outerBorderWidth: "0px"\`, \`rowBorderWidth: "0px"\`, \`colBorderWidth: "0px"\`), 헤더 배경색만 유지
-  - 셀 패딩(\`padding\`), 글자 크기(\`font-size\`), 상하 바깥 여백(\`margin-top\`, \`margin-bottom\`)
-- **코드 블록(\`codeBlock\`, \`codeBlockTitle\`)**:
-  - \`background-color: "#f7f7f8"\`, \`color: "#242424"\`, \`padding: "16px"\`, \`border-radius: "8px"\`, \`font-size: "13.5px"\`
+### 4️⃣ 카테고리 4: 인용구 (\`rules.blockquote\`)
+- **지원 속성**: \`color\`, \`background-color\`, \`font-size\`, \`font-weight\` (\`"normal"\`|\`"bold"\`), \`font-style\` (\`"normal"\`|\`"italic"\`), \`padding\`, \`border-left\`, \`border\`, \`border-radius\`, \`box-shadow\`, \`margin-top\`, \`margin-bottom\`
+- **3대 형태 배타 규칙**:
+  1. **왼쪽 띠형 (Left Bar)**: \`"border-left": "4px solid #1d4ed8"\` 지정 (이때 \`border\` 전체 속성은 넣지 않음)
+  2. **전체 박스형 (Full Box)**: \`"border": "1px solid #cbd5e1"\`, \`"border-left": "none"\`, \`"border-radius": "8px"\`
+  3. **그림자 박스형 (Shadow Box)**: \`"border": "none"\`, \`"border-left": "none"\`, \`"box-shadow": "0 8px 24px rgba(0,0,0,0.08)"\`
 
-### 🎴 Card 5. 미디어(이미지·비디오·지도) & 수식(MATH) · 구분선
-- **미디어 객체 공통 (\`img\`, \`video\`, \`map\`)**:
-  - **너비 및 높이**:
-    - 본문 전체 폭에 맞춰 시원하게 전개되도록 **\`width: "100%"\`**를 표준으로 고정 적용합니다.
-    - \`video\`: \`"width": "100%"\`, \`"height": "315px"\` (16:9 와이드 가로형 표준)
-    - \`map\`: \`"width": "100%"\`, \`"height": "400px"\` (대화형 지도 표준)
-    - \`img\`: \`"width": "100%"\`, \`"border-radius": "8px"\`
-  - **정렬 마진**:
-    - 좌측 정렬: \`"margin-left": "0px"\`, \`"margin-right": "auto"\`
-    - 중앙 정렬: \`"margin-left": "auto"\`, \`"margin-right": "auto"\`
-    - 우측 정렬: \`"margin-left": "auto"\`, \`"margin-right": "0px"\`
-  - **테두리 및 효과**: \`border-radius\` (라운딩, 기본 \`"8px"\`), \`box-shadow\`
-  - **상하 여백**: \`margin-top: "20px"\`, \`margin-bottom: "20px"\`
-- **수학 수식 (\`math\`)**:
-  - KaTeX Display 블록 렌더링
-  - \`color\`: \`"#2f2f2f"\` (고대비 텍스트)
-  - \`font-size\`: \`"16px"\` (생략 시 본문 기본 크기 자동 상속)
-  - \`text-align\`: \`"center"\` (중앙 정렬)
-  - \`margin-top: "20px"\`, \`margin-bottom: "20px"\`
-- **수평 구분선 (\`hr\`, \`hrStructure\`)**:
-  - 선 종류: \`border-top-style\` (\`"solid"\`, \`"dashed"\`, \`"dotted"\`, \`"double"\`)
-  - 선 두께: \`border-top-width\` (\`"1px"\`)
-  - 선 색상: \`border-top-color\` (\`"#e5e5e5"\`)
-  - 폭: \`width\` (\`"100%"\`)
-  - 상하 여백: \`margin-top: "28px"\`, \`margin-bottom: "28px"\`
+### 5️⃣ 카테고리 5: 코드블록 (\`rules.codeBlock\` & \`rules.codeBlockTitle\`)
+- **지원 속성**: \`background-color\`, \`color\`, \`font-size\` (\`"13.5px"\` 또는 \`"inherit"\`), \`line-height\` (\`"1.35"\`), \`padding\` (\`"16px"\`), \`border-radius\` (\`"8px"\`), \`border\` (\`"1px solid #e5e5e5"\`)
+- **3대 테마 프리셋**:
+  1. **라이트 기본 박스**: 본문 \`#f7f7f8\` (글자 \`#242424\`) / 타이틀바 \`#ececec\` (글자 \`#5f5f5f\`)
+  2. **Mac OS 다크 테마**: 본문 \`#282c34\` (글자 \`#abb2bf\`) / 타이틀바 \`#21252b\` (글자 \`#9da5b4\`)
+  3. **다크 네이비 고정**: 본문 \`#0f172a\` (글자 \`#f8fafc\`) / 타이틀바 \`#1e293b\` (글자 \`#94a3b8\`)
 
-### 🎴 Card 6. 고급 레이아웃 및 본문 문단 (\`p\`)
-- **용지 마진 여백(\`pageStyle.marginTop\`, \`marginBottom\`, \`marginLeft\`, \`marginRight\`)**: 위/아래 \`"18mm"\`, 왼/오른쪽 \`"12mm"\` (표준 규격)
-- **본문 정렬(\`text-align\`)**: \`"left"\` (기본 정렬), \`"justify"\` (출판물 스타일 양끝 정렬)
-- **첫 줄 들여쓰기(\`text-indent\`)**: 기본 \`"0px"\` (출판 서식의 경우 \`"16px"\`)
-- **문단 상하 여백(\`margin-top\`, \`margin-bottom\`)**: 상단 \`"0px"\`, 하단 \`"16px"\`
-- **문장 사이 간격(\`sentence-gap\`)**: 문단 내에서 \`<br />\` 또는 Shift+Enter로 개행된 문장 간 미세 간격 (기본 \`"4px"\`)
-- **줄 간격(\`line-height\`)**: 기본 \`"1.75"\`
-- **본문 글자색(\`color\`)**: 부드럽고 가독성 높은 차콜 그레이 (\`"#2f2f2f"\` 또는 \`"#374151"\`)
-- **🌟 모던 테크 블로그(한컴 테크 블로그) 본문 문단 표준 규격**:
-  - \`font-size\`: \`"16px"\`, \`color\`: \`"#374151"\` (부드러운 고대비)
-  - \`line-height\`: \`"1.8"\` (시원하고 편안한 줄간격)
-  - \`margin-top\`: \`"0px"\`, \`margin-bottom\`: \`"20px"\` (명확한 단락 분리)
-  - \`sentence-gap\`: \`"8px"\` (단락 내 문장 간 여유 있는 호흡 확보)
+### 6️⃣ 카테고리 6: 인라인코드 (\`rules.code\`)
+- **지원 속성**: \`background-color\` (\`"#f7f7f8"\`), \`color\` (\`"#242424"\`), \`font-weight\` (\`"normal"\`|\`"bold"\`), \`border-radius\` (\`"5px"\`), \`padding\` (\`"2px 6px"\`), \`padding-left\`, \`padding-right\`, \`border\` (\`"1px solid #e5e5e5"\`)
 
-### 🎴 Card 7. 각주 및 주석 (\`footnote\`)
-- **글자 크기(\`font-size\`)**: 기본 \`"13px"\`
-- **글자 굵기(\`font-weight\`)**: \`"normal"\`
-- **글자 색상(\`color\`)**: \`"#6b6b6b"\`
-- **줄 간격(\`line-height\`)**: \`"1.5"\`
-- **상하 바깥 여백(\`margin-top\`, \`margin-bottom\`)**: 상단 \`"12px"\`, 하단 \`"12px"\`
+### 7️⃣ 카테고리 7: 하이퍼링크 (\`rules.a\`)
+- **지원 속성**: \`color\` (\`"#2563eb"\`), \`text-decoration\` (\`"underline"\` | \`"none"\`), \`font-weight\` (\`"bold"\` | \`"normal"\`)
+
+### 8️⃣ 카테고리 8: 각주 (\`rules.footnote\`)
+- **지원 속성**: \`font-size\` (\`"13px"\` 또는 \`"9pt"\`), \`color\` (\`"#6b6b6b"\`), \`font-weight\` (\`"normal"\` | \`"bold"\`), \`line-height\` (\`"1.5"\`~\`"1.6"\`), \`margin-top\` (\`"12px"\`), \`margin-bottom\` (\`"12px"\`)
+
+### 9️⃣ 카테고리 9: 목록·체크 (\`ul\`, \`ol\`, \`li\`, \`taskList\`, \`bulletStructure\`, \`checkboxStructure\`)
+- **순서 있는 숫자 목록 (\`rules.ol['list-style-type']\`) 지원 전체 체계**:
+  - \`"decimal"\`: 기본 아라비아 숫자 (\`1, 2, 3\`)
+  - \`"onrivi-circled-decimal"\`: **원문자 숫자 목록 체계 (\`①, ②, ③\`)** — 온리비 전용 특수 마커
+  - \`"onrivi-report"\`: **한국형 보고서 다단계 번호 체계 (\`Ⅰ. → 1. → 가. → 1) → 가)\`)** — 온리비 전용 공문서·보고서 마커
+  - \`"decimal-leading-zero"\`: \`01, 02, 03\`
+  - \`"lower-roman"\` (\`i, ii, iii\`), \`"upper-roman"\` (\`I, II, III\`), \`"none"\` (번호 숨김)
+- **글머리 기호 1~3단계 계층 구조체 (\`bulletStructure\`) 지원 전체 기호 (13종)**:
+  - \`level1\`, \`level2\`, \`level3\`에 지정 가능한 값:
+    - \`"disc"\` (• 검은 원), \`"circle"\` (○ 빈 원), \`"square"\` (■ 검은 네모), \`"white-square"\` (▫ 빈 네모)
+    - \`"diamond"\` (◆ 검은 마름모), \`"white-diamond"\` (◇ 빈 마름모), \`"dash"\` (- 대시), \`"hyphen"\` (– 하이픈)
+    - \`"arrow"\` (▶ 화살표), \`"check"\` (✓ 체크), \`"star"\` (★ 별표), \`"dot"\` (· 가운뎃점)
+    - \`"custom"\`: 사용자 직접 입력 기호 (\`custom1\`, \`custom2\`, \`custom3\`에 \`"□"\`, \`"○"\`, \`"ㆍ"\`, \`"※"\` 등 임의 기호 지정)
+    - \`"none"\`: 기호 없음
+- **목록 들여쓰기 및 항목 간격 (\`rules.ul\`, \`rules.ol\`, \`rules.li\`)**:
+  - \`ul\`, \`ol\`: \`padding-left\` (들여쓰기 너비, 기본 \`"28px"\`), \`color\` (마커 및 본문 색상 \`"#2f2f2f"\`)
+  - \`li\`: \`margin-bottom\` (항목 간 여백 \`"5px"\`), \`padding-inline-start\` (기호 마커와 텍스트 사이 간격 \`"3px"\`, \`0px\`~\`32px\`), \`line-height\` (\`"1.7"\`)
+- **체크리스트 (\`checkboxStructure\` & \`rules.taskList\`)**:
+  - \`boxSize\`: 체크박스 크기 (\`"16px"\`, \`8px\`~\`32px\`)
+  - \`textGap\`: 체크박스와 텍스트 간격 (\`"9px"\`, \`0px\`~\`32px\`)
+  - \`color\`: 체크박스 및 텍스트 색상 (본문 기본색 \`"#2f2f2f"\`)
+  - \`checkedEffect\`: 완료 항목 스타일 (\`"none"\` 기본 효과없음 | \`"line-through-and-dim"\` 취소선+반투명 | \`"dim-only"\` 반투명만)
+
+### 🔟 카테고리 10: 구분선 (\`rules.hr\` & \`hrStructure\`)
+- **구분선 구조체 (\`hrStructure\`)**:
+  - \`borderTopStyle\`: \`"solid"\` (실선) | \`"dotted"\` (점선) | \`"dashed"\` (파선) | \`"double"\` (이중선)
+  - \`borderTopWidth\`: 선 두께 (\`"1px"\` ~ \`"10px"\`)
+  - \`marginTopBottom\`: 상하 여백 (\`"28px"\`, \`0px\`~\`100px\`)
+  - \`lineWidth\`: 가로 폭 비율 (\`"100%"\` 전체 | \`"75%"\` | \`"50%"\` 중앙 절반 | \`"30%"\` 소형 포인트선)
+- **구분선 색상**: \`rules.hr['border-top-color']\` (기본 \`"#e5e5e5"\`)
+
+### 1️⃣1️⃣ 카테고리 11: 이미지 (\`rules.img\`)
+- **지원 속성**: \`width\` (\`"100%"\` | \`"75%"\` | \`"50%"\`), \`border-radius\` (\`"8px"\`), \`box-shadow\`, \`border\`, \`border-bottom-width\`, \`background-color\`, \`padding\`, \`margin-top\`, \`margin-bottom\`, \`margin-left\`, \`margin-right\`
+- **3대 액자 프레임 프리셋**:
+  1. **기본형 (Standard)**: \`border-radius: "8px"\`, \`padding: "0px"\`, \`box-shadow: "none"\`
+  2. **폴라로이드형 (Polaroid)**: \`background-color: "white"\`, \`border: "10px solid white"\`, \`border-bottom-width: "32px"\`, \`border-radius: "4px"\`, \`box-shadow: "0 10px 15px -3px rgba(0,0,0,0.1)"\`
+  3. **둥근 썸네일형 (Rounded Thumbnail)**: \`border-radius: "16px"\`, \`box-shadow: "0 10px 15px -3px rgba(0,0,0,0.1)"\`
+- **좌·중·우 정렬 규칙 (\`img\`, \`video\`, \`map\` 공통)**:
+  - **가운데 정렬 (기본)**: \`"margin-left": "auto"\`, \`"margin-right": "auto"\`
+  - **왼쪽 정렬**: \`"margin-left": "0px"\`, \`"margin-right": "auto"\`
+  - **오른쪽 정렬**: \`"margin-left": "auto"\`, \`"margin-right": "0px"\`
+
+### 1️⃣2️⃣ 카테고리 12: 비디오 (\`rules.video\`)
+- **지원 속성**: \`width\` (\`"100%"\`), \`height\` (\`"315px"\`~\`"450px"\`), \`border-radius\` (\`"8px"\`), \`box-shadow\`, \`display\` (\`"block"\`), \`margin-top\`, \`margin-bottom\`, \`margin-left\`, \`margin-right\`
+
+### 1️⃣3️⃣ 카테고리 13: 지도 (\`rules.map\`)
+- **지원 속성**: \`width\` (\`"100%"\`), \`height\` (\`"400px"\`), \`border-radius\` (\`"8px"\`), \`box-shadow\`, \`margin-top\`, \`margin-bottom\`, \`margin-left\`, \`margin-right\`
+
+### 1️⃣4️⃣ 카테고리 14: 수식 (\`rules.math\`)
+- **지원 속성**: \`color\` (\`"#2f2f2f"\`), \`font-size\` (\`"16px"\` 또는 \`"inherit"\`), \`text-align\` (\`"center"\` | \`"left"\` | \`"right"\`), \`margin-top\` (\`"20px"\`), \`margin-bottom\` (\`"20px"\`)
+
+### 1️⃣5️⃣ 카테고리 15: 고급 CSS 및 미디어 캡션·그림책 확장 구조체 (\`customCss\`, \`mediaCaptionStructure\`, \`layout\`)
+- **미디어·표 캡션 구조체 (\`mediaCaptionStructure\` & \`kindOverrides\`)**:
+  - 공통 설정:
+    - \`position\`: \`"top"\` (상단 배치) | \`"bottom"\` (하단 배치)
+    - \`format\`:
+      - \`"standard"\`: \`**그림 1. 제목**\` (\`**{kind} {n}. {title}**\`)
+      - \`"bracket"\`: \`**[그림 1] 제목**\` (\`**[{kind} {n}] {title}**\`)
+      - \`"angle"\`: \`**<표 1> 제목**\` (\`**<{kind} {n}> {title}**\`)
+      - \`"plain"\`: \`그림 1. 제목\` (볼드 없음)
+      - \`"title-only"\`: \`**제목**\` (번호 없이 제목만)
+      - \`"custom"\`: \`customTemplate\` 문자열 직접 사용 (\`{kind}\`, \`{n}\`, \`{title}\` 치환자 지원)
+  - **4대 대상(\`table\`, \`image\`, \`video\`, \`map\`) 개별 오버라이드 (\`kindOverrides\`)**:
+    \`\`\`json
+    "mediaCaptionStructure": {
+      "position": "top",
+      "format": "angle",
+      "customTemplate": "**<{kind} {n}> {title}**",
+      "kindOverrides": {
+        "table": { "position": "top", "format": "angle" },
+        "image": { "position": "bottom", "format": "bracket" },
+        "video": { "position": "bottom", "format": "bracket" },
+        "map": { "position": "bottom", "format": "bracket" }
+      }
+    }
+    \`\`\`
+- **그림책 / 스토리북 고정 레이아웃 (\`layout\`)**:
+  \`\`\`json
+  "layout": {
+    "schemaVersion": 1,
+    "type": "picturebook",
+    "cover": "full-image",
+    "imageRatio": 0.55,
+    "imageFit": "cover",
+    "gap": "24px",
+    "pageNumbers": true
+  }
+  \`\`\`
+  - \`cover\`: \`"full-image"\` (전체 그림 표지) | \`"image-right"\` (오른쪽 그림 표지)
+- **고급 사용자 정의 CSS (\`customCss\`)**:
+  - 프리뷰 루트(\`.custom-preview-container\`) 하위에 적용할 추가 CSS 규칙을 자유롭게 문자열로 작성할 수 있습니다.
 
 ---
 
-## 📌 3. AI에게 서식 프로필 생성을 지시할 때 (프롬프트 작성 예시)
+## 📌 3. 외부 AI용 만능 서식 생성 프롬프트 템플릿
 
-> 💡 **안내 (필독)**:  
-> 아래 프롬프트는 **Onrivi 기본서식** 및 **한컴 테크 블로그 프리미엄 서식**을 기준으로 한 모범적인 작성 예시입니다.  
-> 사용자가 원하는 스타일에 맞추어 **글꼴, 글자 크기, 색상, 여백 등의 수치를 자유롭게 바꾸어 지시**하실 수 있습니다.  
-> 또한, AI가 만들어준 서식 JSON에 특정 태그가 생략되어 있더라도 **온리비 어서가 Onrivi 기본서식 규격을 자동으로 상속**하므로 안심하고 사용하실 수 있습니다.
+외부 AI(ChatGPT, Claude, Gemini 등)에 아래 프롬프트를 복사하여 붙여넣고 **[내가 원하는 서식 컨셉]** 한 줄만 수정하면 완벽한 최신 온리비 서식 JSON을 얻을 수 있습니다.
 
-### 🤖 AI 프롬프트 예시 1: Onrivi 기본 표준 서식
 \`\`\`text
-제공된 온리비 어서(Onrivi Author) 서식 프로필 CSS 작성 가이드를 기반으로, "에디토리얼 테크니컬 서식" 프로필 JSON 1개를 생성해 줘.
-
-[요구 조건]
-1. 용지 규격(pageStyle)은 A4 세로(portrait), 상하 18mm, 좌우 12mm 여백(marginTop: 18mm, marginBottom: 18mm, marginLeft: 12mm, marginRight: 12mm), 기본 글꼴은 시스템 고딕, 글자 크기 16px, 줄 간격 1.75 적용.
-2. 제목(h1~h6)은 32px부터 15px까지 단계별 위계와 정갈한 상하 여백으로 구성.
-3. 본문 문단(p)은 줄 간격 1.75, 문단 아래 여백 16px, 문장 사이 간격(sentence-gap) 4px 적용.
-4. 표(tableStructure)는 outerBorderWidth: 1px, rowBorderWidth: 1px, colBorderWidth: 1px의 정갈한 격자 스타일로 구성.
-5. 미디어(img, video, map)는 가로 너비를 100%("width": "100%")로 설정하고, video는 "height": "315px", map은 "height": "400px"으로 16:9 와이드 비율 적용.
-6. 구분선(hrStructure: 28px/1px/solid/100%) 및 체크박스(checkboxStructure: 16px/none/9px/#2f2f2f - 체크박스 및 글자색은 본문과 동일한 #2f2f2f, 완료 효과 checkedEffect는 무조건 "none") 구조체를 완벽히 포함.
-7. 설명이나 인사말 없이 오직 유효한 단일 JSON 객체({ ... })만 출력해.
-\`\`\`
-
-### 🤖 AI 프롬프트 예시 2: 한컴 테크 블로그 프리미엄 서식 (오렌지 포인트 테마)
-\`\`\`text
-제공된 온리비 어서(Onrivi Author) 서식 프로필 CSS 작성 가이드를 기반으로, 한컴 테크 블로그 스타일의 "모던 테크 블로그 서식" 프로필 JSON 1개를 생성해 줘.
-
-[요구 조건]
-1. 용지 규격(pageStyle)은 A4 세로(portrait), 상하 18mm, 좌우 12mm 여백, 글자 크기 16px, 줄 간격 1.8 적용.
-2. 제목 위계:
-   - H1: 32px, 굵기 800, margin-top 36px, margin-bottom 24px, color: #111827
-   - H2: 23px, 굵기 700, 하단 오렌지선("border-bottom": "2px solid #ff5a00"), padding-bottom: 10px, margin-top 52px, margin-bottom 20px
-   - H3: 18.5px, 굵기 700, 좌측 오렌지바("border-left": "4px solid #ff5a00"), padding-left: 12px, margin-top 34px, margin-bottom 14px
-3. 본문 문단(p): 글자색 #374151, 줄 간격 1.8, 문단 하단 여백 20px("margin-bottom": "20px"), 문장 간격 8px("sentence-gap": "8px") 적용.
-4. 인용구(blockquote): 배경색 #f8fafc, 좌측선 "border-left": "4px solid #ff5a00", 패딩 16px 20px, 둥근 모서리 6px.
-5. 표(tableStructure): colBorderWidth: 0px(세로선 없음), outerBorderWidth: 1px, rowBorderWidth: 1px의 가로선 강조형, th 배경색 #f8fafc.
-6. 링크(a): color: "#0284c7", 밑줄("text-decoration": "underline"), text-underline-offset: 3px.
-7. 이미지(img): width: "100%", border-radius: "10px", margin-top: "28px", margin-bottom: "28px".
-8. 설명이나 인사말 없이 오직 유효한 단일 JSON 객체({ ... })만 출력해.
+${AI_MASTER_PROMPT_TEMPLATE}
 \`\`\`
 `;
