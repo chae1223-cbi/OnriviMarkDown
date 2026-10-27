@@ -656,7 +656,7 @@ export default function StyleManagerModal({
      "lineHeight": "1.75",
      "letterSpacing": "-0.01em",
      "backgroundColor": "#ffffff",
-     "headingSizeOffset": "0px",
+     "headingSizeOffset": "3pt",
      "tabSize": "2",
      "exportPageBreakLevel": "none"
    }

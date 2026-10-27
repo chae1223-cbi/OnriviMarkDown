@@ -2,10 +2,12 @@
 
 이 문서는 **온리비 어서(Onrivi Author)** 전용 서식 프로필(`.json`)의 공식 최신 스키마 명세서이자, 서식 편집기의 **15대 상세 카테고리(본문·여백, 제목, 표, 인용구, 코드블록, 인라인코드, 하이퍼링크, 각주, 목록·체크, 구분선, 이미지, 비디오, 지도, 수식, 고급 CSS)** 모든 속성을 100% 수록한 **완전판 레퍼런스 가이드**입니다.
 
-> 💡 **핵심 요약 안내**
-> 1. **서식 관리 센터 원클릭 지원**: 서식 파일(`.json`)을 마우스로 **드래그 앤 드롭(Drag & Drop)**하거나, 클립보드 JSON 텍스트를 **원클릭 붙여넣기**하여 즉시 등록할 수 있습니다.
-> 2. **단일 서식 및 다중 서식 백업 호환**: 단일 서식 객체(`{ ... }`)뿐만 아니라 여러 서식이 담긴 배열(`[ { ... }, { ... } ]`) 형태의 백업 파일도 자동으로 인식하여 일괄 등록합니다.
-> 3. **누락 속성 100% 자동 정규화 (`normalizeCssProfile`)**: AI가 생성한 JSON에 일부 태그나 구조체가 생략되어 있더라도, 온리비 어서가 **'Onrivi 기본서식'** 표준 규격을 바탕으로 누락된 필드를 자동 보완(Hydration)합니다.
+> 💡 **핵심 요약 및 서식 관리 센터 최신 기능 안내**
+> 1. **사이드바 `+ 추가` 3종 문서 타입 선택 생성**: 좌측 사이드바 상단 `+ 추가` 버튼을 누르면 **① `📄 일반문서`**, **② `📖 그림책(전체표지)`**, **③ `📖 그림책(오른쪽표지)`** 중 원하는 문서 타입을 선택해 즉시 생성할 수 있습니다.
+> 2. **사이드바 원클릭 액션 일원화**: 좌측 사이드바의 각 서식 항목에서 **`[서식 복제] · [파일 내보내기(.json)] · [JSON 복사] · [삭제]`**를 즉시 실행할 수 있으며, 상단 `전체 백업`으로 내 서식 전체를 한 번에 백업할 수 있습니다.
+> 3. **본문 상단 2단 카드 구성**: 본문 상단 좌측 **`[이름 및 서식 설명 카드]`**에는 서식 이름과 일반문서/그림책(스토리북) 구분이 포함된 설명이 표시되며, 우측 별도 **`[📋 설명 상세 카드]`**에는 **글꼴 · 크기/행간 · 여백 · 표 테두리 · 불릿 · 문서 타입(일반문서 / 그림책)** 6대 핵심 사양이 한눈에 표시됩니다.
+> 4. **원클릭 가져오기 및 다중 백업 호환**: 서식 파일(`.json`) **드래그 앤 드롭**, **내 PC 파일 선택**, **클립보드 JSON 바로 불러오기**를 지원하며, 단일 서식(`{ ... }`)과 다중 백업 배열(`[ { ... }, ... ]`)을 모두 자동 인식합니다.
+> 5. **누락 속성 100% 자동 정규화 (`normalizeCssProfile`)**: AI가 생성한 JSON에 일부 속성이 생략되어 있더라도 **'Onrivi 기본서식'** 표준 규격(예: `headingSizeOffset` 미정의 시 최초값 `"3pt"` 자동 부여 등)으로 완벽히 보완합니다.
 
 ---
 
@@ -30,7 +32,7 @@
     "marginLeft": "12mm",
     "marginRight": "12mm",
     "orientation": "portrait",
-    "headingSizeOffset": "0px",
+    "headingSizeOffset": "3pt",
     "tabSize": "2",
     "exportPageBreakLevel": "none"
   },
@@ -288,7 +290,7 @@
   - `orientation`: `"portrait"` (세로형) | `"landscape"` (가로형)
   - `marginTop`, `marginBottom`: 상하 여백 (표준 `"18mm"`)
   - `marginLeft`, `marginRight`: 좌우 여백 (표준 `"12mm"`)
-  - `headingSizeOffset`: H1→H6 단계별 크기 자동 감소폭 (기본 `"0px"`, 또는 `"3pt"` 등)
+  - `headingSizeOffset`: H1→H6 단계별 활자 크기 자동 차감폭 (**미정의 시 최초 기본값 `"3pt"`**, 슬라이더로 `"0pt"`~`"6pt"` 0.5pt 단위 조절 가능)
   - `tabSize`: 탭 문자 너비 (기본 `"2"` 또는 `"4"`)
   - `exportPageBreakLevel`: PDF/EPUB 내보내기 시 페이지 나누기 기준 (`"none"` 기본 | `"h1"` | `"h2"`)
 - **문단 스타일 (`rules.p`)**:
@@ -303,12 +305,17 @@
   - **밑줄 (`rules.u`)**: `text-decoration` (`"underline"`), `text-decoration-style` (`"solid"` 실선 | `"dashed"` 파선 | `"dotted"` 점선 | `"wavy"` 물결선), `text-decoration-color` (`"#0d0d0d"`), `text-underline-offset` (`"3px"`, `0px`~`12px`)
   - **취소선 (`rules.del`)**: `text-decoration` (`"line-through"`), `color` (`"#6b6b6b"`), `text-decoration-color` (취소선 색상), `text-decoration-thickness` (`"1px"`~`"8px"`), `opacity` (`"0.1"`~`"1.0"`)
 
-### 2️⃣ 카테고리 2: 제목 (`rules.h1`~`h6` & `headingNumbering`)
-- **제목 태그 (`h1` ~ `h6`) 지원 속성**:
-  - `font-size`, `font-weight`, `font-style`, `text-decoration`, `color`, `text-align` (`"left"` | `"center"` | `"right"`)
-  - `border-bottom`: 하단 밑줄 장식 (예: `""`, `"1px solid #e2e8f0"`, `"2px solid #ff5a00"`, `"3px double #1e293b"`)
-  - `border-left`: 좌측 수직 강조 바 (예: `"4px solid #ff5a00"` — 지정 시 `padding-left: "12px"` 함께 설정)
-  - `padding-left`, `padding-bottom`, `margin-top`, `margin-bottom`, `line-height`, `letter-spacing`
+### 2️⃣ 카테고리 2: 제목 (`rules.h1`~`h6` · `pageStyle.headingSizeOffset` · `headingNumbering`)
+- **H1 기준 크기 및 단계별 크기 감소폭 (`pageStyle.headingSizeOffset`)**:
+  - `rules.h1['font-size']`를 기준 활자 크기(`12pt`~`36pt`)로 설정하며, `pageStyle.headingSizeOffset`에 따라 `H2`~`H6` 크기가 `H1 - (레벨 - 1) × 감소폭` 공식으로 자동 계산됩니다.
+  - **최초 기본값**: `headingSizeOffset`이 정의되어 있지 않거나 빈 값일 때 **최초 기본값은 `"3pt"`**로 동작합니다. (감소 없이 동일 크기를 원할 경우 슬라이더를 `"0pt"`로 설정)
+- **제목 태그 (`h1` ~ `h6`) 지원 속성 및 장식**:
+  - 기본 속성: `font-size`, `font-weight`, `font-style`, `text-decoration`, `color`, `text-align` (`"left"` | `"center"` | `"right"`), `padding-left`, `padding-bottom`, `margin-top`, `margin-bottom`, `line-height`, `letter-spacing`
+  - **하단 밑줄 (`border-bottom`)**: `"none"` (선 없음) | `"1px solid #색상"` (실선) | `"3px double #색상"` (관보선)
+  - **제목 앞 좌측 색깔바 (`border-left` & 색상 설정)**:
+    - **4종 프리셋**: `"none"` (바 없음) | `"3px solid #색상"` (얇은 바 3px) | `"4px solid #색상"` (표준 바 4px) | `"6px solid #색상"` (굵은 바 6px)
+    - **색깔바 색상 선택**: `H1` 및 `H2`~`H6` 각각 독립된 컬러 피커로 좌측 색깔바 색상을 자유롭게 변경할 수 있습니다.
+    - **여백 자동 연동**: 좌측 색깔바를 활성화할 때 `padding-left`가 `0px`이면 글자와 바가 붙지 않도록 `"12px"`가 자동 부여되며, `[바 없음]` 선택 시 `border-left: "none"` 및 `padding-left: "0px"`으로 즉시 원복됩니다.
 - **제목 자동 번호/기호 체계 (`headingNumbering` — 길이 6 배열, H1~H6 순서)**:
   - 기본 문자열 포맷:
     - `"none"`: 번호 없음

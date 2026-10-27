@@ -1,11 +1,11 @@
 /**
  * cssProfileGuide.ts
  * 온리비 어서(Onrivi Author) 최신 서식 프로필(CSS Profile) 명세서 및 AI 서식 생성 가이드 마크다운 정의
- * 🚨 @PATCH : **2026-10-27** — [15대 서식 카테고리 전수 점검 및 최신 스키마 100% 완전 반영 (bulletStructure 13종, ol 특수 마커, 인라인 4종 세부 속성, 미디어 프리셋·정렬, 캡션 4종 오버라이드 등)]:
- *             1) 에디터 상세 서식 편집기 15개 전 카테고리(본문·여백, 제목, 표, 인용구, 코드블록, 인라인코드, 하이퍼링크, 각주, 목록·체크, 구분선, 이미지, 비디오, 지도, 수식, 고급 CSS)의 모든 속성·프리셋·옵션값을 누락 없이 가이드 및 마스터 프롬프트에 100% 수록
- *             2) 순서 있는 목록(ol)의 온리비 전용 특수 체계('onrivi-circled-decimal' 원문자 ①②③, 'onrivi-report' 한국형 보고서 Ⅰ.→1.→가.→1)→가)) 및 글머리 기호(bulletStructure) 13종 전체 기호 명세 추가
- *             3) 인라인 강조 4종(strong 배경 형광펜, u 밑줄 모양·간격, del 취소선 색상·두께·투명도), 이미지 3대 액자 프리셋(기본/폴라로이드/둥근 썸네일) 및 미디어 좌·중·우 정렬(margin-left/right auto) 규칙 명세 추가
- *             4) 코드블록 3대 테마 프리셋(라이트/Mac OS/다크), 구분선(hrStructure) 너비 비율(100%/75%/50%/30%), 미디어·표 캡션(mediaCaptionStructure) 4종(table/image/video/map) 개별 오버라이드 및 그림책(layout) 고정 레이아웃 명세 완비
+ * 🚨 @PATCH : **2026-10-27** — [제목 단계별 크기 감소폭(headingSizeOffset) 최초 기본값 '3pt', 제목 앞 좌측 색깔바(border-left) 4종 프리셋 및 서식 관리 센터 최신 워크플로우 가이드 반영]:
+ *             1) pageStyle.headingSizeOffset 미정의 시 최초 기본값 '3pt'(0pt~6pt 조절) 명세 및 JSON 스키마·마스터 프롬프트 동기화
+ *             2) 제목(H1~H6) 앞 좌측 색깔바(border-left: 바 없음 'none' / 얇은 바 '3px solid' / 표준 바 '4px solid' / 굵은 바 '6px solid' + 색깔바 색상 선택 + padding-left '12px' 자동 연동) 상세 명세 추가
+ *             3) 서식 관리 센터 최신 UI 워크플로우(사이드바 '+ 추가' 3종 문서 타입[일반문서/그림책 전체표지/그림책 오른쪽표지] 선택 생성, 사이드바 '복제/내보내기/JSON 복사/삭제' 액션, 본문 2단 '이름·설명 카드 + 설명 상세 카드' 분리) 가이드 반영
+ *             4) 15대 서식 카테고리 전수 명세(bulletStructure 13종, ol 특수 마커, 인라인 4종 세부 속성, 미디어 프리셋·정렬, 캡션 4종 오버라이드) 수록
  * 🚨 @PATCH : **2026-10-01** — [PDF/EPUB 내보내기 페이지 나누기 기준 기본값 'none' 명세 동기화]: 가이드 내 JSON 스펙의 exportPageBreakLevel을 'none'으로 변경
  * 🚨 @PATCH : **2026-09-26** — [표 모든 테두리(Grid) 세로선 및 프리셋 가이드·프롬프트 동기화]: th/td 레거시 border-left/right: none 소거, tableStructure(outerBorderWidth, rowBorderWidth, colBorderWidth) 격자/가로선/미니멀 프리셋 명세 및 AI 생성 프롬프트 정합화
  * 🚨 @PATCH : **2026-09-25** — [한컴 테크 블로그 프리미엄 서식 분석 및 가이드 명세 추가]
@@ -82,18 +82,18 @@ export const STYLE_15_CATEGORY_SPECS: StyleCategorySpecItem[] = [
     category: '본문·여백 (용지 & 인라인 강조)',
     targetKeys: 'pageStyle, rules.p, strong, em, u, del',
     properties:
-      'pageStyle(fontFamily, fontUrl, fontSize[pt/px], lineHeight, letterSpacing, backgroundColor, paperSize[a4/b5/letter], orientation[portrait/landscape], marginTop/Bottom[18mm], marginLeft/Right[12mm], headingSizeOffset, tabSize, exportPageBreakLevel[none/h1/h2]) / p(margin-top, margin-bottom, line-height, color, text-align[left/center/right/justify], text-indent, letter-spacing, sentence-gap) / strong(font-weight, color, background-color) / em(font-style, color) / u(text-decoration, text-decoration-style[solid/dashed/dotted/wavy], text-decoration-color, text-underline-offset) / del(text-decoration, color, text-decoration-color, text-decoration-thickness, opacity)',
+      'pageStyle(fontFamily, fontUrl, fontSize[pt/px], lineHeight, letterSpacing, backgroundColor, paperSize[a4/b5/letter], orientation[portrait/landscape], marginTop/Bottom[18mm], marginLeft/Right[12mm], headingSizeOffset[최초 기본값 "3pt"], tabSize, exportPageBreakLevel[none/h1/h2]) / p(margin-top, margin-bottom, line-height, color, text-align[left/center/right/justify], text-indent, letter-spacing, sentence-gap) / strong(font-weight, color, background-color) / em(font-style, color) / u(text-decoration, text-decoration-style[solid/dashed/dotted/wavy], text-decoration-color, text-underline-offset) / del(text-decoration, color, text-decoration-color, text-decoration-thickness, opacity)',
     presetsAndNotes:
-      '용지 표준 여백은 상하 18mm·좌우 12mm 권장. strong에 background-color 지정 시 형광펜 하이라이트 효과 적용.',
+      '용지 표준 여백은 상하 18mm·좌우 12mm 권장. headingSizeOffset 미정의 시 최초 기본값은 "3pt". strong에 background-color 지정 시 형광펜 하이라이트 효과 적용.',
   },
   {
     no: 2,
-    category: '제목 (H1~H6 & 자동 번호 체계)',
-    targetKeys: 'rules.h1~h6, headingNumbering',
+    category: '제목 (H1~H6 · 좌측 색깔바 & 자동 번호)',
+    targetKeys: 'rules.h1~h6, pageStyle.headingSizeOffset, headingNumbering',
     properties:
-      'h1~h6(font-size, font-weight, font-style, text-decoration, color, text-align[left/center/right], border-bottom[none/1px solid/2px solid/3px double], border-left[좌측 수직 강조바], padding-left, padding-bottom, margin-top, margin-bottom, line-height, letter-spacing) / headingNumbering(길이 6 배열)',
+      'h1~h6(font-size, font-weight, font-style, text-decoration, color, text-align[left/center/right], border-bottom[none/1px solid/3px double], border-left[바 없음 none / 얇은 바 3px solid / 표준 바 4px solid / 굵은 바 6px solid + 색상], padding-left, padding-bottom, margin-top, margin-bottom, line-height, letter-spacing) / headingSizeOffset("3pt" 기본, 0pt~6pt) / headingNumbering(길이 6 배열)',
     presetsAndNotes:
-      'headingNumbering 포맷: "none", "decimal"(1.), "decimal-outline"(1.➔1.1➔1.1.1), "roman"(Ⅰ.), "hangul"(가.), "decimal-paren"(1)), "hangul-paren"(가)), 또는 custom 객체({ type:"custom", number:"decimal"|"bullet", prefix, suffix, bullet }).',
+      '좌측 색깔바(border-left) 설정 시 padding-left: "12px" 자동 부여(해제 시 "0px"). headingSizeOffset 미정의 시 최초값 "3pt"로 H2~H6 자동 차감. headingNumbering: "none", "decimal", "decimal-outline", "roman", "hangul", "decimal-paren", "hangul-paren", custom 객체.',
   },
   {
     no: 3,
@@ -228,15 +228,16 @@ export const AI_MASTER_PROMPT_TEMPLATE = `당신은 최고급 출판·문서 조
    - 표준 여백: marginTop: "18mm", marginBottom: "18mm", marginLeft: "12mm", marginRight: "12mm"
    - fontFamily: 본문 기본 글꼴 (선택사항으로 웹폰트 URL은 fontUrl에 지정)
    - fontSize: "15px"~"16.5px" (또는 "10pt"~"12pt"), lineHeight: "1.65"~"1.85", letterSpacing: "-0.01em"
-   - headingSizeOffset: "0px", tabSize: "2", exportPageBreakLevel: "none" (절대 인위적 분할 금지, 특별 요청 시에만 "h1"|"h2")
+   - headingSizeOffset: "3pt" (미정의 시 최초 기본값 "3pt", H1 기준 크기에서 H2~H6 단계별 차감 폭), tabSize: "2", exportPageBreakLevel: "none" (절대 인위적 분할 금지, 특별 요청 시에만 "h1"|"h2")
 3. 본문 및 인라인 강조 4종 (rules.p, strong, em, u, del):
    - p: margin-top("0px"), margin-bottom("16px"), line-height("1.75"), color("#2f2f2f"), text-align("left"|"center"|"right"|"justify"), text-indent("0px"|"16px"), letter-spacing("-0.01em"), sentence-gap("4px"~"8px")
    - strong: font-weight("700"), color("#202123"), 필요 시 형광펜 효과는 background-color 지정
    - em: font-style("italic"), color("#2f2f2f")
    - u: text-decoration("underline"), text-decoration-style("solid"|"dashed"|"dotted"|"wavy"), text-decoration-color("#0d0d0d"), text-underline-offset("3px")
    - del: text-decoration("line-through"), color("#6b6b6b"), 필요 시 text-decoration-color, text-decoration-thickness("1px"), opacity("0.8")
-4. 제목 H1~H6 및 자동 번호 체계 (rules.h1~h6, headingNumbering):
-   - h1~h6: font-size, font-weight, color, margin-top, margin-bottom, line-height, letter-spacing, text-align, border-bottom(하단선) 또는 border-left(좌측 수직 강조 바) + padding-left/padding-bottom
+4. 제목 H1~H6, 좌측 색깔바 및 자동 번호 체계 (rules.h1~h6, pageStyle.headingSizeOffset, headingNumbering):
+   - h1~h6: font-size, font-weight, color, margin-top, margin-bottom, line-height, letter-spacing, text-align
+   - 제목 장식: 하단 밑줄(border-bottom: "none" | "1px solid #색상" | "3px double #색상" + padding-bottom) 또는 제목 앞 좌측 색깔바(border-left: "none"[바 없음] | "3px solid #색상"[얇은 바] | "4px solid #색상"[표준 바] | "6px solid #색상"[굵은 바] + 색깔바 적용 시 padding-left: "12px", 미적용 시 "0px")
    - headingNumbering (길이 6 배열, H1~H6 순서):
      · 번호 없음: []
      · 십진 분류(1. ➔ 1.1): ["decimal-outline", "decimal-outline", "decimal-outline", "decimal-outline", "none", "none"]
@@ -270,10 +271,12 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 최�
 
 이 문서는 **온리비 어서(Onrivi Author)** 전용 서식 프로필(\`.json\`)의 공식 최신 스키마 명세서이자, 서식 편집기의 **15대 상세 카테고리(본문·여백, 제목, 표, 인용구, 코드블록, 인라인코드, 하이퍼링크, 각주, 목록·체크, 구분선, 이미지, 비디오, 지도, 수식, 고급 CSS)** 모든 속성을 100% 수록한 **완전판 레퍼런스 가이드**입니다.
 
-> 💡 **핵심 요약 안내**
-> 1. **서식 관리 센터 원클릭 지원**: 서식 파일(\`.json\`)을 마우스로 **드래그 앤 드롭(Drag & Drop)**하거나, 클립보드 JSON 텍스트를 **원클릭 붙여넣기**하여 즉시 등록할 수 있습니다.
-> 2. **단일 서식 및 다중 서식 백업 호환**: 단일 서식 객체(\`{ ... }\`)뿐만 아니라 여러 서식이 담긴 배열(\`[ { ... }, { ... } ]\`) 형태의 백업 파일도 자동으로 인식하여 일괄 등록합니다.
-> 3. **누락 속성 100% 자동 정규화 (\`normalizeCssProfile\`)**: AI가 생성한 JSON에 일부 태그나 구조체가 생략되어 있더라도, 온리비 어서가 **'Onrivi 기본서식'** 표준 규격을 바탕으로 누락된 필드를 자동 보완(Hydration)합니다.
+> 💡 **핵심 요약 및 서식 관리 센터 최신 기능 안내**
+> 1. **사이드바 \`+ 추가\` 3종 문서 타입 선택 생성**: 좌측 사이드바 상단 \`+ 추가\` 버튼을 누르면 **① \`📄 일반문서\`**, **② \`📖 그림책(전체표지)\`**, **③ \`📖 그림책(오른쪽표지)\`** 중 원하는 문서 타입을 선택해 즉시 생성할 수 있습니다.
+> 2. **사이드바 원클릭 액션 일원화**: 좌측 사이드바의 각 서식 항목에서 **\`[서식 복제] · [파일 내보내기(.json)] · [JSON 복사] · [삭제]\`**를 즉시 실행할 수 있으며, 상단 \`전체 백업\`으로 내 서식 전체를 한 번에 백업할 수 있습니다.
+> 3. **본문 상단 2단 카드 구성**: 본문 상단 좌측 **\`[이름 및 서식 설명 카드]\`**에는 서식 이름과 일반문서/그림책(스토리북) 구분이 포함된 설명이 표시되며, 우측 별도 **\`[📋 설명 상세 카드]\`**에는 **글꼴 · 크기/행간 · 여백 · 표 테두리 · 불릿 · 문서 타입(일반문서 / 그림책)** 6대 핵심 사양이 한눈에 표시됩니다.
+> 4. **원클릭 가져오기 및 다중 백업 호환**: 서식 파일(\`.json\`) **드래그 앤 드롭**, **내 PC 파일 선택**, **클립보드 JSON 바로 불러오기**를 지원하며, 단일 서식(\`{ ... }\`)과 다중 백업 배열(\`[ { ... }, ... ]\`)을 모두 자동 인식합니다.
+> 5. **누락 속성 100% 자동 정규화 (\`normalizeCssProfile\`)**: AI가 생성한 JSON에 일부 속성이 생략되어 있더라도 **'Onrivi 기본서식'** 표준 규격(예: \`headingSizeOffset\` 미정의 시 최초값 \`"3pt"\` 자동 부여 등)으로 완벽히 보완합니다.
 
 ---
 
@@ -298,7 +301,7 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 최�
     "marginLeft": "12mm",
     "marginRight": "12mm",
     "orientation": "portrait",
-    "headingSizeOffset": "0px",
+    "headingSizeOffset": "3pt",
     "tabSize": "2",
     "exportPageBreakLevel": "none"
   },
@@ -556,7 +559,7 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 최�
   - \`orientation\`: \`"portrait"\` (세로형) | \`"landscape"\` (가로형)
   - \`marginTop\`, \`marginBottom\`: 상하 여백 (표준 \`"18mm"\`)
   - \`marginLeft\`, \`marginRight\`: 좌우 여백 (표준 \`"12mm"\`)
-  - \`headingSizeOffset\`: H1→H6 단계별 크기 자동 감소폭 (기본 \`"0px"\`, 또는 \`"3pt"\` 등)
+  - \`headingSizeOffset\`: H1→H6 단계별 활자 크기 자동 차감폭 (**미정의 시 최초 기본값 \`"3pt"\`**, 슬라이더로 \`"0pt"\`~\`"6pt"\` 0.5pt 단위 조절 가능)
   - \`tabSize\`: 탭 문자 너비 (기본 \`"2"\` 또는 \`"4"\`)
   - \`exportPageBreakLevel\`: PDF/EPUB 내보내기 시 페이지 나누기 기준 (\`"none"\` 기본 | \`"h1"\` | \`"h2"\`)
 - **문단 스타일 (\`rules.p\`)**:
@@ -571,12 +574,17 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 최�
   - **밑줄 (\`rules.u\`)**: \`text-decoration\` (\`"underline"\`), \`text-decoration-style\` (\`"solid"\` 실선 | \`"dashed"\` 파선 | \`"dotted"\` 점선 | \`"wavy"\` 물결선), \`text-decoration-color\` (\`"#0d0d0d"\`), \`text-underline-offset\` (\`"3px"\`, \`0px\`~\`12px\`)
   - **취소선 (\`rules.del\`)**: \`text-decoration\` (\`"line-through"\`), \`color\` (\`"#6b6b6b"\`), \`text-decoration-color\` (취소선 색상), \`text-decoration-thickness\` (\`"1px"\`~\`"8px"\`), \`opacity\` (\`"0.1"\`~\`"1.0"\`)
 
-### 2️⃣ 카테고리 2: 제목 (\`rules.h1\`~\`h6\` & \`headingNumbering\`)
-- **제목 태그 (\`h1\` ~ \`h6\`) 지원 속성**:
-  - \`font-size\`, \`font-weight\`, \`font-style\`, \`text-decoration\`, \`color\`, \`text-align\` (\`"left"\` | \`"center"\` | \`"right"\`)
-  - \`border-bottom\`: 하단 밑줄 장식 (예: \`""\`, \`"1px solid #e2e8f0"\`, \`"2px solid #ff5a00"\`, \`"3px double #1e293b"\`)
-  - \`border-left\`: 좌측 수직 강조 바 (예: \`"4px solid #ff5a00"\` — 지정 시 \`padding-left: "12px"\` 함께 설정)
-  - \`padding-left\`, \`padding-bottom\`, \`margin-top\`, \`margin-bottom\`, \`line-height\`, \`letter-spacing\`
+### 2️⃣ 카테고리 2: 제목 (\`rules.h1\`~\`h6\` · \`pageStyle.headingSizeOffset\` · \`headingNumbering\`)
+- **H1 기준 크기 및 단계별 크기 감소폭 (\`pageStyle.headingSizeOffset\`)**:
+  - \`rules.h1['font-size']\`를 기준 활자 크기(\`12pt\`~\`36pt\`)로 설정하며, \`pageStyle.headingSizeOffset\`에 따라 \`H2\`~\`H6\` 크기가 \`H1 - (레벨 - 1) × 감소폭\` 공식으로 자동 계산됩니다.
+  - **최초 기본값**: \`headingSizeOffset\`이 정의되어 있지 않거나 빈 값일 때 **최초 기본값은 \`"3pt"\`**로 동작합니다. (감소 없이 동일 크기를 원할 경우 슬라이더를 \`"0pt"\`로 설정)
+- **제목 태그 (\`h1\` ~ \`h6\`) 지원 속성 및 장식**:
+  - 기본 속성: \`font-size\`, \`font-weight\`, \`font-style\`, \`text-decoration\`, \`color\`, \`text-align\` (\`"left"\` | \`"center"\` | \`"right"\`), \`padding-left\`, \`padding-bottom\`, \`margin-top\`, \`margin-bottom\`, \`line-height\`, \`letter-spacing\`
+  - **하단 밑줄 (\`border-bottom\`)**: \`"none"\` (선 없음) | \`"1px solid #색상"\` (실선) | \`"3px double #색상"\` (관보선)
+  - **제목 앞 좌측 색깔바 (\`border-left\` & 색상 설정)**:
+    - **4종 프리셋**: \`"none"\` (바 없음) | \`"3px solid #색상"\` (얇은 바 3px) | \`"4px solid #색상"\` (표준 바 4px) | \`"6px solid #색상"\` (굵은 바 6px)
+    - **색깔바 색상 선택**: \`H1\` 및 \`H2\`~\`H6\` 각각 독립된 컬러 피커로 좌측 색깔바 색상을 자유롭게 변경할 수 있습니다.
+    - **여백 자동 연동**: 좌측 색깔바를 활성화할 때 \`padding-left\`가 \`0px\`이면 글자와 바가 붙지 않도록 \`"12px"\`가 자동 부여되며, \`[바 없음]\` 선택 시 \`border-left: "none"\` 및 \`padding-left: "0px"\`으로 즉시 원복됩니다.
 - **제목 자동 번호/기호 체계 (\`headingNumbering\` — 길이 6 배열, H1~H6 순서)**:
   - 기본 문자열 포맷:
     - \`"none"\`: 번호 없음

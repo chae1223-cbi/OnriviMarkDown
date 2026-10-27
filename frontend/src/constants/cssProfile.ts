@@ -4,6 +4,9 @@ import { normalizeBookLayout } from '../lib/picturebook';
 // ====================================================================
 // 📊 [OMD-CORE-cssProfile-0006] cssProfile ➔ SYSTEM_PROFILE_IDS
 // 🎯 @KICK  : 시스템 프로필 식별자 목록을 정의한다
+// 🚨 @PATCH : **2026-10-27** — [제목 단계별 활자 크기 감소폭(headingSizeOffset) 최초 기본값 '3pt' 표준화]:
+//             1) DEFAULT_PROFILE, SYSTEM_PROFILES, createEmptyProfile의 headingSizeOffset 기본값을 '3pt'로 표준화
+//             2) normalizeCssProfile에서 headingSizeOffset이 미정의되어 있거나 레거시 '0px'인 경우 최초 기본값 '3pt'로 자동 정규화 보장
 // 🚨 @PATCH : **2026-10-26** — [글머리 기호(불릿) 레벨별 계층 설정(bulletStructure) 프로필 연동 및 정규화]:
 //             1) DEFAULT_PROFILE 및 SYSTEM_PROFILES에 bulletStructure(level1: 'disc', level2: 'circle', level3: 'square') 탑재
 //             2) normalizeCssProfile에서 bulletStructure 누락 시 자동 하이드레이션 병합 보장
@@ -147,7 +150,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "marginLeft": "12mm",
       "marginRight": "12mm",
       "orientation": "portrait",
-      "headingSizeOffset": "0px",
+      "headingSizeOffset": "3pt",
       "tabSize": "2",
       "exportPageBreakLevel": "none"
     },
@@ -439,7 +442,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "marginLeft": "12mm",
       "marginRight": "12mm",
       "orientation": "portrait",
-      "headingSizeOffset": "0px",
+      "headingSizeOffset": "3pt",
       "tabSize": "4",
       "exportPageBreakLevel": "none"
     },
@@ -732,7 +735,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "marginLeft": "12mm",
       "marginRight": "12mm",
       "orientation": "portrait",
-      "headingSizeOffset": "0px",
+      "headingSizeOffset": "3pt",
       "tabSize": "4",
       "exportPageBreakLevel": "none"
     },
@@ -1314,7 +1317,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "marginLeft": "12mm",
       "marginRight": "12mm",
       "orientation": "portrait",
-      "headingSizeOffset": "0px",
+      "headingSizeOffset": "3pt",
       "tabSize": "2",
       "exportPageBreakLevel": "none"
     },
@@ -1603,7 +1606,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "marginLeft": "12mm",
       "marginRight": "12mm",
       "orientation": "portrait",
-      "headingSizeOffset": "0px",
+      "headingSizeOffset": "3pt",
       "tabSize": "2",
       "exportPageBreakLevel": "none"
     },
@@ -1892,7 +1895,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "marginLeft": "12mm",
       "marginRight": "12mm",
       "orientation": "portrait",
-      "headingSizeOffset": "0px",
+      "headingSizeOffset": "3pt",
       "tabSize": "4",
       "exportPageBreakLevel": "none"
     },
@@ -2167,7 +2170,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "marginLeft": "16mm",
       "marginRight": "16mm",
       "orientation": "portrait",
-      "headingSizeOffset": "0px",
+      "headingSizeOffset": "3pt",
       "tabSize": "2",
       "exportPageBreakLevel": "none"
     },
@@ -2451,7 +2454,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "marginLeft": "12mm",
       "marginRight": "12mm",
       "orientation": "landscape",
-      "headingSizeOffset": "0px",
+      "headingSizeOffset": "3pt",
       "tabSize": "2",
       "exportPageBreakLevel": "none"
     },
@@ -2744,7 +2747,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "marginLeft": "12mm",
       "marginRight": "12mm",
       "orientation": "landscape",
-      "headingSizeOffset": "0px",
+      "headingSizeOffset": "3pt",
       "tabSize": "2",
       "exportPageBreakLevel": "none"
     },
@@ -3040,7 +3043,7 @@ HELP_PROFILE.name = '온리비 도움말';
 HELP_PROFILE.description = '사용 설명서 전용 서식. 읽기 편한 본문, 파란 제목, 표와 코드 예제, 항목별 제목 번호.';
 HELP_PROFILE.headingNumbering = ['none', 'decimal', 'hangul', 'decimal-paren', 'hangul-paren', {type:'custom',number:'bullet',prefix:'',suffix:'',bullet:'•'}];
 delete HELP_PROFILE.layout;
-HELP_PROFILE.pageStyle = { ...HELP_PROFILE.pageStyle, fontFamily: "'Noto Sans KR', 'Malgun Gothic', sans-serif", fontSize: '16px', lineHeight: '1.8', letterSpacing: '0', backgroundColor: '#ffffff', paperSize: 'a4', orientation: 'portrait', marginTop: '18mm', marginBottom: '18mm', marginLeft: '16mm', marginRight: '16mm', headingSizeOffset: '0px' };
+HELP_PROFILE.pageStyle = { ...HELP_PROFILE.pageStyle, fontFamily: "'Noto Sans KR', 'Malgun Gothic', sans-serif", fontSize: '16px', lineHeight: '1.8', letterSpacing: '0', backgroundColor: '#ffffff', paperSize: 'a4', orientation: 'portrait', marginTop: '18mm', marginBottom: '18mm', marginLeft: '16mm', marginRight: '16mm', headingSizeOffset: '3pt' };
 for (const [index, key] of Array.from((['h1','h2','h3','h4','h5','h6'] as const).entries())) {
   HELP_PROFILE.rules[key] = { 'font-size': [28,24,21,19,17,16][index] + 'px', 'font-weight':'700', 'line-height':'1.4', color: index < 2 ? '#1d4ed8' : '#1e293b', 'text-align':'left', 'text-indent':'0', 'margin-top': index ? '28px' : '0', 'margin-bottom':'12px', padding:'0', 'background-color':'transparent', border:'none', 'box-shadow':'none', 'text-shadow':'none', 'border-bottom':index === 1 ? '1px solid #dbeafe' : 'none' };
 }
@@ -3186,7 +3189,7 @@ export function createEmptyProfile(): CssProfile {
       marginLeft: '12mm',
       marginRight: '12mm',
       orientation: 'portrait',
-      headingSizeOffset: '0px',
+      headingSizeOffset: '3pt',
       tabSize: '2',
       exportPageBreakLevel: 'none'
     },
@@ -3293,7 +3296,9 @@ export function normalizeCssProfile(
     marginLeft: cleanPageStyle.marginLeft || DEFAULT_PROFILE.pageStyle.marginLeft || '12mm',
     marginRight: cleanPageStyle.marginRight || DEFAULT_PROFILE.pageStyle.marginRight || '12mm',
     tabSize: cleanPageStyle.tabSize || DEFAULT_PROFILE.pageStyle.tabSize || '2',
-    headingSizeOffset: cleanPageStyle.headingSizeOffset || DEFAULT_PROFILE.pageStyle.headingSizeOffset || '0px',
+    headingSizeOffset: (!cleanPageStyle.headingSizeOffset || String(cleanPageStyle.headingSizeOffset).trim() === '0px')
+      ? '3pt'
+      : String(cleanPageStyle.headingSizeOffset),
     exportPageBreakLevel: cleanPageStyle.exportPageBreakLevel || DEFAULT_PROFILE.pageStyle.exportPageBreakLevel || 'none',
   };
 
