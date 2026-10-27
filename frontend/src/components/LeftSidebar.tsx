@@ -1,5 +1,7 @@
 // ====================================================================
 // 📊 [OMD-UI-LeftSidebar-0001] LeftSidebar.tsx ➔ 에디터 좌측 탐색기 사이드바
+// 🚨 @PATCH : **2026-10-27** — [탐색기 새 파일/폴더 생성 대화상자 타이틀 문장 부호 마침표(.) 표준화]:
+//             1) triggerCreateRootFile 및 triggerCreateRootFolder의 title 문구 끝 콜론(':')을 표준 마침표('.')로 수정
 // 🚨 @PATCH : **2026-10-16** — [전역 검색(GlobalSearch) 전 환경 경로·하위 폴더 파일 열기 및 줄 점프 무결성 완비]:
 //             1) GlobalSearch에 rootFolder, currentFilePath 및 유효 로컬 작업장 경로를 정확히 전달하여 상대 경로/구글 드라이브 가상 경로 혼선에 의한 검색 불능 해결
 //             2) onFileOpenAndJump에서 검색 결과의 handle / driveFileId 직접 열기, 브라우저 FSA 하위 폴더 경로 재귀 추적(getDirectoryHandle ➔ getFileHandle), VFS 폴백 및 비동기 openFile 완료 후 executeJumpAndHighlight 실행 보장
@@ -1700,7 +1702,7 @@ export default function LeftSidebar() {
     setContextMenu(null);
     setPromptConfig({
       isOpen: true,
-      title: "루트 워크스페이스에 생성할 새 파일의 이름을 입력하세요:",
+      title: "루트 워크스페이스에 생성할 새 파일의 이름을 입력하세요.",
       defaultValue: "untitled.md",
       type: 'createFile'
     });
@@ -1710,7 +1712,7 @@ export default function LeftSidebar() {
     setContextMenu(null);
     setPromptConfig({
       isOpen: true,
-      title: "루트 워크스페이스에 생성할 새 폴더의 이름을 입력하세요:",
+      title: "루트 워크스페이스에 생성할 새 폴더의 이름을 입력하세요.",
       defaultValue: "",
       type: 'createFolder'
     });

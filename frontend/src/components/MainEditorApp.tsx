@@ -1,5 +1,8 @@
 /**
  * 프로그램명 : OnriviAuthor 
+// 🚨 @PATCH : **2026-10-27** — [문서보기 텍스트 선택 네이티브 ::selection 스타일 및 빈 문단 서식 일원화]:
+//             1) dynamicCssString에 .visual-document-surface ::selection 코발트 블루(#2563eb / 다크 #3b82f6) 고대비 서식을 주입하여 DOM 변조 없이 매끄러운 다중 행/문단 선택 보장
+//             2) dynamicCssString의 빈 문단(.visual-document-surface > p:empty 등) 스타일을 서식 프로필의 기본 문단 여백 및 행간과 일원화하여, 엔터 입력 후 텍스트 타이핑 시 문단 크기가 변하거나 위로 튀지 않고 캐럿 위치에서 1:1로 자연스럽게 작성되도록 연동
 // 🚨 @PATCH : **2026-10-26** — [확장 리스트(Loose List) 내부 p 및 .onrivi-line 인라인 일원화]:
 //             1) .custom-preview-container li p 및 .onrivi-line에 display: inline !important 및 width: auto를 지정하여 Loose List(빈 줄 포함 목록)에서도 Tight List(쇼케이스)와 100% 동일하게 불릿/숫자 마커와 글자 간격이 밀착되도록 결함 해결
 // 🚨 @PATCH : **2026-10-26** — [목록 기호 마커-텍스트 간격(padding-inline-start) 동적 CSS 주입 및 인용구 목록 패딩 정규화]:
@@ -4173,6 +4176,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const docLinkFilesRef = useRef<FileNode[]>([]);
   const [floatingToolbar, setFloatingToolbar] = useState<{ visible: boolean, top: number, left: number }>({ visible: false, top: 0, left: 0 });
   const floatingToolbarRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!floatingToolbar.visible) return;
+    floatingToolbarRef.current?.querySelector<HTMLButtonElement>('[data-floating-bold]')?.focus({ preventScroll: true });
+  }, [floatingToolbar.visible]);
   const lastFloatingActionRef = useRef<number>(0);
   const executeFloatingItem = useCallback((action: () => void) => {
     const now = Date.now();
@@ -7806,9 +7813,27 @@ blockquote li p {
   margin-top: 0.75em !important;
 }
 .custom-preview-container .visual-document-surface > p:empty,
-.custom-preview-container .visual-document-surface > p:has(> br:only-child) {
-  min-height: 1.5em;
+.custom-preview-container .visual-document-surface > p:has(> br:only-child),
+.custom-preview-container .visual-document-surface > p:has(> br.ProseMirror-trailingBreak:only-child),
+.onrivi-content-root .visual-document-surface > p:empty,
+.onrivi-content-root .visual-document-surface > p:has(> br:only-child),
+.onrivi-content-root .visual-document-surface > p:has(> br.ProseMirror-trailingBreak:only-child) {
+  min-height: 1em;
   cursor: text;
+}
+.custom-preview-container .visual-document-surface ::selection,
+.custom-preview-container .visual-document-surface *::selection,
+.onrivi-content-root .visual-document-surface ::selection,
+.onrivi-content-root .visual-document-surface *::selection {
+  background: #2563eb !important;
+  color: #ffffff !important;
+}
+.dark .custom-preview-container .visual-document-surface ::selection,
+.dark .custom-preview-container .visual-document-surface *::selection,
+.dark .onrivi-content-root .visual-document-surface ::selection,
+.dark .onrivi-content-root .visual-document-surface *::selection {
+  background: #3b82f6 !important;
+  color: #ffffff !important;
 }
 `; 
 
@@ -10354,7 +10379,7 @@ blockquote li p {
                                 <div className="flex flex-row items-center gap-3.5 min-w-max">
                                   {/* 서식 */}
                                   <div className="flex flex-row items-center gap-1 text-zinc-800 dark:text-zinc-100">
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('BOLD')); }} onClick={() => executeFloatingItem(() => dispatchCommand('BOLD'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] font-black cursor-pointer" title="굵게 (Enter)">B</button>
+                                    <button type="button" data-floating-bold tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('BOLD')); }} onClick={() => executeFloatingItem(() => dispatchCommand('BOLD'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] font-black cursor-pointer" title="굵게 (Enter)">B</button>
                                     <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('ITALIC')); }} onClick={() => executeFloatingItem(() => dispatchCommand('ITALIC'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] italic font-serif cursor-pointer" title="기울임 (Enter)">I</button>
                                     <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('INLINE_CODE')); }} onClick={() => executeFloatingItem(() => dispatchCommand('INLINE_CODE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center cursor-pointer" title="인라인 코드 (Enter)">
                                       <img src="/icons/Password.png" alt="인라인 코드" className="w-5 h-5 object-contain dark:invert" />

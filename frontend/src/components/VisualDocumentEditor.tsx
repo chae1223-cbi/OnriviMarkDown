@@ -1,6 +1,16 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
+ * 🚨 @PATCH : **2026-10-27** — [Shift+상하 방향키 및 PageUp/PageDown 문단 간 이동·선택 완전 지원 및 바운싱·멈춤 결함 해소]:
+ *             1) Shift+ArrowUp/ArrowDown 입력 시 문단 경계(첫 줄/마지막 줄/빈 행)에서 브라우저 네이티브 Selection이 가로막혀 선택이 풀렸다 다시 잡히는 바운싱 루프를 원천 차단하고, isHeadAtBlockBoundary 및 extendSelectionVerticallyAcrossBlocks를 통해 수평 X좌표를 정밀 보존하며 다음/이전 문단(빈 행 포함)으로 매끄럽게 선택 영역을 확장·축소하도록 구현
+ *             2) 문서 마지막 빈 행에서 위로 올라갈 때나 위에서 아래로 내려올 때 문단 마지막 행에서 멈추는 결함을 해소하여 전체 문서 단위의 연속 키보드 다중 선택 보장
+ *             3) PageDown/PageUp 및 Shift+PageDown/Shift+PageUp 핸들러(handlePageMove)를 신설하여, 에디터 내부 스크롤 컨테이너(.custom-preview-container)의 뷰포트 높이(85%) 기반 페이지 단위 스크롤 점프 및 커서/선택 영역 이동 완전 지원
+ * 🚨 @PATCH : **2026-10-27** — [Shift+방향키 다중 행/문단 텍스트 선택 경계 차단 및 깜빡임 결함 완전 해결]:
+ *             1) TextSelection 변경 시마다 DOM을 분할·변조하던 visual-selected-text 인라인 데코레이션을 전면 제거하고 브라우저 네이티브 ::selection CSS 의사요소로 전환하여, DOM 변조로 인한 브라우저 Selection Range 리셋 및 문단 경계 진입 차단 현상 원천 해결
+ *             2) handleKeyDown의 Shift+ArrowDown 가로채기(extendSelectionToListEnd)를 제거하여, Shift+상하 방향키로 위에서 아래로 또는 아래에서 위로 문단/빈 행 경계를 자유롭고 매끄럽게 넘나들며 다중 선택 가능하도록 보장
+ * 🚨 @PATCH : **2026-10-27** — [마우스 클릭 시 커서 위치 즉각 이동 보장 및 엔터 빈 행 서식 일원화]:
+ *             1) document 전역 selectstart/mousedown 가로채기(preventDefault)를 제거하고, handleClick에서 클릭 좌표(posAtCoords) 기반 TextSelection 즉각 갱신 및 visualCaret 연동으로 본문/여백 어디를 클릭해도 마우스 위치로 정확히 커서 이동 보장
+ *             2) 빈 문단(p:empty)의 인위적 여백 왜곡을 걷어내고 서식 프로필의 기본 문단 서식과 일원화하여, 엔터 입력 후 글자 타이핑 시 문단 높이가 변하거나 위로 튀지 않고 정확한 캐럿 위치에서 1:1로 자연스럽게 작성되도록 연동
  * 🚨 @PATCH : **2026-10-26** — [ESLint React Hook exhaustive-deps 의존성 경고 해소]:
  *             1) PDF 미리보기 계산 useEffect에서 pageStyleRef를 활용하여 pageStyle 객체 참조 불일치 경고 해결
  * 🚨 @PATCH : **2026-10-26** — [표 편집 도구 플로팅 툴바 '닫기' 버튼 및 Esc 닫기 연동]:
@@ -880,6 +890,266 @@ function synchronizeTextSelection(view: EditorView) {
       view.dispatch(tr);
     }
   } catch { /* A DOM selection may be removed during a document update. */ }
+}
+
+function isHeadAtBlockBoundary(view: EditorView, $head: import('prosemirror-model').ResolvedPos, dir: 'up' | 'down'): boolean {
+  if (!$head.parent.isTextblock) return true;
+  if ($head.parent.content.size === 0) return true;
+
+  if (dir === 'down' && $head.parentOffset === $head.parent.content.size) return true;
+  if (dir === 'up' && $head.parentOffset === 0) return true;
+
+  try {
+    const headCoords = view.coordsAtPos($head.pos);
+    const blockDepth = Math.max(1, $head.depth);
+    const blockStart = $head.start(blockDepth);
+    const blockEnd = $head.end(blockDepth);
+
+    if (dir === 'down') {
+      const endCoords = view.coordsAtPos(blockEnd);
+      if (headCoords.bottom >= endCoords.top - 2) return true;
+    } else {
+      const startCoords = view.coordsAtPos(blockStart);
+      if (headCoords.top <= startCoords.bottom + 2) return true;
+    }
+  } catch {}
+
+  return false;
+}
+
+function extendSelectionVerticallyAcrossBlocks(
+  currentView: EditorView,
+  dir: 'up' | 'down',
+  onCaretSchedule?: () => void
+): boolean {
+  if (!currentView.editable) return false;
+  const state = currentView.state;
+  const selection = state.selection;
+
+  let anchorPos = selection.anchor;
+  let headPos = selection.head;
+  let $head = selection.$head;
+
+  if (selection instanceof NodeSelection) {
+    anchorPos = dir === 'down' ? selection.from : selection.to;
+    headPos = dir === 'down' ? selection.to : selection.from;
+    $head = state.doc.resolve(headPos);
+  } else if (!(selection instanceof TextSelection)) {
+    return false;
+  }
+
+  const isAtBoundary = isHeadAtBlockBoundary(currentView, $head, dir);
+  if (!isAtBoundary) {
+    try {
+      const line = currentView.coordsAtPos(headPos);
+      const lineHeight = Math.max(14, line.bottom - line.top);
+      const targetY = dir === 'down' ? line.bottom + lineHeight / 2 : line.top - lineHeight / 2;
+      const point = currentView.posAtCoords({ left: line.left, top: targetY });
+      if (point) {
+        const target = Selection.near(state.doc.resolve(point.pos), dir === 'down' ? 1 : -1).head;
+        if ((dir === 'down' && target > headPos) || (dir === 'up' && target < headPos)) {
+          currentView.dispatch(state.tr.setSelection(TextSelection.between(
+            state.doc.resolve(anchorPos), state.doc.resolve(target)
+          )).scrollIntoView());
+          onCaretSchedule?.();
+          return true;
+        }
+      }
+    } catch {}
+    // If hit-testing stays on the same visual line, advance to the adjacent block.
+  }
+
+  const headCoords = currentView.coordsAtPos(headPos);
+  const targetX = headCoords.left;
+  const blockDepth = Math.max(1, $head.depth);
+
+  if (dir === 'down') {
+    const searchStart = $head.after(blockDepth);
+    if (searchStart >= state.doc.content.size) {
+      if (headPos < state.doc.content.size - 1) {
+        const newSelection = TextSelection.between(state.doc.resolve(anchorPos), state.doc.resolve(state.doc.content.size - 1));
+        currentView.dispatch(state.tr.setSelection(newSelection).scrollIntoView());
+        onCaretSchedule?.();
+        return true;
+      }
+      return true;
+    }
+
+    let nextBlockInfo: { pos: number; node: import('prosemirror-model').Node } | null = null;
+    state.doc.nodesBetween(searchStart, state.doc.content.size, (node, pos) => {
+      if (nextBlockInfo) return false;
+      if (pos >= searchStart && (node.isTextblock || ATOM_BLOCK_TYPES.has(node.type.name) || node.type.name === 'horizontal_rule')) {
+        nextBlockInfo = { pos, node };
+        return false;
+      }
+      return true;
+    });
+
+    if (!nextBlockInfo) {
+      if (headPos < state.doc.content.size - 1) {
+        const newSelection = TextSelection.between(state.doc.resolve(anchorPos), state.doc.resolve(state.doc.content.size - 1));
+        currentView.dispatch(state.tr.setSelection(newSelection).scrollIntoView());
+        onCaretSchedule?.();
+        return true;
+      }
+      return true;
+    }
+
+    const { pos: blockPos, node: blockNode } = nextBlockInfo as { pos: number; node: import('prosemirror-model').Node };
+    let targetHeadPos: number;
+
+    if (blockNode.isTextblock) {
+      const blockStartPos = blockPos + 1;
+      const blockContentSize = blockNode.content.size;
+      if (blockContentSize === 0) {
+        targetHeadPos = blockStartPos;
+      } else {
+        const startCoords = currentView.coordsAtPos(blockStartPos);
+        const sampleY = startCoords.top + Math.max(5, (startCoords.bottom - startCoords.top) / 2);
+        const posInfo = currentView.posAtCoords({ left: targetX, top: sampleY });
+        if (posInfo && typeof posInfo.pos === 'number') {
+          targetHeadPos = Math.max(blockStartPos, Math.min(posInfo.pos, blockStartPos + blockContentSize));
+        } else {
+          targetHeadPos = blockStartPos;
+        }
+      }
+    } else {
+      targetHeadPos = blockPos + blockNode.nodeSize;
+    }
+
+    const newSelection = TextSelection.between(state.doc.resolve(anchorPos), state.doc.resolve(targetHeadPos));
+    currentView.dispatch(state.tr.setSelection(newSelection).scrollIntoView());
+    onCaretSchedule?.();
+    return true;
+  } else {
+    // dir === 'up'
+    const searchEnd = $head.before(blockDepth);
+    if (searchEnd <= 0) {
+      if (headPos > 1) {
+        const newSelection = TextSelection.between(state.doc.resolve(anchorPos), state.doc.resolve(1));
+        currentView.dispatch(state.tr.setSelection(newSelection).scrollIntoView());
+        onCaretSchedule?.();
+        return true;
+      }
+      return true;
+    }
+
+    let prevBlockInfo: { pos: number; node: import('prosemirror-model').Node } | null = null;
+    state.doc.nodesBetween(0, searchEnd, (node, pos) => {
+      if (pos < searchEnd && (node.isTextblock || ATOM_BLOCK_TYPES.has(node.type.name) || node.type.name === 'horizontal_rule')) {
+        prevBlockInfo = { pos, node };
+      }
+      return true;
+    });
+
+    if (!prevBlockInfo) {
+      if (headPos > 1) {
+        const newSelection = TextSelection.between(state.doc.resolve(anchorPos), state.doc.resolve(1));
+        currentView.dispatch(state.tr.setSelection(newSelection).scrollIntoView());
+        onCaretSchedule?.();
+        return true;
+      }
+      return true;
+    }
+
+    const { pos: blockPos, node: blockNode } = prevBlockInfo as { pos: number; node: import('prosemirror-model').Node };
+    let targetHeadPos: number;
+
+    if (blockNode.isTextblock) {
+      const blockStartPos = blockPos + 1;
+      const blockContentSize = blockNode.content.size;
+      if (blockContentSize === 0) {
+        targetHeadPos = blockStartPos;
+      } else {
+        const endPos = blockStartPos + blockContentSize;
+        const endCoords = currentView.coordsAtPos(endPos);
+        const sampleY = endCoords.top + Math.max(5, (endCoords.bottom - endCoords.top) / 2);
+        const posInfo = currentView.posAtCoords({ left: targetX, top: sampleY });
+        if (posInfo && typeof posInfo.pos === 'number') {
+          targetHeadPos = Math.max(blockStartPos, Math.min(posInfo.pos, endPos));
+        } else {
+          targetHeadPos = endPos;
+        }
+      }
+    } else {
+      targetHeadPos = blockPos;
+    }
+
+    const newSelection = TextSelection.between(state.doc.resolve(anchorPos), state.doc.resolve(targetHeadPos));
+    currentView.dispatch(state.tr.setSelection(newSelection).scrollIntoView());
+    onCaretSchedule?.();
+    return true;
+  }
+}
+
+function handlePageMove(
+  currentView: EditorView,
+  dir: 'up' | 'down',
+  extendSelection: boolean,
+  onCaretSchedule?: () => void
+): boolean {
+  if (!currentView.editable) return false;
+  const state = currentView.state;
+  const selection = state.selection;
+  const scrollContainer = (currentView.dom.closest('.custom-preview-container') as HTMLElement | null) || currentView.dom.parentElement;
+
+  const headPos = selection.head;
+  const headCoords = currentView.coordsAtPos(headPos);
+  const targetX = headCoords.left;
+
+  if (scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight) {
+    const viewportHeight = scrollContainer.clientHeight;
+    const pageDelta = Math.max(120, Math.round(viewportHeight * 0.85));
+    const prevScrollTop = scrollContainer.scrollTop;
+
+    if (dir === 'down') {
+      scrollContainer.scrollTop += pageDelta;
+    } else {
+      scrollContainer.scrollTop -= pageDelta;
+    }
+
+    const actualScrollDelta = Math.abs(scrollContainer.scrollTop - prevScrollTop);
+    const containerRect = scrollContainer.getBoundingClientRect();
+
+    let targetPos: number;
+    if (dir === 'down' && scrollContainer.scrollTop + scrollContainer.clientHeight >= scrollContainer.scrollHeight - 10) {
+      targetPos = Math.max(1, state.doc.content.size - 1);
+    } else if (dir === 'up' && scrollContainer.scrollTop <= 5) {
+      targetPos = 1;
+    } else {
+      const targetY = Math.max(containerRect.top + 20, Math.min(containerRect.bottom - 20, headCoords.top + (dir === 'down' ? (pageDelta - actualScrollDelta) : -(pageDelta - actualScrollDelta))));
+      const posInfo = currentView.posAtCoords({ left: targetX, top: targetY });
+      if (posInfo && typeof posInfo.pos === 'number') {
+        targetPos = posInfo.pos;
+      } else {
+        targetPos = dir === 'down' ? Math.max(1, state.doc.content.size - 1) : 1;
+      }
+    }
+
+    const direction = dir === 'down' ? 1 : -1;
+    if ((direction === 1 && targetPos <= headPos) || (direction === -1 && targetPos >= headPos)) {
+      targetPos = Math.max(1, Math.min(state.doc.content.size - 1, headPos + direction));
+    }
+    const $target = state.doc.resolve(Math.max(0, Math.min(targetPos, state.doc.content.size)));
+    const targetSel = Selection.near($target, direction);
+    const newSel = extendSelection
+      ? TextSelection.between(selection.$anchor, targetSel.$head)
+      : targetSel;
+
+    currentView.dispatch(state.tr.setSelection(newSel).scrollIntoView());
+    onCaretSchedule?.();
+    return true;
+  } else {
+    const targetPos = dir === 'down' ? Math.max(1, state.doc.content.size - 1) : 1;
+    const $target = state.doc.resolve(targetPos);
+    const targetSel = Selection.near($target, dir === 'down' ? 1 : -1);
+    const newSel = extendSelection
+      ? TextSelection.between(selection.$anchor, targetSel.$head)
+      : targetSel;
+    currentView.dispatch(state.tr.setSelection(newSel).scrollIntoView());
+    onCaretSchedule?.();
+    return true;
+  }
 }
 
 export interface DropTargetInfo {
@@ -1776,14 +2046,6 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         state.doc.descendants((node,pos)=>{if(node.type.name==='heading' && hasHeadingNumber(node.textContent)) decorations.push(Decoration.node(pos,pos+node.nodeSize,{'data-onrivi-heading-numbered':'true'}));if(!node.isText || node.marks.some(m=>m.type.name==='code') || state.doc.resolve(pos).parent.type.name==='code_block')return;
           for(const match of Array.from((node.text||'').matchAll(citationPattern))){const key=match[1]||match[2],entry=entries.get(key.toLowerCase());decorations.push(Decoration.inline(pos+match.index!,pos+match.index!+match[0].length,{class:entry?'visual-citation':'visual-citation-missing',title:entry?citationLabel(entry)+': '+entry.title:'등록된 문헌 없음: '+key}));}
         });
-        if (state.selection instanceof TextSelection && !state.selection.empty) {
-          const { from, to } = state.selection;
-          state.doc.nodesBetween(from, to, (node, pos) => {
-            if (!node.isText) return;
-            const start = Math.max(from, pos), end = Math.min(to, pos + node.nodeSize);
-            if (end > start) decorations.push(Decoration.inline(start, end, { class: 'visual-selected-text' }));
-          });
-        }
         return DecorationSet.create(state.doc,decorations);
       },
       state: cached?.source === content ? cached.state : EditorState.create({ doc: codec.doc, plugins: [history(), visualMarkdownInputRules(), createFootnoteHeaderPlugin(), keymap({
@@ -2723,6 +2985,23 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             caretRef.current?.schedule();
           }
         }
+        if ((event.key === 'PageDown' || event.key === 'PageUp') && !event.ctrlKey && !event.altKey && !event.metaKey && !slashOpenRef.current) {
+          event.preventDefault();
+          handlePageMove(currentView, event.key === 'PageDown' ? 'down' : 'up', event.shiftKey, () => caretRef.current?.schedule());
+          return true;
+        }
+        if (event.key === 'ArrowDown' && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !slashOpenRef.current) {
+          if (extendSelectionVerticallyAcrossBlocks(currentView, 'down', () => caretRef.current?.schedule())) {
+            event.preventDefault();
+            return true;
+          }
+        }
+        if (event.key === 'ArrowUp' && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !slashOpenRef.current) {
+          if (extendSelectionVerticallyAcrossBlocks(currentView, 'up', () => caretRef.current?.schedule())) {
+            event.preventDefault();
+            return true;
+          }
+        }
         if(['Tab','Backspace','Delete','End','Home','ArrowLeft','ArrowRight'].includes(event.key))synchronizeTextSelection(currentView);
         if (event.key === 'ArrowRight' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !slashOpenRef.current) {
           const { $from, empty } = currentView.state.selection;
@@ -2786,12 +3065,6 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
               caretRef.current?.schedule();
               return true;
             }
-          }
-        }
-        if(event.key==='ArrowDown' && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && !slashOpenRef.current){
-          synchronizeTextSelection(currentView);
-          if(extendSelectionToListEnd(currentView.state,currentView.dispatch,currentView)){
-            event.preventDefault();return true;
           }
         }
         if(event.key==='Tab'){
@@ -3120,35 +3393,30 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         }
         href = href.trim();
         if (!href) {
-          // 🛡️ [텍스트 선택 상태에서 클릭 시 선택 해제 및 커서 이동 보장]
-          const isSelected = !currentView.state.selection.empty || Boolean(document.getSelection() && !document.getSelection()?.isCollapsed);
-          if (isSelected && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
+          if (!event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
             const target = event.target as HTMLElement | null;
-            if (!target?.closest('a, button, input[type="checkbox"], [contenteditable="false"]')) {
+            if (!target?.closest('a, button, input, select, textarea, [contenteditable="false"]')) {
               const coords = { left: event.clientX, top: event.clientY };
-              const posInfo = currentView.posAtCoords(coords);
-              if (posInfo && typeof posInfo.pos === 'number') {
-                const $targetPos = currentView.state.doc.resolve(posInfo.pos);
+              let posInfo = currentView.posAtCoords(coords);
+              let targetPos = posInfo && typeof posInfo.pos === 'number' ? posInfo.pos : null;
+              if (targetPos === null) {
+                const bounds = currentView.dom.getBoundingClientRect();
+                if (event.clientY > bounds.bottom - 40) {
+                  targetPos = currentView.state.doc.content.size;
+                } else {
+                  const clampX = Math.max(bounds.left + 8, Math.min(event.clientX, bounds.right - 8));
+                  const fallback = currentView.posAtCoords({ left: clampX, top: event.clientY });
+                  if (fallback && typeof fallback.pos === 'number') targetPos = fallback.pos;
+                }
+              }
+              if (targetPos !== null) {
+                const clamped = Math.max(0, Math.min(targetPos, currentView.state.doc.content.size));
+                const $targetPos = currentView.state.doc.resolve(clamped);
                 currentView.dispatch(currentView.state.tr.setSelection(TextSelection.near($targetPos)));
                 currentView.focus();
                 caretRef.current?.schedule();
                 return true;
               }
-            }
-          }
-
-          const target = event.target as HTMLElement | null;
-          const li = target?.closest?.('li');
-          if (li && !target?.matches?.('input[type="checkbox"]')) {
-            const domSelection = document.getSelection();
-            if (domSelection && !domSelection.isCollapsed) return false;
-            const coords = { left: event.clientX, top: event.clientY };
-            const posInfo = currentView.posAtCoords(coords);
-            if (posInfo && typeof posInfo.pos === 'number') {
-              const $targetPos = currentView.state.doc.resolve(posInfo.pos);
-              currentView.dispatch(currentView.state.tr.setSelection(TextSelection.near($targetPos)));
-              currentView.focus();
-              return true;
             }
           }
           return false;
@@ -3362,62 +3630,13 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             } catch {}
           });
           return false;
-        }, blur() { manualFloatingRef.current = false; setSelection(false); setSlash(false); return false; } },
+        }, blur(_currentView, event) {
+          const next = (event as FocusEvent).relatedTarget;
+          if (next instanceof Node && document.getElementById('floating-toolbar')?.contains(next)) return false;
+          manualFloatingRef.current = false; setSelection(false); setSlash(false); return false;
+        } },
     });
     viewRef.current = view;
-    let mouseSelection: { anchor: number; head: number } | null = null;
-    const beginMouseSelection = (event: MouseEvent) => {
-      if (!view.editable || event.button !== 0 || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
-      const target = event.target instanceof Element ? event.target : null;
-      if (!target || !view.dom.contains(target) || target.closest('button,input,textarea,select,[contenteditable="false"]')) return;
-      const point = view.posAtCoords({ left: event.clientX, top: event.clientY });
-      if (!point) return;
-      const anchor = TextSelection.near(view.state.doc.resolve(point.pos)).head;
-      mouseSelection = { anchor, head: anchor };
-    };
-    const continueMouseSelection = (event: MouseEvent) => {
-      if (!mouseSelection) return;
-      if (!(event.buttons & 1)) { mouseSelection = null; return; }
-      const bounds = view.dom.getBoundingClientRect();
-      const style = getComputedStyle(view.dom);
-      const inside = event.clientX >= bounds.left + (parseFloat(style.paddingLeft) || 0)
-        && event.clientX <= bounds.right - (parseFloat(style.paddingRight) || 0)
-        && event.clientY >= bounds.top + (parseFloat(style.paddingTop) || 0)
-        && event.clientY <= bounds.bottom - (parseFloat(style.paddingBottom) || 0);
-      // Keep the last selected range while the pointer crosses another pane.
-      // Re-entering this editor with the button held resumes from the anchor.
-      event.preventDefault();
-      const restoreSelection = () => {
-        if (!mouseSelection || (view.state.selection.anchor === mouseSelection.anchor && view.state.selection.head === mouseSelection.head)) return;
-        view.dispatch(view.state.tr.setSelection(TextSelection.between(
-          view.state.doc.resolve(mouseSelection.anchor), view.state.doc.resolve(mouseSelection.head)
-        )));
-      };
-      if (!inside) {
-        restoreSelection();
-        return;
-      }
-      const point = view.posAtCoords({ left: event.clientX, top: event.clientY });
-      if (!point) return;
-      const head = TextSelection.near(view.state.doc.resolve(point.pos)).head;
-      if (head === mouseSelection.head) { restoreSelection(); return; }
-      mouseSelection.head = head;
-      view.dispatch(view.state.tr.setSelection(TextSelection.between(
-        view.state.doc.resolve(mouseSelection.anchor), view.state.doc.resolve(head)
-      )));
-    };
-    const endMouseSelection = () => { mouseSelection = null; };
-    const preventSelectedTextDrag = (event: DragEvent) => {
-      if (mouseSelection) event.preventDefault();
-    };
-    const preventNativeMouseSelection = (event: Event) => {
-      if (mouseSelection) event.preventDefault();
-    };
-    document.addEventListener('mousedown', beginMouseSelection, true);
-    document.addEventListener('mousemove', continueMouseSelection, true);
-    document.addEventListener('mouseup', endMouseSelection, true);
-    document.addEventListener('dragstart', preventSelectedTextDrag, true);
-    document.addEventListener('selectstart', preventNativeMouseSelection, true);
     try {
       const initialTagInfo = getActiveTagInfo(view.state);
       setTagInfo(initialTagInfo);
@@ -3494,11 +3713,6 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     return () => {
       aiTargets.clear();if(aiTargetRef)aiTargetRef.current=null;
       clearDropIndicator();
-      document.removeEventListener('mousedown', beginMouseSelection, true);
-      document.removeEventListener('mousemove', continueMouseSelection, true);
-      document.removeEventListener('mouseup', endMouseSelection, true);
-      document.removeEventListener('dragstart', preventSelectedTextDrag, true);
-      document.removeEventListener('selectstart', preventNativeMouseSelection, true);
       window.removeEventListener('keydown', handleWindowKeyDown);
       window.removeEventListener('dragover', handleWindowDragOver, true);
       window.removeEventListener('dragend', handleWindowDragEnd, true);
@@ -4706,14 +4920,26 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       .visual-citation { color:#1d4ed8; background:#eff6ff; border-radius:3px; }
       .visual-citation-missing { color:#b91c1c; text-decoration:underline wavy; }
       .visual-document-surface a:hover { color:#1e40af; text-decoration:underline; }
-      .visual-document-surface .visual-selected-text { background:#2563eb!important; color:#fff!important; }
-      .visual-document-surface .visual-selected-text::selection { background:#2563eb; color:#fff; }
+      .visual-document-surface ::selection,
+      .visual-document-surface *::selection {
+        background: #2563eb !important;
+        color: #ffffff !important;
+      }
+      .dark .visual-document-surface ::selection,
+      .dark .visual-document-surface *::selection {
+        background: #3b82f6 !important;
+        color: #ffffff !important;
+      }
       .custom-preview-container .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div),
       .onrivi-content-root .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div),
       .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div) { white-space:break-spaces!important; tab-size:inherit; }
       .visual-document-surface p { margin:0 0 0.5em; }
       .visual-document-surface br.ProseMirror-trailingBreak { display:inline!important; content:normal!important; margin:0!important; height:auto!important; }
-      .visual-document-surface p:empty, .visual-document-surface p:has(>br.ProseMirror-trailingBreak:only-child) { min-height:1em; }
+      .visual-document-surface p:empty,
+      .visual-document-surface p:has(>br.ProseMirror-trailingBreak:only-child) {
+        min-height: 1em;
+        cursor: text;
+      }
       .visual-document-surface li { margin-top:0!important; margin-bottom: var(--li-margin-bottom, 6px); padding-top:0!important; padding-bottom:0!important; }
       .visual-document-surface li p { margin-top:0!important; margin-bottom:0!important; }
       .custom-preview-container .visual-document-surface li ul, .custom-preview-container .visual-document-surface li ol, .visual-document-surface li ul, .visual-document-surface li ol { margin-top:0!important; margin-bottom:0!important; padding-top:0!important; padding-bottom:0!important; }

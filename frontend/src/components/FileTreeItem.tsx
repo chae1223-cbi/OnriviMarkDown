@@ -3,6 +3,7 @@
 // ====================================================================
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
+// 🚨 @PATCH : **2026-10-27** — [파일/폴더 생성 및 이름 변경 프롬프트 모달 타이틀 문장 부호 표준화]: 타이틀 끝의 콜론(:)을 마침표(.)로 변경하여 일관된 문장 부호 스타일 적용
 // 🚨 @PATCH : **2026-10-04** — [다른 폴더의 동일 파일명 삭제 시 현재 열린 탭 오종료 결함 해결]: handleDelete 내 단순 파일명 일치(currentFileName === node.name) 시 openFile(null) 강제 호출 로직을 제거하고, file:close-tab-by-path에 isDir 플래그를 추가하여 정확한 경로 기반으로만 탭 닫기 수행
 // 🚨 @PATCH : **2026-10-04** — [구글 드라이브 드래그앤드롭 이동(handleDrop) GDRIVE 분기 추가]: 드래그로 폴더 간 이동 시 GDRIVE 환경에서 moveDriveItem 호출로 Drive API 기반 실제 이동 수행
 // 🚨 @PATCH : **2026-10-03** — [파일/폴더 삭제 시 열린 탭 즉시 닫기 driveId/name 전면 연동]: handleDelete 시 file:close-tab-by-path에 driveId/name/path 일괄 전달하여 삭제된 파일 탭 미종료 결함 해결
@@ -725,8 +726,8 @@ const FileTreeItem = ({
     setPromptConfig({
       isOpen: true,
       title: isDir 
-        ? `'${node.name}' 폴더의 새 이름을 입력하세요:` 
-        : `'${node.name}' 파일의 새 이름을 입력하세요:`,
+        ? `'${node.name}' 폴더의 새 이름을 입력하세요.` 
+        : `'${node.name}' 파일의 새 이름을 입력하세요.`,
       defaultValue: node.name,
       type: 'rename'
     });
@@ -736,7 +737,7 @@ const FileTreeItem = ({
     e.stopPropagation();
     setPromptConfig({
       isOpen: true,
-      title: `[${node.name}]에 생성할 새 파일의 이름을 입력하세요:`,
+      title: `[${node.name}]에 생성할 새 파일의 이름을 입력하세요.`,
       defaultValue: "untitled.md",
       type: 'createFile'
     });
@@ -746,7 +747,7 @@ const FileTreeItem = ({
     e.stopPropagation();
     setPromptConfig({
       isOpen: true,
-      title: `[${node.name}]에 생성할 새 폴더의 이름을 입력하세요:`,
+      title: `[${node.name}]에 생성할 새 폴더의 이름을 입력하세요.`,
       defaultValue: "",
       type: 'createFolder'
     });
@@ -1396,7 +1397,7 @@ const FileTreeItem = ({
     setContextMenu(null);
     setPromptConfig({
       isOpen: true,
-      title: `[${node.name}]에 생성할 새 파일의 이름을 입력하세요:`,
+      title: `[${node.name}]에 생성할 새 파일의 이름을 입력하세요.`,
       defaultValue: "untitled.md",
       type: 'createFile'
     });
@@ -1407,7 +1408,7 @@ const FileTreeItem = ({
     setContextMenu(null);
     setPromptConfig({
       isOpen: true,
-      title: `[${node.name}]에 생성할 새 폴더의 이름을 입력하세요:`,
+      title: `[${node.name}]에 생성할 새 폴더의 이름을 입력하세요.`,
       defaultValue: "",
       type: 'createFolder'
     });
@@ -1420,8 +1421,8 @@ const FileTreeItem = ({
     setPromptConfig({
       isOpen: true,
       title: isDir 
-        ? `'${node.name}' 폴더의 새 이름을 입력하세요:` 
-        : `'${node.name}' 파일의 새 이름을 입력하세요:`,
+        ? `'${node.name}' 폴더의 새 이름을 입력하세요.` 
+        : `'${node.name}' 파일의 새 이름을 입력하세요.`,
       defaultValue: node.name,
       type: 'rename'
     });

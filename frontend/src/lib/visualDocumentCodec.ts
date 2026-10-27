@@ -2,6 +2,8 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-visual-codec
+ * 🚨 @PATCH : **2026-10-27** — [빈 문단 엔터 입력 시 중복 <br> 생성 및 비정상 행간 벌어짐·원복 결함 수정]:
+ *             1) visualSerializer의 인위적 <br> 삽입 paragraph 직렬화기를 제거하고 표준 MarkdownSerializer로 복원하여, 엔터 입력 시 중복 hard_break 및 과도한 행간 벌어짐/위로 튀는 현상 원천 차단
  * 🚨 @PATCH : **2026-10-26** — [HWP/문서 가져오기 체크박스(<input type="checkbox">) 위지윅 네이티브 렌더링 및 무손실 직렬화 연동]:
  *             1) visualSchema.nodes에 visual_checkbox 인라인 원자(atom) 노드 신설 (id, label, checked 속성 지원)
  *             2) visualTokenizer에서 마크다운 표 및 일반 문단 내부의 <input type="checkbox" ... /> 태그를 checkbox_inline 토큰으로 분할 파싱
@@ -648,6 +650,26 @@ export function createVisualDocumentCodec(markdown: string) {
     originals.set(empty, body);
     rawSuffixes.push(body.match(/\n+$/)?.[0] || '\n');
     nodes.push(empty);
+  }
+  // Keep exactly one editable line after the final content block. Markdown-it
+  // represents trailing blank lines as hard breaks inside the final paragraph;
+  // those breaks expand the empty line until the user starts typing.
+  const finalNode = nodes[nodes.length - 1];
+  if (finalNode?.type === visualSchema.nodes.paragraph && finalNode.content.size > 0) {
+    const trailingNewlines = body.match(/\n+$/)?.[0].length || 0;
+    if (trailingNewlines > 1) {
+      let hardBreaks = 0;
+      for (let index = finalNode.childCount - 1; index >= 0 && hardBreaks < trailingNewlines; index--) {
+        if (finalNode.child(index).type !== visualSchema.nodes.hard_break) break;
+        hardBreaks++;
+      }
+      if (hardBreaks) {
+        nodes[nodes.length - 1] = finalNode.copy(finalNode.content.cut(0, finalNode.content.size - hardBreaks));
+      }
+    }
+  }
+  if (nodes[nodes.length - 1]?.type !== visualSchema.nodes.paragraph || nodes[nodes.length - 1].content.size > 0) {
+    nodes.push(visualSchema.nodes.paragraph.create());
   }
   return {
     doc: visualSchema.nodes.doc.create({ frontmatter: prefix }, nodes),

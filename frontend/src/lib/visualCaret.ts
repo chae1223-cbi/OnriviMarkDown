@@ -3,6 +3,9 @@
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-vm-caret
  * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-10-27** — [빈 문단 엔터 입력 시 정밀 라인박스 캐럿 정렬 및 타이핑 시 수직 점프 방지]:
+ *             1) 빈 문단(<p><br class="ProseMirror-trailingBreak"></p>)에서 view.nodeDOM 기반 정확한 문단 요소를 획득하고, 폰트 크기 및 행간(lineHeight)에 기반하여 텍스트 시작 위치에 1:1 일치하도록 캐럿 좌표 산출
+ *             2) 엔터 입력 직후 커서가 과도하게 내려앉거나 글자 타이핑 시 위로 튀는 현상 100% 해소
  * 🚨 @PATCH : **2026-10-17** — [이미지·미디어 블록(NodeSelection)에서 Ctrl+Enter로 다음 행 이동 시 커서 즉각 표시 보강]:
  *             1) NodeSelection에서 빈 문단(TextSelection)으로 전환 직후 브라우저 네이티브 Selection Range가 지연되더라도 view.coordsAtPos 폴백을 통해 3px 코발트 커서가 즉시 렌더링되도록 개선
  * 🚨 @PATCH : **2026-10-14** — [머메이드 편집기(textarea) 및 각주(footnote) 입력 시 커서 완전 표시 및 visualCaret 충돌 방어]:
@@ -86,17 +89,24 @@ export function installVisualCaret(view: EditorView) {
       }
       let rect = domRect && domRect.height > 0 ? domRect : view.coordsAtPos(view.state.selection.head);
       const { $from } = view.state.selection;
-      if ($from.parent.type.name === 'paragraph' && !$from.parent.content.size) {
+      const isParagraphEmpty = $from.parent.type.name === 'paragraph' && !$from.parent.content.size;
+      if (isParagraphEmpty) {
         // A lone ProseMirror-trailingBreak can report a range on the *next*
         // visual line. Typing removes that break and makes the overlay jump up.
-        const dom = view.domAtPos($from.pos).node;
-        const element = dom instanceof Element ? dom : dom.parentElement;
-        const paragraph = element?.closest('p');
+        const targetNode = view.domAtPos($from.pos).node;
+        const targetEl = targetNode instanceof Element ? targetNode : targetNode.parentElement;
+        const paragraph = (view.nodeDOM($from.before()) as HTMLElement | null) || targetEl?.closest('p') || null;
         if (paragraph && view.dom.contains(paragraph)) {
           const box = paragraph.getBoundingClientRect();
-          const lineHeight = parseFloat(getComputedStyle(paragraph).lineHeight) || rect.bottom - rect.top;
-          const position = view.coordsAtPos($from.pos);
-          rect = { left: position.left, right: position.right, top: box.top, bottom: box.top + lineHeight };
+          const style = getComputedStyle(paragraph);
+          const fontSize = parseFloat(style.fontSize) || 16;
+          const lineHeight = parseFloat(style.lineHeight) || fontSize * 1.5;
+          const paddingTop = parseFloat(style.paddingTop) || 0;
+          const paddingLeft = parseFloat(style.paddingLeft) || 0;
+          const caretHeight = Math.max(18, Math.round(fontSize * 1.15));
+          const top = box.top + paddingTop + Math.max(0, (lineHeight - caretHeight) / 2);
+          const left = box.left + paddingLeft;
+          rect = { left, right: left + 3, top, bottom: top + caretHeight };
         }
       }
       
