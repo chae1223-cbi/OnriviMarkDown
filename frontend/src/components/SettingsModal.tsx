@@ -1,5 +1,9 @@
 // ====================================================================
 // 📊 [OMD-EDIT-SettingsModal-0006 ✅ FIXED] SettingsModal.tsx ➔ SettingsModal
+// 🚨 @PATCH : **2026-10-28** — [환경설정 내 'AI 및 MCP 연동' 독립 탭 신설 및 외부 AI(Gemini, Claude) 원클릭 연동 탑재]:
+//             1) activeTab에 'ai' 추가 및 좌측 내비게이션 바에 'AI 및 MCP 연동' 독립 탭 신설
+//             2) 일반 설정에서 복잡하게 섞여 있던 AI 설정을 분리하고, 외부 AI 도구(Gemini, Claude Desktop)를 위한 원클릭 MCP 연동 UI 탑재
+//             3) MCP 연동 시 외부 AI 자체 구독을 활용하므로 온리비 어서에 별도의 API 키 등록이 필요 없음을 명확히 안내
 // 🚨 @PATCH : **2026-10-26** — [단축코드/단축키 정의서 리소스 폴더(settings/shortcodes.json) 원자적 자동 동기화 연동]:
 //             1) 단축키 및 슬래시 명령어 변경/초기화 시 writeResourceShortcodes를 호출하여 리소스 폴더에 즉시 영구 저장
 // 🚨 @PATCH : **2026-10-21** — [환경설정 오픈 시 현재 연결된 리소스 폴더 기반 AI 설정정보 즉시 강제 세팅]:
@@ -133,9 +137,90 @@ export default function SettingsModal({
   const { showToast } = useToast();
   const [mounted, setMounted] = useState(false);
   const [closing, setClosing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'general' | 'hotkeys' | 'account'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'ai' | 'hotkeys' | 'account'>(() => {
+    if (initialTab === 'ai') return 'ai';
+    if (initialTab === 'account') return 'account';
+    if (initialTab === 'hotkeys') return 'hotkeys';
+    return 'general';
+  });
   const [availableAIModels, setAvailableAIModels] = useState<OnriviAIModelItem[]>(() => getCachedAIModels());
   const [currentProfileLabel, setCurrentProfileLabel] = useState<string>('');
+
+  // 🔌 [MCP 타겟(Gemini, Claude) 연결 상태 및 핸들러]
+  const [mcpTargets, setMcpTargets] = useState<Record<string, { name: string; available: boolean; installed: boolean; path: string }>>({});
+  const [isMcpLoading, setIsMcpLoading] = useState(false);
+
+  const reloadMcpTargets = useCallback(async () => {
+    const api = (window as any).electronAPI;
+    if (!api?.checkMcpTargets) return;
+    try {
+      const res = await api.checkMcpTargets();
+      if (res && typeof res === 'object') {
+        setMcpTargets(res);
+      }
+    } catch (e) {
+      console.warn('[SettingsModal] checkMcpTargets failed:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'ai') {
+      void reloadMcpTargets();
+    }
+  }, [isOpen, activeTab, reloadMcpTargets]);
+
+  const handleInstallMcp = async (key: string) => {
+    const api = (window as any).electronAPI;
+    if (!api?.installMcpTarget) {
+      showToast('데스크톱 앱 환경에서만 원클릭 연동이 지원됩니다.', 'info');
+      return;
+    }
+    setIsMcpLoading(true);
+    try {
+      await api.installMcpTarget(key);
+      await reloadMcpTargets();
+      showToast(key === 'chatgpt'
+        ? 'ChatGPT 개인 플러그인 목록에 등록했습니다. ChatGPT 데스크톱을 다시 시작하고 플러그인 목록에서 온리비 어서를 설치하세요.'
+        : `${mcpTargets[key]?.name || key}에 온리비 어서가 연결되었습니다. 해당 AI 앱을 재시작하세요.`, 'success');
+    } catch (err: any) {
+      showToast('연동 실패: ' + (err?.message || '오류'), 'error');
+    } finally {
+      setIsMcpLoading(false);
+    }
+  };
+
+  const handleUninstallMcp = async (key: string) => {
+    const api = (window as any).electronAPI;
+    if (!api?.uninstallMcpTarget) return;
+    setIsMcpLoading(true);
+    try {
+      await api.uninstallMcpTarget(key);
+      await reloadMcpTargets();
+      showToast(key === 'chatgpt'
+        ? 'ChatGPT 개인 플러그인 목록에서 등록을 해제했습니다. ChatGPT에서 설치된 플러그인은 별도로 제거해 주세요.'
+        : `${mcpTargets[key]?.name || key}에서 온리비 어서 연결이 해제되었습니다.`, 'info');
+    } catch (err: any) {
+      showToast('연결 해제 실패: ' + (err?.message || '오류'), 'error');
+    } finally {
+      setIsMcpLoading(false);
+    }
+  };
+
+  const handleCopyMcpSnippet = () => {
+    const snippet = JSON.stringify({
+      mcpServers: {
+        "onrivi-author": {
+          command: "node",
+          args: [
+            "-e",
+            "import('file:///' + (process.env.ONRIVI_MCP_HOME || (process.env.APPDATA + '/Onrivi Author/plugins/onrivi-author')).replace(/\\\\/g, '/') + '/server/index.mjs')"
+          ]
+        }
+      }
+    }, null, 2);
+    navigator.clipboard.writeText(snippet);
+    showToast('환경변수(ONRIVI_MCP_HOME) 기반 MCP 설정 JSON이 클립보드에 복사되었습니다.', 'success');
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -546,6 +631,17 @@ export default function SettingsModal({
               일반 설정
             </button>
             <button 
+              onClick={() => setActiveTab('ai')}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-[14px] transition-all cursor-pointer ${
+                activeTab === 'ai' 
+                  ? 'bg-[#1d4ed8]/15 text-[#1d4ed8] font-extrabold shadow-xs' 
+                  : 'text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/5'
+              }`}
+            >
+              <Icon name="Bot" size={18} />
+              AI 및 MCP 연동
+            </button>
+            <button 
               onClick={() => setActiveTab('hotkeys')}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-[14px] transition-all cursor-pointer ${
                 activeTab === 'hotkeys' 
@@ -842,42 +938,6 @@ export default function SettingsModal({
                 </div>
               </div>
 
-              {/* 📁 AI 인증정보 리소스 폴더 암호화 보관 배너 */}
-              <div className="p-4 rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-950/20 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🔐</span>
-                    <span className="text-[13px] font-bold text-blue-900 dark:text-blue-300">
-                      AI API 키 리소스 폴더 암호화 관리 (로컬스토리지 보관 배제)
-                    </span>
-                  </div>
-                  <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-md bg-blue-600 text-white shadow-xs">
-                    AES-256 암호화
-                  </span>
-                </div>
-                <p className="text-[12px] text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                  보안과 편의성을 위해 API 키는 브라우저 로컬스토리지에 저장되지 않으며, 연결된 공통 리소스 폴더의 <code className="font-mono text-zinc-800 dark:text-zinc-200 font-bold bg-white dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700">settings/ai_credentials.enc</code> 파일에만 안전하게 암호화 보관됩니다.
-                </p>
-                <div className="flex flex-wrap items-center gap-3 pt-1 text-[12px] font-semibold text-zinc-700 dark:text-zinc-300">
-                  <div className="flex items-center gap-1.5">
-                    <span>📁 리소스 폴더:</span>
-                    <span className="font-mono font-bold text-blue-700 dark:text-blue-400">
-                      {resourceFolder || '⚠️ 미설정 (폴더를 먼저 선택해 주세요)'}
-                    </span>
-                  </div>
-                  {currentProfileLabel && (
-                    <div className="flex items-center gap-1.5">
-                      <span>🖥️ 현재 식별 환경:</span>
-                      <span className="px-2 py-0.5 rounded-md bg-white dark:bg-zinc-800 border border-blue-300 dark:border-blue-800 font-mono font-bold text-blue-600 dark:text-blue-400 shadow-xs">
-                        {currentProfileLabel}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* AI 설정 그룹 */}
-              <AIConnectionSettings scope={aiAccountScope()} />
               {/* 기본 워터마크 설정 그룹 */}
               <div className="space-y-6">
                 <div className="flex items-center justify-between border-b pb-2 border-outline-variant/20 dark:border-white/10">
@@ -1111,6 +1171,262 @@ export default function SettingsModal({
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'ai' && (
+            <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-300">
+              {/* Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-outline-variant/20 dark:border-white/10">
+                <div>
+                  <h3 className="font-serif text-[22px] font-bold text-on-surface">AI 및 MCP 연동 관리</h3>
+                  <p className="text-[13px] text-on-surface-variant mt-1">외부 AI 어시스턴트(ChatGPT, Google Gemini, Claude) 연결 및 온리비 어서 내장 AI 챗봇 설정을 관리합니다.</p>
+                </div>
+                <span className="text-[11px] font-extrabold px-3 py-1 rounded-md bg-[#1d4ed8]/10 text-[#1d4ed8] dark:text-blue-400">
+                  Model Context Protocol
+                </span>
+              </div>
+
+              {/* 🔌 1. 외부 AI 도구 MCP 원클릭 연동 (API 키 불필요!) */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🔌</span>
+                    <h4 className="text-[16px] font-bold text-on-surface">외부 AI 도구 MCP 원클릭 연동</h4>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                      API 키 불필요
+                    </span>
+                  </div>
+                </div>
+
+                {/* 핵심 개념 안내 배너 */}
+                <div className="p-4 rounded-xl border border-blue-200 dark:border-blue-900/40 bg-blue-50/60 dark:bg-blue-950/20 text-[12px] leading-relaxed text-zinc-700 dark:text-zinc-300 space-y-1.5">
+                  <p className="font-semibold text-blue-900 dark:text-blue-300">
+                    💡 MCP(Model Context Protocol)로 연결하면 온리비 어서에 별도의 유료 API 키를 등록할 필요가 없습니다.
+                  </p>
+                  <p className="text-zinc-600 dark:text-zinc-400">
+                    사용자가 평소 사용하시는 AI 도구(ChatGPT Desktop, Google Gemini, Claude Desktop 등)의 자체 구독 및 AI 두뇌를 그대로 사용하며, 해당 AI가 온리비 어서의 로컬 마크다운 문서 읽기/수정 및 서식 조회를 안전하게 직접 호출합니다.
+                  </p>
+                  <p className="text-[11px] text-blue-800 dark:text-blue-400 font-mono">
+                    ⚠️ 로컬 MCP는 <strong>PC 설치형 AI 앱의 로컬 실행 채팅</strong>에서 사용하며, 온리비 어서 데스크톱 앱이 켜져 있어야 합니다. ChatGPT는 개인 플러그인 목록에 등록한 뒤 ChatGPT에서 별도로 설치해야 합니다.
+                  </p>
+                </div>
+
+                {/* 타겟별 카드 그리드 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Google Gemini / Antigravity */}
+                  <div className={`p-5 rounded-2xl border flex flex-col justify-between gap-4 transition-all ${
+                    mcpTargets.gemini?.installed
+                      ? 'border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-950/10 shadow-xs'
+                      : isDarkMode ? 'bg-zinc-800/40 border-white/10' : 'bg-surface-container-low/40 border-outline-variant/20'
+                  }`}>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">✨</span>
+                          <span className="font-bold text-[15px] text-on-surface">Google Gemini / Antigravity</span>
+                        </div>
+                        {mcpTargets.gemini?.installed ? (
+                          <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-500 text-white shadow-2xs">
+                            연결됨 ✅
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
+                            미연결
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[12px] text-on-surface-variant">
+                        Google Gemini 또는 Antigravity IDE에서 온리비 어서 문서를 직접 읽고 서식을 생성합니다.
+                      </p>
+                      {mcpTargets.gemini?.path && (
+                        <p className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 truncate" title={mcpTargets.gemini.path}>
+                          설정: {mcpTargets.gemini.path}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="pt-2">
+                      {mcpTargets.gemini?.installed ? (
+                        <button
+                          type="button"
+                          disabled={isMcpLoading}
+                          onClick={() => handleUninstallMcp('gemini')}
+                          className="w-full py-2 px-3 rounded-xl border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-[12px] font-bold hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors"
+                        >
+                          {isMcpLoading ? '처리 중...' : '연결 해제'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={isMcpLoading}
+                          onClick={() => handleInstallMcp('gemini')}
+                          className="w-full py-2.5 px-3 rounded-xl bg-[#1d4ed8] hover:bg-blue-700 text-white text-[13px] font-bold transition-all shadow-xs"
+                        >
+                          {isMcpLoading ? '연결 중...' : 'Gemini에 원클릭 연결하기'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Claude Desktop */}
+                  <div className={`p-5 rounded-2xl border flex flex-col justify-between gap-4 transition-all ${
+                    mcpTargets.claude?.installed
+                      ? 'border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-950/10 shadow-xs'
+                      : isDarkMode ? 'bg-zinc-800/40 border-white/10' : 'bg-surface-container-low/40 border-outline-variant/20'
+                  }`}>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">🤖</span>
+                          <span className="font-bold text-[15px] text-on-surface">Claude Desktop</span>
+                        </div>
+                        {mcpTargets.claude?.installed ? (
+                          <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-500 text-white shadow-2xs">
+                            연결됨 ✅
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
+                            미연결
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[12px] text-on-surface-variant">
+                        Claude Desktop 앱에서 온리비 어서 로컬 마크다운 문서 읽기/수정을 실행합니다.
+                      </p>
+                      {mcpTargets.claude?.path && (
+                        <p className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 truncate" title={mcpTargets.claude.path}>
+                          설정: {mcpTargets.claude.path}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="pt-2">
+                      {mcpTargets.claude?.installed ? (
+                        <button
+                          type="button"
+                          disabled={isMcpLoading}
+                          onClick={() => handleUninstallMcp('claude')}
+                          className="w-full py-2 px-3 rounded-xl border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-[12px] font-bold hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors"
+                        >
+                          {isMcpLoading ? '처리 중...' : '연결 해제'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={isMcpLoading}
+                          onClick={() => handleInstallMcp('claude')}
+                          className="w-full py-2.5 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-900 text-white text-[13px] font-bold transition-all shadow-xs"
+                        >
+                          {isMcpLoading ? '연결 중...' : 'Claude Desktop에 연결하기'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ChatGPT Desktop local plugin marketplace */}
+                  <div className={`p-5 rounded-2xl border flex flex-col justify-between gap-4 transition-all ${
+                    mcpTargets.chatgpt?.installed
+                      ? 'border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-950/10 shadow-xs'
+                      : isDarkMode ? 'bg-zinc-800/40 border-white/10' : 'bg-surface-container-low/40 border-outline-variant/20'
+                  }`}>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">💬</span>
+                          <span className="font-bold text-[15px] text-on-surface">ChatGPT Desktop</span>
+                        </div>
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${mcpTargets.chatgpt?.installed ? 'bg-emerald-500 text-white' : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300'}`}>
+                          {mcpTargets.chatgpt?.installed ? '목록 등록됨' : '미등록'}
+                        </span>
+                      </div>
+                      <p className="text-[12px] text-on-surface-variant">
+                        온리비 어서를 개인 플러그인 목록에 등록합니다. ChatGPT 데스크톱을 다시 시작한 뒤 플러그인 목록에서 설치하고 로컬 채팅에서 선택하세요.
+                      </p>
+                      {mcpTargets.chatgpt?.path && (
+                        <p className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 truncate" title={mcpTargets.chatgpt.path}>
+                          목록: {mcpTargets.chatgpt.path}
+                        </p>
+                      )}
+                    </div>
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        disabled={isMcpLoading}
+                        onClick={() => mcpTargets.chatgpt?.installed ? handleUninstallMcp('chatgpt') : handleInstallMcp('chatgpt')}
+                        className={`w-full py-2.5 px-3 rounded-xl text-[13px] font-bold transition-all ${mcpTargets.chatgpt?.installed ? 'border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20' : 'bg-[#1d4ed8] hover:bg-blue-700 text-white'}`}
+                      >
+                        {isMcpLoading ? '처리 중...' : mcpTargets.chatgpt?.installed ? '목록 등록 해제' : 'ChatGPT 플러그인 목록에 등록'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 기타 도구(Cursor, VS Code) 수동 복사 지원 */}
+                <div className={`p-4 rounded-xl border flex items-center justify-between gap-4 ${isDarkMode ? 'bg-zinc-800/20 border-white/5' : 'bg-surface-container-low/20 border-outline-variant/15'}`}>
+                  <div className="text-[12px]">
+                    <span className="font-bold text-on-surface">Cursor / VS Code 등 기타 도구 설정</span>
+                    <p className="text-on-surface-variant text-[11px] mt-0.5">다른 MCP 클라이언트에 직접 등록할 수 있는 JSON 설정 스니펫을 클립보드로 복사합니다.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyMcpSnippet}
+                    className="shrink-0 px-3.5 py-1.5 rounded-lg border border-outline-variant/30 text-[12px] font-semibold text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                  >
+                    설정 JSON 복사
+                  </button>
+                </div>
+              </div>
+
+              {/* 🔑 2. 온리비 어서 내장 AI 챗봇 API 키 설정 (선택 사항) */}
+              <div className="space-y-4 pt-4 border-t border-outline-variant/20 dark:border-white/10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🔑</span>
+                    <h4 className="text-[16px] font-bold text-on-surface">온리비 내장 AI 챗봇 연결 (선택 사항)</h4>
+                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-zinc-500/10 text-zinc-600 dark:text-zinc-400">
+                      직접 API 키 등록
+                    </span>
+                  </div>
+                </div>
+
+                {/* 📁 AI 인증정보 리소스 폴더 암호화 보관 배너 */}
+                <div className="p-4 rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-950/20 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🔐</span>
+                      <span className="text-[13px] font-bold text-blue-900 dark:text-blue-300">
+                        AI API 키 리소스 폴더 암호화 관리 (로컬스토리지 보관 배제)
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-md bg-blue-600 text-white shadow-xs">
+                      AES-256 암호화
+                    </span>
+                  </div>
+                  <p className="text-[12px] text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                    온리비 어서 앱 내부의 내장 챗봇을 직접 쓰실 경우에만 API 키를 등록하시면 되며, 키는 브라우저 로컬스토리지에 저장되지 않고 연결된 공통 리소스 폴더의 <code className="font-mono text-zinc-800 dark:text-zinc-200 font-bold bg-white dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700">settings/ai_credentials.enc</code> 파일에만 안전하게 암호화 보관됩니다.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-3 pt-1 text-[12px] font-semibold text-zinc-700 dark:text-zinc-300">
+                    <div className="flex items-center gap-1.5">
+                      <span>📁 리소스 폴더:</span>
+                      <span className="font-mono font-bold text-blue-700 dark:text-blue-400">
+                        {resourceFolder || '⚠️ 미설정 (폴더를 먼저 선택해 주세요)'}
+                      </span>
+                    </div>
+                    {currentProfileLabel && (
+                      <div className="flex items-center gap-1.5">
+                        <span>🖥️ 현재 식별 환경:</span>
+                        <span className="px-2 py-0.5 rounded-md bg-white dark:bg-zinc-800 border border-blue-300 dark:border-blue-800 font-mono font-bold text-blue-600 dark:text-blue-400 shadow-xs">
+                          {currentProfileLabel}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 다중 AI 제공자별 키 설정 컴포넌트 */}
+                <AIConnectionSettings scope={aiAccountScope()} />
               </div>
             </div>
           )}

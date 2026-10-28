@@ -1,6 +1,8 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 // ====================================================================
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
+// 🚨 @PATCH : **2026-10-28** — [번호 리스트 자동 생성 행에서 하위 레벨 글머리 기호(-, *, +) 즉시 전환 지원]:
+//             1) 번호 리스트 엔터 개행 시 자동 생성된 '3. ' 또는 Tab 들여쓰기된 '    1. ' 상태에서 '-', '*', '+' 입력 후 Space를 누르면 상위 번호 항목의 하위 레벨 글머리 기호 리스트('    - ')로 즉시 자동 치환
 // 🚨 @PATCH : **2026-10-24** — [인용문(>) 탭(Tab) 들여쓰기 및 Shift+Tab 내어쓰기 완전 지원]:
 //             1) 인용구(>) 줄에서 커서 위치(접두사/본문/줄 끝)와 무관하게 Tab 입력 시 항상 행 시작에 2칸 들여쓰기 공백을 삽입하여 목록 하위 인용구 및 중첩 인용문 구성 보장
 //             2) 인용구(>) 줄에서 Shift+Tab 입력 시 앞쪽 들여쓰기 공백(최대 2칸) 또는 중첩 기호(>>)를 자연스럽게 소거하여 내어쓰기 지원
@@ -590,6 +592,38 @@ export function useMonacoSetup(deps: any) {
                       }
 
                       const lineContent = model.getLineContent(position.lineNumber);
+
+                      // ✨ 번호 리스트 행('3. ' 또는 '    1. ')에서 불릿 기호('-', '*', '+') 입력 후 Space 시 하위 레벨 글머리 기호 리스트로 즉시 전환
+                      if (position.column === lineContent.length + 1) {
+                        const listToBulletMatch = lineContent.match(/^([ \t]*)(\d+)[\.\)][ \t]+([-*+])$/);
+                        if (listToBulletMatch) {
+                          const existingIndent = listToBulletMatch[1];
+                          const numVal = parseInt(listToBulletMatch[2], 10);
+                          const bulletChar = listToBulletMatch[3];
+                          const stepSize = (tabSizeRef && typeof tabSizeRef.current === 'number') ? tabSizeRef.current : 4;
+                          let targetIndent = existingIndent;
+                          if (!existingIndent) {
+                            const prevLine = position.lineNumber > 1 ? model.getLineContent(position.lineNumber - 1) : '';
+                            const prevListMatch = prevLine.match(/^([ \t]*)(?:\d+[\.\)]|[-*+])[ \t]+/);
+                            if (prevListMatch || numVal > 1) {
+                              targetIndent = (prevListMatch ? prevListMatch[1] : '') + ' '.repeat(stepSize);
+                            }
+                          }
+                          const newPrefix = `${targetIndent}${bulletChar} `;
+                          editor.pushUndoStop();
+                          editor.executeEdits('ordered-to-nested-bullet', [{
+                            range: new monaco.Range(position.lineNumber, 1, position.lineNumber, lineContent.length + 1),
+                            text: newPrefix,
+                            forceMoveMarkers: true,
+                          }]);
+                          editor.setPosition({
+                            lineNumber: position.lineNumber,
+                            column: newPrefix.length + 1,
+                          });
+                          editor.pushUndoStop();
+                          return;
+                        }
+                      }
 
                       // '## ' 처럼 정확히 '#' 1~6개 + 스페이스 1개 형태이고
                       // 커서가 그 줄 끝(스페이스 바로 뒤)에 있을 때만 동작한다.

@@ -1,4 +1,5 @@
 "use client";
+// 🚨 @PATCH : **2026-10-27** — [SNS 카드뉴스 전용 출력 포맷('sns') 및 옵션 설정 패널 신설]: 인스타그램·쓰레드·링크드인 공유용 카드 비율(1:1 정사각 / 4:5 세로형 / 16:9 와이드), 카드 나누기 기준(자동/구분선/H1), 슬라이드 번호 표시, 저장 방식(낱장 PNG / ZIP 묶음) UI 추가
 
 import { useModalEscape } from '@/hooks/useModalEscape';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -6,7 +7,7 @@ import PrintPaginationPreview from '@/components/PrintPaginationPreview';
 import { readPaginationSettings, emptyPagination, type DocumentPaginationSettings, type PrintBreakAnchor } from '@/lib/documentPaginationSettings';
 import { readEffectivePrintSettings, DocumentPrintSettings, DEFAULT_PRINT_SETTINGS, normalizePrintSettings, saveDefaultWatermarkSettings, hasDocumentPrintSettings } from '@/lib/documentPrintSettings';
 import { createPortal } from 'react-dom';
-import { Download, Printer, Globe, Image as ImageIcon, X, Check, BookOpen, FileText } from 'lucide-react';
+import { Download, Printer, Globe, Image as ImageIcon, X, Check, BookOpen, FileText, Smartphone } from 'lucide-react';
 
 /**
  * [ONR-UI-011] ExportModalProps 인터페이스
@@ -15,7 +16,9 @@ import { Download, Printer, Globe, Image as ImageIcon, X, Check, BookOpen, FileT
 interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: (format: 'print' | 'docx' | 'hwpx' | 'html' | 'png' | 'epub', currentSettings?: DocumentPrintSettings, pagination?:DocumentPaginationSettings) => void;
+  onExport: (format: 'print' | 'docx' | 'hwpx' | 'html' | 'png' | 'epub' | 'sns', currentSettings?: any, pagination?:DocumentPaginationSettings) => void;
+  isSnsCardProfile?: boolean;
+  defaultSnsRatio?: '1:1' | '4:5';
   isDarkMode: boolean;
   isPicturebook?: boolean;
   documentId?:string;
@@ -34,6 +37,7 @@ interface ExportModalProps {
 // 📊 [OMD-IO-ExportModal-0001] ExportModal ➔ ExportModal
 // 🎯 @KICK  : OS 인쇄(미리보기+PDF저장)/Word/HTML/EPUB/PNG 포맷 선택 및 내보내기 요청을 처리하는 모달 창
 // 🛡️ @GUARD : isOpen 및 mounted 상태 모두 true일 때만 포털 렌더링
+// 🚨 @PATCH : **2026-10-27** — [내보내기 모달 'SNS 카드뉴스 출력(sns)' 포맷 및 비율·분할·저장 방식 제어 UI 신설]: 인스타그램·쓰레드·링크드인용 카드별 PNG 일괄 출력(1:1 / 4:5 / 16:9, 구분선/H1 분할, 낱장 PNG / ZIP 묶음 저장) 옵션 탑재
 // 🚨 @PATCH : **2026-10-21** — [모달 진입 시 무한 대기 프리즈 방어 및 인쇄/저장 즉시 실행 보장]:
 //             1) 모달 오픈 시 쪽 윤곽(Paged.js) 미리보기 자동 실행(setPreviewOpen=true)을 비활성화(false)하여 무거운 페이지 계산으로 인한 모달 멈춤 원천 차단
 //             2) 쪽 윤곽 미리보기를 사용자가 원할 때만 실행할 수 있도록 '쪽 윤곽 미리보기 펼치기/접기' 토글 버튼 UI 개선
@@ -60,10 +64,16 @@ export default function ExportModal({
   onExport, 
   isDarkMode,
   isPicturebook = false,
+  isSnsCardProfile = false,
+  defaultSnsRatio = '1:1',
   documentId,documentContent='',onPrintSettingsChange,onPagePreview,onOpenWatermarkSettings,onPaginationSettingsChange,
 }: ExportModalProps) {
   useModalEscape(isOpen, onClose);
-  const [selectedFormat, setSelectedFormat] = useState<'print' | 'docx' | 'hwpx' | 'html' | 'png' | 'epub'>('print');
+  const [selectedFormat, setSelectedFormat] = useState<'print' | 'docx' | 'hwpx' | 'html' | 'png' | 'epub' | 'sns'>('print');
+  const [snsRatio, setSnsRatio] = useState<'1:1' | '4:5' | '16:9'>(defaultSnsRatio);
+  const [snsSplitMode, setSnsSplitMode] = useState<'auto' | 'hr' | 'h1'>('auto');
+  const [snsShowPageNumber, setSnsShowPageNumber] = useState<boolean>(true);
+  const [snsSaveMode, setSnsSaveMode] = useState<'files' | 'zip'>('files');
   const [mounted, setMounted] = useState(false);
   const [settings,setSettings]=useState<DocumentPrintSettings>(DEFAULT_PRINT_SETTINGS);
   const [pagination,setPagination]=useState<DocumentPaginationSettings>(emptyPagination);
@@ -85,7 +95,9 @@ export default function ExportModal({
   const contentRef=useRef(documentContent);contentRef.current=documentContent;
   const isPicturebookRef=useRef(isPicturebook);isPicturebookRef.current=isPicturebook;
   currentDocument.current=documentId;previewCallback.current=onPagePreview;
-  useEffect(()=>{generation.current++;const value=normalizePrintSettings(readEffectivePrintSettings(contentRef.current));settingsRef.current=value;setSettings(value);setSelectedFormat('print');setPageHtml('');setPreviewOpen(false);setPrintError('');setBusy(false);setIsExporting(false);},[isOpen,documentId]);
+  const isSnsCardProfileRef=useRef(isSnsCardProfile);isSnsCardProfileRef.current=isSnsCardProfile;
+  const defaultSnsRatioRef=useRef(defaultSnsRatio);defaultSnsRatioRef.current=defaultSnsRatio;
+  useEffect(()=>{generation.current++;const value=normalizePrintSettings(readEffectivePrintSettings(contentRef.current));settingsRef.current=value;setSettings(value);setSelectedFormat(isSnsCardProfileRef.current ? 'sns' : 'print');setSnsRatio(defaultSnsRatioRef.current || '1:1');setPageHtml('');setPreviewOpen(false);setPrintError('');setBusy(false);setIsExporting(false);},[isOpen,documentId]);
   useEffect(()=>{
     const value=readPaginationSettings(contentRef.current);
     setPagination(value);setAppliedPagination(JSON.stringify(value));setAdjusting(false);setPast([]);setFuture([]);
@@ -138,7 +150,8 @@ export default function ExportModal({
     { id: 'hwpx', label: "한글 문서 (.hwpx)", desc: "한컴오피스에서 편집할 수 있는 문서", icon: <FileText size={20} className="text-cyan-600" /> },
     { id: 'html', label: "HTML 파일", desc: "웹 브라우저에서 바로 열기용 (.html)", icon: <Globe size={20} className="text-blue-500" /> },
     { id: 'epub', label: "EPUB 전자책", desc: "eBook 리더 및 태블릿 기기용", icon: <BookOpen size={20} className="text-purple-500" /> },
-    { id: 'png', label: "PNG 이미지", desc: "SNS 공유 및 프리젠테이션용", icon: <ImageIcon size={20} className="text-green-500" /> },
+    { id: 'png', label: "PNG 이미지 (단일 통이미지)", desc: "문서 전체를 세로로 긴 1장의 이미지로 저장", icon: <ImageIcon size={20} className="text-green-500" /> },
+    { id: 'sns', label: "SNS 카드뉴스 출력", desc: "인스타그램·쓰레드·링크드인용 카드별 PNG 일괄 저장 (1:1 / 4:5)", icon: <Smartphone size={20} className="text-pink-500" /> },
   ].filter(format => !isPicturebook || (format.id !== 'docx' && format.id !== 'hwpx'));
 
   return createPortal(
@@ -201,6 +214,111 @@ export default function ExportModal({
             ))}
           </div>
           </>}
+          {selectedFormat === 'sns' && (
+            <section className="mt-4 space-y-3 border-t border-slate-200 dark:border-white/10 pt-4" aria-label="SNS 카드뉴스 출력 설정">
+              <div className="rounded-xl border border-pink-200 dark:border-pink-900/60 bg-pink-50/50 dark:bg-pink-950/20 p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-slate-800 dark:text-zinc-100 flex items-center gap-1.5">
+                    <Smartphone size={14} className="text-pink-500" />
+                    <span>SNS 카드뉴스 규격 및 분할 설정</span>
+                  </span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-pink-500/15 text-pink-600 dark:text-pink-400 font-bold font-mono">
+                    {snsRatio === '1:1' ? '1080×1080px' : snsRatio === '4:5' ? '1080×1350px' : '1920×1080px'}
+                  </span>
+                </div>
+
+                {/* 1. 카드 비율 */}
+                <div className="space-y-1">
+                  <span className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 block">1. SNS 카드 비율</span>
+                  <div className="grid grid-cols-3 gap-1.5 text-xs">
+                    {[
+                      { id: '1:1', label: '1:1 정사각형', sub: '인스타·쓰레드 표준' },
+                      { id: '4:5', label: '4:5 세로형', sub: '인스타 피드 확장' },
+                      { id: '16:9', label: '16:9 와이드', sub: '슬라이드·유튜브' },
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setSnsRatio(opt.id as any)}
+                        className={`p-2 rounded-lg border text-center transition-all cursor-pointer ${
+                          snsRatio === opt.id
+                            ? 'bg-[#1d4ed8] text-white border-[#1d4ed8] font-extrabold shadow-xs'
+                            : 'bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 font-semibold'
+                        }`}
+                      >
+                        <div>{opt.label}</div>
+                        <div className={`text-[10px] mt-0.5 ${snsRatio === opt.id ? 'text-blue-100' : 'text-slate-500 dark:text-zinc-400'}`}>{opt.sub}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. 카드 나누기 기준 */}
+                <div className="space-y-1">
+                  <span className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 block">2. 카드(장면) 나누기 기준</span>
+                  <div className="grid grid-cols-3 gap-1.5 text-xs">
+                    {[
+                      { id: 'auto', label: '자동 감지 (추천)', sub: '--- 구분선 / # 대제목' },
+                      { id: 'hr', label: '구분선 (---)', sub: '수평선마다 새 카드' },
+                      { id: 'h1', label: '대제목 (# H1)', sub: '# 제목마다 새 카드' },
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setSnsSplitMode(opt.id as any)}
+                        className={`p-2 rounded-lg border text-center transition-all cursor-pointer ${
+                          snsSplitMode === opt.id
+                            ? 'bg-[#1d4ed8] text-white border-[#1d4ed8] font-extrabold shadow-xs'
+                            : 'bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 font-semibold'
+                        }`}
+                      >
+                        <div>{opt.label}</div>
+                        <div className={`text-[10px] mt-0.5 ${snsSplitMode === opt.id ? 'text-blue-100' : 'text-slate-500 dark:text-zinc-400'}`}>{opt.sub}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. 저장 방식 및 페이지 번호 */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-pink-200/60 dark:border-pink-900/40">
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-zinc-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={snsShowPageNumber}
+                      onChange={e => setSnsShowPageNumber(e.target.checked)}
+                      className="rounded accent-[#1d4ed8]"
+                    />
+                    <span>슬라이드 번호 표시 (01 / 05)</span>
+                  </label>
+
+                  <div className="inline-flex p-0.5 rounded-lg bg-slate-200/90 dark:bg-zinc-700/90 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setSnsSaveMode('files')}
+                      className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                        snsSaveMode === 'files'
+                          ? 'bg-[#1d4ed8] text-white font-bold shadow-xs'
+                          : 'text-slate-700 dark:text-zinc-300 font-medium'
+                      }`}
+                    >
+                      낱장 PNG 저장
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSnsSaveMode('zip')}
+                      className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                        snsSaveMode === 'zip'
+                          ? 'bg-[#1d4ed8] text-white font-bold shadow-xs'
+                          : 'text-slate-700 dark:text-zinc-300 font-medium'
+                      }`}
+                    >
+                      ZIP 묶음 저장
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
           {(selectedFormat==='print' || selectedFormat==='epub') && !isPicturebook && <section className="mt-4 space-y-3 border-t border-slate-200 dark:border-white/10 pt-4" style={pageView?{display:'flex',flexDirection:'column',flex:1,minHeight:showOutputSettings?undefined:0,marginTop:0,paddingTop:8}:undefined} aria-label="페이지 및 워터마크 설정">
             {(!pageView || showOutputSettings) && <>
             <p className="text-xs opacity-75">{selectedFormat==='print' ? '아래 쪽 윤곽이 실제 인쇄/PDF 기준입니다. 용지·방향·여백은 서식관리 설정을 사용합니다.' : 'EPUB의 워터마크는 아래 설정을 적용하여 사출합니다.'}</p>
@@ -382,7 +500,13 @@ export default function ExportModal({
               if (isExporting) return;
               setIsExporting(true);
               try {
-                await onExport(selectedFormat as any, settings,pagination);
+                await onExport(
+                  selectedFormat as any,
+                  selectedFormat === 'sns'
+                    ? { ratio: snsRatio, splitMode: snsSplitMode, showPageNumber: snsShowPageNumber, saveMode: snsSaveMode }
+                    : settings,
+                  pagination
+                );
               } finally {
                 setIsExporting(false);
               }
@@ -397,7 +521,7 @@ export default function ExportModal({
             ) : (
               <>
                 {selectedFormat === 'print' ? <Printer size={16} /> : <Download size={16} />}
-                <span>{selectedFormat === 'print' ? '인쇄 / PDF 저장' : '파일 생성 및 저장'}</span>
+                <span>{selectedFormat === 'print' ? '인쇄 / PDF 저장' : selectedFormat === 'sns' ? 'SNS 카드뉴스 출력하기' : '파일 생성 및 저장'}</span>
               </>
             )}
           </button>

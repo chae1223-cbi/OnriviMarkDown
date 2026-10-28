@@ -111,6 +111,7 @@
       "!frontend/out/_headers",
       "!frontend/out/monaco-editor/min/vs/language/typescript/**",
       "docs/**/*",
+      "plugins/onrivi-author/**/*",
       "!frontend/node_modules/**/*",
       "!**/__tests__/**",
       "!**/*.test.*",
@@ -120,6 +121,18 @@
       "!scripts/patches/**",
       "!*.log"
     ],
-    "asar": true
+    "asar": true,
+    "asarUnpack": [
+      "plugins/onrivi-author/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "plugins/onrivi-author",
+        "to": "plugins/onrivi-author",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
   }
 }

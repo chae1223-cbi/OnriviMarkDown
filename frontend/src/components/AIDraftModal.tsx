@@ -888,7 +888,7 @@ ${snippet}`;
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 backdrop-blur-sm" onMouseDown={onClose}>
       <div
-        className="relative bg-white dark:bg-zinc-900 w-full h-full flex flex-col transition-all duration-300 overflow-hidden outline-none"
+        className="relative bg-white dark:bg-zinc-900 w-full h-full min-h-0 flex flex-col transition-all duration-300 overflow-hidden outline-none"
         onMouseDown={e => e.stopPropagation()}
         tabIndex={-1}
         onKeyDown={(e) => {
@@ -960,10 +960,10 @@ ${snippet}`;
         </div>
 
         {/* Body (Side-by-side) */}
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 min-h-0 overflow-hidden">
           
           {/* Left Column: Prompts */}
-          <div className="flex-1 bg-slate-50 dark:bg-zinc-800/50 border-r border-zinc-100 dark:border-zinc-800 flex flex-col relative overflow-hidden">
+          <div className="flex-1 min-h-0 bg-slate-50 dark:bg-zinc-800/50 border-r border-zinc-100 dark:border-zinc-800 flex flex-col relative overflow-hidden">
             
             {/* Mode & Preset Top Bar */}
             <div className="px-6 pt-5 pb-3 shrink-0 flex items-center justify-between z-10 relative">
@@ -1154,7 +1154,7 @@ ${snippet}`;
               </div>
             </div>
 
-            <div className="flex flex-col h-full overflow-y-auto custom-scrollbar px-6 pb-28 relative">
+            <div className="flex flex-1 min-h-0 flex-col overflow-y-auto custom-scrollbar px-6 pb-28 relative">
               <div className="flex flex-col gap-6">
                 
                 {loadedPresetName && (
@@ -1449,7 +1449,7 @@ ${snippet}`;
           </div>
 
           {/* Right Column: Result Preview */}
-          <div className="flex-1 bg-white dark:bg-zinc-900 flex flex-col relative overflow-hidden">
+          <div className="flex-1 min-h-0 bg-white dark:bg-zinc-900 flex flex-col relative overflow-hidden">
             
             {/* Right Pane Header */}
             <div className="px-8 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between shrink-0">

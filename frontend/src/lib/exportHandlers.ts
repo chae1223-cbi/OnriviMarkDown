@@ -4,8 +4,10 @@ import { embedExportFonts } from './exportFonts';
 import { startExportProgress } from './exportProgress';
 // PDF and print share the preview pagination engine on web and desktop.
 // A failed calculation must not silently discard the user's output boundaries.
-// 🚨 @PATCH : **2026-10-27** — [제목 단계별 크기 감소폭(headingSizeOffset) pt/px 상호 단위 변환 및 제목 좌측 색깔바(border-left) 내보내기 동기화]:
-//             1) H2~H6 크기 계산 시 pt/px 단위 상호 변환 및 '0pt' 명시 설정 지원, 제목 태그(h1~h6) border-left 미지정 시 'none' 명시 출력
+// 🚨 @PATCH : **2026-10-27** — [SNS 카드뉴스 전용 분할 출력 엔진(exportSNSCardNews) 신설 및 다중 카드 분할·일괄 저장 고도화]:
+//             1) 인스타그램·쓰레드·링크드인 공유용 1:1 정사각(1080×1080), 4:5 세로형(1080×1350), 16:9 와이드(1920×1080) 카드별 분할 캡처 및 ZIP/낱장 PNG 일괄 저장(exportSNSCardNews) 구현
+//             2) 문서보기(VisualDocumentEditor / .visual-document-surface, .ProseMirror) 및 마크다운 뷰어(.prose) 중첩 컨테이너 자동 언래핑 및 전 구간 카드 높이 기반 자동 분할(긴 리스트·단락 포함), 일렉트론 데스크톱 다중 낱장 PNG 일괄 저장 지원
+//             3) H2~H6 크기 계산 시 pt/px 단위 상호 변환 및 '0pt' 명시 설정 지원, 제목 태그(h1~h6) border-left 미지정 시 'none' 명시 출력
 // 🚨 @PATCH : **2026-10-26** — [원문자(①, ②, ③) 및 글머리 불릿 레벨별(1~3단계) 내보내기 마커 동기화]:
 //             1) fixListMarkers에 프로필 연동 및 원문자(①, ②, ③) 리스트 마커 사출 지원
 //             2) 1단계/2단계/3단계 깊이(depth)별 불릿 기호(•, ○, ■, ◆, -, ▶ 등)를 판별하여 PDF/HTML/인쇄 시 1:1 일치 반영
@@ -115,6 +117,17 @@ import type { CssProfile } from '@/types/cssProfile';
 import { resolvePageGeometry } from './pageGeometry';
 import { DocumentPrintSettings, DEFAULT_PRINT_SETTINGS, readEffectivePrintSettings, DEFAULT_WATERMARK_IMAGE, DEFAULT_WATERMARK_TEXT } from './documentPrintSettings';
 
+export interface SNSCardNewsOptions {
+  /** 카드 비율: '1:1' (1080×1080) | '4:5' (1080×1350) | '16:9' (1920×1080) */
+  ratio?: '1:1' | '4:5' | '16:9';
+  /** 카드 분할 기준: 'auto' (구분선/H1/장면 자동 감지) | 'hr' (구분선 --- 기준) | 'h1' (# 대제목 기준) */
+  splitMode?: 'auto' | 'hr' | 'h1';
+  /** 카드 하단 슬라이드 번호 표시 여부 (예: 01 / 05) */
+  showPageNumber?: boolean;
+  /** 저장 방식: 'files' (낱장 PNG 연속 다운로드) | 'zip' (ZIP 압축 묶음 파일 저장) */
+  saveMode?: 'files' | 'zip';
+}
+
 interface ExportOptions {
   previewEl: HTMLElement;
   currentFileName: string;
@@ -135,6 +148,7 @@ interface ExportOptions {
   paginationSettings?:import('./documentPaginationSettings').DocumentPaginationSettings;
   printSettings?:DocumentPrintSettings;
   signal?:AbortSignal;
+  snsOptions?: SNSCardNewsOptions;
 }
 
 /** 항상 라이트모드 기준으로 서식 프로필의 dynamic CSS를 재생성하는 헬퍼 함수 */
@@ -3823,6 +3837,574 @@ export async function exportPNG({
   } catch (err: any) {
     msg.error('PNG export error', err);
     showToast('PNG 내보내기 실패: ' + err.message, 'error');
+  }
+}
+
+// ====================================================================
+// 📊 [OMD-IO-exportHandlers-0015] exportHandlers.ts ➔ exportSNSCardNews
+// 🎯 @KICK  : 문서를 SNS 카드뉴스 규격(1:1 정사각 1080×1080, 4:5 세로형 1080×1350, 16:9 와이드 1920×1080)으로 카드별 분할 캡처하여 낱장 PNG 또는 ZIP으로 일괄 내보내기
+// 🛡️ @GUARD : 구분선(---), 대제목(# H1), 그림책 장면(:::scene) 및 자동 높이 분할 지원, 초과 본문 자동 스케일링으로 잘림 0% 보장
+// 🚨 @PATCH : **2026-10-27** — SNS 카드뉴스 전용 분할 출력 파이프라인 신설
+// 🔗 @CALLS : prepareExportPreview, getExportDocumentRoot, clonePreview, inlineLocalImages, injectExportStyles, fixListMarkers, applyExportInlineStyles
+// ====================================================================
+export async function exportSNSCardNews({
+  previewEl,
+  currentFileName,
+  showToast,
+  dynamicCssString,
+  paperSize,
+  marginTop,
+  marginBottom,
+  marginLeft,
+  marginRight,
+  backgroundColor,
+  activeProfile,
+  snsOptions,
+}: ExportOptions) {
+  let progress: ReturnType<typeof startExportProgress> | undefined;
+  try {
+    flushIME();
+    const htmlToImage = await import('html-to-image');
+    const docTitle = currentFileName.replace(/\.[^/.]+$/, '') || 'cardnews';
+
+    const ratio =
+      snsOptions?.ratio ||
+      (paperSize === 'sns_portrait' ? '4:5' : '1:1');
+    const splitMode = snsOptions?.splitMode || 'auto';
+    const showPageNumber = snsOptions?.showPageNumber !== false;
+    const saveMode = snsOptions?.saveMode || 'files';
+
+    // 논리 CSS 해상도 (pixelRatio: 2 적용 시 실제 비트맵: 1:1 -> 1080×1080, 4:5 -> 1080×1350, 16:9 -> 1920×1080)
+    const cardWidthPx = ratio === '16:9' ? 960 : 540;
+    const cardHeightPx = ratio === '4:5' ? 675 : 540;
+
+    progress = startExportProgress('PNG');
+    progress.update('SNS 카드뉴스 레이아웃 준비 중...');
+
+    const { inlineStyles } = collectAllStyles();
+    await prepareExportPreview(previewEl);
+    const targetEl = getExportDocumentRoot(previewEl);
+    const clone = clonePreview(targetEl);
+    await inlineLocalImages(clone);
+
+    // VisualDocumentEditor / MarkdownViewer 편집용 UI 요소 제거
+    clone
+      .querySelectorAll(
+        '[data-editor-controls], .onrivi-page-guides, .onrivi-print-tools, .visual-media-controls, .visual-mermaid-editor'
+      )
+      .forEach(node => node.remove());
+
+    // VisualDocumentEditor의 [data-onrivi-editor-host]에 주입된 커스텀 CSS 변수를 루트(clone)로 승격
+    const editorHostEl = clone.querySelector<HTMLElement>('[data-onrivi-editor-host]');
+    const inheritedHostStyle = editorHostEl?.getAttribute('style') || clone.getAttribute('style') || '';
+
+    const pageBg = backgroundColor || activeProfile?.pageStyle?.backgroundColor || '#ffffff';
+    const activeCss = dynamicCssString
+      ? dynamicCssString
+      : activeProfile
+      ? generateExportCss(activeProfile)
+      : '';
+    injectExportStyles(clone, activeCss, { hideIndicators: true }, pageBg);
+
+    await waitForExportResources(targetEl);
+    await new Promise(r => setTimeout(r, 250));
+
+    fixListMarkers(clone, activeProfile);
+    applyExportInlineStyles(clone, activeProfile, targetEl);
+
+    clone.querySelectorAll('img').forEach(img => img.setAttribute('crossOrigin', 'anonymous'));
+    const katexFontCss = await prepareDocumentFonts(targetEl);
+
+    const mmToPx = (mmStr?: string, defaultVal = 16) => {
+      const mm = parseFloat(mmStr || `${defaultVal}`);
+      return Math.round(Math.min(Math.max(mm, 8), 28) * 2.2);
+    };
+    const pTop = mmToPx(marginTop, 16);
+    const pBottom = mmToPx(marginBottom, 16);
+    const pLeft = mmToPx(marginLeft, 16);
+    const pRight = mmToPx(marginRight, 16);
+
+    // 1. 카드 단위 블록 분할 (그림책 .book-page 또는 일반 마크다운/문서보기 블록 분할)
+    const bookPages = Array.from(clone.querySelectorAll<HTMLElement>('.book-page'));
+    let cardNodesList: HTMLElement[][] = [];
+
+    if (bookPages.length > 0) {
+      cardNodesList = bookPages.map(page => {
+        const pageClone = page.cloneNode(true) as HTMLElement;
+        pageClone.style.setProperty('zoom', '1', 'important');
+        pageClone.style.setProperty('width', '100%', 'important');
+        pageClone.style.setProperty('height', '100%', 'important');
+        pageClone.style.setProperty('margin', '0', 'important');
+        pageClone.style.setProperty('outline', 'none', 'important');
+        pageClone.style.setProperty('box-shadow', 'none', 'important');
+        return [pageClone];
+      });
+    } else {
+      // VisualDocumentEditor(.visual-document-surface / .ProseMirror) 및 MarkdownViewer(.prose) 등 실제 블록 컨테이너 탐색
+      const findActualBlockContainer = (root: HTMLElement): HTMLElement => {
+        const explicitSurface = root.querySelector<HTMLElement>(
+          '.visual-document-surface, .ProseMirror, .markdown-viewer-root > .prose, .prose'
+        );
+        if (explicitSurface && explicitSurface.children.length > 0) {
+          return explicitSurface;
+        }
+        let curr = root;
+        for (let depth = 0; depth < 6; depth++) {
+          const children = Array.from(curr.children).filter(
+            el =>
+              !['STYLE', 'SCRIPT'].includes(el.tagName.toUpperCase()) &&
+              !el.classList.contains('book-screen-only') &&
+              !el.classList.contains('no-print') &&
+              !el.classList.contains('onrivi-page-guides') &&
+              !el.classList.contains('onrivi-print-tools') &&
+              !el.hasAttribute('data-editor-controls')
+          ) as HTMLElement[];
+          if (
+            children.length === 1 &&
+            ['DIV', 'SECTION', 'MAIN', 'ARTICLE'].includes(children[0].tagName.toUpperCase())
+          ) {
+            curr = children[0];
+          } else {
+            break;
+          }
+        }
+        return curr;
+      };
+
+      const contentContainer = findActualBlockContainer(clone);
+
+      const isDividerNode = (el: HTMLElement) => {
+        const tag = el.tagName.toUpperCase();
+        if (tag === 'HR') return true;
+        if (
+          el.hasAttribute('data-onrivi-page-break') ||
+          el.classList.contains('onrivi-page-break') ||
+          el.classList.contains('page-break') ||
+          el.classList.contains('visual-page-break')
+        ) {
+          return true;
+        }
+        const text = (el.textContent || '').trim();
+        if (text === '---' || text === '***' || text === '___') return true;
+        return false;
+      };
+
+      const isMeaningfulNode = (el: HTMLElement) => {
+        const tag = el.tagName.toUpperCase();
+        if (['IMG', 'TABLE', 'PRE', 'IFRAME', 'SVG', 'VIDEO', 'CANVAS', 'FIGURE'].includes(tag)) return true;
+        if (el.querySelector('img, table, pre, iframe, svg, video, canvas, figure')) return true;
+        return (el.textContent || '').replace(/\u200B/g, '').trim().length > 0;
+      };
+
+      const rawBlocks = Array.from(contentContainer.children).filter(
+        el =>
+          !['STYLE', 'SCRIPT'].includes(el.tagName.toUpperCase()) &&
+          !el.classList.contains('book-screen-only') &&
+          !el.classList.contains('no-print') &&
+          !el.classList.contains('onrivi-page-guides') &&
+          !el.classList.contains('onrivi-print-tools') &&
+          !el.hasAttribute('data-editor-controls')
+      ) as HTMLElement[];
+
+      const hasAnyDivider = rawBlocks.some(isDividerNode);
+      const h1Count = rawBlocks.filter(el => el.tagName.toUpperCase() === 'H1').length;
+      const h2Count = rawBlocks.filter(el => el.tagName.toUpperCase() === 'H2').length;
+
+      const semanticCards: HTMLElement[][] = [];
+      let currentCard: HTMLElement[] = [];
+
+      const flushCurrentCard = () => {
+        const meaningful = currentCard.filter(isMeaningfulNode);
+        if (meaningful.length > 0) {
+          semanticCards.push(meaningful);
+        }
+        currentCard = [];
+      };
+
+      for (const block of rawBlocks) {
+        const tag = block.tagName.toUpperCase();
+        if (isDividerNode(block)) {
+          if (splitMode === 'auto' || splitMode === 'hr') {
+            flushCurrentCard();
+            continue; // 구분선 자체는 카드 분할 마커로 소비하여 카드 화면에서 숨김
+          }
+        }
+
+        const shouldBreakOnH1 =
+          (splitMode === 'h1' ||
+            (splitMode === 'auto' &&
+              (!hasAnyDivider || activeProfile?.pageStyle?.exportPageBreakLevel === 'h1') &&
+              h1Count >= 2)) &&
+          tag === 'H1';
+
+        const shouldBreakOnH2 =
+          splitMode === 'auto' && !hasAnyDivider && h1Count <= 1 && h2Count >= 2 && tag === 'H2';
+
+        if ((shouldBreakOnH1 || shouldBreakOnH2) && currentCard.some(isMeaningfulNode)) {
+          flushCurrentCard();
+        }
+
+        if (isMeaningfulNode(block)) {
+          currentCard.push(block.cloneNode(true) as HTMLElement);
+        }
+      }
+      flushCurrentCard();
+
+      // 2단계: 각 의미 단락(섹션)이 카드 1장 높이를 초과하는 경우 실제 카드 레이아웃 기준으로 다중 카드로 자동 분할
+      // - 'auto' 또는 'h1' 모드이거나, 구분선이 전혀 없어 1장으로 뭉친 경우 높이 기반 자동 페이지네이션 수행
+      const shouldPaginateByHeight =
+        splitMode === 'auto' || splitMode === 'h1' || (splitMode === 'hr' && !hasAnyDivider);
+
+      if (shouldPaginateByHeight && semanticCards.length > 0) {
+        const maxContentH = cardHeightPx - pTop - pBottom - (showPageNumber ? 34 : 0);
+
+        const measureWrapper = document.createElement('div');
+        if (inheritedHostStyle) {
+          measureWrapper.setAttribute('style', inheritedHostStyle);
+        }
+        measureWrapper.style.cssText += `
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: ${cardWidthPx}px !important;
+          padding: ${pTop}px ${pRight}px ${pBottom}px ${pLeft}px !important;
+          box-sizing: border-box !important;
+          visibility: hidden !important;
+          pointer-events: none !important;
+          z-index: -9999 !important;
+        `;
+        measureWrapper.className = 'prose prose-base max-w-none custom-preview-container';
+        const st1 = document.createElement('style');
+        st1.textContent = `
+          ${inlineStyles}
+          ${activeCss}
+          .sns-card-body > :first-child { margin-top: 0 !important; }
+          .sns-card-body > :last-child { margin-bottom: 0 !important; }
+          .sns-card-body img { max-height: ${Math.round((cardHeightPx - pTop - pBottom) * 0.55)}px !important; width: auto !important; max-width: 100% !important; object-fit: contain !important; }
+        `;
+        measureWrapper.appendChild(st1);
+
+        const measureBody = document.createElement('div');
+        measureBody.className = 'markdown-viewer-root onrivi-content-root visual-document-surface sns-card-body';
+        measureBody.style.cssText = 'width: 100% !important; display: block !important;';
+        measureWrapper.appendChild(measureBody);
+        document.body.appendChild(measureWrapper);
+
+        // 아주 긴 UL/OL 목록 블록은 개별 LI 항목 단위로 쪼개어 카드 간 자연스럽게 넘어가도록 전처리
+        const expandOversizedBlocks = (nodes: HTMLElement[]): HTMLElement[] => {
+          const expanded: HTMLElement[] = [];
+          for (const node of nodes) {
+            const tag = node.tagName.toUpperCase();
+            if ((tag === 'UL' || tag === 'OL') && node.children.length > 1) {
+              measureBody.innerHTML = '';
+              const probe = node.cloneNode(true) as HTMLElement;
+              measureBody.appendChild(probe);
+              if (measureBody.scrollHeight > maxContentH * 0.85) {
+                const items = Array.from(node.children) as HTMLElement[];
+                items.forEach((li, idx) => {
+                  const singleList = node.cloneNode(false) as HTMLElement;
+                  if (tag === 'OL') {
+                    const startBase = parseInt(node.getAttribute('start') || '1', 10);
+                    singleList.setAttribute('start', String(startBase + idx));
+                  }
+                  singleList.appendChild(li.cloneNode(true));
+                  expanded.push(singleList);
+                });
+                continue;
+              }
+            }
+            expanded.push(node);
+          }
+          return expanded;
+        };
+
+        const paginatedCards: HTMLElement[][] = [];
+
+        for (const sectionNodes of semanticCards) {
+          const candidateNodes = expandOversizedBlocks(sectionNodes);
+          if (candidateNodes.length <= 1) {
+            paginatedCards.push(candidateNodes);
+            continue;
+          }
+
+          measureBody.innerHTML = '';
+          let currentBucket: HTMLElement[] = [];
+
+          for (let i = 0; i < candidateNodes.length; i++) {
+            const node = candidateNodes[i];
+            const probeNode = node.cloneNode(true) as HTMLElement;
+            measureBody.appendChild(probeNode);
+
+            const currentH = measureBody.scrollHeight;
+            const prevTag =
+              currentBucket.length > 0
+                ? currentBucket[currentBucket.length - 1].tagName.toUpperCase()
+                : '';
+            const isOnlyHeadingInBucket =
+              currentBucket.length === 1 && /^H[1-6]$/.test(prevTag);
+
+            if (currentBucket.length > 0 && !isOnlyHeadingInBucket && currentH > maxContentH) {
+              // 만약 직전 노드가 소제목(H1~H6)이라면 제목만 카드 하단에 고립되지 않도록 다음 카드로 함께 이동
+              if (currentBucket.length >= 2 && /^H[1-6]$/.test(prevTag)) {
+                const trailingHeading = currentBucket.pop()!;
+                paginatedCards.push(currentBucket);
+                measureBody.innerHTML = '';
+                const hClone = trailingHeading.cloneNode(true) as HTMLElement;
+                const nClone = node.cloneNode(true) as HTMLElement;
+                measureBody.appendChild(hClone);
+                measureBody.appendChild(nClone);
+                currentBucket = [trailingHeading, node];
+              } else {
+                paginatedCards.push(currentBucket);
+                measureBody.innerHTML = '';
+                measureBody.appendChild(node.cloneNode(true));
+                currentBucket = [node];
+              }
+            } else {
+              currentBucket.push(node);
+            }
+          }
+
+          if (currentBucket.length > 0) {
+            paginatedCards.push(currentBucket);
+          }
+        }
+
+        document.body.removeChild(measureWrapper);
+        cardNodesList = paginatedCards;
+      } else {
+        cardNodesList = semanticCards;
+      }
+    }
+
+    if (cardNodesList.length === 0) {
+      throw new Error('출력할 카드뉴스 본문 내용이 없습니다.');
+    }
+
+    const totalCards = cardNodesList.length;
+    const capturedCards: { filename: string; dataUrl: string }[] = [];
+
+    for (let idx = 0; idx < totalCards; idx++) {
+      progress.update(`SNS 카드뉴스 렌더링 중 (${idx + 1} / ${totalCards}장)...`);
+      const nodes = cardNodesList[idx];
+
+      const wrapper = document.createElement('div');
+      if (inheritedHostStyle) {
+        wrapper.setAttribute('style', inheritedHostStyle);
+      }
+      wrapper.style.cssText += `
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: ${cardWidthPx}px !important;
+        height: ${cardHeightPx}px !important;
+        padding: ${pTop}px ${pRight}px ${pBottom}px ${pLeft}px !important;
+        box-sizing: border-box !important;
+        z-index: -9999 !important;
+        pointer-events: none !important;
+        background-color: ${pageBg} !important;
+        color: #1f2328 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+        overflow: hidden !important;
+      `;
+      wrapper.className = 'prose prose-base max-w-none custom-preview-container';
+
+      const styleEl = document.createElement('style');
+      styleEl.textContent = `
+        ${inlineStyles}
+        ${activeCss}
+        .page-break-indicator, .page-break-line-before::before, .page-break::before, hr.page-break, .book-screen-only, .no-print {
+          display: none !important;
+        }
+        .sns-card-body > :first-child { margin-top: 0 !important; }
+        .sns-card-body > :last-child { margin-bottom: 0 !important; }
+        .sns-card-body img { max-height: ${Math.round((cardHeightPx - pTop - pBottom) * 0.55)}px !important; width: auto !important; max-width: 100% !important; object-fit: contain !important; margin-left: auto !important; margin-right: auto !important; }
+      `;
+      wrapper.appendChild(styleEl);
+
+      const bodyWrap = document.createElement('div');
+      bodyWrap.className = 'markdown-viewer-root onrivi-content-root visual-document-surface sns-card-body';
+      bodyWrap.style.cssText = `
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        overflow: visible !important;
+        background: transparent !important;
+      `;
+      nodes.forEach(n => bodyWrap.appendChild(n));
+      wrapper.appendChild(bodyWrap);
+
+      if (showPageNumber) {
+        const footer = document.createElement('div');
+        footer.style.cssText = `
+          flex: 0 0 auto !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: flex-end !important;
+          padding-top: 10px !important;
+          margin-top: 6px !important;
+        `;
+        const badge = document.createElement('span');
+        const numStr = String(idx + 1).padStart(2, '0');
+        const totStr = String(totalCards).padStart(2, '0');
+        badge.textContent = `${numStr} / ${totStr}`;
+        badge.style.cssText = `
+          font-family: 'JetBrains Mono', Pretendard, sans-serif !important;
+          font-size: 11px !important;
+          font-weight: 800 !important;
+          letter-spacing: 0.04em !important;
+          padding: 3px 10px !important;
+          border-radius: 9999px !important;
+          background: rgba(15, 23, 42, 0.07) !important;
+          color: #475569 !important;
+        `;
+        footer.appendChild(badge);
+        wrapper.appendChild(footer);
+      }
+
+      document.body.appendChild(wrapper);
+
+      // 카드 높이를 초과하는 경우 글자가 잘리지 않도록 자동 축소(Auto-Fit Scale) 보정
+      await new Promise(r => setTimeout(r, 120));
+      const availH = cardHeightPx - pTop - pBottom - (showPageNumber ? 34 : 0);
+      const naturalH = bodyWrap.scrollHeight;
+      if (naturalH > availH && availH > 80) {
+        const fitRatio = Math.max(0.62, availH / (naturalH + 8));
+        bodyWrap.style.setProperty('zoom', String(fitRatio), 'important');
+      }
+
+      await new Promise(r => setTimeout(r, 80));
+
+      const dataUrl = await htmlToImage.toPng(wrapper, {
+        backgroundColor: pageBg,
+        width: cardWidthPx,
+        height: cardHeightPx,
+        pixelRatio: 2,
+        cacheBust: true,
+        skipFonts: false,
+        fontEmbedCSS: katexFontCss,
+      });
+
+      document.body.removeChild(wrapper);
+
+      const paddedIdx = String(idx + 1).padStart(2, '0');
+      capturedCards.push({
+        filename: `${docTitle}_카드뉴스_${paddedIdx}.png`,
+        dataUrl,
+      });
+    }
+
+    // 2. 저장 처리 (ZIP 묶음 저장 vs 낱장 PNG 일괄 저장)
+    const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+
+    if (saveMode === 'zip') {
+      progress.update('SNS 카드뉴스 ZIP 압축 파일 생성 중...');
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      for (const card of capturedCards) {
+        const base64Data = card.dataUrl.replace(/^data:image\/png;base64,/, '');
+        zip.file(card.filename, base64Data, { base64: true });
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const zipFilename = `${docTitle}_SNS카드뉴스_${totalCards}장.zip`;
+
+      if (api?.saveFileAs) {
+        const reader = new FileReader();
+        const zipDataUrl = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(new Error('ZIP 데이터를 읽지 못했습니다.'));
+          reader.readAsDataURL(zipBlob);
+        });
+        const saved = await api.saveFileAs(zipDataUrl, zipFilename, '', [{ name: 'ZIP Archive', extensions: ['zip'] }]);
+        if (saved) {
+          showToast(`SNS 카드뉴스 ${totalCards}장이 ZIP 파일로 저장되었습니다.`, 'success');
+        } else {
+          showToast('SNS 카드뉴스 저장이 취소되었습니다.', 'info');
+        }
+      } else {
+        const { downloadBlob } = await import('./docxGenerator');
+        downloadBlob(zipBlob, zipFilename);
+        showToast(`SNS 카드뉴스 ${totalCards}장(${zipFilename}) 다운로드가 완료되었습니다.`, 'success');
+      }
+    } else {
+      // 낱장 PNG 일괄 다운로드 (또는 1장일 때 단일 저장)
+      if (api?.saveFileAs && totalCards === 1) {
+        const saved = await api.saveFileAs(
+          capturedCards[0].dataUrl,
+          capturedCards[0].filename,
+          '',
+          [{ name: 'PNG Images', extensions: ['png'] }]
+        );
+        if (saved) {
+          showToast('SNS 카드뉴스 이미지가 저장되었습니다.', 'success');
+        } else {
+          showToast('SNS 카드뉴스 내보내기가 취소되었습니다.', 'info');
+        }
+      } else if (api?.showSaveDialog && api?.saveBinaryFile) {
+        // 일렉트론 데스크톱에서 다중 낱장 PNG 저장 시: 첫 번째 파일 경로를 한 번만 지정받아 같은 폴더에 01, 02, 03... 일괄 저장
+        const dialogResult = await api.showSaveDialog({
+          title: `SNS 카드뉴스 ${totalCards}장 일괄 저장 (첫 번째 카드 파일명 지정)`,
+          defaultPath: `${docTitle}_카드뉴스_01.png`,
+          filters: [{ name: 'PNG Images', extensions: ['png'] }],
+        });
+        const chosenPath: string | null =
+          typeof dialogResult === 'string'
+            ? dialogResult
+            : dialogResult && !dialogResult.canceled && dialogResult.filePath
+            ? dialogResult.filePath
+            : null;
+
+        if (!chosenPath) {
+          showToast('SNS 카드뉴스 내보내기가 취소되었습니다.', 'info');
+          return;
+        }
+
+        const normalizedPath = chosenPath.replace(/\\/g, '/');
+        const lastSlash = normalizedPath.lastIndexOf('/');
+        const dirPath = lastSlash >= 0 ? normalizedPath.slice(0, lastSlash) : '.';
+        const rawBaseName = (lastSlash >= 0 ? normalizedPath.slice(lastSlash + 1) : normalizedPath)
+          .replace(/\.png$/i, '')
+          .replace(/_?0*1$/, '');
+
+        for (let i = 0; i < capturedCards.length; i++) {
+          const card = capturedCards[i];
+          const padded = String(i + 1).padStart(2, '0');
+          const targetFilePath = `${dirPath}/${rawBaseName}_${padded}.png`;
+          const base64Data = card.dataUrl.replace(/^data:image\/png;base64,/, '');
+          const binaryStr = atob(base64Data);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let b = 0; b < binaryStr.length; b++) {
+            bytes[b] = binaryStr.charCodeAt(b);
+          }
+          await api.saveBinaryFile(targetFilePath, bytes);
+        }
+        showToast(`SNS 카드뉴스 총 ${totalCards}장(PNG)이 선택한 폴더에 일괄 저장되었습니다!`, 'success');
+      } else {
+        // 웹 브라우저에서 다중 PNG 순차 다운로드 (브라우저 다중 다운로드 차단 방지를 위해 Blob URL + 충분한 간격 적용)
+        const { downloadBlob } = await import('./docxGenerator');
+        for (let i = 0; i < capturedCards.length; i++) {
+          const card = capturedCards[i];
+          const res = await fetch(card.dataUrl);
+          const blob = await res.blob();
+          downloadBlob(blob, card.filename);
+          await saveToDownloads(card.filename, card.dataUrl, 'base64');
+          if (i < capturedCards.length - 1) {
+            await new Promise(r => setTimeout(r, 350));
+          }
+        }
+        showToast(`SNS 카드뉴스 총 ${totalCards}장(PNG)이 일괄 출력되었습니다!`, 'success');
+      }
+    }
+  } catch (err: any) {
+    msg.error('SNS CardNews export error', err);
+    showToast('SNS 카드뉴스 내보내기 실패: ' + err.message, 'error');
+  } finally {
+    progress?.finish();
   }
 }
 

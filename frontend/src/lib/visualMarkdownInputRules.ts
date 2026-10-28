@@ -2,6 +2,9 @@
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
  * 프로그램 ID : oaar-vm-inputrules
+ * 🚨 @PATCH : **2026-10-28** — [번호 리스트 마지막 행에서 하위 레벨 글머리 기호(•) 리스트 전환 및 자동 들여쓰기 지원]:
+ *             1) 번호 리스트(ordered_list) 또는 체크리스트의 빈 항목에서 '-', '*', '+' 공백 입력 시 기존 리스트 항목을 글머리 기호 리스트(bullet_list)로 즉시 전환하도록 convertExistingList 가드 복원
+ *             2) 번호 리스트의 후속 항목(itemIndex > 0)에서 공백 + 불릿(' - ') 입력 시 또는 리스트 바로 아래 들여쓰기된 문단(Tab)에서 불릿('- ') 입력 시 상위 번호 항목의 하위 레벨 글머리 기호 리스트로 즉시 자동 편입
  * 🚨 @PATCH : **2026-10-25** — [인라인 코드/백틱(`) 내부 서식 태그(<u>, ~~, ** 등) 문자열 보존 가드 신설]:
  *             1) isInsideCode 판정기를 신설하여 code_block 내부, code 마크 활성 상태, 또는 닫히지 않은 열린 백틱(`) 구간 타이핑 중일 때 <u>...</u>, ~~...~~, **...** 등의 서식 자동 변환 규칙 발속을 전면 억제
  *             2) `<u>밑줄 내용</u>` 또는 `~~취소선 내용~~` 등 문법 안내 코드를 작성할 때 내부 태그가 성급하게 스타일 마크로 치환되어 <u>`밑줄`</u> 형태로 오변환되는 결함을 원천 해결
@@ -37,14 +40,16 @@ import { InputRule, inputRules, textblockTypeInputRule, wrappingInputRule } from
 import { Fragment, MarkType } from 'prosemirror-model';
 import { EditorState, Transaction, TextSelection } from 'prosemirror-state';
 import { visualSchema } from '@/lib/visualDocumentCodec';
-import { selectedList } from '@/lib/visualListCommands';
+import { independentIndentListItem, selectedList } from '@/lib/visualListCommands';
 
-function convertExistingList(state: EditorState, kind:'bullet'|'ordered', start:number,end:number, order=1):Transaction|null {
+function convertExistingList(state: EditorState, kind:'bullet'|'ordered', start:number,end:number, order=1, shouldIndent=false):Transaction|null {
   const {$from}=state.selection;
   if(start!==$from.start() || $from.parent.type!==visualSchema.nodes.paragraph)return null;
   const tr=state.tr.delete(start,end);
   const next=state.apply(tr);
+  let convertedOk = false;
   selectedList(kind)(next, converted=>{
+    convertedOk = true;
     converted.steps.forEach(step=>tr.step(step));
     if(kind==='ordered') {
       const position=converted.selection.$from;
@@ -55,6 +60,14 @@ function convertExistingList(state: EditorState, kind:'bullet'|'ordered', start:
     // Input rules leave the caret at the start of the converted item.
     tr.setSelection(TextSelection.near(tr.doc.resolve(converted.selection.from)));
   });
+  if (!convertedOk) return null;
+  if (shouldIndent) {
+    const afterConvertState = state.apply(tr);
+    independentIndentListItem(afterConvertState, indentTr => {
+      indentTr.steps.forEach(step => tr.step(step));
+      tr.setSelection(TextSelection.near(tr.doc.resolve(indentTr.selection.from)));
+    });
+  }
   return tr;
 }
 
@@ -214,8 +227,24 @@ export function buildVisualMarkdownRules(): InputRule[] {
       const position = state.selection.$from;
       const parent = position.parent;
       if (parent.type !== nodes.paragraph || insideCell(state)) return null;
-      for (let d = position.depth; d > 0; d--) { if (position.node(d).type === nodes.list_item) return null; }
-      const converted=convertExistingList(state,'bullet',start,end);
+      const hasLeadingSpace = /^\s/.test(match[0].replace(/^\ufffc/, ''));
+      let inListItem = false;
+      for (let d = position.depth; d > 0; d--) {
+        if (position.node(d).type === nodes.list_item) {
+          inListItem = true;
+          break;
+        }
+      }
+      if (inListItem) {
+        const listNode = position.depth >= 3 ? position.node(position.depth - 2) : null;
+        const itemNode = position.depth >= 2 ? position.node(position.depth - 1) : null;
+        const isOrderedOrTask = listNode?.type === nodes.ordered_list || (itemNode && itemNode.attrs.checked !== null);
+        if (!isOrderedOrTask || start !== position.start() || end !== position.end()) {
+          return null;
+        }
+        return convertExistingList(state, 'bullet', start, end, 1, hasLeadingSpace);
+      }
+      const converted=convertExistingList(state,'bullet',start,end,1,hasLeadingSpace);
       if(converted)return converted;
       const blockStart = position.start();
       const blockPos = position.before();
@@ -226,11 +255,12 @@ export function buildVisualMarkdownRules(): InputRule[] {
       }
       const afterContent = parent.content.cut(end - blockStart);
       const bullet = match[1];
+      const paragraphIndentPx = parent.attrs.indentPx ?? null;
       const listItem = nodes.list_item.create(
         null,
         nodes.paragraph.create(null, afterContent)
       );
-      const bulletList = nodes.bullet_list.create({ bullet }, listItem);
+      const bulletList = nodes.bullet_list.create({ bullet, indentPx: paragraphIndentPx }, listItem);
       let tr = state.tr;
       if (cleanBefore.size > 0) {
         const prevParagraph = nodes.paragraph.create(null, cleanBefore);
@@ -238,8 +268,19 @@ export function buildVisualMarkdownRules(): InputRule[] {
         const listPos = blockPos + prevParagraph.nodeSize;
         tr = tr.setSelection(TextSelection.near(tr.doc.resolve(listPos + 2)));
       } else {
-        tr = tr.replaceWith(blockPos, blockPos + parent.nodeSize, bulletList);
+        const prevNode = blockPos > 0 ? state.doc.resolve(blockPos).nodeBefore : null;
+        const prevIsList = Boolean(prevNode && ['bullet_list', 'ordered_list'].includes(prevNode.type.name));
+        const shouldAutoNest = prevIsList && ((paragraphIndentPx && paragraphIndentPx > 0) || hasLeadingSpace);
+        const listToInsert = shouldAutoNest ? nodes.bullet_list.create({ bullet }, listItem) : bulletList;
+        tr = tr.replaceWith(blockPos, blockPos + parent.nodeSize, listToInsert);
         tr = tr.setSelection(TextSelection.near(tr.doc.resolve(blockPos + 2)));
+        if (shouldAutoNest) {
+          const nextState = state.apply(tr);
+          independentIndentListItem(nextState, indentTr => {
+            indentTr.steps.forEach(step => tr.step(step));
+            tr.setSelection(TextSelection.near(tr.doc.resolve(indentTr.selection.from)));
+          });
+        }
       }
       return tr;
     }),

@@ -22,7 +22,7 @@ export async function readDocument(input) {
   return { path: file, content: bytes.toString('utf8'), sha256: sha256(bytes) };
 }
 
-export async function replaceDocument(input, expectedSha256, content) {
+export async function replaceDocument(input, expectedSha256, content, beforeWrite) {
   if (typeof content !== 'string') throw new Error('content는 문자열이어야 합니다.');
   if (!/^[a-f0-9]{64}$/i.test(expectedSha256 ?? '')) throw new Error('read_markdown에서 받은 SHA-256 값이 필요합니다.');
   const bytes = Buffer.from(content, 'utf8');
@@ -34,6 +34,7 @@ export async function replaceDocument(input, expectedSha256, content) {
     if (!stat.isFile() || stat.size > MAX_BYTES) throw new Error('이 문서는 더 이상 지원되는 파일이 아닙니다.');
     const current = await handle.readFile();
     if (sha256(current) !== expectedSha256.toLowerCase()) throw new Error('문서를 읽은 뒤 파일이 변경되었습니다. 다시 읽은 후 저장하세요.');
+    if (beforeWrite) await beforeWrite();
     // This handle points to the opened file, so swapping its path after validation cannot redirect the write.
     await handle.truncate(0);
     await handle.write(bytes, 0, bytes.length, 0);

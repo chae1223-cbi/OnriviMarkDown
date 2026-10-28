@@ -1,10 +1,10 @@
 /**
  * 프로그램명 : OnriviAuthor
  * 파일명 : StyleManagerModal.tsx
- * 🚨 @PATCH : **2026-10-27** — [서식 관리 센터 사이드바 액션 일원화 및 본문 2단 카드(이름·설명 카드 + 설명 상세 카드) 분리 개편]:
- *             1) 좌측 사이드바 서식 목록 아이템에 'JSON 복사' 퀵 액션 추가(복제, 파일 내보내기, JSON 복사, 삭제 일원화) 및 본문 상단 중복 버튼(서식 복제, 파일 내보내기, JSON 복사) 제거
- *             2) 본문 상단을 좌측 [이름 및 서식 설명 카드(일반문서/그림책 구분 포함)]와 우측 별도 [설명 상세 카드(글꼴, 크기/행간, 여백, 표 테두리, 불릿, 문서타입: 그림책(스토리북)/일반문서)] 2단 카드로 분리 배치
- *             3) 좌측 사이드바 '+ 추가' 클릭 시 [일반문서 / 그림책(전체표지) / 그림책(오른쪽표지)] 3종 선택 생성 메뉴 탑재 및 상단 헤더 바의 기존 새로만들기·그림책 생성 버튼 3종 제거
+ * 🚨 @PATCH : **2026-10-27** — [SNS 카드뉴스 서식 생성·배지 지원 및 서식 관리 센터 사이드바 액션 일원화·본문 2단 카드 분리]:
+ *             1) 좌측 사이드바 '+ 추가' 메뉴에 [📱 SNS 카드뉴스 (인스타·링크드인 1:1)] 생성 옵션을 추가하여 4종(일반문서 / 그림책 전체표지 / 그림책 오른쪽표지 / SNS 카드뉴스) 선택 생성 지원
+ *             2) 좌측 사이드바 서식 목록 아이템에 'JSON 복사' 퀵 액션 추가(복제, 파일 내보내기, JSON 복사, 삭제 일원화) 및 본문 상단 중복 버튼 제거
+ *             3) 본문 상단을 좌측 [이름 및 서식 설명 카드]와 우측 별도 [설명 상세 카드(글꼴, 크기/행간, 여백, 표 테두리, 불릿, 문서타입: 일반문서/그림책/SNS 카드뉴스)] 2단 카드로 분리 배치
  *             4) 우측 작업 영역 4-Tab 허브(① 가져오기 & 내보내기 / ② AI 서식 생성기 / ③ 서식 JSON 코드 보기 / ④ 최신 서식 생성 가이드) 및 다중 서식 가져오기·전체 백업 연동
  * 🚨 @PATCH : **2026-10-09** — [서식 관리 목록 최신 서식 우선 정렬 및 모달 진입 시 자동 실시간 재동기화]:
  *             1) 서식 관리 모달 오픈 시 onrivi:reload_profiles 자동 브로드캐스트로 userCssProfiles.json 최신 상태 즉각 하이드레이션
@@ -349,14 +349,19 @@ export default function StyleManagerModal({
     showToast(`서식 이름이 '${tempName.trim()}'(으)로 변경되었습니다.`);
   };
 
-  /* ─── 사이드바 추가(+) 메뉴에서 서식 타입별(일반문서 / 그림책 전체표지 / 그림책 오른쪽표지) 생성 ─── */
-  const handleCreateProfileByType = (createType: 'general' | 'picturebook-full' | 'picturebook-right') => {
+  /* ─── 사이드바 추가(+) 메뉴에서 서식 타입별(일반문서 / 그림책 전체표지 / 그림책 오른쪽표지 / SNS 카드뉴스) 생성 ─── */
+  const handleCreateProfileByType = (createType: 'general' | 'picturebook-full' | 'picturebook-right' | 'sns-card') => {
     setAiPromptInput('');
     setImportJsonText('');
     setSearchTerm('');
     setShowAddMenu(false);
 
-    const newId = createType === 'general' ? `profile-${Date.now()}` : `profile-book-${Date.now()}`;
+    const newId =
+      createType === 'general'
+        ? `profile-${Date.now()}`
+        : createType === 'sns-card'
+        ? `profile-sns-${Date.now()}`
+        : `profile-book-${Date.now()}`;
     const count = profiles.filter(p => !isSystemProfileId(p.id)).length + 1;
 
     const initialName =
@@ -364,6 +369,8 @@ export default function StyleManagerModal({
         ? `그림책(전체표지) ${count}`
         : createType === 'picturebook-right'
         ? `그림책(오른쪽표지) ${count}`
+        : createType === 'sns-card'
+        ? `SNS 카드뉴스 ${count}`
         : `새 서식 ${count}`;
 
     const initialDesc =
@@ -371,10 +378,15 @@ export default function StyleManagerModal({
         ? '그림책(스토리북 · 전체 표지) 레이아웃으로 생성된 사용자 정의 서식입니다.'
         : createType === 'picturebook-right'
         ? '그림책(스토리북 · 오른쪽 표지) 레이아웃으로 생성된 사용자 정의 서식입니다.'
+        : createType === 'sns-card'
+        ? '인스타그램·쓰레드·링크드인 공유용 1:1 정사각형(1080×1080) SNS 카드뉴스 사용자 정의 서식입니다.'
         : '일반문서 조판용으로 Onrivi 기본서식을 기반으로 생성된 사용자 정의 서식입니다.';
 
+    const snsSystemTemplate = profiles.find(p => p.id === 'sns-card-news');
+    const baseTemplate = createType === 'sns-card' && snsSystemTemplate ? snsSystemTemplate : DEFAULT_PROFILE;
+
     const rawNew: CssProfile = {
-      ...DEFAULT_PROFILE,
+      ...structuredClone(baseTemplate),
       id: newId,
       name: initialName,
       description: initialDesc,
@@ -382,6 +394,21 @@ export default function StyleManagerModal({
         ? { layout: { ...DEFAULT_BOOK_LAYOUT, cover: 'full-image' as const } }
         : createType === 'picturebook-right'
         ? { layout: { ...DEFAULT_BOOK_LAYOUT, cover: 'image-right' as const } }
+        : createType === 'sns-card'
+        ? {
+            pageStyle: {
+              ...baseTemplate.pageStyle,
+              paperSize: 'sns_square',
+              fontSize: '13pt',
+              lineHeight: '1.65',
+              backgroundColor: '#f8fafc',
+              marginTop: '16mm',
+              marginBottom: '16mm',
+              marginLeft: '16mm',
+              marginRight: '16mm',
+              exportPageBreakLevel: 'h1',
+            },
+          }
         : {}),
     };
 
@@ -974,6 +1001,16 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
                   <span>📖 그림책(오른쪽표지)</span>
                   <span className="text-[10px] font-bold text-[#0d9488] dark:text-teal-400">스토리북 · 오른쪽표지</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => handleCreateProfileByType('sns-card')}
+                  className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11.5px] font-bold flex items-center justify-between transition-colors cursor-pointer ${
+                    dk ? 'hover:bg-slate-800 text-zinc-100' : 'hover:bg-pink-50 text-slate-800'
+                  }`}
+                >
+                  <span>📱 SNS 카드뉴스</span>
+                  <span className="text-[10px] font-bold text-pink-600 dark:text-pink-400">인스타·링크드인 1:1</span>
+                </button>
               </div>
             )}
 
@@ -1171,7 +1208,7 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <span className="text-[14px] shrink-0">
-                        {p.layout ? '📖' : isSys ? '🏛️' : '🎨'}
+                        {p.layout ? '📖' : p.pageStyle?.paperSize?.startsWith('sns_') || p.id === 'sns-card-news' ? '📱' : isSys ? '🏛️' : '🎨'}
                       </span>
                       <div className="min-w-0 text-left">
                         <p className={`text-[12.5px] truncate leading-tight ${
@@ -1285,10 +1322,14 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
                       <span className={`text-[10.5px] px-2.5 py-0.5 rounded-full font-extrabold ${
                         selectedProfile.layout?.type === 'picturebook'
                           ? 'bg-teal-50 dark:bg-teal-950/60 text-[#0d9488] dark:text-teal-300 border border-teal-200 dark:border-teal-800'
+                          : selectedProfile.pageStyle?.paperSize?.startsWith('sns_') || selectedProfile.id === 'sns-card-news'
+                          ? 'bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 border border-pink-200 dark:border-pink-800'
                           : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
                       }`}>
                         {selectedProfile.layout?.type === 'picturebook'
                           ? `📖 그림책(스토리북 · ${selectedProfile.layout.cover === 'full-image' ? '전체표지' : '오른쪽표지'})`
+                          : selectedProfile.pageStyle?.paperSize?.startsWith('sns_') || selectedProfile.id === 'sns-card-news'
+                          ? `📱 SNS 카드뉴스 (${selectedProfile.pageStyle?.paperSize === 'sns_portrait' ? '4:5 세로형' : '1:1 정사각'})`
                           : '📄 일반문서'}
                       </span>
                       {selectedProfile.id === activeProfileId && (
@@ -1348,17 +1389,21 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
                     </div>
                   )}
 
-                  {/* 서식 설명 (일반문서인지 그림책인지 명시 포함) */}
+                  {/* 서식 설명 (일반문서인지 그림책인지 SNS 카드뉴스인지 명시 포함) */}
                   <div className={`p-3 rounded-xl border ${hairline} ${dk ? 'bg-slate-900/60' : 'bg-slate-50/90'} text-[12px] font-medium text-zinc-700 dark:text-zinc-300 leading-relaxed`}>
                     <span className="font-extrabold text-[#1d4ed8] dark:text-blue-400 mr-1.5">
                       [{selectedProfile.layout?.type === 'picturebook'
                         ? `그림책(스토리북 · ${selectedProfile.layout.cover === 'full-image' ? '전체표지' : '오른쪽표지'}) 서식`
+                        : selectedProfile.pageStyle?.paperSize?.startsWith('sns_') || selectedProfile.id === 'sns-card-news'
+                        ? 'SNS 카드뉴스 서식'
                         : '일반문서 서식'}]
                     </span>
                     <span>
                       {selectedProfile?.description ||
                         (selectedProfile.layout?.type === 'picturebook'
                           ? '페이지 단위로 그림과 본문이 나란히 배치되는 그림책(스토리북) 전용 서식입니다.'
+                          : selectedProfile.pageStyle?.paperSize?.startsWith('sns_') || selectedProfile.id === 'sns-card-news'
+                          ? '인스타그램·쓰레드·링크드인·블로그 공유에 최적화된 SNS 카드뉴스 전용 서식입니다.'
                           : '일반 보고서·출판 원고 작성을 위한 정갈한 텍스트 배치와 표준 용지 규격을 제공하는 일반문서 서식입니다.')}
                     </span>
                   </div>
@@ -1444,6 +1489,8 @@ ${guideContent || CSS_PROFILE_GUIDE_MD}
                     <div className="text-[12px] font-extrabold text-slate-900 dark:text-zinc-100 mt-0.5">
                       {selectedProfile.layout?.type === 'picturebook'
                         ? `그림책(스토리북 · ${selectedProfile.layout.cover === 'full-image' ? '전체표지' : '오른쪽표지'})`
+                        : selectedProfile.pageStyle?.paperSize?.startsWith('sns_') || selectedProfile.id === 'sns-card-news'
+                        ? `SNS 카드뉴스 (${selectedProfile.pageStyle?.paperSize === 'sns_portrait' ? '4:5 세로형' : '1:1 정사각'})`
                         : '일반문서'}
                     </div>
                   </div>

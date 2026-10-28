@@ -163,7 +163,7 @@ async function importPdf(
   try {
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     
-    const MAX_PAGES = 50;
+    const MAX_PAGES = 100;
     if (pdf.numPages > MAX_PAGES) {
       throw new Error(`PDF 문서가 너무 큽니다. (현재 ${pdf.numPages}페이지 / 최대 허용 ${MAX_PAGES}페이지). 분할하여 가져와주세요.`);
     }

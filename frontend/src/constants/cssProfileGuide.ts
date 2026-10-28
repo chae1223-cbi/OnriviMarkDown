@@ -1,11 +1,12 @@
 /**
  * cssProfileGuide.ts
  * 온리비 어서(Onrivi Author) 최신 서식 프로필(CSS Profile) 명세서 및 AI 서식 생성 가이드 마크다운 정의
- * 🚨 @PATCH : **2026-10-27** — [제목 단계별 크기 감소폭(headingSizeOffset) 최초 기본값 '3pt', 제목 앞 좌측 색깔바(border-left) 4종 프리셋 및 서식 관리 센터 최신 워크플로우 가이드 반영]:
- *             1) pageStyle.headingSizeOffset 미정의 시 최초 기본값 '3pt'(0pt~6pt 조절) 명세 및 JSON 스키마·마스터 프롬프트 동기화
- *             2) 제목(H1~H6) 앞 좌측 색깔바(border-left: 바 없음 'none' / 얇은 바 '3px solid' / 표준 바 '4px solid' / 굵은 바 '6px solid' + 색깔바 색상 선택 + padding-left '12px' 자동 연동) 상세 명세 추가
- *             3) 서식 관리 센터 최신 UI 워크플로우(사이드바 '+ 추가' 3종 문서 타입[일반문서/그림책 전체표지/그림책 오른쪽표지] 선택 생성, 사이드바 '복제/내보내기/JSON 복사/삭제' 액션, 본문 2단 '이름·설명 카드 + 설명 상세 카드' 분리) 가이드 반영
- *             4) 15대 서식 카테고리 전수 명세(bulletStructure 13종, ol 특수 마커, 인라인 4종 세부 속성, 미디어 프리셋·정렬, 캡션 4종 오버라이드) 수록
+ * 🚨 @PATCH : **2026-10-27** — [SNS 카드뉴스 전용 용지 규격(sns_square, sns_portrait) 및 4종 서식 생성 워크플로우·프리셋 가이드 반영]:
+ *             1) pageStyle.paperSize에 SNS 카드뉴스 1:1 정사각('sns_square') 및 4:5 세로형('sns_portrait') 명세 추가, AI 표준 프리셋에 '📱 SNS 카드뉴스 (인스타·링크드인)' 수록
+ *             2) pageStyle.headingSizeOffset 미정의 시 최초 기본값 '3pt'(0pt~6pt 조절) 명세 및 JSON 스키마·마스터 프롬프트 동기화
+ *             3) 제목(H1~H6) 앞 좌측 색깔바(border-left: 바 없음 'none' / 얇은 바 '3px solid' / 표준 바 '4px solid' / 굵은 바 '6px solid' + 색깔바 색상 선택 + padding-left '12px' 자동 연동) 상세 명세 추가
+ *             4) 서식 관리 센터 최신 UI 워크플로우(사이드바 '+ 추가' 4종 문서 타입[일반문서/SNS 카드뉴스/그림책 전체표지/그림책 오른쪽표지] 선택 생성, 사이드바 '복제/내보내기/JSON 복사/삭제' 액션, 본문 2단 '이름·설명 카드 + 설명 상세 카드' 분리) 가이드 반영
+ *             5) 15대 서식 카테고리 전수 명세(bulletStructure 13종, ol 특수 마커, 인라인 4종 세부 속성, 미디어 프리셋·정렬, 캡션 4종 오버라이드) 수록
  * 🚨 @PATCH : **2026-10-01** — [PDF/EPUB 내보내기 페이지 나누기 기준 기본값 'none' 명세 동기화]: 가이드 내 JSON 스펙의 exportPageBreakLevel을 'none'으로 변경
  * 🚨 @PATCH : **2026-09-26** — [표 모든 테두리(Grid) 세로선 및 프리셋 가이드·프롬프트 동기화]: th/td 레거시 border-left/right: none 소거, tableStructure(outerBorderWidth, rowBorderWidth, colBorderWidth) 격자/가로선/미니멀 프리셋 명세 및 AI 생성 프롬프트 정합화
  * 🚨 @PATCH : **2026-09-25** — [한컴 테크 블로그 프리미엄 서식 분석 및 가이드 명세 추가]
@@ -65,6 +66,14 @@ export const AI_STANDARD_PRESETS: AiStylePresetItem[] = [
     prompt:
       'Noto Serif KR 명조체 16.5px, 따뜻한 아이보리 미색 배경(#FAF6ED), 넓은 줄간격 1.85, 본문 양끝 정렬(justify), 표준 여백(상하 18mm/좌우 12mm), 미니멀 표 서식(outer 0px, row 1px, col 0px), 부드러운 박스형 인용구 스타일로 만들어줘.',
   },
+  {
+    id: 'sns-card-news-preset',
+    label: '📱 SNS 카드뉴스 (인스타·링크드인)',
+    badge: '1:1 정사각 · 형광펜 강조',
+    summary: '인스타그램·쓰레드·링크드인 캐러셀용 1:1 정사각(sns_square), 굵은 타이포 및 형광펜 하이라이트',
+    prompt:
+      'paperSize는 "sns_square"(1:1 정사각 카드뉴스, 4:5 세로형은 "sns_portrait"), 여백은 상하좌우 14mm, Pretendard 고딕 18px, 줄간격 1.65, H1은 28px 굵은 타이틀과 하단 코발트 블루 포인트선(3px solid #1d4ed8), H2는 좌측 6px 코발트 색깔바(6px solid #1d4ed8, padding-left 12px), 굵게(strong)는 노란 형광펜 배경(#fef08a), 인용구는 둥근 요약 박스(#eff6ff 배경, 16px 곡률)로 만들어줘.',
+  },
 ];
 
 /** 서식 편집기 15대 상세 카테고리 요약 사양 (모달 가이드 탭 및 문서 공용) */
@@ -82,9 +91,9 @@ export const STYLE_15_CATEGORY_SPECS: StyleCategorySpecItem[] = [
     category: '본문·여백 (용지 & 인라인 강조)',
     targetKeys: 'pageStyle, rules.p, strong, em, u, del',
     properties:
-      'pageStyle(fontFamily, fontUrl, fontSize[pt/px], lineHeight, letterSpacing, backgroundColor, paperSize[a4/b5/letter], orientation[portrait/landscape], marginTop/Bottom[18mm], marginLeft/Right[12mm], headingSizeOffset[최초 기본값 "3pt"], tabSize, exportPageBreakLevel[none/h1/h2]) / p(margin-top, margin-bottom, line-height, color, text-align[left/center/right/justify], text-indent, letter-spacing, sentence-gap) / strong(font-weight, color, background-color) / em(font-style, color) / u(text-decoration, text-decoration-style[solid/dashed/dotted/wavy], text-decoration-color, text-underline-offset) / del(text-decoration, color, text-decoration-color, text-decoration-thickness, opacity)',
+      'pageStyle(fontFamily, fontUrl, fontSize[pt/px], lineHeight, letterSpacing, backgroundColor, paperSize[a4/b5/letter/sns_square/sns_portrait], orientation[portrait/landscape], marginTop/Bottom[18mm], marginLeft/Right[12mm], headingSizeOffset[최초 기본값 "3pt"], tabSize, exportPageBreakLevel[none/h1/h2]) / p(margin-top, margin-bottom, line-height, color, text-align[left/center/right/justify], text-indent, letter-spacing, sentence-gap) / strong(font-weight, color, background-color) / em(font-style, color) / u(text-decoration, text-decoration-style[solid/dashed/dotted/wavy], text-decoration-color, text-underline-offset) / del(text-decoration, color, text-decoration-color, text-decoration-thickness, opacity)',
     presetsAndNotes:
-      '용지 표준 여백은 상하 18mm·좌우 12mm 권장. headingSizeOffset 미정의 시 최초 기본값은 "3pt". strong에 background-color 지정 시 형광펜 하이라이트 효과 적용.',
+      '용지 표준 여백은 상하 18mm·좌우 12mm 권장(SNS 카드뉴스는 sns_square[1:1] / sns_portrait[4:5], 여백 14mm 권장). headingSizeOffset 미정의 시 최초 기본값은 "3pt". strong에 background-color 지정 시 형광펜 하이라이트 효과 적용.',
   },
   {
     no: 2,
@@ -224,8 +233,8 @@ export const AI_MASTER_PROMPT_TEMPLATE = `당신은 최고급 출판·문서 조
 1. 최상위 JSON 키 구조:
    "id", "name", "description", "pageStyle", "rules", "hrStructure", "checkboxStructure", "tableStructure", "bulletStructure", "mediaCaptionStructure", "headingNumbering", "customCss" (그림책 요청 시 "layout" 추가)
 2. 용지 및 기본 타이포그래피 (pageStyle):
-   - paperSize: "a4" ("b5", "letter" 가능), orientation: "portrait" (가로형은 "landscape")
-   - 표준 여백: marginTop: "18mm", marginBottom: "18mm", marginLeft: "12mm", marginRight: "12mm"
+   - paperSize: "a4" ("b5", "letter", SNS 카드뉴스는 1:1 정사각 "sns_square" 또는 4:5 세로형 "sns_portrait" 가능), orientation: "portrait" (가로형은 "landscape")
+   - 표준 여백: 일반 문서는 marginTop: "18mm", marginBottom: "18mm", marginLeft: "12mm", marginRight: "12mm" (SNS 카드뉴스는 상하좌우 "14mm")
    - fontFamily: 본문 기본 글꼴 (선택사항으로 웹폰트 URL은 fontUrl에 지정)
    - fontSize: "15px"~"16.5px" (또는 "10pt"~"12pt"), lineHeight: "1.65"~"1.85", letterSpacing: "-0.01em"
    - headingSizeOffset: "3pt" (미정의 시 최초 기본값 "3pt", H1 기준 크기에서 H2~H6 단계별 차감 폭), tabSize: "2", exportPageBreakLevel: "none" (절대 인위적 분할 금지, 특별 요청 시에만 "h1"|"h2")
@@ -272,9 +281,9 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 최�
 이 문서는 **온리비 어서(Onrivi Author)** 전용 서식 프로필(\`.json\`)의 공식 최신 스키마 명세서이자, 서식 편집기의 **15대 상세 카테고리(본문·여백, 제목, 표, 인용구, 코드블록, 인라인코드, 하이퍼링크, 각주, 목록·체크, 구분선, 이미지, 비디오, 지도, 수식, 고급 CSS)** 모든 속성을 100% 수록한 **완전판 레퍼런스 가이드**입니다.
 
 > 💡 **핵심 요약 및 서식 관리 센터 최신 기능 안내**
-> 1. **사이드바 \`+ 추가\` 3종 문서 타입 선택 생성**: 좌측 사이드바 상단 \`+ 추가\` 버튼을 누르면 **① \`📄 일반문서\`**, **② \`📖 그림책(전체표지)\`**, **③ \`📖 그림책(오른쪽표지)\`** 중 원하는 문서 타입을 선택해 즉시 생성할 수 있습니다.
+> 1. **사이드바 \`+ 추가\` 4종 문서 타입 선택 생성**: 좌측 사이드바 상단 \`+ 추가\` 버튼을 누르면 **① \`📄 일반문서\`**, **② \`📱 SNS 카드뉴스\`**, **③ \`📖 그림책(전체표지)\`**, **④ \`📖 그림책(오른쪽표지)\`** 중 원하는 문서 타입을 선택해 즉시 생성할 수 있습니다.
 > 2. **사이드바 원클릭 액션 일원화**: 좌측 사이드바의 각 서식 항목에서 **\`[서식 복제] · [파일 내보내기(.json)] · [JSON 복사] · [삭제]\`**를 즉시 실행할 수 있으며, 상단 \`전체 백업\`으로 내 서식 전체를 한 번에 백업할 수 있습니다.
-> 3. **본문 상단 2단 카드 구성**: 본문 상단 좌측 **\`[이름 및 서식 설명 카드]\`**에는 서식 이름과 일반문서/그림책(스토리북) 구분이 포함된 설명이 표시되며, 우측 별도 **\`[📋 설명 상세 카드]\`**에는 **글꼴 · 크기/행간 · 여백 · 표 테두리 · 불릿 · 문서 타입(일반문서 / 그림책)** 6대 핵심 사양이 한눈에 표시됩니다.
+> 3. **본문 상단 2단 카드 구성**: 본문 상단 좌측 **\`[이름 및 서식 설명 카드]\`**에는 서식 이름과 일반문서/SNS 카드뉴스/그림책(스토리북) 구분이 포함된 설명이 표시되며, 우측 별도 **\`[📋 설명 상세 카드]\`**에는 **글꼴 · 크기/행간 · 여백 · 표 테두리 · 불릿 · 문서 타입(일반문서 / SNS 카드뉴스 / 그림책)** 6대 핵심 사양이 한눈에 표시됩니다.
 > 4. **원클릭 가져오기 및 다중 백업 호환**: 서식 파일(\`.json\`) **드래그 앤 드롭**, **내 PC 파일 선택**, **클립보드 JSON 바로 불러오기**를 지원하며, 단일 서식(\`{ ... }\`)과 다중 백업 배열(\`[ { ... }, ... ]\`)을 모두 자동 인식합니다.
 > 5. **누락 속성 100% 자동 정규화 (\`normalizeCssProfile\`)**: AI가 생성한 JSON에 일부 속성이 생략되어 있더라도 **'Onrivi 기본서식'** 표준 규격(예: \`headingSizeOffset\` 미정의 시 최초값 \`"3pt"\` 자동 부여 등)으로 완벽히 보완합니다.
 
@@ -555,7 +564,7 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 최�
   - \`lineHeight\`: 기본 줄간격 (\`"1.65"\`~\`"1.85"\`)
   - \`letterSpacing\`: 기본 자간 (\`"-0.01em"\`, \`"0em"\` 등)
   - \`backgroundColor\`: 용지 배경색 (기본 \`"#ffffff"\`, 미색 에세이 \`"#FAF6ED"\` 등)
-  - \`paperSize\`: \`"a4"\` (기본) | \`"b5"\` | \`"letter"\`
+  - \`paperSize\`: \`"a4"\` (기본) | \`"b5"\` | \`"letter"\` | \`"sns_square"\` (SNS 카드뉴스 1:1 정사각) | \`"sns_portrait"\` (SNS 카드뉴스 4:5 세로형)
   - \`orientation\`: \`"portrait"\` (세로형) | \`"landscape"\` (가로형)
   - \`marginTop\`, \`marginBottom\`: 상하 여백 (표준 \`"18mm"\`)
   - \`marginLeft\`, \`marginRight\`: 좌우 여백 (표준 \`"12mm"\`)

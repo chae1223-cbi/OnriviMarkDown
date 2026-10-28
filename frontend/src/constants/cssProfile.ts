@@ -4,9 +4,10 @@ import { normalizeBookLayout } from '../lib/picturebook';
 // ====================================================================
 // 📊 [OMD-CORE-cssProfile-0006] cssProfile ➔ SYSTEM_PROFILE_IDS
 // 🎯 @KICK  : 시스템 프로필 식별자 목록을 정의한다
-// 🚨 @PATCH : **2026-10-27** — [제목 단계별 활자 크기 감소폭(headingSizeOffset) 최초 기본값 '3pt' 표준화]:
-//             1) DEFAULT_PROFILE, SYSTEM_PROFILES, createEmptyProfile의 headingSizeOffset 기본값을 '3pt'로 표준화
-//             2) normalizeCssProfile에서 headingSizeOffset이 미정의되어 있거나 레거시 '0px'인 경우 최초 기본값 '3pt'로 자동 정규화 보장
+// 🚨 @PATCH : **2026-10-27** — [SNS 카드뉴스 공식 시스템 서식(sns-card-news) 신규 탑재 및 제목 단계별 활자 크기 감소폭(headingSizeOffset) 최초 기본값 '3pt' 표준화]:
+//             1) 인스타그램·쓰레드·링크드인 공유에 최적화된 1:1 정사각형(sns_square) 'SNS 카드뉴스 (인스타·링크드인)' 시스템 서식(sns-card-news) 등록
+//             2) DEFAULT_PROFILE, SYSTEM_PROFILES, createEmptyProfile의 headingSizeOffset 기본값을 '3pt'로 표준화
+//             3) normalizeCssProfile에서 headingSizeOffset이 미정의되어 있거나 레거시 '0px'인 경우 최초 기본값 '3pt'로 자동 정규화 보장
 // 🚨 @PATCH : **2026-10-26** — [글머리 기호(불릿) 레벨별 계층 설정(bulletStructure) 프로필 연동 및 정규화]:
 //             1) DEFAULT_PROFILE 및 SYSTEM_PROFILES에 bulletStructure(level1: 'disc', level2: 'circle', level3: 'square') 탑재
 //             2) normalizeCssProfile에서 bulletStructure 누락 시 자동 하이드레이션 병합 보장
@@ -70,7 +71,8 @@ export const SYSTEM_PROFILE_IDS = [
   'ks-tech-standard',
   'corp-strategy-report',
   'academic-kdi-report',
-  'global-tech-6pager'
+  'global-tech-6pager',
+  'sns-card-news'
 ] as const;
 export type SystemProfileId = typeof SYSTEM_PROFILE_IDS[number];
 
@@ -3156,6 +3158,78 @@ globalTechProfile.mediaCaptionStructure = { position: 'top', format: 'standard',
 globalTechProfile.headingNumbering = [];
 globalTechProfile.tableStructure = { outerBorderWidth: '1px', rowBorderWidth: '1px', colBorderWidth: '1px' };
 SYSTEM_PROFILES.push(globalTechProfile);
+
+// 5. SNS 카드뉴스 (인스타·링크드인 1:1 정사각 표준)
+const snsCardNewsProfile: CssProfile = JSON.parse(JSON.stringify(SYSTEM_PROFILES[0]));
+snsCardNewsProfile.id = 'sns-card-news';
+snsCardNewsProfile.name = 'SNS 카드뉴스 (인스타·링크드인)';
+snsCardNewsProfile.description = '인스타그램·쓰레드·링크드인·블로그 공유에 최적화된 1:1 정사각형(1080×1080) SNS 카드뉴스 공식 서식입니다. 구분선(---) 또는 대제목(# H1)마다 카드 1장씩 분리 출력됩니다.';
+snsCardNewsProfile.pageStyle = {
+  ...snsCardNewsProfile.pageStyle,
+  fontFamily: "Pretendard, 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif",
+  fontSize: '13pt',
+  lineHeight: '1.65',
+  letterSpacing: '-0.02em',
+  backgroundColor: '#f8fafc',
+  paperSize: 'sns_square',
+  marginTop: '16mm',
+  marginBottom: '16mm',
+  marginLeft: '16mm',
+  marginRight: '16mm',
+  orientation: 'portrait',
+  headingSizeOffset: '3pt',
+  exportPageBreakLevel: 'h1',
+};
+snsCardNewsProfile.rules.h1 = {
+  ...snsCardNewsProfile.rules.h1,
+  'font-size': '28px',
+  'font-weight': '800',
+  'color': '#0f172a',
+  'margin-top': '8px',
+  'margin-bottom': '16px',
+  'padding-bottom': '10px',
+  'border-bottom': '3px solid #1d4ed8',
+  'line-height': '1.3',
+  'letter-spacing': '-0.03em',
+};
+snsCardNewsProfile.rules.h2 = {
+  ...snsCardNewsProfile.rules.h2,
+  'font-size': '22px',
+  'font-weight': '700',
+  'color': '#1d4ed8',
+  'margin-top': '16px',
+  'margin-bottom': '10px',
+  'border-left': '4px solid #1d4ed8',
+  'padding-left': '12px',
+  'border-bottom': 'none',
+  'line-height': '1.35',
+};
+snsCardNewsProfile.rules.p = {
+  ...snsCardNewsProfile.rules.p,
+  'margin-top': '0px',
+  'margin-bottom': '14px',
+  'line-height': '1.65',
+  'color': '#1e293b',
+};
+snsCardNewsProfile.rules.strong = {
+  'font-weight': '800',
+  'color': '#1d4ed8',
+  'background-color': '#dbeafe',
+};
+snsCardNewsProfile.rules.blockquote = {
+  'padding': '14px 18px',
+  'color': '#0f172a',
+  'background-color': '#ffffff',
+  'border': '1.5px solid #cbd5e1',
+  'border-left': '5px solid #1d4ed8',
+  'border-radius': '12px',
+  'margin-top': '16px',
+  'margin-bottom': '16px',
+  'font-weight': '600',
+  'box-shadow': '0 4px 12px rgba(15, 23, 42, 0.06)',
+};
+snsCardNewsProfile.headingNumbering = [];
+SYSTEM_PROFILES.push(snsCardNewsProfile);
 
 export const DEFAULT_PROFILE: CssProfile = SYSTEM_PROFILES[0]; // system-gov
 

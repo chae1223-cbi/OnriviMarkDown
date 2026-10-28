@@ -1637,6 +1637,28 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     return 'local';
   });
 
+  // Share only the active folder locations with the local MCP process.
+  useEffect(() => {
+    const api = (window as any).electronAPI;
+    if (!mounted || !api?.syncMcpContext) return;
+    const sync = () => {
+      const settings = getResourceSettings(workspaceType === 'cloud' ? 'cloud' : 'local');
+      void api.syncMcpContext({
+        workspaceType,
+        workspacePath: workspaceType === 'local' ? ((rootFolder as any)?.path || rootFolder?.name || null) : null,
+        resourceKind: settings?.kind || 'unset',
+        resourcePath: settings?.kind === 'local' ? settings.path : null,
+      }).catch((error: unknown) => console.warn('[MCP context] sync failed', error));
+    };
+    sync();
+    const timer = window.setInterval(sync, 30000);
+    window.addEventListener('onrivi:resource_folder_changed', sync);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('onrivi:resource_folder_changed', sync);
+    };
+  }, [mounted, workspaceType, rootFolder, resourceFolder]);
+
   const [profileStorageRevision, setProfileStorageRevision] = useState(0);
   const profileStorageRef = useRef<{ folder: string; handle: any; hash: string } | null>(null);
   useEffect(() => {
@@ -2347,6 +2369,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 lastRunTime: Date.now(),
                 nextPaymentDate: newStatus.nextPaymentDate,
                 licenseKey: newStatus.licenseKey,
+                paymentNo: newStatus.paymentNo,
                 planName: newStatus.planName
               });
             }

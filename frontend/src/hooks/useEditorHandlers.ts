@@ -1,6 +1,7 @@
 // @ts-nocheck
 // ====================================================================
 // 📊 [OMD-HOOK-useEditorHandlers-0001] useEditorHandlers.ts ➔ 에디터 액션 핸들러 훅
+// 🚨 @PATCH : **2026-10-27** — [SNS 카드뉴스 전용 분할 출력 핸들러(exportSNS) 연동]: 내보내기 모달에서 'SNS 카드뉴스 출력' 선택 시 카드 비율(1:1 / 4:5 / 16:9), 분할 기준, 저장 방식(낱장 PNG / ZIP)을 exportSNSCardNews로 전달하여 일괄 사출 지원
 // 🚨 @PATCH : **2026-10-24** — [마크다운 전체 복사(copyAll) 다중 Fallback 강화]: Electron copyTextToClipboard 및 writeText 안전 연동
 // 🚨 @PATCH : **2026-10-20** — [문서 서식 정리(cleanDoc) 실행 시 readOnly 모나코 에디터 및 분할 화면 즉각 100% 동기화]:
 //             1) 나란히 보기(both) 등 readOnly 상태에서 editor.executeEdits가 무시되던 결함을 model.pushEditOperations 및 setValue 강제 동기화로 해결
@@ -12,7 +13,7 @@ import { reportClientLog } from '@/lib/clientLogs';
 import { browserPickerStartIn } from '@/lib/browserPickerStartIn';
 import { useCallback } from 'react';
 import { waitForExportContent } from '@/lib/exportPreparation';
-import { exportPDF, exportHTML, exportEPUB, exportPNG, exportDOCX, exportHWPX } from '@/lib/exportHandlers';
+import { exportPDF, exportHTML, exportEPUB, exportPNG, exportSNSCardNews, exportDOCX, exportHWPX } from '@/lib/exportHandlers';
 import { DEFAULT_PROFILE } from "@/constants/cssProfile";
 import { readPrintSettings, writePrintSettings, readEffectivePrintSettings, compactLegacyPrintMetadata, DocumentPrintSettings } from '@/lib/documentPrintSettings';
 import { writePaginationSettings, type DocumentPaginationSettings } from '@/lib/documentPaginationSettings';
@@ -1143,6 +1144,29 @@ export const useEditorHandlers = ({
       if (!await prepareEditorForExport()) return;
       if (!previewRef.current) return;
       await exportDOCX({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, activeProfile: profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE });
+    },
+    exportSNS: async (snsOptions?: any) => {
+      if (!await prepareEditorForExport()) return;
+      if (!previewRef.current) return;
+      const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+      const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
+      const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor, paperSize } = activeProfile.pageStyle;
+      await exportSNSCardNews({
+        previewEl: previewRef.current,
+        currentFileName: currentFileNameRef.current,
+        isDarkMode,
+        showToast,
+        orientation,
+        paperSize,
+        dynamicCssString,
+        marginTop,
+        marginBottom,
+        marginLeft,
+        marginRight,
+        backgroundColor,
+        activeProfile,
+        snsOptions,
+      });
     },
     exportPNG: async () => {
       if (!await prepareEditorForExport()) return;

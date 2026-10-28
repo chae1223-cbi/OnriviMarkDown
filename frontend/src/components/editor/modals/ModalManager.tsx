@@ -2,6 +2,7 @@ import { nextReportNumber, resolveCaptionConfig } from '@/lib/aiFriendlyReport';
 /**
  * 프로그램명 : OnriviAuthor
  * 프로그램 ID : oaar-modal-manager
+ * 🚨 @PATCH : **2026-10-27** — [SNS 카드뉴스 전용 내보내기(sns) 핸들러 및 서식 자동 감지 연동]: ExportModal에 isSnsCardProfile, defaultSnsRatio 전달 및 format === 'sns' 선택 시 handlers.exportSNS(exportSettings) 호출 연결
  * 🚨 @PATCH : **2026-10-24** — [문서보기 위지윅 이미지 캡션(fullMarkdown) 양방향 전달]: deps.replaceVisualImage 호출 시 fullMarkdown 파라미터를 함께 전달하여 캡션 문단과 이미지가 동시 삽입되도록 연동
  * 🚨 @PATCH : **2026-10-22** — [미디어 종류별 캡션 설정 전달]: 그림·동영상·지도·표 모달에 resolveCaptionConfig로 종류별 캡션 위치/구문(kindOverrides)을 병합해 전달
  * 🚨 @PATCH : **2026-10-18** — [인용 모달 useEffect 의존성 보강]: citationTarget 설정 시 deps.activeTabId 및 deps.editorRef 의존성 등록 및 불필요한 cancel-citation 이벤트 방어
@@ -213,6 +214,8 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
 
       <ExportModal
         isPicturebook={profiles.find((profile:any) => profile.id === activeProfileId)?.layout?.type === 'picturebook'}
+        isSnsCardProfile={Boolean(activeProfile?.pageStyle?.paperSize?.startsWith('sns_') || activeProfile?.id === 'sns-card-news')}
+        defaultSnsRatio={activeProfile?.pageStyle?.paperSize === 'sns_portrait' ? '4:5' : '1:1'}
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         isDarkMode={isDarkMode}
@@ -233,6 +236,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
           else if (format === 'html') handlers.exportHTML();
           else if (format === 'png') handlers.exportPNG();
           else if (format === 'epub') handlers.exportEPUB();
+          else if (format === 'sns') handlers.exportSNS?.(exportSettings);
         }}
       />
       {promptConfig.isOpen && (

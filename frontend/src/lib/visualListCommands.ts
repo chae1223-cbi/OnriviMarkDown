@@ -1,6 +1,8 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 파일명 : visualListCommands.ts
+ * 🚨 @PATCH : **2026-10-28** — [리스트 하단 들여쓰기(Tab) 문단에서 툴바 목록 전환 시 상위 리스트 하위 레벨 자동 편입]:
+ *             1) 번호/글머리 기호 리스트 바로 아래에서 Tab으로 들여쓰기(indentPx > 0)된 문단을 툴바(글머리 기호 등)로 목록 전환 시, 들여쓰기가 초기화되지 않고 직전 리스트의 하위 레벨 목록으로 즉시 자동 중첩되도록 selectedList 개선
  * 🚨 @PATCH : **2026-10-25** — [목록 첫 항목 Tab 전체 들여쓰기 및 Shift+Tab 내어쓰기 구현]:
  *             1) indentWholeList 및 outdentWholeList 신설: 첫 번째 항목(itemIndex === 0)에서 Tab 입력 시 빈 상위 항목 생성 없이 목록 전체(bullet_list / ordered_list)를 오른쪽으로 28px 문단 들여쓰기
  *             2) independentIndentListItem 개선: 선행 결합 리스트가 없는 첫 항목에서 indentWholeList를 호출하여 목록 전체 이동
@@ -804,12 +806,15 @@ export function selectedList(kind:'bullet'|'ordered'|'check'|'clear'):Command {
     const lines=selected.flatMap(inlineLines).map(line=>kind==='ordered'?withoutTypedMarker(line):line);
     if(!lines.length)return false;
     const nodes=visualSchema.nodes;
+    const singleIndentedPara = !listRange && selected.length === 1 && selected[0].type === nodes.paragraph ? (selected[0].attrs.indentPx ?? 0) : 0;
+    const prevNodeBeforeFrom = !listRange && range.start > 0 ? state.doc.resolve(range.start).nodeBefore : null;
+    const shouldAutoNestAfterConvert = Boolean(kind !== 'clear' && singleIndentedPara > 0 && prevNodeBeforeFrom && isList(prevNodeBeforeFrom));
     // Each former item becomes its own paragraph. Joining with bare newlines
     // lets Markdown reparse the second numeric line as a new ordered list.
     const targets=kind==='clear'?lines.map(line=>{
       const content:DocumentNode[]=[];line.forEach(node=>content.push(node.mark([])));
       return nodes.paragraph.create(null,Fragment.fromArray(content));
-    }):[(kind==='ordered'?nodes.ordered_list:nodes.bullet_list).create({tight:true,order:1,bullet:'-'},lines.map(line=>nodes.list_item.create({checked:kind==='check'?false:null},nodes.paragraph.create(null,line))))];
+    }):[(kind==='ordered'?nodes.ordered_list:nodes.bullet_list).create({tight:true,order:1,bullet:'-',indentPx:(!shouldAutoNestAfterConvert && singleIndentedPara>0)?singleIndentedPara:null},lines.map(line=>nodes.list_item.create({checked:kind==='check'?false:null},nodes.paragraph.create(null,line))))];
     const target=targets[0];
     const replacement:DocumentNode[]=[];
     let from=range.start,to=range.end;
@@ -824,6 +829,13 @@ export function selectedList(kind:'bullet'|'ordered'|'check'|'clear'):Command {
       tr.doc.descendants((node,pos)=>{if(node===target){start=pos;return false;}});
       if(start>=0){const first=start+(kind==='clear'?1:3),last=kind==='clear'?start+targets.reduce((size,node)=>size+node.nodeSize,0)-1:start+target.nodeSize-3;
         tr=tr.setSelection(TextSelection.between(tr.doc.resolve(first),tr.doc.resolve(last)));
+      }
+      if (shouldAutoNestAfterConvert) {
+        const nextState = state.apply(tr);
+        independentIndentListItem(nextState, indentTr => {
+          indentTr.steps.forEach(step => tr.step(step));
+          tr = tr.setSelection(TextSelection.near(tr.doc.resolve(indentTr.selection.from)));
+        });
       }
       dispatch(closeHistory(tr));
     }

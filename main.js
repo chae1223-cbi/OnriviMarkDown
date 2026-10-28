@@ -2,6 +2,11 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-10-28** — [외부 AI(Google Gemini, Claude Desktop) MCP 원클릭 연동 및 ONRIVI_MCP_HOME 환경변수 기반 동적 경로 연동]:
+//             1) mcp:check-targets 신설: Gemini(mcp_config.json) 및 Claude Desktop(claude_desktop_config.json)의 경로 존재 여부 및 onrivi-author 등록 상태 자동 검사
+//             2) mcp:install-target 신설: 하드코딩된 절대경로 대신 ONRIVI_MCP_HOME 및 APPDATA 환경변수를 동적으로 참조하도록 등록하여 재설치/경로 변경 시에도 설정 깨짐 원천 방지
+//             3) mcp:uninstall-target 신설: 원클릭으로 해당 AI 설정 파일에서 onrivi-author MCP 서버 등록을 깔끔하게 해제
+//             4) syncMcpEnvironmentVariable: 앱 기동 및 MCP 연결 시 현재 설치된 플러그인 실물 경로를 Windows 사용자 환경변수(ONRIVI_MCP_HOME)에 자동 동기화
 // 🚨 @PATCH : **2026-10-26** — [단축코드 정의서(shortcodes.json) 리소스 폴더 IPC 입출력 신설]: shortcodes:load 및 shortcodes:save IPC 핸들러를 추가하여 환경설정의 단축키 및 슬래시 명령어를 리소스 폴더(settings/shortcodes.json)에 영구 보존 지원
 // 🚨 @PATCH : **2026-10-26** — [도움말 3중 미러 자동 동기화 및 읽기 시 frontend/public 최우선 탐색]:
 //             1) file:readFromPath에서 과거 정적 빌드 산출물(frontend/out) 대신 개발자가 수정한 소스 디렉터리(frontend/public)를 1순위로 탐색하여 도움말 수정 시 과거 빌드 내용으로 초기화되는 결함 해결
@@ -4190,6 +4195,232 @@ ipcMain.handle('settings:load', async () => {
     console.error('환경설정 로드 실패:', e);
     return null;
   }
+});
+
+// MCP reads only this short-lived snapshot of the active desktop folders.
+const mcpContextFile = () => path.join(app.getPath('userData'), 'mcp-context.json');
+let mcpDeviceId;
+const getMcpDeviceId = () => {
+  if (mcpDeviceId) return mcpDeviceId;
+  if (process.platform !== 'win32') return null;
+  try {
+    const { execFileSync } = require('child_process');
+    const id = execFileSync('powershell', ['-NoProfile', '-Command', 'Get-CimInstance Win32_ComputerSystemProduct | Select-Object -ExpandProperty UUID'], { encoding: 'utf8', timeout: 5000 }).trim();
+    if (/^[a-f0-9-]{36}$/i.test(id)) mcpDeviceId = id;
+  } catch {}
+  return mcpDeviceId || null;
+};
+ipcMain.handle('mcp-context:sync', async (event, context) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('INVALID_MCP_CONTEXT_SENDER');
+  const validPath = value => typeof value === 'string' && path.isAbsolute(value) && fs.existsSync(value) && fs.statSync(value).isDirectory();
+  const snapshot = {
+    version: 1,
+    workspaceType: context?.workspaceType === 'cloud' ? 'cloud' : context?.workspaceType === 'browser' ? 'browser' : 'local',
+    resourceKind: context?.resourceKind === 'drive' ? 'drive' : context?.resourceKind === 'browser' ? 'browser' : context?.resourceKind === 'local' ? 'local' : 'unset',
+    workspacePath: context?.workspaceType === 'local' && validPath(context?.workspacePath) ? path.resolve(context.workspacePath) : null,
+    resourcePath: context?.resourceKind === 'local' && validPath(context?.resourcePath) ? path.resolve(context.resourcePath) : null,
+    deviceId: getMcpDeviceId(),
+    pid: process.pid,
+    updatedAt: new Date().toISOString()
+  };
+  const target = mcpContextFile();
+  const temporary = `${target}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, JSON.stringify(snapshot), 'utf8');
+  fs.renameSync(temporary, target);
+  return { synced: true, localReady: !!(snapshot.workspacePath && snapshot.resourcePath) };
+});
+app.on('before-quit', () => { try { fs.unlinkSync(mcpContextFile()); } catch {} });
+
+// MCP 타겟(Google Gemini, Claude Desktop) 자동 감지 및 설정 관리
+const copyDirectoryRecursiveSync = (srcDir, destDir) => {
+  if (!fs.existsSync(srcDir)) return;
+  fs.mkdirSync(destDir, { recursive: true });
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    const srcPath = path.join(srcDir, entry.name);
+    const destPath = path.join(destDir, entry.name);
+    if (entry.isDirectory()) {
+      copyDirectoryRecursiveSync(srcPath, destPath);
+    } else if (entry.isFile()) {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+};
+
+const resolveMcpPluginRoot = () => {
+  const userPluginDir = path.join(app.getPath('userData'), 'plugins', 'onrivi-author');
+
+  // 1순위: 데스크톱 설치 경로의 extraResources (예: C:/Program Files/Onrivi Author/resources/plugins/onrivi-author)
+  if (process.resourcesPath) {
+    const extraResPath = path.join(process.resourcesPath, 'plugins', 'onrivi-author');
+    if (fs.existsSync(path.join(extraResPath, 'server', 'index.mjs'))) {
+      try { copyDirectoryRecursiveSync(extraResPath, userPluginDir); } catch (_) {}
+      return extraResPath.replace(/\\/g, '/');
+    }
+    // 2순위: 데스크톱 설치 경로의 asarUnpack (예: C:/Program Files/Onrivi Author/resources/app.asar.unpacked/plugins/onrivi-author)
+    const unpackedPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'plugins', 'onrivi-author');
+    if (fs.existsSync(path.join(unpackedPath, 'server', 'index.mjs'))) {
+      try { copyDirectoryRecursiveSync(unpackedPath, userPluginDir); } catch (_) {}
+      return unpackedPath.replace(/\\/g, '/');
+    }
+  }
+
+  // 3순위: 패키징된 앱에서 userData(AppData/Roaming/Onrivi Author/plugins/onrivi-author)로 추출 및 동기화
+  const bundledPath = path.join(__dirname, 'plugins', 'onrivi-author');
+  try {
+    if (fs.existsSync(path.join(bundledPath, 'server', 'index.mjs'))) {
+      copyDirectoryRecursiveSync(bundledPath, userPluginDir);
+    }
+  } catch (_) {}
+  if (app.isPackaged || __dirname.toLowerCase().includes('.asar')) {
+    if (fs.existsSync(path.join(userPluginDir, 'server', 'index.mjs'))) {
+      return userPluginDir.replace(/\\/g, '/');
+    }
+  }
+
+  // 4순위: 로컬 개발 환경 (언패키징 상태)
+  return bundledPath.replace(/\\/g, '/');
+};
+
+const syncMcpEnvironmentVariable = () => {
+  const pluginRoot = resolveMcpPluginRoot();
+  process.env.ONRIVI_MCP_HOME = pluginRoot;
+  if (process.platform === 'win32') {
+    const { execFile } = require('child_process');
+    execFile('reg', ['add', 'HKCU\\Environment', '/v', 'ONRIVI_MCP_HOME', '/t', 'REG_EXPAND_SZ', '/d', pluginRoot.replace(/\//g, '\\'), '/f'], () => {});
+  }
+  return pluginRoot;
+};
+
+app.whenReady().then(() => {
+  try { syncMcpEnvironmentVariable(); } catch (_) {}
+});
+
+const getMcpDynamicBootstrapArg = () =>
+  "import('file:///' + (process.env.ONRIVI_MCP_HOME || (process.env.APPDATA + '/Onrivi Author/plugins/onrivi-author')).replace(/\\\\/g, '/') + '/server/index.mjs')";
+
+const getMcpTargetConfigs = () => {
+  const os = require('os');
+  const home = os.homedir();
+  const appData = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
+  return {
+    gemini: {
+      name: 'Google Gemini / Antigravity',
+      path: path.join(home, '.gemini', 'config', 'mcp_config.json'),
+      dir: path.join(home, '.gemini', 'config')
+    },
+    claude: {
+      name: 'Claude Desktop',
+      path: process.platform === 'win32'
+        ? path.join(appData, 'Claude', 'claude_desktop_config.json')
+        : path.join(home, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json'),
+      dir: process.platform === 'win32'
+        ? path.join(appData, 'Claude')
+        : path.join(home, 'Library', 'Application Support', 'Claude')
+    }
+  };
+};
+
+const getChatGptMarketplace = () => {
+  const dir = path.join(require('os').homedir(), '.agents', 'plugins');
+  return { dir, file: path.join(dir, 'marketplace.json'), pluginDir: path.join(dir, 'onrivi-author') };
+};
+
+const readChatGptMarketplace = (file) => {
+  if (!fs.existsSync(file)) return { name: 'onrivi-local', interface: { displayName: 'Onrivi Local' }, plugins: [] };
+  const data = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
+  if (!data || !Array.isArray(data.plugins)) throw new Error('ChatGPT 개인 플러그인 목록 형식을 확인해 주세요.');
+  return data;
+};
+
+ipcMain.handle('mcp:check-targets', async () => {
+  const targets = getMcpTargetConfigs();
+  const result = {};
+  for (const [key, target] of Object.entries(targets)) {
+    let installed = false;
+    let available = fs.existsSync(target.dir);
+    if (fs.existsSync(target.path)) {
+      try {
+        const content = JSON.parse(fs.readFileSync(target.path, 'utf8') || '{}');
+        installed = Boolean(content?.mcpServers?.['onrivi-author']);
+      } catch (_) {}
+    }
+    result[key] = { name: target.name, available, installed, path: target.path.replace(/\\/g, '/') };
+  }
+  const chatgpt = getChatGptMarketplace();
+  let registered = false;
+  try {
+    const marketplace = readChatGptMarketplace(chatgpt.file);
+    registered = marketplace.plugins.some(item => item?.name === 'onrivi-author' && item?.source?.path === './onrivi-author')
+      && fs.existsSync(path.join(chatgpt.pluginDir, 'server', 'index.mjs'));
+  } catch (_) {}
+  result.chatgpt = { name: 'ChatGPT Desktop', available: true, installed: registered, path: chatgpt.file.replace(/\\/g, '/') };
+  return result;
+});
+
+ipcMain.handle('mcp:install-target', async (event, key) => {
+  if (key === 'chatgpt') {
+    const target = getChatGptMarketplace();
+    const marketplace = readChatGptMarketplace(target.file);
+    const source = resolveMcpPluginRoot();
+    if (!fs.existsSync(path.join(source, 'server', 'index.mjs'))) throw new Error('온리비 어서 MCP 플러그인 파일을 찾지 못했습니다.');
+    fs.mkdirSync(target.dir, { recursive: true });
+    copyDirectoryRecursiveSync(source, target.pluginDir);
+    marketplace.plugins = marketplace.plugins.filter(item => item?.name !== 'onrivi-author');
+    marketplace.plugins.push({
+      name: 'onrivi-author',
+      source: { source: 'local', path: './onrivi-author' },
+      policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
+      category: 'Productivity'
+    });
+    fs.writeFileSync(target.file, JSON.stringify(marketplace, null, 2), 'utf8');
+    return { success: true, path: target.file.replace(/\\/g, '/'), requiresInstall: true };
+  }
+  syncMcpEnvironmentVariable();
+  const targets = getMcpTargetConfigs();
+  const target = targets[key];
+  if (!target) throw new Error('지원하지 않는 타겟입니다: ' + key);
+  if (!fs.existsSync(target.dir)) {
+    fs.mkdirSync(target.dir, { recursive: true });
+  }
+  let config = {};
+  if (fs.existsSync(target.path)) {
+    try {
+      config = JSON.parse(fs.readFileSync(target.path, 'utf8') || '{}');
+    } catch (_) {
+      config = {};
+    }
+  }
+  if (!config.mcpServers || typeof config.mcpServers !== 'object') {
+    config.mcpServers = {};
+  }
+  config.mcpServers['onrivi-author'] = {
+    command: 'node',
+    args: ['-e', getMcpDynamicBootstrapArg()]
+  };
+  fs.writeFileSync(target.path, JSON.stringify(config, null, 2), 'utf8');
+  return { success: true, path: target.path.replace(/\\/g, '/') };
+});
+
+ipcMain.handle('mcp:uninstall-target', async (event, key) => {
+  if (key === 'chatgpt') {
+    const target = getChatGptMarketplace();
+    if (!fs.existsSync(target.file)) return { success: true };
+    const marketplace = readChatGptMarketplace(target.file);
+    marketplace.plugins = marketplace.plugins.filter(item => item?.name !== 'onrivi-author');
+    fs.writeFileSync(target.file, JSON.stringify(marketplace, null, 2), 'utf8');
+    return { success: true };
+  }
+  const targets = getMcpTargetConfigs();
+  const target = targets[key];
+  if (!target || !fs.existsSync(target.path)) return { success: true };
+  try {
+    const config = JSON.parse(fs.readFileSync(target.path, 'utf8') || '{}');
+    if (config.mcpServers && config.mcpServers['onrivi-author']) {
+      delete config.mcpServers['onrivi-author'];
+      fs.writeFileSync(target.path, JSON.stringify(config, null, 2), 'utf8');
+    }
+  } catch (_) {}
+  return { success: true };
 });
 
 // 18. 환경설정 저장 핸들러 (데스크탑 영구 저장 연동)

@@ -216,7 +216,7 @@ export default function LicenseModal({
 
   return (
     <div 
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 dark:bg-black/80 backdrop-blur-sm transition-all tech-bg overflow-y-auto p-6 font-['Inter'] text-[16px] leading-[1.6] license-modal-wrap"
+      className="fixed inset-0 z-[9999] flex items-start justify-center bg-background/80 dark:bg-black/80 backdrop-blur-sm transition-all tech-bg overflow-y-auto p-2 sm:p-4 font-['Inter'] text-[16px] leading-[1.6] license-modal-wrap"
       onKeyDown={(e) => {
         e.stopPropagation();
         e.nativeEvent.stopImmediatePropagation();
@@ -244,7 +244,7 @@ export default function LicenseModal({
       <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
 
       {/* Modal Container */}
-      <div className="relative w-full max-w-[720px] bg-surface-bright editorial-shadow overflow-hidden p-[48px] flex flex-col gap-[40px] animate-in fade-in zoom-in duration-500 rounded-xl my-8">
+      <div className="relative w-full max-w-[720px] max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] bg-surface-bright editorial-shadow overflow-y-auto overscroll-contain p-4 sm:p-8 lg:p-[48px] flex flex-col gap-5 sm:gap-8 animate-in fade-in zoom-in duration-500 rounded-xl my-auto">
         
         {/* Header Section */}
         <header className="flex justify-between items-start w-full">

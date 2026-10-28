@@ -375,10 +375,10 @@ export function scheduleDriveTokenRefresh(expiresIn: number): void {
  * 백그라운드 무음(Silent) 토큰 갱신
  * - 사용자의 작업 중단이나 화면 팝업 없이 백그라운드에서 구글 액세스 토큰을 재발급받음
  */
-export async function refreshDriveTokenSilently(): Promise<string | null> {
+export async function refreshDriveTokenSilently(force = false): Promise<string | null> {
   if (typeof window === 'undefined') return null;
   const remaining = getDriveTokenRemainingSeconds();
-  if (remaining <= 1 || remaining > 180 || (typeof document !== 'undefined' && document.visibilityState !== 'visible' && !(window as any).electronAPI)) return null;
+  if ((!force && (remaining <= 1 || remaining > 180)) || (typeof document !== 'undefined' && document.visibilityState !== 'visible' && !(window as any).electronAPI)) return null;
 
   if (isRefreshingToken) return null;
   const originalToken = getSavedDriveToken();
@@ -765,6 +765,17 @@ async function parseDriveError(res: Response, defaultAction: string, requestToke
   if (res.status === 401) {
     const currentToken = localStorage.getItem(STORAGE_KEY_TOKEN) || sessionStorage.getItem(STORAGE_KEY_TOKEN);
     if (currentToken !== requestToken) {
+      return new Error('이전 연결의 요청이 만료되었습니다. 다시 시도해 주세요.');
+    }
+    if (isRefreshingToken) {
+      return new Error('구글 드라이브 연결을 갱신하는 중입니다. 다시 시도해 주세요.');
+    }
+    const renewedToken = await refreshDriveTokenSilently(true);
+    if (renewedToken) {
+      return new Error('구글 드라이브 연결을 갱신했습니다. 다시 시도해 주세요.');
+    }
+    // Another request may have renewed the token while this request was waiting.
+    if (getSavedDriveToken() !== requestToken) {
       return new Error('이전 연결의 요청이 만료되었습니다. 다시 시도해 주세요.');
     }
     localStorage.removeItem(STORAGE_KEY_TOKEN);

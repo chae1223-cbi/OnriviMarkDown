@@ -265,7 +265,10 @@ export const useFileExplorer = ({
     };
 
     // 2. 토큰 만료 또는 401 오류 발생 시: 현재 작업 중이던 모든 탭과 에디터 버퍼를 로컬에 긴급 백업 (탭 유지)
+    let expiryHandled = false;
     const handleAuthExpired = () => {
+      if (rootFolderRef.current?.type !== 'GDRIVE' || expiryHandled) return;
+      expiryHandled = true;
       setIsDriveAuthExpired(true);
       try {
         const activeId = activeTabIdRef?.current;
@@ -283,7 +286,9 @@ export const useFileExplorer = ({
             savedAt: new Date().toISOString()
           }))
         };
-        saveEmergencyDriveDrafts(snapshot);
+        if (snapshot.drafts.length > 0 || !getEmergencyDriveDrafts()?.drafts?.length) {
+          saveEmergencyDriveDrafts(snapshot);
+        }
         console.warn(`[useFileExplorer] 🛡️ 구글 드라이브 인증 만료: ${snapshot.drafts.length}개 탭 비상 로컬 보존 완료`);
         showToast('☁️ 구글 드라이브 인증이 만료되었지만 작성 중인 내용은 안전하게 로컬에 보존되었습니다. 재인증 시 클라우드로 자동 동기화됩니다.', 'warning');
       } catch (e) {
@@ -293,6 +298,7 @@ export const useFileExplorer = ({
 
     // 3. 토큰 갱신 또는 재연결 시: 보존된 비상 초안이 있으면 클라우드로 자동 복구 동기화
     const handleTokenUpdated = async () => {
+      expiryHandled = false;
       setIsDriveAuthExpired(false);
       try {
         const emergencySnapshot = getEmergencyDriveDrafts();

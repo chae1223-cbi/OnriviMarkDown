@@ -2,6 +2,7 @@
 // 📊 [OMD-PRELOAD-0001] preload.js ➔ Desktop GDrive Auth Bridge & Secure APIs
 // 🎯 @KICK  : Electron contextBridge API 노출 및 안전한 IPC 통신 채널 제공
 // 🛡️ @GUARD : contextIsolation 및 nodeIntegration 보안 원칙 준수
+// 🚨 @PATCH : **2026-10-28** — [외부 AI MCP 타겟(Gemini, Claude) 자동 감지 및 원클릭 연동 브리지 노출]: checkMcpTargets, installMcpTarget, uninstallMcpTarget IPC 브리지 연동
 // 🚨 @PATCH : **2026-10-26** — [단축코드 정의서(shortcodes.json) 브리지(loadShortcodes, saveShortcodes) 노출]: 리소스 폴더 settings/shortcodes.json 파일 IPC 브리지 연동
 // 🚨 @PATCH : **2026-10-21** — [AI 인증정보 리소스 폴더 암호화 브리지(loadAICredentials, saveAICredentials, getDeviceInfo) 노출]: 리소스 폴더 settings/ai_credentials.enc 파일 및 물리 기기 정보 IPC 브리지 연동
 // 🚨 @PATCH : **2026-10-14** — [클립보드 네이티브 비트맵 이미지 복사 API(copyImageToClipboard) 노출]: clipboard:writeImage IPC 연동을 통해 이미지 경로/URL/DataURL을 OS 시스템 클립보드에 비트맵으로 직접 복사하는 브리지 API 노출
@@ -134,6 +135,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 17. 환경설정 로드 (데스크탑 영구 저장 연동)
   loadSettings: () => ipcRenderer.invoke('settings:load'),
+  syncMcpContext: (context) => ipcRenderer.invoke('mcp-context:sync', context),
+  checkMcpTargets: () => ipcRenderer.invoke('mcp:check-targets'),
+  installMcpTarget: (target) => ipcRenderer.invoke('mcp:install-target', target),
+  uninstallMcpTarget: (target) => ipcRenderer.invoke('mcp:uninstall-target', target),
 
   // 18. 환경설정 저장 (데스크탑 영구 저장 연동)
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
