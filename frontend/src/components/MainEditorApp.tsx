@@ -1668,6 +1668,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     setIsProfilesLoaded(false);
     let loadRevision = 0;
     const load = async () => {
+      const profilesStartedAt = performance.now();
       const requestRevision = ++loadRevision;
       const targetEnv = getResourceEnvironment();
       let folder = getProfileResourceFolder(null, targetEnv);
@@ -1727,9 +1728,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         if (resourceFolder !== folder) setResourceFolder(folder);
         setIsProfilesLoaded(true);
         setProfileReadStatus({ ...destination, state: 'success', userCount: normalized.length });
+        console.info('[STARTUP timing] profile load ms=%d environment=%s', Math.round(performance.now() - profilesStartedAt), targetEnv);
         return true;
       } catch (error) {
         if (cancelled || requestRevision !== loadRevision) return false;
+        console.info('[STARTUP timing] profile load failed after ms=%d', Math.round(performance.now() - profilesStartedAt));
         console.error('[loadUserProfiles] userCssProfiles.json 읽기 실패:', error);
         setProfileReadStatus({ ...destination, state: 'error', error: error instanceof Error ? error.message : '서식 파일을 읽지 못했습니다.' });
         if (folder) {
@@ -2246,11 +2249,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
 
       try {
+        const verifyStartedAt = performance.now();
         const verifyRes = await fetch(getApiUrl('/api/license/verify-desktop'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ p_email: savedUserId, p_device_uuid: deviceId })
+          body: JSON.stringify({ p_email: savedUserId, p_device_uuid: deviceId }),
+          signal: AbortSignal.timeout(10000)
         });
+        console.info('[STARTUP timing] desktop license verification ms=%d', Math.round(performance.now() - verifyStartedAt));
         const data = verifyRes.ok ? await verifyRes.json() : null;
         const error = !verifyRes.ok ? new Error('서버 오류') : null;
 
@@ -2801,9 +2807,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       console.log('[WELCOME-TRIGGER] skipped: deviceId empty');
       return;
     }
+    const licenseStartedAt = performance.now();
     console.log('[WELCOME-TRIGGER] calling loadAndVerifyLicense deviceId=%o', deviceId);
     loadAndVerifyLicense().finally(() => {
-      console.log('[WELCOME-TRIGGER] loadAndVerifyLicense done, setting isLicenseChecking=false');
+      console.log('[WELCOME-TRIGGER] loadAndVerifyLicense done in %d ms, setting isLicenseChecking=false', Math.round(performance.now() - licenseStartedAt));
       setIsLicenseChecking(false);
     });
   }, [loadAndVerifyLicense, deviceId, setIsLicenseChecking]);
@@ -4808,6 +4815,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : api.readFromPath, setTabs, setActiveTabId, setContent, showToast
   // ====================================================================
   const restoreSessionTabs = async (openFilePaths: string[], activeFilePath: string | null, savedTabs?:SessionTab[], savedActiveId?:string|null, savedMode?:string) => {
+    const restoreStartedAt = performance.now();
     try {
       sessionRestoringRef.current = true;
       // 💡 [정식 문서 열기 적용] 단순히 탭만 임의로 배열에 쑤셔넣지 않고, 
@@ -4888,6 +4896,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     } catch (err) {
       console.error("[restoreSessionTabs] 오류:", err);
     } finally {
+      console.info('[STARTUP timing] session restore ms=%d tabs=%d', Math.round(performance.now() - restoreStartedAt), savedTabs?.length ?? openFilePaths.length);
       sessionRestoringRef.current = false;
       sessionRestoredRef.current = true;
       // Persist only after the entire restoration has completed.

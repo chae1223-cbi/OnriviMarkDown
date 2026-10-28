@@ -33,7 +33,7 @@ WITH selected AS MATERIALIZED (
       OR (a.is_active = true AND NOT e.eligible))
   RETURNING a.id
 )
-SELECT activation_id, activation_active, eligible, plan_name,
+SELECT activation_id, activation_active, eligible, plan_name, plan_status,
   last_seen < now() - interval '5 minutes' AS idle_expired
 FROM evaluated`;
 
@@ -53,6 +53,7 @@ export async function checkSession(body, user, query) {
     success: true, exists, has_session: active, is_restricted: exists && !active,
     is_terminated: !exists, max_devices: row?.eligible ? 1 : 0,
     reason: !exists ? 'TERMINATED' : !row.eligible ? 'PLAN_EXPIRED' : !active ? 'RESTRICTED' : 'ACTIVE',
-    idle_expired: row?.idle_expired === true, plan_name: row?.plan_name || null
+    idle_expired: row?.idle_expired === true, plan_name: row?.plan_name || null,
+    plan_status: row?.plan_status || null
   } };
 }

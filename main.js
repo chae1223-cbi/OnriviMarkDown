@@ -3167,6 +3167,7 @@ ipcMain.handle('dialog:selectFolder', async (event, defaultPath) => {
 
 // 5. 절대 경로를 지정하여 직접 파일 내용 읽기
 ipcMain.handle('file:readFromPath', async (event, filePath) => {
+  const readStartedAt = Date.now();
   try {
     if (!filePath || typeof filePath !== 'string') {
       throw new Error('유효하지 않은 파일 경로입니다.');
@@ -3265,6 +3266,8 @@ ipcMain.handle('file:readFromPath', async (event, filePath) => {
       // desktopInlineImages 모듈이 누락되었거나 처리 실패 시에도 파일 읽기는 원본 본문으로 무중단 반환
       content = rawContent;
     }
+    const readMs = Date.now() - readStartedAt;
+    if (readMs > 300) console.info('[STARTUP timing] document read ms=%d bytes=%d file=%s', readMs, Buffer.byteLength(rawContent, 'utf8'), path.basename(cleanPath));
     return {
       name: path.basename(cleanPath),
       path: cleanPath,
@@ -3953,12 +3956,12 @@ ipcMain.handle('license:save-full', async (event, data) => {
 
 // 물리 기기 고유 ID 수집 핸들러
 ipcMain.handle('license:get-device-id', async () => {
+  if (process.platform === 'win32') {
+    return (await getMcpDeviceId()) || 'fallback-machine-id-win32';
+  }
   try {
     const { execSync } = require('child_process');
-    if (process.platform === 'win32') {
-      const output = execSync('powershell -Command "Get-CimInstance Win32_ComputerSystemProduct | Select-Object -ExpandProperty UUID"', { encoding: 'utf-8' });
-      return output.trim();
-    } else if (process.platform === 'darwin') {
+    if (process.platform === 'darwin') {
       const output = execSync("ioreg -rd1 -c IOPlatformExpertDevice | awk '/IOPlatformUUID/ { split($0, line, \"\\\"\"); print line[4] }'", { encoding: 'utf-8' });
       return output.trim();
     } else {
@@ -4199,19 +4202,24 @@ ipcMain.handle('settings:load', async () => {
 
 // MCP reads only this short-lived snapshot of the active desktop folders.
 const mcpContextFile = () => path.join(app.getPath('userData'), 'mcp-context.json');
-let mcpDeviceId;
+let mcpDeviceIdPromise;
 const getMcpDeviceId = () => {
-  if (mcpDeviceId) return mcpDeviceId;
-  if (process.platform !== 'win32') return null;
-  try {
-    const { execFileSync } = require('child_process');
-    const id = execFileSync('powershell', ['-NoProfile', '-Command', 'Get-CimInstance Win32_ComputerSystemProduct | Select-Object -ExpandProperty UUID'], { encoding: 'utf8', timeout: 5000 }).trim();
-    if (/^[a-f0-9-]{36}$/i.test(id)) mcpDeviceId = id;
-  } catch {}
-  return mcpDeviceId || null;
+  if (mcpDeviceIdPromise) return mcpDeviceIdPromise;
+  if (process.platform !== 'win32') return Promise.resolve(null);
+  mcpDeviceIdPromise = new Promise(resolve => {
+    const { execFile } = require('child_process');
+    execFile('powershell', ['-NoProfile', '-Command', 'Get-CimInstance Win32_ComputerSystemProduct | Select-Object -ExpandProperty UUID'],
+      { encoding: 'utf8', timeout: 5000 }, (error, output) => {
+        const id = !error ? output.trim() : '';
+        if (!/^[a-f0-9-]{36}$/i.test(id)) mcpDeviceIdPromise = null;
+        resolve(/^[a-f0-9-]{36}$/i.test(id) ? id : null);
+      });
+  });
+  return mcpDeviceIdPromise;
 };
 ipcMain.handle('mcp-context:sync', async (event, context) => {
   if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('INVALID_MCP_CONTEXT_SENDER');
+  const deviceId = await getMcpDeviceId();
   const validPath = value => typeof value === 'string' && path.isAbsolute(value) && fs.existsSync(value) && fs.statSync(value).isDirectory();
   const snapshot = {
     version: 1,
@@ -4219,7 +4227,7 @@ ipcMain.handle('mcp-context:sync', async (event, context) => {
     resourceKind: context?.resourceKind === 'drive' ? 'drive' : context?.resourceKind === 'browser' ? 'browser' : context?.resourceKind === 'local' ? 'local' : 'unset',
     workspacePath: context?.workspaceType === 'local' && validPath(context?.workspacePath) ? path.resolve(context.workspacePath) : null,
     resourcePath: context?.resourceKind === 'local' && validPath(context?.resourcePath) ? path.resolve(context.resourcePath) : null,
-    deviceId: getMcpDeviceId(),
+    deviceId,
     pid: process.pid,
     updatedAt: new Date().toISOString()
   };
