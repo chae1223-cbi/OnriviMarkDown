@@ -51,3 +51,40 @@ export async function replaceDocument(input, expectedSha256, content, allowedFol
   }
   return { path: file, sha256: sha256(bytes), bytes: bytes.length };
 }
+
+export async function editMarkdownSection(input, expectedSha256, heading, oldText, newText, allowedFolders, beforeWrite) {
+  if (typeof heading !== 'string' || !heading.trim() || heading.length > 200) throw new Error('수정할 마크다운 제목을 지정하세요.');
+  if (typeof oldText !== 'string' || !oldText) throw new Error('교체할 기존 문구를 지정하세요.');
+  if (typeof newText !== 'string') throw new Error('새 문구는 문자열이어야 합니다.');
+  if (!/^[a-f0-9]{64}$/i.test(expectedSha256 ?? '')) throw new Error('read_markdown에서 받은 SHA-256 값이 필요합니다.');
+  const document = await readDocument(input, allowedFolders);
+  if (document.sha256 !== expectedSha256.toLowerCase()) throw new Error('문서를 읽은 뒤 파일이 변경되었습니다. 다시 읽은 후 저장하세요.');
+  const content = document.content;
+  const headings = [];
+  let offset = 0;
+  let fence = null;
+  for (const lineWithEnding of content.split(/(?<=\n)/)) {
+    const line = lineWithEnding.replace(/\r?\n$/, '');
+    const marker = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    if (marker) {
+      if (!fence) fence = marker[1];
+      else if (marker[1][0] === fence[0] && marker[1].length >= fence.length) fence = null;
+    } else if (!fence) {
+      const match = line.match(/^ {0,3}(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$/);
+      if (match) headings.push({ level: match[1].length, name: match[2].trim(), start: offset, bodyStart: offset + lineWithEnding.length });
+    }
+    offset += lineWithEnding.length;
+  }
+  const selected = headings.filter(item => item.name === heading.trim());
+  if (selected.length !== 1) throw new Error(selected.length ? '같은 제목이 여러 개입니다. 제목을 고유하게 지정하세요.' : '지정한 제목을 찾지 못했습니다.');
+  const target = selected[0];
+  const next = headings.find(item => item.start > target.start && item.level <= target.level);
+  const end = next?.start ?? content.length;
+  const body = content.slice(target.bodyStart, end);
+  const at = body.indexOf(oldText);
+  if (at < 0) throw new Error('해당 제목 아래에서 기존 문구를 찾지 못했습니다.');
+  if (body.indexOf(oldText, at + oldText.length) >= 0) throw new Error('해당 제목 아래에 같은 문구가 여러 번 있습니다. 더 긴 문구를 지정하세요.');
+  const updated = content.slice(0, target.bodyStart + at) + newText + content.slice(target.bodyStart + at + oldText.length);
+  const result = await replaceDocument(input, expectedSha256, updated, allowedFolders, beforeWrite);
+  return { ...result, heading: target.name };
+}

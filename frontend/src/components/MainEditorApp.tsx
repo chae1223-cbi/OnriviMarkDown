@@ -7706,6 +7706,7 @@ blockquote li p {
 
 
     const liMarginBottom = (prof.rules.li && prof.rules.li['margin-bottom']) || '6px';
+    const paragraphMarginTop = prof.rules.p?.['margin-top'] ?? '0px';
     const listIndent = (prof.rules.ul && prof.rules.ul['padding-left']) || (prof.rules.ol && prof.rules.ol['padding-left']) || '28px';
     const liMarkerGap = (prof.rules.li && (prof.rules.li['padding-inline-start'] || prof.rules.li['padding-left'])) || '0px';
 
@@ -7799,13 +7800,13 @@ blockquote li p {
 .custom-preview-container ol + p,
 .onrivi-content-root ul + p,
 .onrivi-content-root ol + p {
-  margin-top: 1.5em !important;
+  margin-top: ${paragraphMarginTop} !important;
 }
 .custom-preview-container p + ul,
 .custom-preview-container p + ol,
 .onrivi-content-root p + ul,
 .onrivi-content-root p + ol {
-  margin-top: 1.2em !important;
+  margin-top: 4px !important;
 }
 /* NodeViews wrap list content in a div; nested lists must still stay tight. */
 .custom-preview-container li ul,
@@ -7855,7 +7856,7 @@ blockquote li p {
   margin-top: 4px !important;
 }
 .custom-preview-container .visual-document-surface > :is(ul,ol) + :is(ul,ol) {
-  margin-top: 0.75em !important;
+  margin-top: 4px !important;
 }
 .custom-preview-container .visual-document-surface > p:empty,
 .custom-preview-container .visual-document-surface > p:has(> br:only-child),

@@ -147,6 +147,49 @@ export const independentIndentListItem: Command = (state, dispatch, currentView)
   const listDepth = itemDepth - 1;
   const itemIndexInList = $from.index(listDepth);
 
+  if (!state.selection.empty && state.selection instanceof TextSelection) {
+    const list = $from.node(listDepth);
+    const listPos = $from.before(listDepth);
+    const items: DocumentNode[] = [];
+    let first = -1;
+    let last = -1;
+    list.forEach((item, offset) => {
+      const start = listPos + 1 + offset;
+      items.push(item);
+      if (start < state.selection.to && start + item.nodeSize > state.selection.from) {
+        if (first < 0) first = items.length - 1;
+        last = items.length - 1;
+      }
+    });
+    if (first >= 0) {
+      if (dispatch) {
+        const replacement: DocumentNode[] = [];
+        const makeList = (part: DocumentNode[], startIndex: number, indentPx: number | null) =>
+          list.type.create({
+            ...list.attrs,
+            indentPx,
+            ...(list.type === visualSchema.nodes.ordered_list ? { order: (list.attrs.order || 1) + startIndex } : {}),
+          }, Fragment.fromArray(part));
+        if (first > 0) replacement.push(makeList(items.slice(0, first), 0, list.attrs.indentPx));
+        replacement.push(makeList(items.slice(first, last + 1), first, bounded((list.attrs.indentPx || 0) + listStep(currentView))));
+        if (last + 1 < items.length) replacement.push(makeList(items.slice(last + 1), last + 1, list.attrs.indentPx));
+        const tr = state.tr.replaceWith(listPos, $from.after(listDepth), Fragment.fromArray(replacement));
+        const relocate = ($position: typeof state.selection.$anchor) => {
+          let found: number | undefined;
+          tr.doc.descendants((node, pos) => {
+            if (node === $position.parent && found === undefined) found = pos + 1 + $position.parentOffset;
+          });
+          return found;
+        };
+        const anchor = relocate(state.selection.$anchor);
+        const head = relocate(state.selection.$head);
+        if (anchor !== undefined && head !== undefined) tr.setSelection(TextSelection.create(tr.doc, anchor, head));
+        dispatch(closeHistory(tr).scrollIntoView());
+      }
+      return true;
+    }
+  }
+
   // 1) 같은 리스트 내에서 이전 형제가 있는 경우 -> sinkListItem으로 이전 항목의 하위로 안전 들여쓰기
   // 🛡️ 하위 리스트(사전 동의 원칙 등)가 상위 레벨(1레벨)로 튀어나오지 않고 하위 위계를 100% 온전히 유지
   if (itemIndexInList > 0) {
@@ -306,6 +349,59 @@ export const independentLiftListItem: Command = (state, dispatch, view) => {
     return outdentWholeList(state, dispatch, view, listDepth);
   }
 
+  // A top-level item has no parent list level to move into. Consume Shift+Tab
+  // without lifting it into a plain paragraph and losing its marker.
+  if (listDepth <= 1 || $from.node(listDepth - 1).type !== visualSchema.nodes.list_item) {
+    // The selected item is already at the left edge. Promote its direct child
+    // lists instead, keeping the selected item's marker and each child's type.
+    const listPos = $from.before(listDepth);
+    const replacement: DocumentNode[] = [];
+    let segment: DocumentNode[] = [];
+    let changed = false;
+    listNode.forEach((item, offset) => {
+      const itemStart = listPos + 1 + offset;
+      const selected = itemStart < state.selection.to && itemStart + item.nodeSize > state.selection.from;
+      if (!selected) {
+        segment.push(item);
+        return;
+      }
+      const children: DocumentNode[] = [];
+      const retained: DocumentNode[] = [];
+      item.forEach((node, childOffset) => {
+        const childStart = itemStart + 1 + childOffset;
+        const childSelected = childStart < state.selection.to && childStart + node.nodeSize > state.selection.from;
+        (isList(node) && (state.selection.empty || childSelected) ? children : retained).push(node);
+      });
+      if (!children.length) {
+        segment.push(item);
+        return;
+      }
+      changed = true;
+      segment.push(item.copy(Fragment.fromArray(retained)));
+      replacement.push(listNode.copy(Fragment.fromArray(segment)), ...children);
+      segment = [];
+    });
+    if (!changed) return true;
+    if (!dispatch) return true;
+    if (segment.length) replacement.push(listNode.copy(Fragment.fromArray(segment)));
+    const tr = state.tr.replaceWith(listPos, $from.after(listDepth), Fragment.fromArray(replacement));
+    const relocate = ($position: typeof state.selection.$anchor) => {
+      let found: number | undefined;
+      tr.doc.descendants((node, pos) => {
+        if (node === $position.parent && found === undefined) found = pos + 1 + $position.parentOffset;
+      });
+      return found;
+    };
+    const anchor = relocate(state.selection.$anchor);
+    const head = relocate(state.selection.$head);
+    if (anchor !== undefined && head !== undefined) {
+      tr.setSelection(TextSelection.create(tr.doc, anchor, head));
+    } else {
+      tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(state.selection.anchor, tr.doc.content.size))));
+    }
+    dispatch(closeHistory(tr).scrollIntoView());
+    return true;
+  }
   return liftListItem(visualSchema.nodes.list_item)(state, dispatch, view);
 };
 

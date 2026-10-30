@@ -1,7 +1,10 @@
 # 온리비 어서 로컬 플러그인
 
 대화에서 `read_markdown`(읽기), `replace_markdown`(수정),
-`list_style_profiles`(서식 조회), `create_style_profile`(신규 서식 생성) 도구를 제공합니다.
+`list_style_profiles`(서식 조회), `create_style_profile`(신규 서식 생성),
+`list_workspace_files`(작업장 파일 목록), `search_workspace`(작업장 검색),
+`create_markdown`(새 문서 생성), `edit_markdown_section`(제목 아래 문구 수정),
+`update_style_profile`(기존 사용자 서식 수정) 도구를 제공합니다.
 Node.js 20 이상에서 로컬로 실행되며 별도의 npm 패키지가 필요하지 않습니다.
 현재 앱에서 선택한 로컬 작업장 또는 리소스 폴더 안에 있는
 기존 `.md` 또는 `.markdown` 파일의 절대경로를 입력하세요. 문서를 먼저 읽고,
@@ -27,5 +30,13 @@ Node.js 20 이상에서 로컬로 실행되며 별도의 npm 패키지가 필요
 앱이 실행 중이지 않거나 폴더 정보를 90초 이상 갱신하지 못한 경우에도 저장하지
 않습니다. Google Drive 리소스 폴더는 이 로컬 MCP 버전에서 지원하지 않습니다.
 
-마크다운 수정 도구는 문서 전체 내용을 교체합니다. 새 마크다운 파일 생성,
-폴더 탐색, 파일 뷰어는 지원하지 않습니다.
+`list_workspace_files`는 한 번에 최대 100개, `search_workspace`는 최대 30개의
+결과를 반환합니다. 이어지는 결과는 `nextCursor`로 조회합니다. 숨김 폴더와
+심볼릭 링크는 제외하며, 검색은 파일당 512 KiB, 호출당 8 MiB까지만 읽습니다.
+새 문서는 `get_current_folders`의 `contextSha256`과 작업장 기준 상대경로를
+`create_markdown`에 전달해 만듭니다. 기존 파일과 작업장 밖 경로는 거부합니다.
+`edit_markdown_section`은 `read_markdown`의 SHA-256, 고유한 제목, 기존 문구와
+새 문구를 받아 제목 아래에서 정확히 한 번 일치하는 부분만 교체합니다.
+`update_style_profile`은 `list_style_profiles`의 두 SHA-256 값과 사용자 서식 ID를
+받아 이름·설명·페이지 속성·태그 규칙을 일부 수정합니다. 시스템 서식은 수정하지
+않으며, 파일이 조회 후 바뀌면 저장을 거부합니다.

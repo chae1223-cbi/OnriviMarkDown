@@ -743,6 +743,71 @@ function findClickedHorizontalRulePos(currentView: EditorView, event: MouseEvent
   }
   return hrPos;
 }
+function emptyParagraphAtClick(currentView: EditorView, event: MouseEvent): number | null {
+  const surface = currentView.dom.getBoundingClientRect();
+  if (event.clientX < surface.left || event.clientX > surface.right) return null;
+  // An empty list paragraph is inline and may have a zero-width DOM rect.
+  // Use its list item's visible row instead of Chromium's next-text hit test.
+  let emptyListPos: number | null = null;
+  currentView.state.doc.descendants((node, pos, parent) => {
+    if (node.type !== visualSchema.nodes.paragraph || node.content.size !== 0 || parent?.type !== visualSchema.nodes.list_item || parent.childCount !== 1) return;
+    const $pos = currentView.state.doc.resolve(pos);
+    const item = currentView.nodeDOM($pos.before($pos.depth));
+    if (!(item instanceof HTMLElement)) return;
+    const rect = item.getBoundingClientRect();
+    if (event.clientY >= rect.top && event.clientY <= rect.bottom) emptyListPos = pos + 1;
+  });
+  if (emptyListPos !== null) return emptyListPos;
+  let selectedPos: number | null = null;
+  let minDistance = Infinity;
+  currentView.state.doc.forEach((node, pos, index) => {
+    if (node.type !== visualSchema.nodes.paragraph || node.content.size !== 0) return;
+    const element = currentView.nodeDOM(pos);
+    if (!(element instanceof HTMLElement)) return;
+    const rect = element.getBoundingClientRect();
+    const previous = index > 0 ? currentView.nodeDOM(pos - currentView.state.doc.child(index - 1).nodeSize) : null;
+    const next = index < currentView.state.doc.childCount - 1 ? currentView.nodeDOM(pos + node.nodeSize) : null;
+    const previousBottom = previous instanceof HTMLElement ? previous.getBoundingClientRect().bottom : rect.top;
+    const nextTop = next instanceof HTMLElement ? next.getBoundingClientRect().top : rect.bottom;
+    const top = Math.min(rect.top, previousBottom);
+    const bottom = Math.max(rect.bottom, nextTop);
+    if (event.clientY < top || event.clientY > bottom) return;
+    const distance = Math.abs(event.clientY - (rect.top + rect.bottom) / 2);
+    if (distance < minDistance) { selectedPos = pos + 1; minDistance = distance; }
+  });
+  return selectedPos;
+}
+function paragraphLineEndAtClick(currentView: EditorView, event: MouseEvent): number | null {
+  const surface = currentView.dom.getBoundingClientRect();
+  if (event.clientX < surface.left || event.clientX > surface.right) return null;
+  let result: number | null = null;
+  currentView.state.doc.descendants((node, pos, parent) => {
+    if (result !== null || node.type !== visualSchema.nodes.paragraph || node.content.size === 0 ||
+        (parent?.type !== visualSchema.nodes.list_item && parent?.type !== visualSchema.nodes.doc)) return;
+    const element = currentView.nodeDOM(pos);
+    if (!(element instanceof HTMLElement)) return;
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const textRects = Array.from(range.getClientRects()).filter(rect => rect.width > 0 && rect.height > 0);
+    const lineRects = textRects.filter(rect => event.clientY >= rect.top - 2 && event.clientY <= rect.bottom + 2);
+    if (!lineRects.length) return;
+    const right = Math.max(...lineRects.map(rect => rect.right));
+    if (event.clientX <= right + 2) return;
+    const lineTop = Math.min(...lineRects.map(rect => rect.top));
+    const laterLine = textRects.some(rect => rect.top > lineTop + 3);
+    if (!laterLine) {
+      result = pos + node.nodeSize - 1;
+      return;
+    }
+    const targetY = (Math.min(...lineRects.map(rect => rect.top)) + Math.max(...lineRects.map(rect => rect.bottom))) / 2;
+    const hit = currentView.posAtCoords({ left: right - 1, top: targetY });
+    if (hit) {
+      const $hit = currentView.state.doc.resolve(hit.pos);
+      if ($hit.parent === node) result = hit.pos;
+    }
+  });
+  return result;
+}
 function createListNormalizationPlugin() {
   return new Plugin({
     key: new PluginKey('onrivi:list-normalization'),
@@ -2114,7 +2179,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
           if (dispatch) dispatch(state.tr.replaceSelectionWith(visualSchema.nodes.hard_break.create()).scrollIntoView());
           return true;
         }),
-        Tab: chainCommands(moveTableCell(),indentBlockquote,withIndependentQuotes(independentIndentListItem),safeListIndent), 'Shift-Tab': chainCommands(moveTableCell(true),outdentBlockquote,withIndependentQuotes(independentLiftListItem),liftListItem(visualSchema.nodes.list_item),indentDocument(true)),
+        Tab: chainCommands(moveTableCell(),indentBlockquote,withIndependentQuotes(independentIndentListItem),safeListIndent), 'Shift-Tab': chainCommands(moveTableCell(true),outdentBlockquote,withIndependentQuotes(independentLiftListItem),indentDocument(true)),
       }), keymap(baseKeymap)] }),
       editable: () => !readOnly,
       attributes: { spellcheck: String(spellCheck), class: 'visual-document-surface', 'aria-label': '문서 직접 편집', role: 'textbox', 'aria-multiline': 'true', 'data-editor-tab-size': String(tabSize) },
@@ -3372,6 +3437,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         return false;
       },
       handleClick(currentView, pos, event) {
+        // A completed drag must keep its range; click correction only applies to a caret.
+        if (!currentView.state.selection.empty || document.getSelection()?.isCollapsed === false) return false;
         const clickedHrPos = findClickedHorizontalRulePos(currentView, event);
         if (clickedHrPos >= 0) {
           event.preventDefault();
@@ -3382,6 +3449,22 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         if (currentView.state.selection instanceof NodeSelection && currentView.state.selection.node.type === visualSchema.nodes.horizontal_rule) {
           event.preventDefault();
           placeCursorBeforeHorizontalRule(currentView, currentView.state.selection.from);
+          caretRef.current?.schedule();
+          return true;
+        }
+        const emptyParagraphPos = emptyParagraphAtClick(currentView, event);
+        if (emptyParagraphPos !== null && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
+          event.preventDefault();
+          currentView.dispatch(currentView.state.tr.setSelection(TextSelection.create(currentView.state.doc, emptyParagraphPos)));
+          currentView.focus();
+          caretRef.current?.schedule();
+          return true;
+        }
+        const lineEndPos = paragraphLineEndAtClick(currentView, event);
+        if (lineEndPos !== null && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
+          event.preventDefault();
+          currentView.dispatch(currentView.state.tr.setSelection(TextSelection.create(currentView.state.doc, lineEndPos)));
+          currentView.focus();
           caretRef.current?.schedule();
           return true;
         }
@@ -3502,7 +3585,6 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
             caretRef.current?.schedule();
             return true;
           }
-
           // 🛡️ [선택 영역 내부 클릭 시 선택 해제 및 커서 즉시 이동]
           // Chromium contenteditable에서 선택된 텍스트 위를 클릭했을 때 브라우저가 드래그(DnD)를 대기하느라
           // 선택이 풀리지 않고 유지되는 고질적 결함을 원천 방어하여, 마우스 클릭 위치로 즉시 단일 커서(Caret) 배치
@@ -3519,38 +3601,6 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
                 let tr = currentView.state.tr;
                 tr = tr.insert(afterPos, visualSchema.nodes.paragraph.create());
                 currentView.dispatch(tr.setSelection(TextSelection.create(tr.doc, afterPos + 1)).scrollIntoView());
-                currentView.focus();
-                caretRef.current?.schedule();
-                return true;
-              }
-            }
-          }
-          if (!target?.closest('a, button, input, [contenteditable="false"]')) {
-            const isSelected = !currentView.state.selection.empty || Boolean(document.getSelection() && !document.getSelection()?.isCollapsed);
-            if (isSelected) {
-              const coords = { left: e.clientX, top: e.clientY };
-              const posInfo = currentView.posAtCoords(coords);
-              let targetPos: number | null = null;
-              if (posInfo && typeof posInfo.pos === 'number') {
-                targetPos = posInfo.pos;
-              } else {
-                const surfaceEl = currentView.dom;
-                const rect = surfaceEl.getBoundingClientRect();
-                if (e.clientY > rect.bottom) {
-                  targetPos = currentView.state.doc.content.size;
-                } else {
-                  const clampX = Math.max(rect.left + 8, Math.min(e.clientX, rect.right - 8));
-                  const fallbackInfo = currentView.posAtCoords({ left: clampX, top: e.clientY });
-                  if (fallbackInfo && typeof fallbackInfo.pos === 'number') {
-                    targetPos = fallbackInfo.pos;
-                  }
-                }
-              }
-
-              if (targetPos !== null) {
-                e.preventDefault();
-                const $target = currentView.state.doc.resolve(Math.max(0, Math.min(targetPos, currentView.state.doc.content.size)));
-                currentView.dispatch(currentView.state.tr.setSelection(TextSelection.near($target)));
                 currentView.focus();
                 caretRef.current?.schedule();
                 return true;
@@ -4933,7 +4983,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       .custom-preview-container .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div),
       .onrivi-content-root .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div),
       .visual-document-surface :is(p,h1,h2,h3,h4,h5,h6,li > div) { white-space:break-spaces!important; tab-size:inherit; }
-      .visual-document-surface p { margin:0 0 0.5em; }
+      .visual-document-surface p { margin:0; }
       .visual-document-surface br.ProseMirror-trailingBreak { display:inline!important; content:normal!important; margin:0!important; height:auto!important; }
       .visual-document-surface p:empty,
       .visual-document-surface p:has(>br.ProseMirror-trailingBreak:only-child) {
@@ -5013,9 +5063,9 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       }
       .visual-document-surface ul { padding-left:2em; list-style:disc; }
       .visual-document-surface ul, .visual-document-surface ol { padding-left: var(--list-indent, 2em); margin-top:0!important; margin-bottom:0!important; }
-      /* Keep the boundary between separate top-level lists, without adding item gaps. */
+      /* Keep separate lists at the same gap as a normal list block. */
       .custom-preview-container .visual-document-surface > :is(ul,ol) + :is(ul,ol),
-      .visual-document-surface > :is(ul,ol) + :is(ul,ol) { margin-top:1.5em!important; }
+      .visual-document-surface > :is(ul,ol) + :is(ul,ol) { margin-top:4px!important; }
 
       .visual-document-surface ol { padding-left:2em; list-style:decimal; }
       .visual-document-surface blockquote { border-left:3px solid #93c5fd; padding-left:1em; }
