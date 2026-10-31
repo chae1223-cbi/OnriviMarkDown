@@ -1,4 +1,5 @@
 // @ts-nocheck
+// 🚨 @PATCH : **2026-10-31** - [인라인 서식 빈 커서 상태에서 동일 버튼 클릭 시 태그 취소(토글 해제) 지원]: 커서가 서식 태그(**|**, <u>|</u> 등) 사이 또는 감싸진 단어 내에 있을 때 동일 서식 버튼 재클릭 시 태그를 자동 제거하여 일반 텍스트로 복귀
 // 🚨 @PATCH : **2026-10-17** - [코드블록/머메이드 및 다행 텍스트(수식 등) 삽입 시 하단 빈 행 자동 추가 및 커서 이동] insertBlockTag 종료 태그 뒤에 빈 행(\n\n)을 자동 추가하고, insertAtCursor에서 다행 텍스트 삽입 시 마지막 줄 끝으로 커서를 안착시켜 마우스 클릭 및 연속 작업을 지원
 // 🚨 @PATCH : **2026-10-02** - [미디어 삽입 Range 호환성 강화 및 즉각 상태 동기화] insertMediaAtCursor 내 Range 객체 생성 시 monaco 전역 참조 안전 폴백 및 updateContent 즉시 동기화 연동
 // 🚨 @PATCH : 2026-09-06 - [미디어 삽입 후 2행 자동 추가 및 커서 이동] insertMediaAtCursor 함수 신규 추가: 이미지·동영상·지도 마크다운 삽입 후 자동으로 빈 줄 2행을 추가하고 커서를 마지막 빈 행 끝에 위치시켜 즉시 이어 입력 가능하도록 구현
@@ -499,6 +500,46 @@ export const wrapSelection = (editorRef: any, lastSelectionRef: any, before: str
       }, 10);
       editor.focus();
       return;
+    }
+
+    // 선택 영역이 비어 있는 경우: 동일 서식 태그가 이미 존재하면 취소(토글 해제)
+    if (isEmpty && before && after) {
+      const startLine = selection.startLineNumber;
+      const startCol = selection.startColumn;
+
+      // 1) 커서가 바로 태그 사이에 위치한 경우: before|after (예: **|**)
+      if (startCol > before.length) {
+        const rangeBefore = new (window as any).monaco.Range(startLine, startCol - before.length, startLine, startCol);
+        const rangeAfter = new (window as any).monaco.Range(startLine, startCol, startLine, startCol + after.length);
+        if (model.getValueInRange(rangeBefore) === before && model.getValueInRange(rangeAfter) === after) {
+          const fullRange = new (window as any).monaco.Range(startLine, startCol - before.length, startLine, startCol + after.length);
+          editor.pushUndoStop();
+          editor.executeEdits("toggle-off-empty-tags", [{ range: fullRange, text: "", forceMoveMarkers: true }]);
+          editor.pushUndoStop();
+          editor.setPosition({ lineNumber: startLine, column: startCol - before.length });
+          refreshTokens(startLine, startLine);
+          editor.focus();
+          return;
+        }
+      }
+
+      // 2) 커서가 감싸진 단어 내부에 위치한 경우 (예: **단|어**)
+      const lineContent = model.getLineContent(startLine);
+      const beforeIdx = lineContent.lastIndexOf(before, startCol - 1);
+      if (beforeIdx >= 0) {
+        const afterIdx = lineContent.indexOf(after, beforeIdx + before.length);
+        if (afterIdx >= 0 && (startCol - 1) <= afterIdx + after.length) {
+          const innerText = lineContent.slice(beforeIdx + before.length, afterIdx);
+          const fullRange = new (window as any).monaco.Range(startLine, beforeIdx + 1, startLine, afterIdx + after.length + 1);
+          editor.pushUndoStop();
+          editor.executeEdits("toggle-off-word", [{ range: fullRange, text: innerText, forceMoveMarkers: true }]);
+          editor.pushUndoStop();
+          editor.setPosition({ lineNumber: startLine, column: Math.max(beforeIdx + 1, startCol - before.length) });
+          refreshTokens(startLine, startLine);
+          editor.focus();
+          return;
+        }
+      }
     }
 
     // 선택 영역이 비어 있는 경우: defaultText를 포함하여 통째로 삽입

@@ -4,6 +4,7 @@
  * -----------------------------------------------------------------------
  * 변경내역
  * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-10-31** — [제목 화살표(▲, ▼) 클릭 시 레벨 변경 및 에디터 즉시 반영]: 제목 레벨 조절 화살표 클릭 시 H1~H6 명령어가 에디터에 즉시 실행되도록 연동
  * 🚨 @PATCH : **2026-10-15** — [서명/발신인 서식 왼쪽 정렬 명칭 동기화]: 툴팁 라벨을 '서명/발신인 (왼쪽 정렬)'으로 갱신
  * 🚨 @PATCH : **2026-10-01** — [서명/발신인 단축키 변경] 다른 이름으로 저장(Ctrl+Shift+S)과의 충돌 방지를 위해 서명/발신인 단축키를 Ctrl+Alt+R로 변경
  * 🚨 @PATCH : **2026-10-01** — [서명/발신인 버튼 추가] 서명/발신인(우측 정렬, Ctrl+Alt+R) 버튼 탑재 및 SHORTCUTS 동기화
@@ -58,12 +59,20 @@ export default function FormattingToolbar() {
 
   const handleHeadingUp = (e: React.MouseEvent) => {
     e.preventDefault();
-    if (headingLevel > 1) setHeadingLevel(prev => prev - 1);
+    if (headingLevel > 1) {
+      const next = headingLevel - 1;
+      setHeadingLevel(next);
+      dispatch(('H' + next) as any);
+    }
   };
 
   const handleHeadingDown = (e: React.MouseEvent) => {
     e.preventDefault();
-    if (headingLevel < 6) setHeadingLevel(prev => prev + 1);
+    if (headingLevel < 6) {
+      const next = headingLevel + 1;
+      setHeadingLevel(next);
+      dispatch(('H' + next) as any);
+    }
   };
 
 

@@ -1,5 +1,15 @@
 /**
  * 프로그램명 : OnriviAuthor 
+// 🚨 @PATCH : **2026-10-31** — [플로팅 툴바 onMouseDown/onClick 이중 실행 제거 및 단일 발화 보장]:
+//             1) 플로팅 툴바 모든 버튼에서 onMouseDown의 중복 액션 호출을 제거하고 e.preventDefault()만 수행하도록 개선
+//             2) 실제 액션은 onClick에서만 1회 단독 실행되도록 단일화하여 서식이 취소되었다가 즉시 재적용되는 핑퐁 버그 원천 해결
+// 🚨 @PATCH : **2026-10-31** — [서식 버튼 동일 클릭 시 취소(토글 해제) 지원]:
+//             1) 제목(H1~H6), 인용구(QUOTE/ALERT), 글머리 기호(LIST), 번호 목록(ORDERED_LIST), 체크리스트(CHECK) 등 동일 기능 버튼을 재클릭 시 이미 설정된 서식을 즉시 취소·해제하여 일반 문단으로 복귀
+// 🚨 @PATCH : **2026-10-31** — [플로팅 서식 툴바 유지, ESC/에디터 클릭 시 닫힘 및 제목·인용문 화살표 클릭/엔터 즉시 반영]:
+//             1) executeFloatingItem에서 서식 항목 적용 시 플로팅 툴바가 닫히지 않고 연속 서식 작업이 가능하도록 유지
+//             2) ESC 키 입력 또는 마우스로 에디터/외부 클릭 시에만 플로팅 툴바 및 인용구 드롭다운이 닫히도록 전역 mousedown 캡처 리스너 연동
+//             3) 제목 화살표(▲, ▼) 클릭 또는 엔터 시 레벨 변경과 동시에 에디터에 제목(H1~H6)이 즉각 반영되도록 개선
+//             4) 인용문 화살표(▼) 클릭 또는 엔터 시 인용구(QUOTE) 즉시 반영 및 드롭다운 첫 번째 항목 자동 포커스 연동
 // 🚨 @PATCH : **2026-10-27** — [문서보기 텍스트 선택 네이티브 ::selection 스타일, 빈 문단 서식 일원화 및 제목 감소폭/좌측 색깔바 동기화]:
 //             1) dynamicCssString에 .visual-document-surface ::selection 코발트 블루(#2563eb / 다크 #3b82f6) 고대비 서식을 주입하여 DOM 변조 없이 매끄러운 다중 행/문단 선택 보장
 //             2) dynamicCssString의 빈 문단(.visual-document-surface > p:empty 등) 스타일을 서식 프로필의 기본 문단 여백 및 행간과 일원화하여, 엔터 입력 후 텍스트 타이핑 시 문단 크기가 변하거나 위로 튀지 않고 캐럿 위치에서 1:1로 자연스럽게 작성되도록 연동
@@ -4212,16 +4222,46 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     floatingToolbarRef.current?.querySelector<HTMLButtonElement>('[data-floating-bold]')?.focus({ preventScroll: true });
   }, [floatingToolbar.visible]);
   const lastFloatingActionRef = useRef<number>(0);
-  const executeFloatingItem = useCallback((action: () => void) => {
+  const executeFloatingItem = useCallback((action: () => void, closeToolbar: boolean = false) => {
     const now = Date.now();
-    if (now - lastFloatingActionRef.current < 150) return;
+    if (now - lastFloatingActionRef.current < 300) return;
     lastFloatingActionRef.current = now;
     action();
-    setFloatingToolbar(prev => ({ ...prev, visible: false }));
-    if (!visualFloatingOriginRef.current || !visualCommandRef.current?.('FOCUS')) {
-      editorRef.current?.focus();
+    if (closeToolbar) {
+      setFloatingToolbar(prev => ({ ...prev, visible: false }));
+      if (!visualFloatingOriginRef.current || !visualCommandRef.current?.('FOCUS')) {
+        editorRef.current?.focus();
+      }
     }
   }, []);
+
+  // 🎯 [플로팅 툴바 외부 클릭 및 에디터 클릭 시 자동 닫기]
+  useEffect(() => {
+    if (!floatingToolbar.visible) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const targetEl = (e.target instanceof Element ? e.target : (e.target as Node | null)?.parentElement);
+      if (
+        targetEl?.closest('#floating-toolbar') ||
+        targetEl?.closest('#floating-quote-dropdown-fixed') ||
+        targetEl?.closest('#floating-quote-dropdown-container')
+      ) {
+        return;
+      }
+      setFloatingToolbar(prev => ({ ...prev, visible: false }));
+      setFloatingQuoteDropdown(prev => ({ ...prev, open: false }));
+    };
+    window.addEventListener('mousedown', handleOutsideClick, true);
+    return () => window.removeEventListener('mousedown', handleOutsideClick, true);
+  }, [floatingToolbar.visible]);
+
+  // 🎯 [인용구 드롭다운 오픈 시 첫 번째 옵션 버튼에 자동 포커스]
+  useEffect(() => {
+    if (floatingQuoteDropdown.open) {
+      const dropdown = document.getElementById('floating-quote-dropdown-fixed');
+      const firstBtn = dropdown?.querySelector<HTMLButtonElement>('button');
+      firstBtn?.focus({ preventScroll: true });
+    }
+  }, [floatingQuoteDropdown.open]);
   const aiDecorationsRef = useRef<string[]>([]);
   const generationIdRef = useRef<number>(0);
   const readFileTextRef = useRef<(node: FileNode) => Promise<string>>(null!);
@@ -6348,7 +6388,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🚨 @PATCH : 구문 강조 새로고침을 위해 편집 후 forceTokenization
   // 🔗 @CALLS : editor.getSelection, editor.executeEdits, model.forceTokenization, editor.layout
   // ====================================================================
-  const applyLinePrefix = (prefixType: 'orderedList' | 'list' | 'quote' | 'check', alertType?: string) => {
+  const applyLinePrefix = (prefixType: 'orderedList' | 'list' | 'quote' | 'check' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6', alertType?: string) => {
     if (!editorRef.current) return;
     const editor = editorRef.current;
     let selection = editor.getSelection();
@@ -6361,62 +6401,154 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const startLine = selection.startLineNumber;
     const endLine = selection.endLineNumber;
 
-    // 💡 [Alert 인용구 빈 줄 단독 커서 삽입]
-    if (prefixType === 'quote' && alertType && selection.isEmpty()) {
-      const lineContent = model.getLineContent(startLine);
-      if (lineContent.trim() === '') {
-        const insertText = `> [!${alertType}]\n> \n\n`;
+    // ─────────────────────────────────────────────────────────────
+    // 1. 제목 (H1 ~ H6) 토글/취소 처리
+    // ─────────────────────────────────────────────────────────────
+    if (prefixType.startsWith('h') && prefixType.length === 2 && !isNaN(Number(prefixType[1]))) {
+      const targetLevel = Number(prefixType[1]);
+      const targetPrefix = '#'.repeat(targetLevel) + ' ';
+
+      // 선택된 모든 줄이 이미 해당 레벨의 제목인지 확인
+      let allAlreadyTarget = true;
+      for (let i = startLine; i <= endLine; i++) {
+        const lineContent = model.getLineContent(i);
+        const headingMatch = lineContent.match(/^(\s*)(#{1,6})\s+(.*)/);
+        if (!headingMatch || headingMatch[2].length !== targetLevel) {
+          allAlreadyTarget = false;
+          break;
+        }
+      }
+
+      const edits = [];
+      for (let i = startLine; i <= endLine; i++) {
+        const lineContent = model.getLineContent(i);
+        const match = lineContent.match(/^(\s*)(#{1,6})\s*(.*)/);
+        if (allAlreadyTarget) {
+          // 🔥 취소: 이미 해당 제목이 설정되어 있으므로 # 기호를 제거하여 일반 문단으로 복귀
+          if (match) {
+            const indent = match[1] || '';
+            const rest = match[3] || '';
+            edits.push({
+              range: new (window as any).monaco.Range(i, 1, i, lineContent.length + 1),
+              text: `${indent}${rest}`,
+              forceMoveMarkers: true
+            });
+          }
+        } else {
+          // 적용/변경: 기존 제목 기호가 있으면 해당 레벨로 치환, 없으면 접두사 추가
+          if (match) {
+            const indent = match[1] || '';
+            const rest = match[3] || '';
+            edits.push({
+              range: new (window as any).monaco.Range(i, 1, i, lineContent.length + 1),
+              text: `${indent}${targetPrefix}${rest}`,
+              forceMoveMarkers: true
+            });
+          } else {
+            const indentMatch = lineContent.match(/^(\s*)(.*)/);
+            const indent = indentMatch ? indentMatch[1] : '';
+            const rest = indentMatch ? indentMatch[2] : lineContent;
+            edits.push({
+              range: new (window as any).monaco.Range(i, 1, i, lineContent.length + 1),
+              text: `${indent}${targetPrefix}${rest}`,
+              forceMoveMarkers: true
+            });
+          }
+        }
+      }
+
+      editor.pushUndoStop();
+      editor.executeEdits("toggleHeading", edits);
+      editor.pushUndoStop();
+
+      try {
+        if (model && typeof model.forceTokenization === 'function') {
+          for (let i = startLine; i <= endLine; i++) {
+            model.forceTokenization(i);
+          }
+        }
+        editor.layout();
+      } catch (_) { }
+
+      editor.focus();
+      return;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 2. Alert 인용구 토글/취소 처리
+    // ─────────────────────────────────────────────────────────────
+    if (prefixType === 'quote' && alertType) {
+      // 선택된 줄 중 이미 동일한 Alert 태그를 가지고 있는지 확인
+      let allAlreadyThisAlert = true;
+      let alertCount = 0;
+      for (let i = startLine; i <= endLine; i++) {
+        const lineContent = model.getLineContent(i);
+        const existingAlertMatch = lineContent.match(/^(\s*>+\s*)\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION|참고|참조|메모|알림|팁|도움말|중요|필독|주의|경고|위험)\](.*)/i);
+        if (existingAlertMatch) {
+          alertCount++;
+        } else if (lineContent.trim()) {
+          allAlreadyThisAlert = false;
+        }
+      }
+
+      if (alertCount > 0 && allAlreadyThisAlert) {
+        // 🔥 취소: 이미 동일한 Alert 인용구이므로 Alert 태그 및 인용구 제거하여 일반 문단으로 복귀
+        const edits = [];
+        for (let i = startLine; i <= endLine; i++) {
+          const lineContent = model.getLineContent(i);
+          const clean = lineContent.replace(/^(\s*)>+\s*(\[!.*?\])?\s*/i, '$1');
+          edits.push({
+            range: new (window as any).monaco.Range(i, 1, i, lineContent.length + 1),
+            text: clean,
+            forceMoveMarkers: true
+          });
+        }
         editor.pushUndoStop();
-        editor.executeEdits("insertAlertQuote", [{
-          range: new (window as any).monaco.Range(startLine, 1, startLine, lineContent.length + 1),
-          text: insertText,
-          forceMoveMarkers: true
-        }]);
-        editor.setPosition({ lineNumber: startLine + 1, column: 3 });
+        editor.executeEdits("cancelAlertQuote", edits);
         editor.pushUndoStop();
+        try {
+          if (model && typeof model.forceTokenization === 'function') {
+            for (let i = startLine; i <= endLine; i++) model.forceTokenization(i);
+          }
+          editor.layout();
+        } catch (_) { }
         editor.focus();
         return;
       }
-    }
 
-    const edits = [];
-    let addedAlertHeaderLine = false;
-    let counter = 1;
-    const selectedIndents = Array.from({length:endLine-startLine+1},(_,index)=>model.getLineContent(startLine+index))
-      .filter(line=>line.trim()).map(line=>line.match(/^[ \t]*/)?.[0] || '');
-    const orderedIndent = selectedIndents.reduce((shortest,indent)=>indent.length<shortest.length?indent:shortest,selectedIndents[0] || '');
-    if (prefixType === 'orderedList') {
-      for (let j = startLine - 1; j > 0; j--) {
-        const prevLine = model.getLineContent(j);
-        if (prevLine.trim() === '') {
-          break;
+      // 💡 [Alert 인용구 빈 줄 단독 커서 삽입]
+      if (selection.isEmpty()) {
+        const lineContent = model.getLineContent(startLine);
+        if (lineContent.trim() === '') {
+          const insertText = `> [!${alertType}]\n> \n\n`;
+          editor.pushUndoStop();
+          editor.executeEdits("insertAlertQuote", [{
+            range: new (window as any).monaco.Range(startLine, 1, startLine, lineContent.length + 1),
+            text: insertText,
+            forceMoveMarkers: true
+          }]);
+          editor.setPosition({ lineNumber: startLine + 1, column: 3 });
+          editor.pushUndoStop();
+          editor.focus();
+          return;
         }
-        const match = prevLine.match(/^(\s*)(\d+)\.\s/);
-        if (match) {
-          counter = parseInt(match[2], 10) + 1;
-          break;
-        }
-        if (startLine - j > 10) break;
       }
-    }
 
-    // Alert 인용구 교체 또는 주입 처리
-    if (prefixType === 'quote' && alertType) {
+      const edits = [];
+      let addedAlertHeaderLine = false;
       for (let i = startLine; i <= endLine; i++) {
         const lineContent = model.getLineContent(i);
-        // 기존 Alert 태그(영문/한글)가 이미 있는 경우 태그 치환
         const existingAlertMatch = lineContent.match(/^(\s*>+\s*)\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION|참고|참조|메모|알림|팁|도움말|중요|필독|주의|경고|위험)\](.*)/i);
         if (existingAlertMatch) {
           const prefix = existingAlertMatch[1];
           const rest = existingAlertMatch[2];
           edits.push({
             range: new (window as any).monaco.Range(i, 1, i, lineContent.length + 1),
-            text: `${prefix}[!${alertType}]${rest}`,
+            text: `${prefix}[!규칙${alertType}]${rest}`.replace('!규칙', '!'),
             forceMoveMarkers: true
           });
         } else if (i === startLine) {
           addedAlertHeaderLine = true;
-          // 첫 줄: 기존 인용구(> )가 있든 없든 상단에 > [!TYPE] 태그 배치
           const quoteMatch = lineContent.match(/^(\s*)(>+\s*)(.*)/);
           if (quoteMatch) {
             const indent = quoteMatch[1] || '';
@@ -6438,7 +6570,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             });
           }
         } else {
-          // 둘째 줄 이후: 인용구(> ) 유지 또는 부여
           const quoteMatch = lineContent.match(/^(\s*)(>+\s*)(.*)/);
           if (!quoteMatch) {
             const indentMatch = lineContent.match(/^(\s*)(.*)/);
@@ -6452,84 +6583,172 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           }
         }
       }
-    } else {
-      // 기존 일반 prefix 처리 (orderedList, list, check, 일반 quote)
+
+      editor.pushUndoStop();
+      editor.executeEdits("applyAlertQuote", edits);
+      const quoteEndLine = endLine + (addedAlertHeaderLine ? 1 : 0);
+      const quoteEndCol = model.getLineContent(quoteEndLine).length + 1;
+      editor.executeEdits("appendQuoteEmptyLine", [{
+        range: new (window as any).monaco.Range(quoteEndLine, quoteEndCol, quoteEndLine, quoteEndCol),
+        text: '\n\n',
+        forceMoveMarkers: false
+      }]);
+      editor.setPosition({ lineNumber: quoteEndLine, column: quoteEndCol });
+      editor.pushUndoStop();
+      try {
+        if (model && typeof model.forceTokenization === 'function') {
+          for (let i = startLine; i <= Math.min(model.getLineCount(), endLine + 3); i++) model.forceTokenization(i);
+        }
+        editor.layout();
+      } catch (_) { }
+      editor.focus();
+      return;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 3. 일반 서식 (quote, list, orderedList, check) 토글/취소 판단
+    // ─────────────────────────────────────────────────────────────
+    let allAlreadyHavePrefix = true;
+    let nonEmptyCount = 0;
+    for (let i = startLine; i <= endLine; i++) {
+      const lineContent = model.getLineContent(i);
+      if (!lineContent.trim()) continue;
+      nonEmptyCount++;
+
+      if (prefixType === 'quote') {
+        if (!lineContent.match(/^\s*>+\s*/)) { allAlreadyHavePrefix = false; break; }
+      } else if (prefixType === 'list') {
+        if (!lineContent.match(/^\s*[-*+]\s+/)) { allAlreadyHavePrefix = false; break; }
+      } else if (prefixType === 'orderedList') {
+        if (!lineContent.match(/^\s*\d+\.\s+/)) { allAlreadyHavePrefix = false; break; }
+      } else if (prefixType === 'check') {
+        if (!lineContent.match(/^\s*- \[[ xX]\]\s+/)) { allAlreadyHavePrefix = false; break; }
+      }
+    }
+
+    if (nonEmptyCount > 0 && allAlreadyHavePrefix) {
+      // 🔥 취소: 이미 동일한 기능이 설정되어 있으므로 접두사 제거 (취소 토글)
+      const edits = [];
       for (let i = startLine; i <= endLine; i++) {
         const lineContent = model.getLineContent(i);
-        const match = lineContent.match(/^(\s*)(>+\s*)?((?:- \[[ xX]\]|[-*+]|\d+\.)\s+)?(.*)/);
-        if(prefixType==='orderedList' && !lineContent.trim())continue;
+        if (!lineContent.trim()) continue;
 
+        let cleanLine = lineContent;
+        if (prefixType === 'quote') {
+          cleanLine = lineContent.replace(/^(\s*)>+\s*/, '$1');
+        } else if (prefixType === 'list') {
+          cleanLine = lineContent.replace(/^(\s*)[-*+]\s+/, '$1');
+        } else if (prefixType === 'orderedList') {
+          cleanLine = lineContent.replace(/^(\s*)\d+\.\s+/, '$1');
+        } else if (prefixType === 'check') {
+          cleanLine = lineContent.replace(/^(\s*)- \[[ xX]\]\s+/, '$1');
+        }
+
+        edits.push({
+          range: new (window as any).monaco.Range(i, 1, i, lineContent.length + 1),
+          text: cleanLine,
+          forceMoveMarkers: true
+        });
+      }
+
+      editor.pushUndoStop();
+      editor.executeEdits("cancelPrefix", edits);
+      editor.pushUndoStop();
+      setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
+      try {
+        if (model && typeof model.forceTokenization === 'function') {
+          for (let i = startLine; i <= endLine; i++) model.forceTokenization(i);
+        }
+        editor.layout();
+      } catch (_) { }
+      editor.focus();
+      return;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 4. 일반 서식 신규 적용
+    // ─────────────────────────────────────────────────────────────
+    const edits = [];
+    let counter = 1;
+    const selectedIndents = Array.from({length:endLine-startLine+1},(_,index)=>model.getLineContent(startLine+index))
+      .filter(line=>line.trim()).map(line=>line.match(/^[ \t]*/)?.[0] || '');
+    const orderedIndent = selectedIndents.reduce((shortest,indent)=>indent.length<shortest.length?indent:shortest,selectedIndents[0] || '');
+    if (prefixType === 'orderedList') {
+      for (let j = startLine - 1; j > 0; j--) {
+        const prevLine = model.getLineContent(j);
+        if (prevLine.trim() === '') break;
+        const match = prevLine.match(/^(\s*)(\d+)\.\s/);
         if (match) {
-          const indent = prefixType==='orderedList' && endLine>startLine ? orderedIndent : match[1] || '';
-          const quotes = match[2] || '';
-          const listSymbol = match[3] || '';
-          let text = match[4] || '';
-          // Tag cancellation deliberately escapes literal ordinals (2\.). An
-          // explicit numbered-list action must consume those as well as plain
-          // typed ordinals, rather than producing "2. 2\\. text".
-          if(prefixType==='orderedList') text=text.replace(/^(?:[ \t]*\d+\\?[.)](?:[ \t]+|(?=[가-힣])))+/, '');
+          counter = parseInt(match[2], 10) + 1;
+          break;
+        }
+        if (startLine - j > 10) break;
+      }
+    }
 
-          let newQuotes = quotes;
-          let newListSymbol = listSymbol;
+    for (let i = startLine; i <= endLine; i++) {
+      const lineContent = model.getLineContent(i);
+      const match = lineContent.match(/^(\s*)(>+\s*)?((?:- \[[ xX]\]|[-*+]|\d+\.)\s+)?(.*)/);
+      if (prefixType === 'orderedList' && !lineContent.trim()) continue;
 
-          if (prefixType === 'quote') {
-            if (quotes) {
-              newQuotes = '>' + quotes;
-            } else {
-              newQuotes = '> ';
-            }
-          } else {
-            let targetListSymbol = '';
-            if (prefixType === 'orderedList') {
-              targetListSymbol = `${counter}. `;
-              counter++;
-            } else if (prefixType === 'list') {
-              targetListSymbol = '- ';
-            } else if (prefixType === 'check') {
-              targetListSymbol = '- [ ] ';
-            }
+      if (match) {
+        const indent = prefixType === 'orderedList' && endLine > startLine ? orderedIndent : match[1] || '';
+        const quotes = match[2] || '';
+        const listSymbol = match[3] || '';
+        let text = match[4] || '';
+        if (prefixType === 'orderedList') text = text.replace(/^(?:[ \t]*\d+\\?[.)](?:[ \t]+|(?=[가-힣])))+/, '');
 
-            if (listSymbol) {
-              newListSymbol = targetListSymbol;
-            } else {
-              newListSymbol = targetListSymbol;
-            }
-          }
+        let newQuotes = quotes;
+        let newListSymbol = listSymbol;
 
-          const textStartIndex = lineContent.length - text.length;
-          const newPrefix = `${indent}${newQuotes}${newListSymbol}`;
-
-          edits.push({
-            range: new (window as any).monaco.Range(i, 1, i, textStartIndex + 1),
-            text: newPrefix,
-            forceMoveMarkers: true
-          });
+        if (prefixType === 'quote') {
+          newQuotes = quotes ? '>' + quotes : '> ';
         } else {
-          let fallbackPrefix = '';
+          let targetListSymbol = '';
           if (prefixType === 'orderedList') {
-            fallbackPrefix = `${counter}. `;
+            targetListSymbol = `${counter}. `;
             counter++;
           } else if (prefixType === 'list') {
-            fallbackPrefix = '- ';
-          } else if (prefixType === 'quote') {
-            fallbackPrefix = '> ';
+            targetListSymbol = '- ';
           } else if (prefixType === 'check') {
-            fallbackPrefix = '- [ ] ';
+            targetListSymbol = '- [ ] ';
           }
-
-          edits.push({
-            range: new (window as any).monaco.Range(i, 1, i, 1),
-            text: fallbackPrefix,
-            forceMoveMarkers: true
-          });
+          newListSymbol = targetListSymbol;
         }
+
+        const textStartIndex = lineContent.length - text.length;
+        const newPrefix = `${indent}${newQuotes}${newListSymbol}`;
+
+        edits.push({
+          range: new (window as any).monaco.Range(i, 1, i, textStartIndex + 1),
+          text: newPrefix,
+          forceMoveMarkers: true
+        });
+      } else {
+        let fallbackPrefix = '';
+        if (prefixType === 'orderedList') {
+          fallbackPrefix = `${counter}. `;
+          counter++;
+        } else if (prefixType === 'list') {
+          fallbackPrefix = '- ';
+        } else if (prefixType === 'quote') {
+          fallbackPrefix = '> ';
+        } else if (prefixType === 'check') {
+          fallbackPrefix = '- [ ] ';
+        }
+
+        edits.push({
+          range: new (window as any).monaco.Range(i, 1, i, 1),
+          text: fallbackPrefix,
+          forceMoveMarkers: true
+        });
       }
     }
 
     editor.pushUndoStop();
     editor.executeEdits("applyPrefix", edits);
     if (prefixType === 'quote') {
-      const quoteEndLine = endLine + (addedAlertHeaderLine ? 1 : 0);
+      const quoteEndLine = endLine;
       const quoteEndCol = model.getLineContent(quoteEndLine).length + 1;
       editor.executeEdits("appendQuoteEmptyLine", [{
         range: new (window as any).monaco.Range(quoteEndLine, quoteEndCol, quoteEndLine, quoteEndCol),
@@ -6541,7 +6760,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     editor.pushUndoStop();
     setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
 
-    // [WBS SYNC-02] 주입 직후 구문 강조와 배경 스타일이 즉시 화면에 렌더링되도록 Monaco 모델의 강제 토큰화 수동 격발
     try {
       const model = editor.getModel();
       if (model && typeof model.forceTokenization === 'function') {
@@ -10425,35 +10643,66 @@ blockquote li p {
                                 <div className="flex flex-row items-center gap-3.5 min-w-max">
                                   {/* 서식 */}
                                   <div className="flex flex-row items-center gap-1 text-zinc-800 dark:text-zinc-100">
-                                    <button type="button" data-floating-bold tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('BOLD')); }} onClick={() => executeFloatingItem(() => dispatchCommand('BOLD'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] font-black cursor-pointer" title="굵게 (Enter)">B</button>
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('ITALIC')); }} onClick={() => executeFloatingItem(() => dispatchCommand('ITALIC'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] italic font-serif cursor-pointer" title="기울임 (Enter)">I</button>
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('INLINE_CODE')); }} onClick={() => executeFloatingItem(() => dispatchCommand('INLINE_CODE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center cursor-pointer" title="인라인 코드 (Enter)">
+                                    <button type="button" data-floating-bold tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('BOLD'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] font-black cursor-pointer" title="굵게 (Enter)">B</button>
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('ITALIC'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] italic font-serif cursor-pointer" title="기울임 (Enter)">I</button>
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('INLINE_CODE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center cursor-pointer" title="인라인 코드 (Enter)">
                                       <img src="/icons/Password.png" alt="인라인 코드" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('UNDERLINE')); }} onClick={() => executeFloatingItem(() => dispatchCommand('UNDERLINE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] underline font-bold cursor-pointer" title="밑줄 (Enter)">U</button>
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('STRIKETHROUGH')); }} onClick={() => executeFloatingItem(() => dispatchCommand('STRIKETHROUGH'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] font-bold cursor-pointer" title="취소선 (Enter)"><span className="line-through">S</span></button>
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('UNDERLINE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] underline font-bold cursor-pointer" title="밑줄 (Enter)">U</button>
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('STRIKETHROUGH'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] font-bold cursor-pointer" title="취소선 (Enter)"><span className="line-through">S</span></button>
                                   </div>
                                   <div className="w-px h-7 bg-black/15 dark:bg-white/15" />
                                   {/* 제목 */}
                                   <div className="flex flex-row items-center gap-1">
                                     <div className="flex items-center border border-emerald-600/30 dark:border-emerald-500/40 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/15 py-0.5 px-1.5 gap-1.5 text-emerald-800 dark:text-emerald-300">
-                                      <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); setFloatingHeadingLevel(Math.max(1, floatingHeadingLevel - 1)); }} onClick={() => setFloatingHeadingLevel(Math.max(1, floatingHeadingLevel - 1))} disabled={floatingHeadingLevel === 1} className="w-6 h-7 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-30 text-[10px] font-bold" title="제목 크기 키우기 (H1 방향)">▲</button>
-                                      <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand(`H${floatingHeadingLevel}`)); }} onClick={() => executeFloatingItem(() => dispatchCommand(`H${floatingHeadingLevel}`))} className="w-8 h-7 flex items-center justify-center font-extrabold text-[13px] hover:bg-black/10 dark:hover:bg-white/10 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded shrink-0" title={`제목 ${floatingHeadingLevel} 적용 (Enter)`}>H{floatingHeadingLevel}</button>
-                                      <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); setFloatingHeadingLevel(Math.min(6, floatingHeadingLevel + 1)); }} onClick={() => setFloatingHeadingLevel(Math.min(6, floatingHeadingLevel + 1))} disabled={floatingHeadingLevel === 6} className="w-6 h-7 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-30 text-[10px] font-bold" title="제목 크기 줄이기 (H6 방향)">▼</button>
+                                      <button
+                                        type="button"
+                                        tabIndex={0}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => {
+                                          const next = Math.max(1, floatingHeadingLevel - 1);
+                                          setFloatingHeadingLevel(next);
+                                          executeFloatingItem(() => dispatchCommand(`H${next}`));
+                                        }}
+                                        disabled={floatingHeadingLevel === 1}
+                                        className="w-6 h-7 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-30 text-[10px] font-bold cursor-pointer"
+                                        title="제목 크기 키우기 및 즉시 적용 (Enter)"
+                                      >▲</button>
+                                      <button
+                                        type="button"
+                                        tabIndex={0}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => executeFloatingItem(() => dispatchCommand(`H${floatingHeadingLevel}`))}
+                                        className="w-8 h-7 flex items-center justify-center font-extrabold text-[13px] hover:bg-black/10 dark:hover:bg-white/10 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded shrink-0 cursor-pointer"
+                                        title={`제목 ${floatingHeadingLevel} 적용 (Enter)`}
+                                      >H{floatingHeadingLevel}</button>
+                                      <button
+                                        type="button"
+                                        tabIndex={0}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => {
+                                          const next = Math.min(6, floatingHeadingLevel + 1);
+                                          setFloatingHeadingLevel(next);
+                                          executeFloatingItem(() => dispatchCommand(`H${next}`));
+                                        }}
+                                        disabled={floatingHeadingLevel === 6}
+                                        className="w-6 h-7 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-30 text-[10px] font-bold cursor-pointer"
+                                        title="제목 크기 줄이기 및 즉시 적용 (Enter)"
+                                      >▼</button>
                                     </div>
                                   </div>
                                   <div className="w-px h-7 bg-black/15 dark:bg-white/15" />
                                   {/* 문단 */}
                                   <div className="flex flex-row items-center gap-1 text-zinc-800 dark:text-zinc-100">
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('HR')); }} onClick={() => executeFloatingItem(() => dispatchCommand('HR'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] font-bold" title="구분선 (Enter)">—</button>
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('ORDERED_LIST')); }} onClick={() => executeFloatingItem(() => dispatchCommand('ORDERED_LIST'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="숫자 목록 (Enter)">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('HR'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[15px] font-bold cursor-pointer" title="구분선 (Enter)">—</button>
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('ORDERED_LIST'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center cursor-pointer" title="숫자 목록 (Enter)">
                                       <img src="/icons/ListNumbers.png" alt="숫자 목록" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('LIST')); }} onClick={() => executeFloatingItem(() => dispatchCommand('LIST'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="글머리 기호 (Enter)">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('LIST'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center cursor-pointer" title="글머리 기호 (Enter)">
                                       <img src="/icons/ListBullets.png" alt="글머리 기호" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                     <div id="floating-quote-dropdown-container" className="relative inline-flex items-center rounded-lg border border-zinc-400 dark:border-zinc-600 bg-white/70 dark:bg-zinc-800/70">
-                                      <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => { dispatchCommand('QUOTE'); setFloatingQuoteDropdown(prev => ({ ...prev, open: false })); }); }} onClick={() => executeFloatingItem(() => { dispatchCommand('QUOTE'); setFloatingQuoteDropdown(prev => ({ ...prev, open: false })); })} className="w-8 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-l-lg transition-all flex items-center justify-center" title="인용구 (기본) (Enter)">
+                                      <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => { dispatchCommand('QUOTE'); setFloatingQuoteDropdown(prev => ({ ...prev, open: false })); })} className="w-8 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-l-lg transition-all flex items-center justify-center cursor-pointer" title="인용구 (기본) (Enter)">
                                         <img src="/icons/WechatLogo.png" alt="인용구" className="w-5 h-5 object-contain dark:invert" />
                                       </button>
                                       <button
@@ -10462,19 +10711,10 @@ blockquote li p {
                                         onMouseDown={(e) => {
                                           e.preventDefault();
                                           e.stopPropagation();
-                                          const rect = e.currentTarget.getBoundingClientRect();
-                                          const winH = window.innerHeight;
-                                          const spaceBelow = winH - rect.bottom;
-                                          const dropUp = spaceBelow < 210;
-                                          setFloatingQuoteDropdown(prev => ({
-                                            open: !prev.open,
-                                            x: rect.left,
-                                            y: dropUp ? rect.top : rect.bottom,
-                                            dropUp,
-                                          }));
                                         }}
                                         onClick={(e) => {
                                           e.stopPropagation();
+                                          executeFloatingItem(() => dispatchCommand('QUOTE'));
                                           const rect = e.currentTarget.getBoundingClientRect();
                                           const winH = window.innerHeight;
                                           const spaceBelow = winH - rect.bottom;
@@ -10486,38 +10726,38 @@ blockquote li p {
                                             dropUp,
                                           }));
                                         }}
-                                        className="w-4 h-9 hover:bg-black/10 dark:hover:bg-white/10 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-r-lg transition-all flex items-center justify-center text-[8px] text-zinc-700 dark:text-zinc-200 font-bold"
-                                        title="인용구 스타일/Alert 태그 선택 (Enter)"
+                                        className="w-4 h-9 hover:bg-black/10 dark:hover:bg-white/10 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-r-lg transition-all flex items-center justify-center text-[8px] text-zinc-700 dark:text-zinc-200 font-bold cursor-pointer"
+                                        title="인용구 적용 및 Alert 태그 선택 (Enter)"
                                       >▼</button>
                                     </div>
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('CHECK')); }} onClick={() => executeFloatingItem(() => dispatchCommand('CHECK'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="체크리스트 (Enter)">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('CHECK'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center cursor-pointer" title="체크리스트 (Enter)">
                                       <img src="/icons/ListChecks.png" alt="체크리스트" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('REMOVE_PREFIX')); }} onClick={() => executeFloatingItem(() => dispatchCommand('REMOVE_PREFIX'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="태그 취소 (Enter)">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('REMOVE_PREFIX'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center cursor-pointer" title="태그 취소 (Enter)">
                                       <img src="/icons/Eraser.png" alt="태그 취소" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('CLEAN_DOC')); }} onClick={() => executeFloatingItem(() => dispatchCommand('CLEAN_DOC'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="문서 서식 일괄 정리 (Enter)">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('CLEAN_DOC'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center cursor-pointer" title="문서 서식 일괄 정리 (Enter)">
                                       <img src="/icons/MagicWand.png" alt="문서 서식 일괄 정리" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                   </div>
                                   <div className="w-px h-7 bg-black/15 dark:bg-white/15" />
                                   {/* 삽입 */}
                                   <div className="flex flex-row items-center gap-1 text-zinc-800 dark:text-zinc-100">
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('LINK')); }} onClick={() => executeFloatingItem(() => dispatchCommand('LINK'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="링크 (Enter)">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('LINK'), true)} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center cursor-pointer" title="링크 (Enter)">
                                       <img src="/icons/Link.png" alt="링크" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('DOCLINK')); }} onClick={() => executeFloatingItem(() => dispatchCommand('DOCLINK'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="문서 연결 (Enter)">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('DOCLINK'), true)} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center cursor-pointer" title="문서 연결 (Enter)">
                                       <img src="/icons/BookBookmark.png" alt="문서 연결" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('CITE')); }} onClick={() => executeFloatingItem(() => dispatchCommand('CITE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="인용(참조문헌) (Enter)">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('CITE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center cursor-pointer" title="인용(참조문헌) (Enter)">
                                       <Icon name="NewspaperClipping" size={20} className="text-zinc-800 dark:text-zinc-100" />
                                     </button>
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('FOOTNOTE')); }} onClick={() => executeFloatingItem(() => dispatchCommand('FOOTNOTE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[14px] font-black font-serif" title="각주 (Enter)">fn</button>
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('FOOTNOTE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-[14px] font-black font-serif cursor-pointer" title="각주 (Enter)">fn</button>
                                     <div className="w-px h-5 mx-0.5 bg-black/15 dark:bg-white/15 shrink-0" />
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('IMAGE')); }} onClick={() => executeFloatingItem(() => dispatchCommand('IMAGE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="이미지 (Enter)">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('IMAGE'), true)} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center cursor-pointer" title="이미지 (Enter)">
                                       <img src="/icons/Farm.png" alt="이미지" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('YOUTUBE')); }} onClick={() => executeFloatingItem(() => dispatchCommand('YOUTUBE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="동영상삽입 (Enter)">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('YOUTUBE'), true)} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center cursor-pointer" title="동영상삽입 (Enter)">
                                       <img src="/icons/FilmReel.png" alt="동영상삽입" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                     <button
@@ -10529,7 +10769,7 @@ blockquote li p {
                                         executeFloatingItem(() => dispatchCommand('NOW'));
                                       }}
                                       onClick={() => executeFloatingItem(() => dispatchCommand('NOW'))}
-                                      className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center"
+                                      className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center cursor-pointer"
                                       title="달력 및 날짜/시간 삽입 (Enter)"
                                     >
                                       <img src="/icons/Calendar.png" alt="달력 및 날짜/시간 삽입" className="w-5 h-5 object-contain dark:invert" />
@@ -10542,7 +10782,7 @@ blockquote li p {
                                         executeFloatingItem(() => dispatchCommand('SIGNATURE'));
                                       }}
                                       onClick={() => executeFloatingItem(() => dispatchCommand('SIGNATURE'))}
-                                      className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-zinc-800 dark:text-zinc-100"
+                                      className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center text-zinc-800 dark:text-zinc-100 cursor-pointer"
                                       title="서명/발신인 (왼쪽 정렬) (Ctrl+Alt+R) (Enter)"
                                     >
                                       <Icon name="Signature" size={19} className="text-zinc-800 dark:text-zinc-100" />
@@ -10551,10 +10791,10 @@ blockquote li p {
                                   <div className="w-px h-7 bg-black/15 dark:bg-white/15" />
                                   {/* 고급 및 표 열 정렬 */}
                                   <div className="flex flex-row items-center gap-1 text-zinc-800 dark:text-zinc-100">
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('MAP')); }} onClick={() => executeFloatingItem(() => dispatchCommand('MAP'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="지도 삽입 (Enter)">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('MAP'), true)} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center cursor-pointer" title="지도 삽입 (Enter)">
                                       <img src="/icons/MapTrifold.png" alt="지도 삽입" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('TABLE')); }} onClick={() => executeFloatingItem(() => dispatchCommand('TABLE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="표 생성 (Enter)">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('TABLE'), true)} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center cursor-pointer" title="표 생성 (Enter)">
                                       <img src="/icons/Table.png" alt="표 생성" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                     {isInTable && (
@@ -10630,10 +10870,10 @@ blockquote li p {
                                         </button>
                                       </>
                                     )}
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('CODE')); }} onClick={() => executeFloatingItem(() => dispatchCommand('CODE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="코드 블록 (Enter)">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('CODE'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="코드 블록 (Enter)">
                                       <img src="/icons/FileCode.png" alt="코드 블록" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button type="button" tabIndex={0} onMouseDown={(e) => { e.preventDefault(); executeFloatingItem(() => dispatchCommand('LATEX')); }} onClick={() => executeFloatingItem(() => dispatchCommand('LATEX'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="수식(LaTeX) (Enter)">
+                                    <button type="button" tabIndex={0} onMouseDown={(e) => e.preventDefault()} onClick={() => executeFloatingItem(() => dispatchCommand('LATEX'))} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-blue-500/15 dark:focus:bg-blue-500/25 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg transition-all flex items-center justify-center" title="수식(LaTeX) (Enter)">
                                       <img src="/icons/PlusMinus.png" alt="수식(LaTeX)" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                   </div>
@@ -11924,13 +12164,7 @@ blockquote li p {
                   key={opt.id}
                   type="button"
                   tabIndex={0}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    executeFloatingItem(() => {
-                      dispatchCommand(opt.id as any);
-                      setFloatingQuoteDropdown(prev => ({ ...prev, open: false }));
-                    });
-                  }}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     executeFloatingItem(() => {
                       dispatchCommand(opt.id as any);

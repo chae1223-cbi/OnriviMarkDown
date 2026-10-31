@@ -1,6 +1,9 @@
 // @ts-nocheck
 // ====================================================================
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
+// 🚨 @PATCH : **2026-10-31** — [플로팅 서식 툴바 유지 보장 및 커서 이동 시 자동 닫힘 방어]:
+//             1) onDidChangeCursorSelection에서 e.selection.isEmpty() 시 플로팅 툴바를 자동 닫던 로직을 제거하여 마우스 클릭 또는 엔터로 서식 적용 시에도 툴바가 유지되도록 개선
+//             2) editor.onMouseDown(에디터 클릭) 및 ESC 단축키 입력 시에만 플로팅 툴바가 닫히도록 사용자 명세 완벽 준수
 // 🚨 @PATCH : **2026-10-28** — [번호 리스트 자동 생성 행에서 하위 레벨 글머리 기호(-, *, +) 즉시 전환 지원]:
 //             1) 번호 리스트 엔터 개행 시 자동 생성된 '3. ' 또는 Tab 들여쓰기된 '    1. ' 상태에서 '-', '*', '+' 입력 후 Space를 누르면 상위 번호 항목의 하위 레벨 글머리 기호 리스트('    - ')로 즉시 자동 치환
 // 🚨 @PATCH : **2026-10-24** — [인용문(>) 탭(Tab) 들여쓰기 및 Shift+Tab 내어쓰기 완전 지원]:
@@ -959,6 +962,9 @@ export function useMonacoSetup(deps: any) {
 
                     // 2. 슬래시 자동완성 팝업 닫기
                     closeSuggestWidget();
+
+                    // 3. 플로팅 서식 툴바 닫기 (ESC 입력 시 툴바 닫기)
+                    setFloatingToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
                   };
 
                   // ESC 키 입력 시 커맨드 등록
@@ -2432,6 +2438,8 @@ export function useMonacoSetup(deps: any) {
                     // 🔥 마우스 클릭 시 자동완성 팝업 즉시 닫기
                     // 다른 행 클릭 시 이전 입력 버퍼 잔재로 팝업이 엉뚱한 위치에 뜨는 현상 방지
                     editor.trigger('mouse', 'hideSuggestWidget', {});
+                    // 🔥 에디터 마우스 클릭 시 플로팅 서식 툴바 닫기 (사용자 명세: ESC 또는 에디터 마우스 클릭 시에만 툴바 닫힘)
+                    setFloatingToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
                   });
                   editor.onDidChangeCursorSelection((e) => {
                     // 실제 텍스트 선택 시에만 lastSelectionRef 갱신 (커서 이동으로 덮어써지는 버그 방지)
@@ -2439,10 +2447,6 @@ export function useMonacoSetup(deps: any) {
                       lastSelectionRef.current = e.selection;
                     } else {
                       lastSelectionRef.current = null;
-                    }
-                    // 사장님 요청으로 텍스트 멀티선택 시 자동 노출은 완전 차단하되, 선택 영역이 지워지면(isEmpty) 플로팅 툴바를 자동으로 닫습니다.
-                    if (e.selection.isEmpty()) {
-                      setFloatingToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
                     }
                     // 💡 [고속 드래그 anchor 리셋 보정] Monaco가 mousemove 이벤트 간격 중 anchor를 잃으면 선택이 리셋되는 현상 방어
                     if (editorMouseDown && editorMouseAnchor && e.source === 'mouse' && !e.selection.isEmpty()) {

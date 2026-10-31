@@ -3,6 +3,7 @@ import { listProfiles, createProfile, updateProfile } from './profiles.mjs';
 import { getCurrentFolders, requireLocalFolders } from './context.mjs';
 import { requireMcpAccess } from './authorization.mjs';
 import { listWorkspaceFiles, searchWorkspace, createMarkdown } from './workspace.mjs';
+import { listAITemplates, getAITemplate, executeAITemplate } from './ai-templates.mjs';
 
 const tools = [
   {
@@ -54,6 +55,21 @@ const tools = [
     name: 'update_style_profile',
     description: '기존 사용자 서식의 이름, 설명, 페이지 속성 또는 태그별 규칙을 일부 수정합니다. 시스템 서식은 수정할 수 없습니다.',
     inputSchema: { type: 'object', properties: { expectedContextSha256: { type: 'string' }, expectedSha256: { type: 'string' }, profileId: { type: 'string' }, name: { type: 'string' }, description: { type: 'string' }, pageStyle: { type: 'object', additionalProperties: { type: 'string' } }, rules: { type: 'object', additionalProperties: { type: 'object', additionalProperties: { type: 'string' } } } }, required: ['expectedContextSha256', 'expectedSha256', 'profileId'], additionalProperties: false }
+  },
+  {
+    name: 'list_ai_templates',
+    description: '현재 로컬 리소스 폴더의 AI 프리셋과 문서 프롬프트 목록을 조회합니다. 본문은 반환하지 않습니다.',
+    inputSchema: { type: 'object', properties: { kind: { type: 'string', enum: ['preset', 'prompt'] }, query: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 }, offset: { type: 'integer', minimum: 0 } }, additionalProperties: false }
+  },
+  {
+    name: 'get_ai_template',
+    description: 'AI 템플릿 본문과 변경 확인용 SHA-256을 열람합니다. preset은 id, prompt는 domain과 docType을 지정하세요.',
+    inputSchema: { type: 'object', properties: { kind: { type: 'string', enum: ['preset', 'prompt'] }, id: { type: 'string' }, domain: { type: 'string' }, docType: { type: 'string' } }, required: ['kind'], additionalProperties: false }
+  },
+  {
+    name: 'execute_ai_template',
+    description: '열람한 AI 템플릿에 입력값을 적용해 이 채팅 AI가 즉시 실행할 프롬프트를 반환합니다. MCP 서버 자체는 외부 AI API를 호출하지 않으며 문서를 수정하지 않습니다.',
+    inputSchema: { type: 'object', properties: { kind: { type: 'string', enum: ['preset', 'prompt'] }, id: { type: 'string' }, domain: { type: 'string' }, docType: { type: 'string' }, expectedSha256: { type: 'string' }, values: { type: 'object', additionalProperties: { type: 'string' } }, input: { type: 'string' } }, required: ['kind', 'expectedSha256'], additionalProperties: false }
   }
 ];
 
@@ -65,7 +81,7 @@ async function dispatch(message) {
   const { id, method, params = {} } = message;
   if (id === undefined) return;
   try {
-    if (method === 'initialize') return reply(id, { protocolVersion: params.protocolVersion ?? '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'onrivi-author-local', version: '0.1.8' } });
+    if (method === 'initialize') return reply(id, { protocolVersion: params.protocolVersion ?? '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'onrivi-author-local', version: '0.1.9' } });
     if (method === 'ping') return reply(id, {});
     if (method === 'tools/list') return reply(id, { tools });
     if (method === 'tools/call') {
@@ -127,6 +143,18 @@ async function dispatch(message) {
                     const latest = await requireLocalFolders(context.contextSha256);
                     if (latest.resourcePath !== context.resourcePath) throw new Error('리소스 폴더가 변경되었습니다. 다시 조회해 주세요.');
                   });
+                })()
+              : params.name === 'list_ai_templates'
+                ? await (async () => { const context = await requireLocalFolders(); return listAITemplates(context.resourcePath, params.arguments); })()
+              : params.name === 'get_ai_template'
+                ? await (async () => { const context = await requireLocalFolders(); return getAITemplate(context.resourcePath, params.arguments); })()
+              : params.name === 'execute_ai_template'
+                ? await (async () => {
+                  const context = await requireLocalFolders();
+                  const result = await executeAITemplate(context.resourcePath, params.arguments);
+                  await requireMcpAccess();
+                  await requireLocalFolders(context.contextSha256);
+                  return result;
                 })()
             : null;
         if (!result) return error(id, -32602, '알 수 없는 도구입니다.');

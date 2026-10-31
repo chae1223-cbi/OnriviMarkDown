@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { promises as fs, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { atomicReplace } from './atomic-write.mjs';
 
 const MAX_BYTES = 4 * 1024 * 1024;
 const FILE_NAME = 'userCssProfiles.json';
@@ -105,11 +106,10 @@ export async function createProfile({ resourceFolder, expectedSha256, baseProfil
   if (typeof description !== 'string' || description.length > 500) throw new Error('서식 설명은 500자 이하여야 합니다.');
   const { cleanPageStyle, cleanRules } = cleanOverrides(pageStyle, rules);
   const file = await profileFile(resourceFolder);
-  const handle = await fs.open(file, 'r+');
-  try {
-    const stat = await handle.stat();
+  {
+    const stat = await fs.lstat(file);
     if (!stat.isFile() || stat.size > MAX_BYTES) throw new Error('서식 파일이 변경되었습니다. 다시 조회해 주세요.');
-    const bytes = await handle.readFile();
+    const bytes = await fs.readFile(file);
     if (sha256(bytes) !== expectedSha256.toLowerCase()) throw new Error('서식 파일이 조회 후 변경되었습니다. 목록을 다시 읽어 주세요.');
     const profiles = parseProfiles(bytes);
     const systemList = getSystemProfiles();
@@ -127,12 +127,50 @@ export async function createProfile({ resourceFolder, expectedSha256, baseProfil
     }
     const next = Buffer.from(JSON.stringify([...profiles, profile], null, 2), 'utf8');
     if (next.length > MAX_BYTES) throw new Error('추가 후 서식 파일이 4 MiB 제한을 초과합니다.');
-    if (beforeWrite) await beforeWrite();
-    await handle.truncate(0);
-    await handle.write(next, 0, next.length, 0);
-    await handle.sync();
+    await atomicReplace(file, next, async () => {
+      if (beforeWrite) await beforeWrite();
+      await profileFile(resourceFolder);
+      if (sha256(await fs.readFile(file)) !== expectedSha256.toLowerCase()) throw new Error('서식 파일이 조회 후 변경되었습니다. 목록을 다시 읽어 주세요.');
+    });
     return { file, profile, sha256: sha256(next), count: profiles.length + 1 };
-  } finally {
-    await handle.close();
   }
+}
+
+export async function updateProfile({ resourceFolder, expectedSha256, profileId, name, description, pageStyle, rules }, beforeWrite) {
+  if (!/^[a-f0-9]{64}$/i.test(expectedSha256 ?? '')) throw new Error('list_style_profiles에서 받은 SHA-256 값이 필요합니다.');
+  if (typeof profileId !== 'string' || !profileId.trim()) throw new Error('수정할 사용자 서식 ID를 지정하세요.');
+  if (name === undefined && description === undefined && pageStyle === undefined && rules === undefined) throw new Error('수정할 서식 항목을 하나 이상 지정하세요.');
+  if (name !== undefined && (typeof name !== 'string' || !name.trim() || name.trim().length > 100)) throw new Error('서식 이름은 1~100자로 지정하세요.');
+  if (description !== undefined && (typeof description !== 'string' || description.length > 500)) throw new Error('서식 설명은 500자 이하여야 합니다.');
+  const { cleanPageStyle, cleanRules } = cleanOverrides(pageStyle, rules);
+  const file = await profileFile(resourceFolder);
+  const bytes = await fs.readFile(file);
+  if (sha256(bytes) !== expectedSha256.toLowerCase()) throw new Error('서식 파일이 조회 후 변경되었습니다. 목록을 다시 읽어 주세요.');
+  const profiles = parseProfiles(bytes);
+  const systemList = getSystemProfiles();
+  if (systemList.some(item => item.id === profileId)) throw new Error('시스템 서식은 수정할 수 없습니다. 사용자 서식을 복제해 수정하세요.');
+  const index = profiles.findIndex(item => item.id === profileId);
+  if (index < 0) throw new Error('수정할 사용자 서식을 찾지 못했습니다.');
+  if (name !== undefined && [...profiles, ...systemList].some((item, i) => i !== index && String(item.name || '').trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase())) {
+    throw new Error('같은 이름의 서식이 이미 있습니다.');
+  }
+  const profile = structuredClone(profiles[index]);
+  if (!profile.pageStyle || typeof profile.pageStyle !== 'object' || !profile.rules || typeof profile.rules !== 'object') throw new Error('수정할 서식의 형식이 올바르지 않습니다.');
+  if (name !== undefined) profile.name = name.trim();
+  if (description !== undefined) profile.description = description.trim();
+  profile.pageStyle = { ...profile.pageStyle, ...cleanPageStyle };
+  for (const [tag, properties] of Object.entries(cleanRules)) {
+    if (!profile.rules[tag]) throw new Error(`서식에 없는 rules 태그: ${tag}`);
+    profile.rules[tag] = { ...profile.rules[tag], ...properties };
+  }
+  const nextProfiles = [...profiles];
+  nextProfiles[index] = profile;
+  const next = Buffer.from(JSON.stringify(nextProfiles, null, 2), 'utf8');
+  if (next.length > MAX_BYTES) throw new Error('수정 후 서식 파일이 4 MiB 제한을 초과합니다.');
+  await atomicReplace(file, next, async () => {
+    if (beforeWrite) await beforeWrite();
+    await profileFile(resourceFolder);
+    if (sha256(await fs.readFile(file)) !== expectedSha256.toLowerCase()) throw new Error('서식 파일이 조회 후 변경되었습니다. 목록을 다시 읽어 주세요.');
+  });
+  return { file, profile, sha256: sha256(next), count: nextProfiles.length };
 }

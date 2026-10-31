@@ -1,6 +1,8 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 파일명 : visualListCommands.ts
+ * 🚨 @PATCH : **2026-10-31** — [목록 서식 동일 버튼 재클릭 시 취소(토글 해제) 지원]:
+ *             1) selectedList에서 현재 선택된 목록이 이미 동일한 종류(bullet, ordered, check)일 경우 selectedList('clear')를 자동 격발하여 일반 문단으로 즉시 취소
  * 🚨 @PATCH : **2026-10-28** — [리스트 하단 들여쓰기(Tab) 문단에서 툴바 목록 전환 시 상위 리스트 하위 레벨 자동 편입]:
  *             1) 번호/글머리 기호 리스트 바로 아래에서 Tab으로 들여쓰기(indentPx > 0)된 문단을 툴바(글머리 기호 등)로 목록 전환 시, 들여쓰기가 초기화되지 않고 직전 리스트의 하위 레벨 목록으로 즉시 자동 중첩되도록 selectedList 개선
  * 🚨 @PATCH : **2026-10-25** — [목록 첫 항목 Tab 전체 들여쓰기 및 Shift+Tab 내어쓰기 구현]:
@@ -887,11 +889,34 @@ export const removeListMarkerAtStart: Command = (state, dispatch, view) => {
   return false;
 };
 export function selectedList(kind:'bullet'|'ordered'|'check'|'clear'):Command {
-  return (state,dispatch)=>{
+  return (state,dispatch,currentView)=>{
     const {$from,$to}=state.selection;
     const listRange=$from.blockRange($to,isList);
     const range=listRange || $from.blockRange($to);
     if(!range)return false;
+
+    // 🔥 동일한 종류의 리스트가 이미 적용되어 있으면 리스트 취소(clear)
+    if (kind !== 'clear' && listRange) {
+      const parentList = listRange.parent;
+      const isOrdered = parentList.type === visualSchema.nodes.ordered_list;
+      const isBullet = parentList.type === visualSchema.nodes.bullet_list;
+      let isCheck = false;
+      for (let i = listRange.startIndex; i < listRange.endIndex; i++) {
+        const item = parentList.child(i);
+        if (item.attrs && item.attrs.checked !== null && item.attrs.checked !== undefined) {
+          isCheck = true;
+          break;
+        }
+      }
+
+      const sameAsCurrent = (kind === 'ordered' && isOrdered) ||
+                            (kind === 'bullet' && isBullet && !isCheck) ||
+                            (kind === 'check' && isCheck);
+
+      if (sameAsCurrent) {
+        return selectedList('clear')(state, dispatch, currentView);
+      }
+    }
     const parent=range.parent,selected:DocumentNode[]=[];
     for(let i=range.startIndex;i<range.endIndex;i++)selected.push(parent.child(i));
     if(kind==='clear' && !listRange && !selected.some(isList))return false;

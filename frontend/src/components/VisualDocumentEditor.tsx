@@ -1,6 +1,13 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
+ * 🚨 @PATCH : **2026-10-31** — [서식 버튼 동일 클릭 시 취소(토글 해제) 지원]:
+ *             1) setHeadingBlock에서 동일 레벨 제목 재클릭 시 paragraph(일반 문단)로 전환하여 제목 서식 즉시 취소
+ *             2) setQuote에서 동일 인용구(일반/Alert) 재클릭 시 lift 커맨드를 실행하여 인용구 서식 즉시 취소
+ * 🚨 @PATCH : **2026-10-31** — [플로팅 서식 툴바 유지 보장 및 서식 적용 시 자동 닫힘 방어]:
+ *             1) dispatchTransaction에서 transaction.docChanged 시 manualFloatingRef.current=false 및 setSelection(false)로 툴바를 강제 닫던 로직을 제거하여 서식 적용 후에도 플로팅 툴바가 유지되도록 개선
+ *             2) replaceSource 및 itemButton 실행 시 플로팅 툴바 자동 닫힘을 제거하여 연속 서식 작업 지원
+ *             3) 에디터 본문 마우스 클릭(mousedown) 및 ESC 키 입력 시에만 플로팅 서식 툴바가 닫히도록 사용자 명세 완벽 준수
  * 🚨 @PATCH : **2026-10-27** — [Shift+상하 방향키 및 PageUp/PageDown 문단 간 이동·선택 완전 지원 및 바운싱·멈춤 결함 해소]:
  *             1) Shift+ArrowUp/ArrowDown 입력 시 문단 경계(첫 줄/마지막 줄/빈 행)에서 브라우저 네이티브 Selection이 가로막혀 선택이 풀렸다 다시 잡히는 바운싱 루프를 원천 차단하고, isHeadAtBlockBoundary 및 extendSelectionVerticallyAcrossBlocks를 통해 수평 X좌표를 정밀 보존하며 다음/이전 문단(빈 행 포함)으로 매끄럽게 선택 영역을 확장·축소하도록 구현
  *             2) 문서 마지막 빈 행에서 위로 올라갈 때나 위에서 아래로 내려올 때 문단 마지막 행에서 멈추는 결함을 해소하여 전체 문서 단위의 연속 키보드 다중 선택 보장
@@ -442,11 +449,24 @@ export function getActiveTagInfo(state: EditorState): ActiveTagInfo {
 const setHeadingBlock = (level: number): Command => (state, dispatch, view) => {
   const { $from, $to } = state.selection;
   if (!$from.sameParent($to) || !$from.parent.isTextblock) {
+    if ($from.parent.type === visualSchema.nodes.heading && $from.parent.attrs.level === level) {
+      return setBlockType(visualSchema.nodes.paragraph)(state, dispatch, view);
+    }
     return setBlockType(visualSchema.nodes.heading, { level })(state, dispatch, view);
   }
   if (!dispatch) return true;
   let tr = state.tr;
   const parent = $from.parent;
+
+  // 🔥 동일 레벨의 제목이면 일반 문단(paragraph)으로 취소(토글 해제)
+  if (parent.type === visualSchema.nodes.heading && parent.attrs.level === level) {
+    const from = tr.mapping.map($from.pos);
+    const to = tr.mapping.map($to.pos);
+    tr = tr.setBlockType(from, to, visualSchema.nodes.paragraph);
+    dispatch(tr.scrollIntoView());
+    return true;
+  }
+
   const blockStart = $from.start();
   const text = parent.textContent;
   const hashMatch = text.match(/^(#{1,6}\s*)/);
@@ -2992,7 +3012,7 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         }
         setInTable(currentInTable);
         const { from, to, $from, empty } = view.state.selection;
-        if (transaction.docChanged) manualFloatingRef.current = false;
+        // 🔥 서식 적용(docChanged) 시 플로팅 툴바가 닫히지 않고 유지되도록 보존 (ESC 또는 에디터 본문 클릭 시에만 닫힘)
         setSelection(manualFloatingRef.current);
         const markNames = ['strong', 'em', 'code', 'link', 'strike', 'underline'];
         const currentMarks = markNames.filter(name => empty
@@ -3575,6 +3595,11 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         },
         mousedown(currentView, event) {
           if (!currentView.editable) return false;
+          // 🔥 에디터 본문 마우스 클릭 시 플로팅 서식 툴바 닫기 (사용자 명세: ESC 또는 에디터 마우스 클릭 시에만 툴바 닫힘)
+          if (manualFloatingRef.current || selectionVisibleRef.current) {
+            manualFloatingRef.current = false;
+            setSelection(false);
+          }
           const e = event as MouseEvent;
           if (e.button !== 0 || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return false;
           const hrPos = findClickedHorizontalRulePos(currentView, e);
@@ -3757,8 +3782,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
         window.dispatchEvent(new CustomEvent('onrivi:active-tag', { detail: nextInitTagInfo }));
       } catch {}
       caretRef.current?.schedule();
-      manualFloatingRef.current = false;
-      setSlash(false); setSelection(false);
+      // 🔥 서식 적용 후 마크다운 소스 동기화 시 플로팅 서식 툴바 유지
+      setSlash(false);
     };
     return () => {
       aiTargets.clear();if(aiTargetRef)aiTargetRef.current=null;
@@ -3878,6 +3903,11 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     const position=state.selection.$from;
     for(let depth=position.depth;depth>0;depth--) {
       if(position.node(depth).type===visualSchema.nodes.blockquote){
+        const existingAlert = position.node(depth).attrs.alertType || null;
+        // 🔥 동일 인용구(일반 또는 동일 Alert 태그) 재클릭 시 인용구 취소(lift)
+        if (existingAlert === (alertType || null)) {
+          return lift(state, dispatch, view);
+        }
         if (dispatch) {
           let tr = state.tr.setNodeMarkup(position.before(depth),undefined,{alertType});
           const afterPos = position.after(depth);
@@ -4761,8 +4791,8 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
     tabIndex={0}
     aria-label={id === 'inlineCode' ? 'inlinecode' : id}
     disabled={readOnly}
-    onMouseDown={event => { event.preventDefault(); executeItem(id, removeSlash); setSelection(false); manualFloatingRef.current = false; }}
-    onClick={() => { executeItem(id, removeSlash); setSelection(false); manualFloatingRef.current = false; }}
+    onMouseDown={event => { event.preventDefault(); executeItem(id, removeSlash); }}
+    onClick={() => { executeItem(id, removeSlash); }}
     className={`rounded px-3 py-2 text-sm hover:bg-blue-50 focus:bg-blue-100 focus:ring-2 focus:ring-blue-500 focus:outline-none ${activeMarks.includes(({ bold: 'strong', italic: 'em', inlineCode: 'code', link: 'link', strikethrough:'strike', underline: 'underline' } as Record<string, string>)[id]) ? 'bg-blue-100 ring-1 ring-blue-400 font-bold text-blue-700' : ''}`}
     aria-pressed={['bold', 'italic', 'inlineCode', 'link', 'strikethrough', 'underline'].includes(id) ? activeMarks.includes(({ bold: 'strong', italic: 'em', inlineCode: 'code', link: 'link', strikethrough:'strike', underline: 'underline' } as Record<string, string>)[id]) : undefined}>{label}</button>;
 

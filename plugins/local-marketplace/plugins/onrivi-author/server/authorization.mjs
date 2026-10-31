@@ -3,7 +3,7 @@ import path from 'node:path';
 import { getCurrentFolders } from './context.mjs';
 
 const CHECK_URL = 'https://onrivi.com/api/license/check-session';
-const AUTH_CACHE_TTL_MS = 10 * 60 * 1000; // 10분간 인증 세션 캐시 유지
+const AUTH_CACHE_TTL_MS = 60 * 1000;
 let cachedAuth = { key: '', verifiedAt: 0 };
 
 export async function requireMcpAccess() {
@@ -36,7 +36,7 @@ export async function requireMcpAccess() {
   if (!response.ok) throw new Error('라이선스 서버의 권한 확인 요청이 거부되었습니다.');
   const result = await response.json();
   const plan = String(result.plan_name || '').toUpperCase();
-  const status = String(result.plan_status || result.reason || '').toUpperCase();
+  const status = String(result.plan_status || '').toUpperCase();
   if (result.success !== true || result.has_session !== true || result.is_restricted === true ||
       status !== 'ACTIVE' ||
       (!plan.includes('ELITE') && !plan.includes('DESKTOP'))) {

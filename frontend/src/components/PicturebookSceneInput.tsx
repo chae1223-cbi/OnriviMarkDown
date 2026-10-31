@@ -1,4 +1,5 @@
 'use client';
+// 🚨 @PATCH : **2026-10-31** — [플로팅 서식 툴바 유지 보장]: execute 실행 시 onFloatingToolbar(false) 강제 호출을 제거하여 서식 적용 후에도 툴바가 닫히지 않고 유지되도록 개선
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { configuredHotkeyItem, TOOLBAR_ITEMS } from '@/lib/toolbarConfig';
@@ -99,7 +100,7 @@ export default function PicturebookSceneInput({ value, label, onCommit, options 
     const el=input.current;if(!el || composing.current)return false;
     if(slashRange.current){insert('',slashRange.current);slashRange.current=null;}
     const tool=TOOLBAR_ITEMS.find(item=>item.id===id);if(!tool)return false;
-    latest.current.options.onFloatingToolbar?.(false,{top:0,left:0});
+    // latest.current.options.onFloatingToolbar?.(false,{top:0,left:0});
     const range={...selection.current},selected=el.value.slice(range.start,range.end);
     if(id==='image'){image();return true;}
     if(id==='youtube' || id==='map'){

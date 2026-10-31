@@ -5,6 +5,8 @@
 `list_workspace_files`(작업장 파일 목록), `search_workspace`(작업장 검색),
 `create_markdown`(새 문서 생성), `edit_markdown_section`(제목 아래 문구 수정),
 `update_style_profile`(기존 사용자 서식 수정) 도구를 제공합니다.
+AI 템플릿에는 `list_ai_templates`(목록), `get_ai_template`(본문 열람),
+`execute_ai_template`(변수·사용자 입력을 적용해 채팅 AI에서 실행) 도구를 제공합니다.
 Node.js 20 이상에서 로컬로 실행되며 별도의 npm 패키지가 필요하지 않습니다.
 현재 앱에서 선택한 로컬 작업장 또는 리소스 폴더 안에 있는
 기존 `.md` 또는 `.markdown` 파일의 절대경로를 입력하세요. 문서를 먼저 읽고,
@@ -40,3 +42,16 @@ Node.js 20 이상에서 로컬로 실행되며 별도의 npm 패키지가 필요
 `update_style_profile`은 `list_style_profiles`의 두 SHA-256 값과 사용자 서식 ID를
 받아 이름·설명·페이지 속성·태그 규칙을 일부 수정합니다. 시스템 서식은 수정하지
 않으며, 파일이 조회 후 바뀌면 저장을 거부합니다.
+
+AI 템플릿은 현재 로컬 리소스 폴더의 `prompt/ai_presets.json`과
+`prompt/ai_prompts.json`을 읽습니다. 목록 결과의 `kind`와 `id` 또는
+`domain`·`docType`으로 본문을 열고, 반환된 `sha256`을
+`execute_ai_template.expectedSha256`에 전달하세요. 프리셋의 `{{변수}}`는
+`values`로 채우며, 문서 프롬프트에는 `input`을 입력합니다. 파일이 조회 후
+변경되면 실행 입력 구성을 거부합니다. 목록은 본문을 반환하지 않고, 한 번에
+최대 100개를 조회합니다. 앱에 내장된 기본 프롬프트는 파일에 저장되어 있지
+않으면 이 로컬 MCP 목록에 나타나지 않습니다.
+
+`execute_ai_template`는 **현재 채팅 AI가 답변을 생성할 입력**을 반환합니다.
+MCP 서버가 온리비 어서의 암호화된 AI API 키를 읽거나 별도의 유료 API를
+호출하지는 않습니다. 또한 생성 결과를 문서에 자동으로 쓰지 않습니다.
