@@ -7,12 +7,16 @@ export async function atomicReplace(file, bytes, beforeCommit) {
   const temporary = path.join(path.dirname(file), `.${path.basename(file)}.${randomUUID()}.tmp`);
   let staged = false;
   try {
-    const original = await fs.stat(file);
-    const handle = await fs.open(temporary, 'wx', original.mode);
+    let mode = 0o666;
+    try {
+      const original = await fs.stat(file);
+      mode = original.mode;
+    } catch {}
+    const handle = await fs.open(temporary, 'wx', mode);
     staged = true;
     try { await handle.writeFile(bytes); await handle.sync(); }
     finally { await handle.close(); }
-    await beforeCommit();
+    if (beforeCommit) await beforeCommit();
     await fs.rename(temporary, file);
     staged = false;
   } finally {

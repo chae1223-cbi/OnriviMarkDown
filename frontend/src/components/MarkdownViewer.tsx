@@ -1,3 +1,6 @@
+// 🚨 @PATCH : **2026-11-01** — [표 셀 줄바꿈 파괴 및 긴 코드 경로로 인한 가로 늘어짐 방지]:
+//             1) .table-wrapper-area :is(th, td)에 overflow-wrap: anywhere 및 word-break: break-word, box-sizing: border-box 적용
+//             2) :is(th, td) code에 white-space: pre-wrap, overflow-wrap: anywhere, word-break: break-all을 적용하여 긴 파일 경로가 표를 찢지 않고 셀 안에서 안전하게 줄바꿈되도록 조판 완성
 import { resolveDocumentLink, resolveWorkspaceHelpLink } from '@/lib/nativeDocumentPath';
 import { hasHeadingNumber, headingNodeText } from '@/lib/headingNumbering';
 import { rehypeBibliography } from '@/lib/bibliography';
@@ -2707,6 +2710,26 @@ function MarkdownViewer({
           overflow: visible !important;
           box-shadow: none !important;
         }
+        .markdown-viewer-root .table-wrapper-area table,
+        .onrivi-content-root .table-wrapper-area table {
+          width: 100% !important;
+          table-layout: fixed !important;
+        }
+        .markdown-viewer-root .table-wrapper-area :is(th, td),
+        .onrivi-content-root .table-wrapper-area :is(th, td) {
+          overflow-wrap: anywhere !important;
+          word-break: break-word !important;
+          box-sizing: border-box !important;
+        }
+        .markdown-viewer-root .table-wrapper-area :is(th, td) code,
+        .onrivi-content-root .table-wrapper-area :is(th, td) code {
+          white-space: pre-wrap !important;
+          overflow-wrap: anywhere !important;
+          word-break: break-all !important;
+          display: inline !important;
+          box-decoration-break: clone;
+          -webkit-box-decoration-break: clone;
+        }
         .markdown-viewer-root th,
         .onrivi-content-root th,
         .markdown-viewer-root td,
@@ -3548,7 +3571,7 @@ function MarkdownViewer({
             table: ({ node, children, className, ...props }: any) => {
                return (
                  <TableWrapper>
-                   <table className={`w-full table-auto !m-0 !mt-0 !mb-0 ${className || ''}`} {...props}>
+                   <table className={`w-full table-fixed !m-0 !mt-0 !mb-0 ${className || ''}`} {...props}>
                      {children}
                    </table>
                  </TableWrapper>

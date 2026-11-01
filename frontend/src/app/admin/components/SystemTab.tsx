@@ -1,6 +1,7 @@
 /**
  * 프로그램명 : OnriviAuthor
  * 파일명 : app/admin/components/SystemTab.tsx
+ * 🚨 @PATCH : 2026-11-01 — 서버 오류 상세에 소스 파일·단계·PostgreSQL 오류 코드를 표시한다.
  * -----------------------------------------------------------------------
  * 🚨 @PATCH : **2026-10-08** — [시스템 현황 및 실시간 로그 가독성 극대화 & 고대비 라이트 모드 리팩토링]:
  *             1. 글자 크기 상향(text-xs/11px → text-sm 14px) 및 한글 본문 font-sans font-semibold 전면 적용
@@ -65,6 +66,7 @@ interface SystemStats {
 }
 
 interface SystemLogItem {
+  db_code?: string;
   source_file?: string;
   source_function?: string;
   event_code?: string;
@@ -558,8 +560,11 @@ export default function SystemTab() {
                     <div><dt className="font-bold">처리 시간</dt><dd>{detailLog.duration_ms ?? detailLog.message.match(/(\d+)ms/)?.[1] ?? '미수집'} ms</dd></div>
                     <div><dt className="font-bold">실행 위치</dt><dd>{detailLog.region || '미수집'}</dd></div>
                     <div className="sm:col-span-2"><dt className="font-bold">요청 ID</dt><dd className="break-all font-mono">{detailLog.request_id || detailLog.id}</dd></div>
+                    {detailLog.source_file && <div className="sm:col-span-2"><dt className="font-bold">소스 파일</dt><dd className="break-all font-mono">{detailLog.source_file}</dd></div>}
+                    {detailLog.source_function && <div><dt className="font-bold">처리 단계</dt><dd className="font-mono">{detailLog.source_function}</dd></div>}
+                    {detailLog.db_code && <div><dt className="font-bold">PostgreSQL 오류 코드</dt><dd className="font-mono">{detailLog.db_code}</dd></div>}
                   </dl>
-                  <p>{detailLog.outcome === 'UNHANDLED_EXCEPTION' ? '처리되지 않은 서버 예외가 발생했습니다. 요청 ID로 운영 콘솔의 기록을 확인하세요.' : (detailLog.status ?? Number(detailLog.message.match(/HTTP (\d+)/)?.[1])) >= 500 ? '서버 오류 응답입니다. 이 기록만으로 구체적인 오류 원인을 확정할 수 없습니다.' : (detailLog.status ?? Number(detailLog.message.match(/HTTP (\d+)/)?.[1])) >= 400 ? '요청이 거절되거나 처리되지 않았습니다. 인증·권한·요청 경로를 확인하세요.' : '정상 응답입니다. 처리 시간은 서버에서 응답을 생성하기까지의 시간입니다.'}</p>
+                  <p>{detailLog.outcome === 'UNHANDLED_EXCEPTION' ? '처리되지 않은 서버 예외가 발생했습니다. 요청 ID로 운영 콘솔의 기록을 확인하세요.' : (detailLog.status ?? Number(detailLog.message.match(/HTTP (\d+)/)?.[1])) >= 500 ? (detailLog.source_file ? '표시된 소스 파일과 처리 단계, PostgreSQL 오류 코드를 확인하세요.' : '서버 오류 응답입니다. 이 기록만으로 구체적인 오류 원인을 확정할 수 없습니다.') : (detailLog.status ?? Number(detailLog.message.match(/HTTP (\d+)/)?.[1])) >= 400 ? '요청이 거절되거나 처리되지 않았습니다. 인증·권한·요청 경로를 확인하세요.' : '정상 응답입니다. 처리 시간은 서버에서 응답을 생성하기까지의 시간입니다.'}</p>
                   <p className="text-xs text-zinc-500">개인정보 보호를 위해 쿼리, 본문, 인증 정보는 저장하지 않으며 동적 경로는 :value로 표시합니다.</p>
                 </div>
               )}

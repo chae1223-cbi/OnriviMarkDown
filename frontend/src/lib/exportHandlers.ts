@@ -4,6 +4,9 @@ import { embedExportFonts } from './exportFonts';
 import { startExportProgress } from './exportProgress';
 // PDF and print share the preview pagination engine on web and desktop.
 // A failed calculation must not silently discard the user's output boundaries.
+// 🚨 @PATCH : **2026-11-01** — [표 셀 줄바꿈 파괴 및 가로 늘어짐·텍스트 잘림 결함 내보내기 동기화]:
+//             1) generateExportCss 내 table에 width: 100%, max-width: 100%, table-layout: fixed !important 적용
+//             2) th, td에 overflow-wrap: anywhere, word-break: break-word를 적용하고, table :is(th, td) code에 white-space: pre-wrap, overflow-wrap: anywhere, word-break: break-all을 동기화하여 인쇄/내보내기 시 표 셀 텍스트가 안전하게 줄바꿈되도록 해결
 // 🚨 @PATCH : **2026-10-27** — [SNS 카드뉴스 전용 분할 출력 엔진(exportSNSCardNews) 신설 및 다중 카드 분할·일괄 저장 고도화]:
 //             1) 인스타그램·쓰레드·링크드인 공유용 1:1 정사각(1080×1080), 4:5 세로형(1080×1350), 16:9 와이드(1920×1080) 카드별 분할 캡처 및 ZIP/낱장 PNG 일괄 저장(exportSNSCardNews) 구현
 //             2) 문서보기(VisualDocumentEditor / .visual-document-surface, .ProseMirror) 및 마크다운 뷰어(.prose) 중첩 컨테이너 자동 언래핑 및 전 구간 카드 높이 기반 자동 분할(긴 리스트·단락 포함), 일렉트론 데스크톱 다중 낱장 PNG 일괄 저장 지원
@@ -795,6 +798,9 @@ blockquote li p {
   border-radius: 0 !important;
   overflow: visible !important;
   box-shadow: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  table-layout: fixed !important;
 }
 .custom-preview-container th,
 .custom-preview-container td,
@@ -805,7 +811,18 @@ blockquote li p {
 .onrivi-content-root .prose th,
 .onrivi-content-root .prose td {
   vertical-align: middle !important;
-  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  box-sizing: border-box !important;
+}
+.custom-preview-container table :is(th, td) code,
+.onrivi-content-root table :is(th, td) code {
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-all !important;
+  display: inline !important;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 .custom-preview-container .prose tr:last-child td,
 .onrivi-content-root .prose tr:last-child td {

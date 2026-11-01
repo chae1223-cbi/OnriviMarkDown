@@ -1,7 +1,9 @@
+// 🚨 @PATCH : 2026-11-01 — 공통 서버 오류 응답으로 요청 ID와 실패 위치를 연결한다.
 // 🚨 @PATCH : 2026-10-08 — UUID 정규표현식 5그룹(8-4-4-4-12) 누락 수정 및 세부 검증 오류 메시지 개선
 // 🚨 @PATCH : 2026-09-28 — SUPER 관리자의 플랜·무료/유료·사용기간·필수 사유 수동 변경을 한 트랜잭션으로 처리
 import { withBlogTransaction, blogJson } from '../../blog/_db.js';
 import { checkAdminAuth } from '../_shared.js';
+import { serverError } from '../../_server-error.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PLAN_CODE = /^[A-Z][A-Z0-9_]{1,49}$/;
@@ -121,7 +123,6 @@ export async function onRequestPost({ request, env }) {
     if (!result.success) return failure(result.code, result.message, result.status);
     return blogJson(result);
   } catch (error) {
-    console.error('[admin/users/plan] transaction failed', error);
-    return failure('SERVER_ERROR', '요금제 변경에 실패했습니다.', 500);
+    return serverError(request, error, { source: 'functions/api/admin/users/plan.js', stage: 'onRequestPost', message: '요금제 변경에 실패했습니다.' });
   }
 }

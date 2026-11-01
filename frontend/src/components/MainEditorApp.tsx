@@ -1,5 +1,9 @@
 /**
  * 프로그램명 : OnriviAuthor 
+// 🚨 @PATCH : **2026-11-01** — [표 셀 줄바꿈 파괴 및 가로 늘어짐·텍스트 잘림 결함 완전 해결]:
+//             1) .custom-preview-container table 및 .onrivi-content-root table에 width: 100%, max-width: 100%, table-layout: fixed !important를 기본 부여하여 긴 파일 경로/영문 텍스트 포함 시 표가 찢어지거나 특정 열이 1글자 세로로 찌그러지는 현상 방지
+//             2) th, td의 word-break: keep-all 단독 적용으로 인한 비CJK 텍스트 줄바꿈 차단을 해소하고 overflow-wrap: anywhere, word-break: break-word를 적용하여 컬럼 너비 내 안전한 텍스트 래핑 보장
+//             3) 표 내부 인라인 코드(table :is(th, td) code)에 white-space: pre-wrap, overflow-wrap: anywhere, word-break: break-all을 동적 인젝션하여 긴 경로/함수명이 표를 밀어내지 않고 자연스럽게 줄바꿈되도록 개선
 // 🚨 @PATCH : **2026-10-31** — [플로팅 툴바 onMouseDown/onClick 이중 실행 제거 및 단일 발화 보장]:
 //             1) 플로팅 툴바 모든 버튼에서 onMouseDown의 중복 액션 호출을 제거하고 e.preventDefault()만 수행하도록 개선
 //             2) 실제 액션은 onClick에서만 1회 단독 실행되도록 단일화하여 서식이 취소되었다가 즉시 재적용되는 핑퐁 버그 원천 해결
@@ -7653,6 +7657,9 @@ blockquote li p {
   border-radius: 0 !important;
   overflow: visible !important;
   box-shadow: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  table-layout: fixed !important;
 }
 .custom-preview-container th,
 .custom-preview-container td,
@@ -7663,7 +7670,19 @@ blockquote li p {
 .onrivi-content-root .prose th,
 .onrivi-content-root .prose td {
   vertical-align: middle !important;
-  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  box-sizing: border-box !important;
+}
+.custom-preview-container table :is(th, td) code,
+.onrivi-content-root table :is(th, td) code,
+.visual-document-surface table :is(th, td) code {
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-all !important;
+  display: inline !important;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 .custom-preview-container .prose tr:last-child td,
 .onrivi-content-root .prose tr:last-child td {

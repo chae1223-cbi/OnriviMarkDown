@@ -6,6 +6,7 @@
 `create_markdown`(새 문서 생성), `edit_markdown_section`(제목 아래 문구 수정),
 `update_style_profile`(기존 사용자 서식 수정) 도구를 제공합니다.
 AI 템플릿에는 `list_ai_templates`(목록), `get_ai_template`(본문 열람),
+`create_ai_template`(새 프롬프트 템플릿/프리셋 등록),
 `execute_ai_template`(변수·사용자 입력을 적용해 채팅 AI에서 실행) 도구를 제공합니다.
 Node.js 20 이상에서 로컬로 실행되며 별도의 npm 패키지가 필요하지 않습니다.
 현재 앱에서 선택한 로컬 작업장 또는 리소스 폴더 안에 있는
@@ -51,6 +52,12 @@ AI 템플릿은 현재 로컬 리소스 폴더의 `prompt/ai_presets.json`과
 변경되면 실행 입력 구성을 거부합니다. 목록은 본문을 반환하지 않고, 한 번에
 최대 100개를 조회합니다. 앱에 내장된 기본 프롬프트는 파일에 저장되어 있지
 않으면 이 로컬 MCP 목록에 나타나지 않습니다.
+
+`create_ai_template`는 대화에서 작성한 AI 프롬프트를 리소스 폴더의
+`prompt/ai_presets.json`(편집 프리셋) 또는 `prompt/ai_prompts.json`(분야별 문서 템플릿)에
+신규 등록합니다. 프리셋은 이름과 `{{변수}}`가 포함된 프롬프트 본문을 전달하며,
+문서 템플릿은 분야(domain)와 문서 종류(docType) 및 시스템 프롬프트를 전달합니다.
+파일 변경 감지용 `expectedSha256`을 함께 전달할 수 있으며, 저장은 원자적으로 수행됩니다.
 
 `execute_ai_template`는 **현재 채팅 AI가 답변을 생성할 입력**을 반환합니다.
 MCP 서버가 온리비 어서의 암호화된 AI API 키를 읽거나 별도의 유료 API를

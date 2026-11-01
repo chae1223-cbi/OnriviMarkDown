@@ -1,4 +1,6 @@
+// 🚨 @PATCH : 2026-11-01 — 공통 서버 오류 응답으로 요청 ID와 실패 위치를 연결한다.
 import { getBlogUser, withBlogTransaction, blogJson } from '../blog/_db.js';
+import { serverError } from '../_server-error.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PLAN_CODE = /^[A-Z][A-Z0-9_]{1,49}$/;
@@ -102,7 +104,6 @@ export async function onRequestPost({ request, env }) {
     if (!outcome.success) return failure(outcome.code, outcome.message, outcome.status);
     return blogJson(outcome);
   } catch (error) {
-    console.error('[subscription/create] transaction failed', error);
-    return failure('SERVER_ERROR', '요금제 변경에 실패했습니다.', 500);
+    return serverError(request, error, { source: 'functions/api/subscription/create.js', stage: 'onRequestPost', message: '요금제 변경에 실패했습니다.' });
   }
 }

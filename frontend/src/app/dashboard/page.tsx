@@ -1,5 +1,6 @@
 // ====================================================================
 // 📊 [OMD-AUTH-dashboard-0001 ✅ FIXED] DashboardPage ➔ DashboardPage
+// 🚨 @PATCH : 2026-11-01 — 구독 신청 실패 시 요청 ID를 토스트에 표시해 서버 로그와 연결한다.
 // 🎯 @KICK  : 로그인 유저 구독/라이선스/접속세션 관리 및 요금제 선택 대시보드
 // 🛡️ @GUARD : getUser() 인증 가드, 비인증 진입 시 /login 리다이렉트
 // 🚨 @PATCH : **2026-09-17** — [로그아웃/기기해제 시 환경설정(Gemini API 키 등) 영구 보존 및 선별적 세션 정리]: clearAuthSessionStorage 연동으로 API 키 및 사용자 설정 삭제 결함 해결
@@ -492,7 +493,10 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
         })
       });
       const result = await res.json();
-      if (!res.ok || !result?.success) throw new Error(result?.message || '플랜 활성화 실패');
+      if (!res.ok || !result?.success) {
+        const requestId = result?.requestId || res.headers.get('X-Request-ID');
+        throw new Error(`${result?.message || '플랜 활성화 실패'}${requestId ? ` (오류번호: ${requestId})` : ''}`);
+      }
 
       // -------------------------------------------------------------------------------------------
       // 로컬 스토리지 정보 동기화

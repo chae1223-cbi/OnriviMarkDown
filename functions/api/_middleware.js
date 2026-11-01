@@ -1,3 +1,4 @@
+// 🚨 @PATCH : 2026-11-01 — 요청 ID와 서버 오류 위치를 API 응답·R2 진단 로그에 연결한다.
 const operationRoutes = {
   "/api/upload-image": "이미지 업로드",
   "/api/image": "이미지 불러오기",
@@ -97,12 +98,14 @@ export async function onRequest(context) {
   let unhandled = false;
   let exceptionMessage = "";
   let response;
-  try { response = await context.next(); }
+  const downstreamHeaders = new Headers(context.request.headers);
+  downstreamHeaders.set('x-onrivi-request-id', requestId);
+  try { response = await context.next(new Request(context.request, { headers: downstreamHeaders })); }
   catch (error) { exceptionMessage = redactLogMessage(error instanceof Error ? error.message : 'Unknown server exception'); unhandled = true; response = new Response('Internal server error', { status: 500 }); }
   // Temporary diagnostic window ends at 2026-10-10 00:00 KST.
   const captureAllToday = Date.now() < Date.parse('2026-10-10T00:00:00+09:00');
   if ((captureAllToday || response.status >= 400 || (context.request.method !== 'GET' && ['/api/subscription/create','/api/subscription/cancel','/api/subscription/subscribe-desktop','/api/admin/users/plan'].includes(url.pathname))) && context.env.R2_BUCKET && !url.pathname.startsWith('/api/admin/system') && url.pathname !== '/api/client-log' && !(response.status < 400 && ['/api/device/session-status','/api/license/check-session'].includes(url.pathname))) {
-    const entry = { id: requestId, timestamp: new Date().toISOString(), level: response.status >= 500 ? 'ERROR' : response.status >= 400 ? 'WARN' : 'INFO', module: 'HTTP', action: context.request.method, message: `HTTP ${response.status} · ${Date.now() - started}ms`, actor: 'SERVER', target: '-', status: response.status, route, operation: describeOperation(url.pathname, context.request.method), duration_ms: Date.now() - started, request_id: requestId, outcome: unhandled ? 'UNHANDLED_EXCEPTION' : 'HTTP_RESPONSE', region: context.request.cf?.colo || null };
+    const entry = { id: requestId, timestamp: new Date().toISOString(), level: response.status >= 500 ? 'ERROR' : response.status >= 400 ? 'WARN' : 'INFO', module: 'HTTP', action: context.request.method, message: `HTTP ${response.status} · ${Date.now() - started}ms`, actor: 'SERVER', target: '-', status: response.status, route, operation: describeOperation(url.pathname, context.request.method), duration_ms: Date.now() - started, request_id: requestId, outcome: unhandled ? 'UNHANDLED_EXCEPTION' : 'HTTP_RESPONSE', region: context.request.cf?.colo || null, source_file: response.headers.get('X-Error-Source') || undefined, source_function: response.headers.get('X-Error-Stage') || undefined, db_code: response.headers.get('X-Error-Db-Code') || undefined };
     const date = entry.timestamp.slice(0,10);
     const errorResponse = response.status >= 400 && !unhandled ? response.clone() : null;
     context.waitUntil((async () => {
@@ -112,6 +115,9 @@ export async function onRequest(context) {
     })().catch(() => console.error('[ServerLog] Storage write failed')));
   }
   const result = new Response(response.body, response);
+  result.headers.delete('X-Error-Source');
+  result.headers.delete('X-Error-Stage');
+  result.headers.delete('X-Error-Db-Code');
   result.headers.set('X-Request-ID', requestId);
   return result;
 }

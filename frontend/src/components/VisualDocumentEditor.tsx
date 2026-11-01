@@ -1,6 +1,10 @@
 /**
  * 프로그램명 : OnriviAuthor 
  * 버전 정보 : 1.0.1
+ * 🚨 @PATCH : **2026-11-01** — [표 셀 줄바꿈 파괴 및 가로 늘어짐·텍스트 잘림 결함 완전 해결]:
+ *             1) .visual-document-surface .visual-editable-table에 table-layout: fixed !important 및 max-width: 100%를 적용하여 긴 텍스트/코드 포함 시 표가 화면 밖으로 튀어나가거나 특정 열이 1글자 세로로 찌그러지는 현상 원천 차단
+ *             2) th, td 셀에 overflow-wrap: anywhere !important 및 word-break: break-word !important를 부여하여 컬럼 비율 내에서 텍스트가 자연스럽게 줄바꿈되도록 개선
+ *             3) 표 내부 인라인 코드(:is(th, td) code)에 white-space: pre-wrap, overflow-wrap: anywhere, word-break: break-all을 적용하여 긴 파일 경로/URL이 셀 안에서 안전하게 줄바꿈되도록 완벽 조판
  * 🚨 @PATCH : **2026-10-31** — [서식 버튼 동일 클릭 시 취소(토글 해제) 지원]:
  *             1) setHeadingBlock에서 동일 레벨 제목 재클릭 시 paragraph(일반 문단)로 전환하여 제목 서식 즉시 취소
  *             2) setQuote에서 동일 인용구(일반/Alert) 재클릭 시 lift 커맨드를 실행하여 인용구 서식 즉시 취소
@@ -5125,10 +5129,13 @@ export default function VisualDocumentEditor({ content, onChange, readOnly = fal
       .visual-document-surface[contenteditable="false"] .visual-image-edit { display:none; }
       @media print { .visual-media-controls { display:none; } }
       @media (hover:none) { .visual-media-controls { opacity:1; pointer-events:auto; } }
-      .visual-document-surface .visual-editable-table { border-collapse:collapse; width:100%; margin:16px 0; }
-      .visual-document-surface .visual-editable-table th, .visual-document-surface .visual-editable-table td { border:1px solid #cbd5e1; padding:8px; min-width:60px; vertical-align:top; }
-      .visual-document-surface table th p, .visual-document-surface table td p { margin:0!important; padding:0!important; }
-      .visual-document-surface .visual-editable-table th { background:#f1f5f9; text-align:center!important; }
+      .visual-document-surface .visual-editable-table { border-collapse:collapse!important; width:100%!important; max-width:100%!important; table-layout:fixed!important; margin:16px 0!important; }
+      .visual-document-surface .visual-editable-table th, .visual-document-surface .visual-editable-table td { border:1px solid #cbd5e1!important; padding:8px 10px!important; min-width:0!important; vertical-align:top!important; overflow-wrap:anywhere!important; word-break:break-word!important; box-sizing:border-box!important; }
+      .visual-document-surface table th p, .visual-document-surface table td p { margin:0!important; padding:0!important; overflow-wrap:anywhere!important; word-break:break-word!important; white-space:pre-wrap!important; }
+      .visual-document-surface .visual-editable-table th { background:#f1f5f9!important; text-align:center!important; }
+      .visual-document-surface .visual-editable-table :is(th, td) code { white-space:pre-wrap!important; overflow-wrap:anywhere!important; word-break:break-all!important; display:inline!important; box-decoration-break:clone; -webkit-box-decoration-break:clone; }
+      .dark .visual-document-surface .visual-editable-table th { background:#1e293b!important; color:#f1f5f9!important; border-color:#334155!important; }
+      .dark .visual-document-surface .visual-editable-table td { border-color:#334155!important; }
       .custom-preview-container .visual-document-surface blockquote[data-alert-type], .onrivi-content-root .visual-document-surface blockquote[data-alert-type], .visual-document-surface blockquote[data-alert-type] { background:var(--alert-bg,#eff6ff)!important; border-left:4px solid var(--alert-border,#3b82f6)!important; padding:12px!important; border-radius:0 10px 10px 0; }
       .visual-document-surface blockquote[data-alert-type]::before { content:attr(data-alert-type); display:block; font-weight:700; color:inherit!important; margin-bottom:8px; }
 .visual-document-surface [data-alert-type="NOTE" i], .visual-document-surface [data-alert-type="참고" i], .visual-document-surface [data-alert-type="참조" i], .visual-document-surface [data-alert-type="메모" i], .visual-document-surface [data-alert-type="알림" i] { --alert-bg:#eff6ff; --alert-border:#3b82f6; --alert-text:#1d4ed8; }

@@ -1,9 +1,15 @@
+// ====================================================================
+// 📊 [OMD-MCP-SERVER-0001] server/index.mjs
+// 🎯 @KICK  : 온리비 어서 로컬 MCP 서버 진입점 및 도구 디스패처
+// 🛡️ @GUARD : Rule 1(단일 주석 관리), 로컬 라이선스/세션 검증, 원자적 I/O
+// 🚨 @PATCH : 2026-10-31 — [AI 프롬프트 템플릿 신규 등록 create_ai_template MCP 도구 등록 및 디스패치 연동]
+// ====================================================================
 import { readDocument, replaceDocument, editMarkdownSection } from './documents.mjs';
 import { listProfiles, createProfile, updateProfile } from './profiles.mjs';
 import { getCurrentFolders, requireLocalFolders } from './context.mjs';
 import { requireMcpAccess } from './authorization.mjs';
 import { listWorkspaceFiles, searchWorkspace, createMarkdown } from './workspace.mjs';
-import { listAITemplates, getAITemplate, executeAITemplate } from './ai-templates.mjs';
+import { listAITemplates, getAITemplate, executeAITemplate, createAITemplate } from './ai-templates.mjs';
 
 const tools = [
   {
@@ -70,6 +76,26 @@ const tools = [
     name: 'execute_ai_template',
     description: '열람한 AI 템플릿에 입력값을 적용해 이 채팅 AI가 즉시 실행할 프롬프트를 반환합니다. MCP 서버 자체는 외부 AI API를 호출하지 않으며 문서를 수정하지 않습니다.',
     inputSchema: { type: 'object', properties: { kind: { type: 'string', enum: ['preset', 'prompt'] }, id: { type: 'string' }, domain: { type: 'string' }, docType: { type: 'string' }, expectedSha256: { type: 'string' }, values: { type: 'object', additionalProperties: { type: 'string' } }, input: { type: 'string' } }, required: ['kind', 'expectedSha256'], additionalProperties: false }
+  },
+  {
+    name: 'create_ai_template',
+    description: '작성한 AI 프롬프트를 로컬 리소스 폴더의 AI 프리셋(preset) 또는 분야별 문서 템플릿(prompt)으로 신규 등록합니다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        kind: { type: 'string', enum: ['preset', 'prompt'], description: '등록 유형: preset(편집 프리셋, 기본값) 또는 prompt(분야별 문서 템플릿)' },
+        name: { type: 'string', description: '템플릿/프리셋 이름 (예: "블로그 요약 및 카드뉴스 변환", "학술 논문 초록 교정")' },
+        prompt: { type: 'string', description: '실행할 프롬프트 본문. {{변수명}} 형식의 치환 변수를 자유롭게 포함할 수 있습니다.' },
+        folder: { type: 'string', description: '선택 사항. 프리셋 분류 폴더명 (기본값: "AI작성")' },
+        domain: { type: 'string', description: 'prompt 유형일 때 필수. 분류 분야 (예: "출판조판", "비즈니스", "마케팅")' },
+        docType: { type: 'string', description: 'prompt 유형일 때 문서 종류명 (생략 시 name 사용)' },
+        systemPrompt: { type: 'string', description: 'prompt 유형일 때 시스템 프롬프트 (생략 시 prompt 사용)' },
+        userInputTemplate: { type: 'string', description: 'prompt 유형일 때 사용자 입력 가이드 템플릿' },
+        expectedSha256: { type: 'string', description: '선택 사항. list_ai_templates에서 확인한 기존 파일의 SHA-256 해시' }
+      },
+      required: ['name', 'prompt'],
+      additionalProperties: false
+    }
   }
 ];
 
@@ -155,6 +181,14 @@ async function dispatch(message) {
                   await requireMcpAccess();
                   await requireLocalFolders(context.contextSha256);
                   return result;
+                })()
+              : params.name === 'create_ai_template'
+                ? await (async () => {
+                  const context = await requireLocalFolders();
+                  return createAITemplate(context.resourcePath, params.arguments ?? {}, async () => {
+                    await requireMcpAccess();
+                    await requireLocalFolders(context.contextSha256);
+                  });
                 })()
             : null;
         if (!result) return error(id, -32602, '알 수 없는 도구입니다.');

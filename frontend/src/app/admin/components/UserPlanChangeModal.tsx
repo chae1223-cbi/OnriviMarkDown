@@ -1,3 +1,4 @@
+/** 🚨 @PATCH : 2026-11-01 — 서버 오류 토스트에 요청 ID를 표시해 관리자 로그와 연결 */
 /** 🚨 @PATCH : 2026-10-08 — 사용자 ID 방어 처리 강화 */
 /** 🚨 @PATCH : 2026-09-28 — SUPER 관리자 수동 변경에서 플랜·무료/유료·사용기간·필수 사유를 각각 지정 */
 'use client';
@@ -97,7 +98,10 @@ export default function UserPlanChangeModal({ user, onClose, onChanged }: {
           reason: reason.trim() }),
       });
       const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.message || '요금제 변경에 실패했습니다.');
+      if (!response.ok || !result.success) {
+        const requestId = result.requestId || response.headers.get('X-Request-ID');
+        throw new Error(`${result.message || '요금제 변경에 실패했습니다.'}${requestId ? ` (오류번호: ${requestId})` : ''}`);
+      }
       showToast('요금제를 변경했습니다. 기존 편집 세션은 종료되었습니다.', 'success');
       onChanged();
     } catch (error) {
